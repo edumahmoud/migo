@@ -15,6 +15,7 @@ import {
   UserCheck,
   UserPlus,
   Loader2,
+  Megaphone,
 } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
@@ -49,6 +50,8 @@ function getNotifIcon(type: string, title?: string) {
     case 'file_request': return <FileText className="h-5 w-5 text-orange-600" />;
     case 'file': return <FileText className="h-5 w-5 text-blue-600" />;
     case 'attendance': return <UserCheck className="h-5 w-5 text-violet-600" />;
+    case 'lecture': return <BookOpen className="h-5 w-5 text-teal-600" />;
+    case 'announcement': return <Megaphone className="h-5 w-5 text-sky-600" />;
     default: return <Info className="h-5 w-5 text-purple-600" />;
   }
 }
@@ -172,6 +175,45 @@ export default function NotificationsSection() {
           setTeacherSection('assignments');
           setCurrentPage('teacher-dashboard');
         }
+      }
+      return;
+    }
+
+    // Handle lecture links - navigate to the specific subject's lectures tab (course page)
+    if (notif.type === 'lecture' || notif.link?.startsWith('lecture:')) {
+      const subjectId = notif.link?.startsWith('lecture:') ? notif.link.split(':')[1] : null;
+      if (subjectId) {
+        const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setCurrentPage } = useAppStore.getState();
+        setSelectedSubjectId(subjectId);
+        setCourseTab('lectures');
+        if (user?.role === 'student') {
+          setStudentSection('subjects');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+          setTeacherSection('subjects');
+          setCurrentPage('teacher-dashboard');
+        }
+      } else {
+        // No subject ID, navigate to subjects section
+        if (user?.role === 'student') {
+          setStudentSection('subjects');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+          setTeacherSection('subjects');
+          setCurrentPage('teacher-dashboard');
+        }
+      }
+      return;
+    }
+
+    // Handle announcement notifications - navigate to notifications section
+    if (notif.type === 'announcement') {
+      if (user?.role === 'student') {
+        setStudentSection('notifications');
+        setCurrentPage('student-dashboard');
+      } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+        setTeacherSection('notifications');
+        setCurrentPage('teacher-dashboard');
       }
       return;
     }

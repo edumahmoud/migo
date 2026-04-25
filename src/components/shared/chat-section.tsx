@@ -168,6 +168,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // ─── Delete message confirmation dialog ───
   const [deleteMessageId, setDeleteMessageId] = useState<string | null>(null);
 
+  // ─── Delete conversation confirmation dialog ───
+  const [deleteConvId, setDeleteConvId] = useState<string | null>(null);
+
   // ─── Conversation list filter ───
   const [convFilter, setConvFilter] = useState('');
 
@@ -191,6 +194,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   const processedMsgIds = useRef<Set<string>>(new Set());
   // Debounce fetchConversations to prevent hammering the server when multiple socket events fire
   const fetchConvsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Track recently deleted message IDs to prevent polling from restoring them
+  const recentlyDeletedMsgIds = useRef<Set<string>>(new Set());
 
   // ─── Keep refs in sync ───
   useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
@@ -264,8 +270,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
       setMessages((prev) => {
         // Merge: keep optimistic messages, add any server messages we don't have
+        // Skip messages that were recently deleted (prevents polling from restoring them)
         const existingIds = new Set(prev.map((m) => m.id));
-        const newFromServer = serverMessages.filter((m) => !existingIds.has(m.id));
+        const newFromServer = serverMessages.filter(
+          (m) => !existingIds.has(m.id) && !recentlyDeletedMsgIds.current.has(m.id)
+        );
         if (newFromServer.length === 0) return prev;
         // Merge and sort by created_at
         return [...prev, ...newFromServer].sort(
@@ -487,13 +496,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
   // ─── Message deleted ───
   useSocketEvent<{ messageId: string }>('message-deleted', (data) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === data.messageId
-          ? { ...m, content: 'تم حذف هذه الرسالة', is_deleted: true }
-          : m
-      )
-    );
+    // Track so polling won't restore this message
+    recentlyDeletedMsgIds.current.add(data.messageId);
+    setTimeout(() => {
+      recentlyDeletedMsgIds.current.delete(data.messageId);
+    }, 30000);
+
+    // Remove the message from the array entirely
+    setMessages((prev) => prev.filter((m) => m.id !== data.messageId));
   });
 
   // ─── Conversation updated ───
@@ -786,6 +796,10 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   const handleDeleteMessage = async (msgId: string) => {
     setMessageMenuId(null);
     setDeleteMessageId(null); // Close confirmation dialog
+
+    // Track this ID so polling doesn't restore it
+    recentlyDeletedMsgIds.current.add(msgId);
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -796,22 +810,25 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
       // Check for HTTP errors or API errors BEFORE updating local state
       if (!res.ok || data.error) {
+        recentlyDeletedMsgIds.current.delete(msgId);
         toast.error(data.error || 'فشل حذف الرسالة');
-        return; // Do NOT mark as deleted locally if API failed
+        return; // Do NOT remove from UI if API failed
       }
 
-      // Only update local state after confirmed success
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId ? { ...m, content: 'تم حذف هذه الرسالة', is_deleted: true } : m
-        )
-      );
+      // Remove the message from the local state entirely after confirmed success
+      setMessages((prev) => prev.filter((m) => m.id !== msgId));
       socket?.emit('message-deleted', {
         conversationId: activeConvId,
         messageId: msgId,
       });
+
+      // Clean up the tracking set after a delay (polling won't add it back after this)
+      setTimeout(() => {
+        recentlyDeletedMsgIds.current.delete(msgId);
+      }, 30000);
     } catch (err) {
       console.error('Delete message error:', err);
+      recentlyDeletedMsgIds.current.delete(msgId);
       toast.error('فشل حذف الرسالة');
       // Do NOT update local state — the message was not deleted on the server
     }
@@ -1207,37 +1224,37 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // =====================================================
   // Delete entire conversation
   // =====================================================
-  const handleDeleteConversation = async () => {
-    if (!activeConvId) return;
-    
-    const convName = chatHeaderName;
-    if (!confirm(`هل أنت متأكد من حذف محادثة "${convName}"؟ سيتم حذف جميع الرسائل ولا يمكن التراجع عن هذا الإجراء.`)) return;
+  const handleConfirmDeleteConversation = async () => {
+    const convId = deleteConvId || activeConvId;
+    if (!convId) return;
+
+    setDeleteConvId(null); // Close confirmation dialog
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete-conversation', conversationId: activeConvId, userId: profile.id }),
+        body: JSON.stringify({ action: 'delete-conversation', conversationId: convId, userId: profile.id }),
       });
       const data = await res.json();
       if (data.error) {
         toast.error(data.error);
         return;
       }
-      
+
       // Leave the room
-      leaveRoom(activeConvId);
-      
+      leaveRoom(convId);
+
       // Remove from local state
-      setConversations((prev) => prev.filter((c) => c.id !== activeConvId));
-      
+      setConversations((prev) => prev.filter((c) => c.id !== convId));
+
       // Reset active conversation
       setActiveConvId(null);
       setActiveConvInfo(null);
       setMessages([]);
       setParticipants([]);
       setShowChat(false);
-      
+
       toast.success('تم حذف المحادثة بنجاح');
     } catch (err) {
       console.error('Delete conversation error:', err);
@@ -1490,7 +1507,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                               : 'لا توجد رسائل بعد'}
                           </p>
                           {unread > 0 && (
-                            <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-bold px-1.5">
+                            <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold px-1.5 shadow-sm animate-pulse">
                               {unread > 99 ? '99+' : unread}
                             </span>
                           )}
@@ -1563,7 +1580,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 <div className="flex items-center gap-1.5">
                   {/* Delete conversation button */}
                   <button
-                    onClick={handleDeleteConversation}
+                    onClick={() => setDeleteConvId(activeConvId)}
                     className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
                     title="حذف المحادثة"
                   >
@@ -1788,6 +1805,29 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             onClick={() => {
               if (deleteMessageId) handleDeleteMessage(deleteMessageId);
             }}
+            className="bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-600"
+          >
+            حذف
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* ============================================ */}
+    {/* DELETE CONVERSATION CONFIRMATION DIALOG       */}
+    {/* ============================================ */}
+    <AlertDialog open={!!deleteConvId} onOpenChange={(open) => { if (!open) setDeleteConvId(null); }}>
+      <AlertDialogContent dir="rtl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>حذف المحادثة</AlertDialogTitle>
+          <AlertDialogDescription>
+            هل أنت متأكد من حذف هذه المحادثة؟ سيتم حذف جميع الرسائل ولا يمكن التراجع.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>إلغاء</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirmDeleteConversation}
             className="bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-600"
           >
             حذف

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,6 +30,7 @@ function HomeContent() {
   const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, reset: resetAppStore, sidebarOpen, setSidebarOpen } = useAppStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
+  const isRecoveryFlow = useRef(false);
 
   // ─── Setup Wizard state ───
   const [setupCheckDone, setSetupCheckDone] = useState(false);
@@ -83,11 +84,12 @@ function HomeContent() {
 
     // Password reset mode - show the new password form
     if (mode === 'reset-password') {
+      isRecoveryFlow.current = true;
       setAuthMode('reset-password');
-      // Clean the URL after a short delay to keep the mode visible
+      // Clean the URL after a longer delay to ensure all effects have processed
       setTimeout(() => {
         window.history.replaceState({}, '', '/');
-      }, 100);
+      }, 2000);
       return;
     }
 
@@ -112,7 +114,7 @@ function HomeContent() {
     if (wizardInProgress) return;
 
     // Don't redirect away from the password reset form
-    if (authMode === 'reset-password') return;
+    if (authMode === 'reset-password' || isRecoveryFlow.current) return;
 
     if (user) {
       if (currentPage === 'auth') {

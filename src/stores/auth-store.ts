@@ -307,6 +307,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     // Listen for auth changes
     supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session?.user) {
+        // Password recovery flow - don't auto-login, just update the user reference
+        // The reset-password form in page.tsx will handle the actual password update
+        let { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          // Set user but don't register session or start validation for recovery
+          // page.tsx will check for authMode === 'reset-password'
+          set({ user: profile as UserProfile, loading: false });
+        }
+        return; // Don't register session or start validation for recovery
+      }
+
       if (event === 'SIGNED_IN' && session?.user) {
         // Check if user's email is banned
         const { data: bannedRecord } = await supabase

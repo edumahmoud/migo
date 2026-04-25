@@ -29,7 +29,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
       });
 
       if (error) {

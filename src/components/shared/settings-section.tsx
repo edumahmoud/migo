@@ -22,6 +22,7 @@ import {
   WifiOff,
   Check,
   Info,
+  Code2,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -43,6 +44,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth-store';
@@ -1169,6 +1171,31 @@ export default function SettingsSection({
           )}
         </div>
       </div>
+
+      {/* Developer Info */}
+      <motion.div
+        className="rounded-xl border bg-card shadow-sm overflow-hidden"
+        variants={sectionVariants}
+        initial="hidden"
+        animate="visible"
+        custom={5}
+      >
+        <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
+          <Code2 className="h-4 w-4 text-emerald-600" />
+          <h3 className="font-semibold text-foreground text-sm">معلومات المطور</h3>
+        </div>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
+              <Code2 className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className="font-semibold">محمود رمضان</p>
+              <p className="text-sm text-muted-foreground">تكنولوجيا التعليم الرقمي</p>
+            </div>
+          </div>
+        </CardContent>
+      </motion.div>
 
       {/* Avatar Preview Dialog */}
       <Dialog open={avatarPreviewOpen} onOpenChange={setAvatarPreviewOpen}>

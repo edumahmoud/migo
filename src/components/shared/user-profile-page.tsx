@@ -441,8 +441,21 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           العودة
         </Button>
 
+        {/* My Profile button - navigate to own profile */}
+        {!isOwnProfile && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => openProfile(currentUser.id)}
+            className="absolute top-4 left-4 z-10 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm"
+          >
+            <User className="h-4 w-4" />
+            الصفحة الشخصية
+          </Button>
+        )}
+
         {/* Banner gradient */}
-        <div className="h-40 sm:h-52 rounded-b-2xl bg-gradient-to-bl from-emerald-600 via-teal-500 to-emerald-700 relative overflow-hidden">
+        <div className="h-36 sm:h-44 rounded-b-2xl bg-gradient-to-bl from-emerald-600 via-teal-500 to-emerald-700 relative overflow-hidden">
           {/* Decorative patterns */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
@@ -457,7 +470,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         </div>
 
         {/* Avatar - overlapping the banner */}
-        <div className="absolute -bottom-16 right-6 sm:right-10 z-10">
+        <div className="absolute -bottom-12 right-6 sm:right-10 z-10">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -475,12 +488,12 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
             </div>
             {/* Zoom overlay */}
             {profile.avatar_url && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 group-hover:bg-black/30 transition-all duration-200 p-1">
+              <div className="absolute inset-0 z-[1] flex items-center justify-center rounded-full bg-black/0 group-hover:bg-black/30 transition-all duration-200 p-1">
                 <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
               </div>
             )}
             {/* Status indicator */}
-            <span className={`absolute bottom-2 left-2 h-5 w-5 rounded-full ring-3 ring-white dark:ring-gray-900 z-20 ${
+            <span className={`absolute bottom-2 left-2 h-5 w-5 rounded-full ring-3 ring-white dark:ring-gray-900 z-30 ${
               getStatusColor(profileUserStatus)
             } ${profileUserStatus === 'online' ? 'animate-pulse' : ''}`} />
           </motion.div>
@@ -492,7 +505,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.3 }}
-        className="mt-24 sm:mt-24 px-6 sm:px-10"
+        className="mt-20 sm:mt-20 px-6 sm:px-10"
       >
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           {/* Name & identity */}

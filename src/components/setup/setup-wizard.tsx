@@ -108,6 +108,251 @@ function StepIndicator({ currentStep, showMigration }: { currentStep: WizardStep
   );
 }
 
+// ─── Migration Step Component ───
+
+function MigrationStep({ onTableExists, onStepChange, checkingMigration, setCheckingMigration }: {
+  onTableExists: (exists: boolean) => void;
+  onStepChange: (step: WizardStep) => void;
+  checkingMigration: boolean;
+  setCheckingMigration: (v: boolean) => void;
+}) {
+  const [autoCreating, setAutoCreating] = useState(false);
+  const [autoCreateFailed, setAutoCreateFailed] = useState(false);
+  const [showSQL, setShowSQL] = useState(false);
+
+  const migrationSQL = `-- انسخ هذا الكود وشغّله في محرر SQL في لوحة تحكم Supabase
+-- (Dashboard → SQL Editor → New Query)
+-- ثم اضغط "تم تنفيذ SQL" للاستمرار
+
+CREATE TABLE IF NOT EXISTS institution_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  name_en TEXT,
+  type TEXT NOT NULL CHECK (type IN ('center', 'school', 'university')),
+  logo_url TEXT,
+  country TEXT,
+  city TEXT,
+  address TEXT,
+  phone TEXT,
+  email TEXT,
+  website TEXT,
+  academic_year TEXT,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE institution_settings ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "Anyone can read institution_settings" ON institution_settings
+    FOR SELECT USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Service can insert institution_settings" ON institution_settings
+    FOR INSERT WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "Service can update institution_settings" ON institution_settings
+    FOR UPDATE USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE OR REPLACE FUNCTION update_institution_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_institution_updated_at ON institution_settings;
+CREATE TRIGGER trg_institution_updated_at
+  BEFORE UPDATE ON institution_settings
+  FOR EACH ROW EXECUTE FUNCTION update_institution_updated_at();
+
+CREATE OR REPLACE FUNCTION setup_initialize_system(
+  p_name TEXT, p_name_en TEXT DEFAULT NULL,
+  p_type TEXT DEFAULT 'center', p_logo_url TEXT DEFAULT NULL,
+  p_country TEXT DEFAULT NULL, p_city TEXT DEFAULT NULL,
+  p_address TEXT DEFAULT NULL, p_phone TEXT DEFAULT NULL,
+  p_email TEXT DEFAULT NULL, p_website TEXT DEFAULT NULL,
+  p_academic_year TEXT DEFAULT NULL, p_description TEXT DEFAULT NULL
+)
+RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE v_id UUID; v_existing_id UUID;
+BEGIN
+  SELECT id INTO v_existing_id FROM institution_settings LIMIT 1;
+  IF v_existing_id IS NOT NULL THEN
+    UPDATE institution_settings SET name=p_name, name_en=p_name_en, type=p_type,
+      logo_url=p_logo_url, country=p_country, city=p_city, address=p_address,
+      phone=p_phone, email=p_email, website=p_website,
+      academic_year=p_academic_year, description=p_description
+    WHERE id=v_existing_id;
+    RETURN json_build_object('action','updated','id',v_existing_id);
+  END IF;
+  INSERT INTO institution_settings(name,name_en,type,logo_url,country,city,address,phone,email,website,academic_year,description)
+  VALUES(p_name,p_name_en,p_type,p_logo_url,p_country,p_city,p_address,p_phone,p_email,p_website,p_academic_year,p_description)
+  RETURNING id INTO v_id;
+  RETURN json_build_object('action','created','id',v_id);
+END;
+$$;`;
+
+  const handleAutoCreate = async () => {
+    setAutoCreating(true);
+    try {
+      const res = await fetch('/api/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create_table' }),
+      });
+      const data = await res.json();
+
+      if (data.success && data.tableExists) {
+        onTableExists(true);
+        onStepChange('admin-account');
+        toast.success('تم إنشاء الجدول بنجاح');
+        return;
+      }
+
+      // Auto-create failed, show SQL for manual execution
+      setAutoCreateFailed(true);
+      setShowSQL(true);
+      toast.error('لم يتم إنشاء الجدول تلقائياً. يرجى تنفيذ SQL يدوياً.');
+    } catch {
+      setAutoCreateFailed(true);
+      setShowSQL(true);
+      toast.error('حدث خطأ أثناء إنشاء الجدول');
+    } finally {
+      setAutoCreating(false);
+    }
+  };
+
+  const handleCheckTable = async () => {
+    setCheckingMigration(true);
+    try {
+      const res = await fetch('/api/setup');
+      const data = await res.json();
+      if (data.tableExists) {
+        onTableExists(true);
+        onStepChange('admin-account');
+        toast.success('تم إنشاء الجدول بنجاح');
+      } else {
+        toast.error('الجدول لم يُنشأ بعد. يرجى تنفيذ SQL أولاً');
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء التحقق');
+    } finally {
+      setCheckingMigration(false);
+    }
+  };
+
+  return (
+    <motion.div
+      key="migration-step"
+      initial={{ opacity: 0, x: 50 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -50 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className="space-y-5"
+    >
+      <div className="text-center mb-6">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-400 to-red-500 shadow-lg">
+          <GraduationCap className="h-8 w-8 text-white" />
+        </div>
+        <h2 className="text-2xl font-bold text-white">تهيئة قاعدة البيانات</h2>
+        <p className="text-emerald-100 mt-2 text-sm">يجب إنشاء جدول المؤسسة في قاعدة البيانات قبل البدء</p>
+      </div>
+
+      {/* Auto-create button */}
+      {!showSQL && (
+        <>
+          <div className="rounded-xl bg-emerald-500/20 border border-emerald-400/30 p-3 text-xs text-emerald-100 flex items-start gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>يمكن محاولة إنشاء الجدول تلقائياً. اضغط الزر أدناه للبدء.</span>
+          </div>
+
+          <Button
+            onClick={handleAutoCreate}
+            disabled={autoCreating}
+            className="w-full h-12 text-base font-bold bg-gradient-to-l from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
+          >
+            {autoCreating ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>جارٍ إنشاء الجدول...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-5 w-5 ml-1" />
+                <span>إنشاء الجدول تلقائياً</span>
+              </>
+            )}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowSQL(true)}
+            className="w-full border-white/30 text-white hover:bg-white/10"
+          >
+            إنشاء يدوي (تنفيذ SQL)
+          </Button>
+        </>
+      )}
+
+      {/* Manual SQL execution */}
+      {showSQL && (
+        <>
+          <div className="rounded-xl bg-amber-500/20 border border-amber-400/30 p-3 text-xs text-amber-100 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>انسخ كود SQL التالي ثم شغّله في محرر SQL في لوحة تحكم Supabase (Dashboard → SQL Editor → New Query)</span>
+          </div>
+
+          <div className="relative">
+            <pre className="rounded-xl bg-black/30 border border-white/10 p-4 text-xs text-emerald-200 overflow-x-auto max-h-64 overflow-y-auto font-mono" dir="ltr">
+              {migrationSQL}
+            </pre>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(migrationSQL);
+                toast.success('تم نسخ كود SQL');
+              }}
+              className="absolute top-2 left-2 bg-white/20 hover:bg-white/30 text-white border-0 text-xs"
+            >
+              نسخ
+            </Button>
+          </div>
+
+          <Button
+            onClick={handleCheckTable}
+            disabled={checkingMigration}
+            className="w-full h-12 text-base font-bold bg-gradient-to-l from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
+          >
+            {checkingMigration ? (
+              <>
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>جارٍ التحقق...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-5 w-5 ml-1" />
+                <span>تم تنفيذ SQL - تحقق</span>
+              </>
+            )}
+          </Button>
+        </>
+      )}
+    </motion.div>
+  );
+}
+
 // ─── Main Component ───
 
 export default function SetupWizard({ onComplete, onStart }: SetupWizardProps) {
@@ -301,245 +546,6 @@ export default function SetupWizard({ onComplete, onStart }: SetupWizardProps) {
     } finally {
       setSavingInstitution(false);
     }
-  };
-
-  // ─── Render Step 0: DB Migration ───
-  const renderMigrationStep = () => {
-    const [autoCreating, setAutoCreating] = useState(false);
-    const [autoCreateFailed, setAutoCreateFailed] = useState(false);
-    const [showSQL, setShowSQL] = useState(false);
-
-    const migrationSQL = `-- انسخ هذا الكود وشغّله في محرر SQL في لوحة تحكم Supabase
--- (Dashboard → SQL Editor → New Query)
--- ثم اضغط "تم تنفيذ SQL" للاستمرار
-
-CREATE TABLE IF NOT EXISTS institution_settings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  name_en TEXT,
-  type TEXT NOT NULL CHECK (type IN ('center', 'school', 'university')),
-  logo_url TEXT,
-  country TEXT,
-  city TEXT,
-  address TEXT,
-  phone TEXT,
-  email TEXT,
-  website TEXT,
-  academic_year TEXT,
-  description TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE institution_settings ENABLE ROW LEVEL SECURITY;
-
-DO $$ BEGIN
-  CREATE POLICY "Anyone can read institution_settings" ON institution_settings
-    FOR SELECT USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "Service can insert institution_settings" ON institution_settings
-    FOR INSERT WITH CHECK (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE POLICY "Service can update institution_settings" ON institution_settings
-    FOR UPDATE USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-CREATE OR REPLACE FUNCTION update_institution_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trg_institution_updated_at ON institution_settings;
-CREATE TRIGGER trg_institution_updated_at
-  BEFORE UPDATE ON institution_settings
-  FOR EACH ROW EXECUTE FUNCTION update_institution_updated_at();
-
-CREATE OR REPLACE FUNCTION setup_initialize_system(
-  p_name TEXT, p_name_en TEXT DEFAULT NULL,
-  p_type TEXT DEFAULT 'center', p_logo_url TEXT DEFAULT NULL,
-  p_country TEXT DEFAULT NULL, p_city TEXT DEFAULT NULL,
-  p_address TEXT DEFAULT NULL, p_phone TEXT DEFAULT NULL,
-  p_email TEXT DEFAULT NULL, p_website TEXT DEFAULT NULL,
-  p_academic_year TEXT DEFAULT NULL, p_description TEXT DEFAULT NULL
-)
-RETURNS JSON LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE v_id UUID; v_existing_id UUID;
-BEGIN
-  SELECT id INTO v_existing_id FROM institution_settings LIMIT 1;
-  IF v_existing_id IS NOT NULL THEN
-    UPDATE institution_settings SET name=p_name, name_en=p_name_en, type=p_type,
-      logo_url=p_logo_url, country=p_country, city=p_city, address=p_address,
-      phone=p_phone, email=p_email, website=p_website,
-      academic_year=p_academic_year, description=p_description
-    WHERE id=v_existing_id;
-    RETURN json_build_object('action','updated','id',v_existing_id);
-  END IF;
-  INSERT INTO institution_settings(name,name_en,type,logo_url,country,city,address,phone,email,website,academic_year,description)
-  VALUES(p_name,p_name_en,p_type,p_logo_url,p_country,p_city,p_address,p_phone,p_email,p_website,p_academic_year,p_description)
-  RETURNING id INTO v_id;
-  RETURN json_build_object('action','created','id',v_id);
-END;
-$$;`;
-
-    const handleAutoCreate = async () => {
-      setAutoCreating(true);
-      try {
-        const res = await fetch('/api/setup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create_table' }),
-        });
-        const data = await res.json();
-
-        if (data.success && data.tableExists) {
-          setTableExists(true);
-          setStep('admin-account');
-          toast.success('تم إنشاء الجدول بنجاح');
-          return;
-        }
-
-        // Auto-create failed, show SQL for manual execution
-        setAutoCreateFailed(true);
-        setShowSQL(true);
-        toast.error('لم يتم إنشاء الجدول تلقائياً. يرجى تنفيذ SQL يدوياً.');
-      } catch {
-        setAutoCreateFailed(true);
-        setShowSQL(true);
-        toast.error('حدث خطأ أثناء إنشاء الجدول');
-      } finally {
-        setAutoCreating(false);
-      }
-    };
-
-    const handleCheckTable = async () => {
-      setCheckingMigration(true);
-      try {
-        const res = await fetch('/api/setup');
-        const data = await res.json();
-        if (data.tableExists) {
-          setTableExists(true);
-          setStep('admin-account');
-          toast.success('تم إنشاء الجدول بنجاح');
-        } else {
-          toast.error('الجدول لم يُنشأ بعد. يرجى تنفيذ SQL أولاً');
-        }
-      } catch {
-        toast.error('حدث خطأ أثناء التحقق');
-      } finally {
-        setCheckingMigration(false);
-      }
-    };
-
-    return (
-      <motion.div
-        key="migration-step"
-        initial={{ opacity: 0, x: 50 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -50 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="space-y-5"
-      >
-        <div className="text-center mb-6">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-400 to-red-500 shadow-lg">
-            <GraduationCap className="h-8 w-8 text-white" />
-          </div>
-          <h2 className="text-2xl font-bold text-white">تهيئة قاعدة البيانات</h2>
-          <p className="text-emerald-100 mt-2 text-sm">يجب إنشاء جدول المؤسسة في قاعدة البيانات قبل البدء</p>
-        </div>
-
-        {/* Auto-create button */}
-        {!showSQL && (
-          <>
-            <div className="rounded-xl bg-emerald-500/20 border border-emerald-400/30 p-3 text-xs text-emerald-100 flex items-start gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>يمكن محاولة إنشاء الجدول تلقائياً. اضغط الزر أدناه للبدء.</span>
-            </div>
-
-            <Button
-              onClick={handleAutoCreate}
-              disabled={autoCreating}
-              className="w-full h-12 text-base font-bold bg-gradient-to-l from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
-            >
-              {autoCreating ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>جارٍ إنشاء الجدول...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-5 w-5 ml-1" />
-                  <span>إنشاء الجدول تلقائياً</span>
-                </>
-              )}
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowSQL(true)}
-              className="w-full border-white/30 text-white hover:bg-white/10"
-            >
-              إنشاء يدوي (تنفيذ SQL)
-            </Button>
-          </>
-        )}
-
-        {/* Manual SQL execution */}
-        {showSQL && (
-          <>
-            <div className="rounded-xl bg-amber-500/20 border border-amber-400/30 p-3 text-xs text-amber-100 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>انسخ كود SQL التالي ثم شغّله في محرر SQL في لوحة تحكم Supabase (Dashboard → SQL Editor → New Query)</span>
-            </div>
-
-            <div className="relative">
-              <pre className="rounded-xl bg-black/30 border border-white/10 p-4 text-xs text-emerald-200 overflow-x-auto max-h-64 overflow-y-auto font-mono" dir="ltr">
-                {migrationSQL}
-              </pre>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(migrationSQL);
-                  toast.success('تم نسخ كود SQL');
-                }}
-                className="absolute top-2 left-2 bg-white/20 hover:bg-white/30 text-white border-0 text-xs"
-              >
-                نسخ
-              </Button>
-            </div>
-
-            <Button
-              onClick={handleCheckTable}
-              disabled={checkingMigration}
-              className="w-full h-12 text-base font-bold bg-gradient-to-l from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-lg shadow-amber-500/25 transition-all duration-300 rounded-xl"
-            >
-              {checkingMigration ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>جارٍ التحقق...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-5 w-5 ml-1" />
-                  <span>تم تنفيذ SQL - تحقق</span>
-                </>
-              )}
-            </Button>
-          </>
-        )}
-      </motion.div>
-    );
   };
 
   // ─── Render Step 1: Admin Account ───
@@ -1007,7 +1013,7 @@ $$;`;
           className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-6 shadow-2xl"
         >
           <AnimatePresence mode="wait">
-            {step === 'db-migration' && renderMigrationStep()}
+            {step === 'db-migration' && <MigrationStep onTableExists={setTableExists} onStepChange={setStep} checkingMigration={checkingMigration} setCheckingMigration={setCheckingMigration} />}
             {step === 'admin-account' && renderAdminStep()}
             {step === 'institution-info' && renderInstitutionStep()}
             {step === 'complete' && renderCompleteStep()}

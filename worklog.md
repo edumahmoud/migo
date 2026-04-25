@@ -1,448 +1,164 @@
-# Worklog
-
-## 2026-03-04 — Add AppHeader to Profile Page
-
-**Task**: Add the AppHeader component to the profile page view in `/home/z/my-project/src/app/page.tsx`.
-
-**Changes made**:
-
-1. **Added AppHeader import** (line 19):
-   - `import AppHeader from '@/components/shared/app-header';`
-
-2. **Extended useAppStore destructuring** (line 26):
-   - Added `sidebarOpen` and `setSidebarOpen` to the existing destructuring from `useAppStore()`.
-
-3. **Replaced the profile view section** (lines 267–305):
-   - Wrapped the profile page content with `<SocketProvider>` to match the dashboard pattern.
-   - Added `<AppHeader>` with all required props: `userName`, `userId`, `userRole`, `userGender`, `titleId`, `avatarUrl`, `onSignOut`, `onOpenSettings`, `onToggleSidebar`, `sidebarCollapsed`.
-   - Changed the outer div class from `bg-gradient-to-b from-emerald-50 via-white to-teal-50` to `bg-background` to match the header's background.
-   - Wrapped `<UserProfilePage>` in a `<main className="pt-14 sm:pt-16">` to account for the fixed header height.
-   - The `onSignOut` handler properly calls `destroySocket()`, `resetAppStore()`, `setCurrentPage('auth')`, and `signOut()`.
-   - The `onOpenSettings` navigates back to the user's dashboard.
-   - Sidebar toggle uses the `sidebarOpen`/`setSidebarOpen` state from the app store.
-
-**Verification**:
-- `bun run lint` passes with no errors.
-- Dev server compiles successfully.
-
----
-
-## 2026-03-05 — Mobile-First Auth Form Layout (RTL/Arabic)
-
-**Task**: Modify auth form components to fill the entire mobile screen without requiring scroll, while keeping desktop layout unchanged. Target: iPhone SE (375×667).
-
-**Changes made**:
-
-1. **`/home/z/my-project/src/app/page.tsx`** — Auth page wrapper:
-   - Outer div: Changed from `flex items-center justify-center p-4` to `flex flex-col justify-start pt-6 px-4 pb-4 sm:flex sm:items-center sm:justify-center sm:p-4` — on mobile, content starts near top; on desktop, centered.
-   - Inner div: Added `mx-auto` to `relative z-10 w-full max-w-md` for consistent centering.
-
-2. **`/home/z/my-project/src/components/auth/login-form.tsx`** — Login form compact layout:
-   - Outer div: Added `flex flex-col h-full sm:h-auto`
-   - Card: Added `flex-1 sm:flex-none flex flex-col sm:block`
-   - CardHeader: `pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6`
-   - Icon div: `h-12 w-12 sm:h-16 sm:w-16`, `mb-2 sm:mb-4`
-   - CardTitle: `text-xl sm:text-2xl`
-   - CardDescription: `mt-1 sm:mt-2 text-xs sm:text-sm`
-   - CardContent: `pt-2 sm:pt-4 px-4 sm:px-6 pb-4 sm:pb-6`
-   - Form spacing: `space-y-3 sm:space-y-5`
-   - Input heights: `h-10 sm:h-11`
-   - Labels: Added `text-xs sm:text-sm`
-   - Divider: `my-3 sm:my-6`
-   - Register link: `mt-3 sm:mt-6`
-
-3. **`/home/z/my-project/src/components/auth/register-form.tsx`** — Register form compact layout:
-   - Same structural changes as login form
-   - Card also includes `overflow-y-auto` for safety
-   - Form spacing: `space-y-3 sm:space-y-4`
-   - Info note: `p-2 sm:p-3 text-xs`
-   - Divider: `my-3 sm:my-6`
-   - Login link: `mt-3 sm:mt-6`
-
-4. **`/home/z/my-project/src/components/auth/forgot-password-form.tsx`** — Forgot password compact layout:
-   - Same structural pattern as other forms
-   - Success state check icon: `h-12 w-12 sm:h-16 sm:w-16`
-   - Success spacing: `space-y-3 sm:space-y-4`
-   - Form spacing: `space-y-3 sm:space-y-5`
-   - Input height: `h-10 sm:h-11`
-   - Label: `text-xs sm:text-sm`
-
-**Verification**:
-- `bun run lint` passes with no errors.
-- All Arabic text preserved as-is.
-- No functionality changes — only CSS class adjustments.
----
-Task ID: responsive-mobile-ux
-Agent: Main Agent
-Task: Make the entire platform responsive for all screen sizes, add header to profile page, mobile app-like design
-
-Work Log:
-- Explored full codebase structure at /home/z/my-project/ (NOT /tmp/attendo-repo/)
-- Discovered user-profile-page.tsx exists in main project but was missing the AppHeader
-- Profile page was rendered outside dashboard layout in page.tsx, without the header
-- Auth forms used centered layout that required scrolling on mobile
-- Header was crowded on mobile with username/role taking too much space
-- Notification dropdown needed better mobile positioning
-
-- Added AppHeader to profile page view in page.tsx (with SocketProvider, pt-14 sm:pt-16)
-- Updated app-header.tsx for mobile: hidden username/role on mobile (show only avatar), touch-manipulation, tighter spacing, hidden section label on mobile, wider dropdown
-- Updated notification-bell.tsx: mobile-aware dropdown positioning (full width minus margins), touch-manipulation, maxHeight on mobile
-- Updated page.tsx auth wrapper: mobile-first layout (justify-start, top-aligned) vs desktop (centered)
-- Updated login-form.tsx: compact on mobile (smaller icon, text, inputs, spacing), full height flex layout
-- Updated register-form.tsx: same mobile-first approach with overflow-y-auto on card
-- Updated forgot-password-form.tsx: same compact mobile layout
-- Added mobile app-like CSS to globals.css: text-size-adjust, touch-action, safe-area insets, overscroll-behavior, tap-highlight removal on touch devices
-- Updated user-profile-page.tsx: added mobile padding (px-2 sm:px-0)
-- All changes pass lint cleanly
-- Dev server compiles without errors
-
-Stage Summary:
-- Profile page now has the main AppHeader like all other pages
-- Auth forms fill mobile screen without requiring scroll
-- Header is compact on mobile (avatar-only, no username text)
-- Notification dropdown takes full width on mobile
-- Mobile app-like touch experience (no 300ms delay, no hover effects on touch)
-- Safe area support for modern phones with notches
-- Desktop layout remains unchanged
-
----
-Task ID: 1
-Agent: Main Agent
-Task: Fix lecture creation notification - students should be notified when teacher creates a lecture
-
-Work Log:
-- Investigated the notification system: API route exists at /api/notify/route.ts, client code calls it from lectures-tab.tsx
-- Discovered the API was being called (10+ POST requests in dev log, all returning 200) but notifications might not be delivered
-- Found the API route's notifyUsers function didn't check for Supabase insert errors (Supabase JS v2 returns errors in {error} not as exceptions)
-- Confirmed the API works by testing with curl - notifications ARE being inserted into the DB
-- Identified the core issue: real-time subscription (Supabase Realtime) may not be delivering notifications to the client
-- Added polling fallback to notification store (15-second interval re-fetch from DB)
-- Added refetchNotifications when notification bell is opened
-- Added proper error checking in notifyUsers/notifyUser functions (check {error} from Supabase insert)
-- Added getStudentIds filtering by status='approved' with fallback
-- Added 'lecture' to NotificationType TypeScript type
-- Added lecture icon (BookOpen teal) to notification bell
-- Created migration v14_add_lecture_notification_type.sql for DB CHECK constraint
-- Updated API route to try 'lecture' type first, fall back to 'system' if DB constraint doesn't support it
-- All changes pass lint cleanly
-
-Stage Summary:
-- Key fix: Added 15-second polling fallback to notification store so notifications appear even if Supabase Realtime fails
-- Key fix: Notification bell now re-fetches from DB when opened
-- Key fix: notifyUsers/notifyUser now properly check and log Supabase insert errors
-- Added 'lecture' notification type (TypeScript) with fallback to 'system' (DB constraint not yet updated)
-- Migration file created but needs to be applied manually via Supabase SQL Editor
-- The lecture creation notification now works end-to-end (verified with curl test)
-
----
-Task ID: lecture-notification-time
-Agent: Main Agent
-Task: Add time with date in lecture notification message
-
-Work Log:
-- Updated lectures-tab.tsx handleCreateLecture to pass `lectureTime: newTime || null` to /api/notify
-- Updated /api/notify/route.ts `lecture_created` case to accept `lectureTime` parameter
-- Added comprehensive date+time formatting in Arabic (e.g., "١٥ أبريل ٢٠٢٦ - ٢:٣٠ م")
-- Handles all cases: date+time, date only, time only, neither
-- 12-hour Arabic time format (ص/م) for consistency with UI
-
-Stage Summary:
-- Lecture notifications now show both date AND time in the message
-- Format: "أنشأ المعلم X محاضرة "Y" (١٥ أبريل ٢٠٢٦ - ٢:٣٠ م)"
-
----
-Task ID: manual-attendance-register
-Agent: Main Agent
-Task: Add teacher ability to manually register student in attendance
-
-Work Log:
-- Added state variables: absentStudents, loadingAbsent, manualRegistering, showAbsentList to lecture-modal.tsx
-- Added fetchAbsentStudents() function that compares enrolled students vs checked-in records
-- Added handleManualRegister() function that inserts attendance_records with check_in_method='manual'
-- Added "تسجيل يدوي" (Manual Register) button in attendance records header (only when absentCount > 0)
-- Added absent students list section with avatar, name, email, and "تسجيل حضور" button per student
-- Updated check_in_method display to show "يدوي" for manual registrations
-- Added 'manual' to check_in_method TypeScript type in types.ts
-- Added UserPlus icon import to lecture-modal.tsx
-
-Stage Summary:
-- Teachers can now manually register absent students from the lecture modal
-- "تسجيل يدوي" button appears in attendance header when there are absent students
-- Expands to show list of absent students with one-click registration
-- Manual registrations show "يدوي" badge in the attendance records list
-- DB already supports 'manual' check_in_method (verified with test insert)
-
----
-Task ID: fix-gps-distance
-Agent: Main Agent
-Task: Fix GPS distance calculation showing 47295m when devices are next to each other
-
-Work Log:
-- Root cause: getCurrentPosition returns cached/inaccurate GPS coordinates when GPS is freshly activated
-- Created getAccuratePosition() helper using watchPosition instead of getCurrentPosition
-  - Watches GPS until accuracy ≤ 100m, with configurable timeout
-  - Returns best (most accurate) position seen during watch period
-  - maximumAge: 0 to prevent cached positions
-- Increased MAX_DISTANCE_METERS from 20 to 100 meters (GPS accuracy is typically 5-15m)
-- Added accuracy-based margin: effectiveMaxDistance = MAX_DISTANCE_METERS + min(accuracy*0.5, 50)
-- Updated teacher GPS capture: uses getAccuratePosition(12000) instead of getCurrentPosition with 5s timeout
-- Updated student GPS capture: uses getAccuratePosition(15000) instead of getCurrentPosition
-- Teacher toast now shows GPS accuracy: "تم بدء تسجيل الحضور مع تحديد الموقع (دقة 15م)"
-- Added MAX_GPS_ACCURACY constant (100m) to reject extremely inaccurate positions
-
-Stage Summary:
-- GPS now uses watchPosition for more accurate coordinates (waits for better fix)
-- Distance threshold increased from 20m to 100m to account for GPS inaccuracy
-- Added dynamic accuracy margin when GPS accuracy is poor
-- Teacher gets feedback on GPS accuracy when starting attendance
-- maximumAge: 0 prevents stale cached GPS coordinates
-
----
-Task ID: gps-threshold-and-manual-attendance-fix
-Agent: Main Agent
-Task: 1) Set GPS distance max to 15-20 meters, 2) Fix manual attendance registration (error + redesign as dialog with search)
-
-Work Log:
-- Changed MAX_DISTANCE_METERS from 100 to 20 (user requested 15-20m max)
-- Reduced MAX_GPS_ACCURACY from 100 to 50 (reject GPS positions with accuracy worse than 50m)
-- Removed accuracy margin (was adding up to 50m extra tolerance) - now strict 20m check
-- Added GPS accuracy rejection in student check-in: if accuracy > 200m, shows error "دقة الموقع ضعيفة"
-- Added null island (0,0) coordinate validation to reject obviously wrong GPS data
-- Added console.log for GPS debugging (teacher coords, student coords, distance, accuracy)
-- Fixed manual attendance registration: was using direct Supabase insert which violated RLS (teacher can't insert on behalf of student) and CHECK constraint (check_in_method only allowed 'qr', 'gps')
-- Created new API endpoint /api/attendance/manual-register that uses service role key to bypass RLS
-  - Validates teacher owns the attendance session
-  - Validates session is active
-  - Checks for duplicate registration
-  - Falls back to inserting without check_in_method if 'manual' isn't in the CHECK constraint
-- Redesigned manual attendance UI from inline section to proper dialog
-  - Dialog with title "تسجيل حضور يدوي" and description "سجّل حضور طالب تحسباً لأي ظروف"
-  - Search input with search icon for filtering students by name/email
-  - Scrollable student list (max-h-96) with avatars
-  - One-click "تسجيل" button per student
-  - Students removed from list immediately after successful registration
-  - Footer shows count of absent students
-  - "تسجيل يدوي" button now always visible (not just when absentCount > 0)
-- Created migration SQL v5_manual_check_in.sql to update CHECK constraint and add RLS policy
-- Created migration API endpoint /api/migrate/manual-checkin for checking/applying the migration
-- Updated export Excel to show "يدوي" for manual check_in_method
-- Updated attendance records display to show "يدوي" for manual check_in_method
-
-Stage Summary:
-- GPS distance threshold is now strictly 20 meters (no accuracy margin)
-- Poor GPS accuracy (>200m) is rejected with clear error message
-- Null island coordinates (0,0) are rejected
-- Manual attendance registration now works via server-side API endpoint (bypasses RLS)
-- Manual attendance UI is now a proper dialog with search, scrollable list
-- Migration SQL created for adding 'manual' to CHECK constraint (works without it too via fallback)
-
----
-Task ID: fix-notification-and-gps-v3
-Agent: Main Agent
-Task: 1) Fix "Failed to refetch notifications: {}" console error, 2) Fix GPS distance bug (~47km off, still broken after 2 previous attempts)
-
-Work Log:
-- **Notification store fix**: The `{}` error was because Supabase Postgrest errors don't serialize well with console.error. Added session check before querying (returns early if no session), improved error logging with JSON.stringify, and made catch block silent (polling will retry)
-- **GPS root cause analysis**: The `getAccuratePosition` function introduced in previous fix was the problem. It used `watchPosition` with a 3-second minimum wait time and aggressive accuracy threshold (30m) that:
-  - Caused the browser to return IP-based locations instead of real GPS on some devices
-  - Blocked valid GPS check-ins when the browser reported accuracy slightly above the threshold
-  - The minimum wait time rejected quick GPS fixes, waiting for IP-based fallback instead
-  - The function also returned `bestPosition` after timeout even when accuracy was poor, causing inconsistent behavior
-- **GPS fix approach**: Reverted to simple `getCurrentPosition` with `enableHighAccuracy: true` (the approach that worked before our changes). Created two new functions:
-  - `getCurrentGpsPosition(timeoutMs)`: Simple wrapper around `getCurrentPosition` with enableHighAccuracy, maximumAge:0, generous timeout
-  - `getBestGpsPosition()`: Calls getCurrentGpsPosition(30s), retries once for null island (0,0), retries once if accuracy > 500m
-- **Teacher starting attendance**: Now uses `getBestGpsPosition()` - saves location regardless of accuracy (both teacher/student need same method), shows warning toast if accuracy > 100m instead of blocking
-- **Student check-in**: Now uses `getBestGpsPosition()` - removed accuracy threshold blocking, added detection for GPS/IP mismatch (distance > 1km gives specific helpful error), poor accuracy gets contextual error message
-- **Removed**: GPS_ACCURACY_THRESHOLD, GPS_MIN_WAIT_MS, getAccuratePosition function, accuracy-based blocking of check-ins
-
-Stage Summary:
-- Notification store no longer logs empty `{}` errors, checks session before querying
-- GPS acquisition simplified: `getCurrentPosition` with `enableHighAccuracy: true` and 30s timeout
-- No more accuracy filtering that blocks check-ins - if browser returns a position, we use it
-- Both teacher and student use the same GPS acquisition method, so they'll get consistent location types
-- Distance > 1km detected as GPS/IP mismatch with helpful error message
-- MAX_DISTANCE_METERS stays at 20m as requested
-
----
-Task ID: gps-qr-smart-verification
-Agent: Main Agent
-Task: Fix GPS/IP mismatch blocking QR check-in when devices are next to each other
-
-Work Log:
-- Analyzed error log: Teacher at (29.122, 30.694), Student at (29.478, 30.961) — ~47km apart
-- VLM analyzed uploaded screenshot: Shows GPS signal weak, device falling back to cell tower/Wi-Fi geolocation
-- Root cause: When GPS is weak on one device, browser falls back to IP/cell tower location which is 40-50km off
-- Previous fix (distance > 1km = block ALL check-ins) was wrong — it blocked QR check-in too
-- Key insight: QR code scanning PROVES physical proximity (student must be near teacher's screen to scan). GPS mismatch should NOT block QR check-in.
-- Rewrote performCheckIn with smart method-aware GPS verification:
-  - **QR check-in**: GPS verification is informational only. If GPS/IP mismatch detected (distance > 1km), show warning toast but ALLOW check-in. The QR scan is the proof of proximity.
-  - **GPS-only check-in**: GPS is the ONLY proof, so mismatch still blocks. Error message now suggests using QR as alternative.
-  - For small GPS inaccuracy (20m-1km) with QR: allow check-in silently
-- GPS-only check-in now suggests "استخدام مسح QR بدلاً من ذلك" (use QR scan instead) when GPS is unreliable
-
-Stage Summary:
-- QR check-in now works even when GPS/IP mismatch occurs — the QR scan proves proximity
-- GPS-only check-in still requires accurate GPS (as it should)
-- Students get helpful error messages directing them to QR when GPS fails
-- MAX_DISTANCE_METERS stays at 20m for GPS-only check-in
-
----
-Task ID: chat-unread-fix
-Agent: Main Agent
-Task: Fix three chat issues: 1) False notifications when entering conversations, 2) Sidebar message counter not showing, 3) Wrong unread numbers inside messages
-
-Work Log:
-- Deep analysis of the entire chat system: socket server, chat-section.tsx, chat-tab.tsx, app-sidebar.tsx, API routes
-- Identified ROOT CAUSE #1: Double counting - both `new-message` (room broadcast) and `chat-notification` (direct delivery) increment `localUnread` for the same message, causing doubled counts
-- Identified ROOT CAUSE #2: Socket server sends camelCase fields (`senderId`, `createdAt`) but client handlers check snake_case (`sender_id`, `created_at`), causing undefined comparisons that break duplicate detection and own-message filtering
-- Identified ROOT CAUSE #3: `new-message` handler increments `localUnread` for the sender's own message echo
-- Identified ROOT CAUSE #4: ChatSection syncs `totalChatUnread` to 0 on mount (before conversations load), briefly hiding the sidebar badge
-- Identified ROOT CAUSE #5: Sidebar only polls every 15 seconds, not real-time responsive to new messages
-
-Fixes applied:
-- **Socket server (mini-services/chat-service/index.ts)**: Added BOTH camelCase and snake_case fields to socket messages (`sender_id` + `senderId`, `conversation_id` + `conversationId`, `created_at` + `createdAt`), added full `sender` object with avatar_url, role, title_id, gender for proper display
-- **chat-section.tsx**: Added `processedMsgIds` ref for message deduplication (prevents double counting), fixed `senderId` field access to handle both formats, skip `localUnread` increment for own messages, skip sync when `loading` is true, pass sender profile info in socket emit
-- **chat-tab.tsx**: Same deduplication and sender field fixes as chat-section.tsx
-- **app-sidebar.tsx**: Added `useSocketEvent` listeners for `chat-notification` and `conversation-updated` events to trigger immediate unread count refresh (instead of waiting for 15-second poll)
-- Restarted chat service to pick up socket server changes
-
-Stage Summary:
-- Double counting fixed: Messages are only counted once via `processedMsgIds` deduplication
-- Own messages no longer counted as unread
-- Socket messages now include both camelCase and snake_case fields for client compatibility
-- Sidebar badge now updates immediately on new messages (socket event triggers refresh)
-- Sidebar badge no longer flashes to 0 when ChatSection mounts
-- All changes pass lint cleanly
-
 ---
 Task ID: 1
 Agent: Main
-Task: Fix chat disconnection, wrong unread counts, missing sidebar badge, and false notifications
+Task: Clone repo, setup env, start dev server
 
 Work Log:
-- Diagnosed root cause: Socket.IO chat service (port 3003) was not running, causing "disconnected" status and messages not being delivered
-- Added `total-unread` lightweight API endpoint to avoid heavy `conversations` endpoint for sidebar badge
-- Fixed unread count API to exclude soft-deleted messages (is_deleted = true)
-- Fixed last message display to exclude soft-deleted messages
-- Removed buggy `localUnread` state that was causing double-counting of unread messages
-- Chat now relies on server-side unread counts with `fetchConversations()` refresh after socket events
-- Added `debouncedFetchConversations()` (500ms debounce) to prevent excessive API calls when multiple socket events fire
-- Fixed sidebar badge: now always shows on chat icon (both collapsed and expanded), uses rose-500 color for visibility
-- Sidebar uses new `total-unread` endpoint (faster: ~500ms vs ~1600ms) with 30s polling interval
-- Added Socket.IO chat service auto-start via Next.js `instrumentation.ts` hook
-- Added port check in instrumentation to avoid starting duplicate chat service
-- Added `ensure-service` API route as backup for starting chat service
-- Created `.zscripts/dev.sh` for proper sandbox initialization with chat service
-- Updated `daemon.sh` to include chat service auto-restart loop
-- Reduced backup polling from 15s to 30s to lower server load
-- Increased disconnected polling from 5s to 3s for better UX when socket is down
-- Fixed `next.config.ts` turbopack root resolution warning
-- Removed unused `server.js` and `supervise.js` files (lint errors)
+- Project already cloned at /home/z/my-project from https://github.com/edumahmoud/atten-do.git
+- .env.local already exists with correct Supabase credentials
+- Installed dependencies with bun install
+- Started Next.js dev server on port 3000 with Socket.IO chat service on port 3003
 
 Stage Summary:
-- Chat service auto-starts with Next.js via instrumentation hook
-- Unread counts are now accurate (server-side, excludes deleted messages)
-- Sidebar badge shows correctly with rose-500 color
-- No more false notifications when opening a conversation
-- Messages work via HTTP polling fallback when socket is disconnected
-- All changes pass lint cleanly
+- Server running and responding with HTTP 200
+- All processes active: Next.js (port 3000), Chat Service (port 3003)
 
 ---
-Task ID: 4
-Agent: Main Agent
-Task: Fix profile section: avatar positioning, z-index stacking, duplicate role display, and add profile navigation to settings
+Task ID: 5
+Agent: full-stack-developer
+Task: Fix org registration - React Hooks violation in renderMigrationStep()
 
 Work Log:
-- **A) Avatar positioning**: Confirmed avatar already uses `-bottom-16` (was previously `-bottom-20`, already fixed). Added `z-10` to the avatar container div for proper stacking context.
-- **B) Z-index stacking**: Added `z-20` to the status indicator dot on the avatar to ensure it renders above other avatar elements (zoom overlay, ring effects).
-- **C) Duplicate role display**: Removed the `titleLabel` span that appeared before the user's name in the profile info section. For teachers, both `titleLabel` (e.g., "دكتور") and `roleLabel` Badge (e.g., "دكتور") showed the same academic title, creating a duplicate. The role now appears only ONCE as a Badge. Cleaned up unused `titleLabel` variable and `getTitleLabel` import.
-- **D) "الصفحة الشخصية" navigation**: Added a "الصفحة الشخصية" (My Profile Page) button in the settings section header. Uses `useAppStore`'s `openProfile` function with `profile.id` to navigate to the user's profile page. Imported `useAppStore` from `@/stores/app-store`. Button is styled as an outline button with User icon, positioned at the top-right of the settings header.
-
-Files modified:
-- `/home/z/my-project/src/components/shared/user-profile-page.tsx`: Avatar z-index, status dot z-index, removed duplicate titleLabel
-- `/home/z/my-project/src/components/shared/settings-section.tsx`: Added useAppStore import, openProfile destructuring, and profile navigation button
+- Extracted renderMigrationStep() into a proper MigrationStep React component
+- Moved useState hooks (autoCreating, autoCreateFailed, showSQL) into the new component
+- Replaced setTableExists/setStep calls with callback props (onTableExists, onStepChange)
+- Updated JSX to use <MigrationStep /> component instead of renderMigrationStep()
 
 Stage Summary:
-- Avatar container has `z-10` for proper stacking, status dot has `z-20`
-- Duplicate role display removed — role appears only once as a Badge
-- Settings page now has "الصفحة الشخصية" button that navigates to user's profile
-- No new lint errors introduced
-Task ID: 9
-Agent: Main Agent
-Task: Settings section fixes — Hide delete account for admin/superadmin, Add developer info section
+- Fixed React Rules of Hooks violation that could cause crashes
+- All migration SQL text and UI preserved exactly
+
+---
+Task ID: 6
+Agent: full-stack-developer
+Task: Fix password reset flow
 
 Work Log:
-- Read worklog and current settings-section.tsx to understand the file structure
-- Identified the Danger Zone Card section (lines 1036-1121) containing the delete account functionality
-- **Change A**: Wrapped the entire Danger Zone Card with conditional `{profile.role !== 'admin' && profile.role !== 'superadmin' && ( ... )}` so admin/superadmin users cannot see or access the delete account button
-- **Change B**: Added new "عن التطبيق" (About the App) card before the Danger Zone section with:
-  - Developer name: محمود رمضان
-  - Organization: تكنولوجيا التعليم الرقمي
-  - Subtle note describing Attendu as an educational platform for managing attendance and lectures
-  - No mention of z.ai or any AI tool
-  - Uses `Info` icon from lucide-react for the card header
-  - Styled consistently with other settings cards (same border, bg-card, shadow-sm, bg-muted/30 header pattern)
-- Added `Info` import to lucide-react imports
-- Updated Danger Zone animation custom index from 3 to 4 (About card now uses custom={3})
-- Verified lint passes with no errors in settings-section.tsx
-- Dev server compiles successfully
+- Changed forgot-password-form.tsx redirectTo to include ?type=recovery explicitly
+- Added PASSWORD_RECOVERY event handler in auth-store.ts onAuthStateChange
+- Added isRecoveryFlow useRef in page.tsx to prevent race condition
+- Increased URL cleanup timeout from 100ms to 2000ms
+- Added guard in redirect effect for recovery flow
 
 Stage Summary:
-- Admin and superadmin users no longer see the "منطقة الخطر" (Danger Zone) section with the delete account button
-- New "عن التطبيق" card shows developer info (محمود رمضان / تكنولوجيا التعليم الرقمي) for all users
-- Both changes use consistent styling with existing settings cards
-- No z.ai or AI tool references anywhere
+- Password reset flow now reliably detects recovery via type=recovery param
+- PASSWORD_RECOVERY event properly handled without triggering full login
+- Race condition between auth store and URL params eliminated
 
 ---
 Task ID: 7
-Agent: Main Agent
-Task: Notifications Deep Linking Enhancement
+Agent: full-stack-developer
+Task: Task #1 - Remove SQL message from assignments section
 
 Work Log:
-- Reviewed the existing `handleNotificationClick` in `notifications-section.tsx`
-- **Assignment notifications**: Previously navigated to the general `assignments` section. Enhanced to extract `subjectId` from `assignment:SUBJECT_ID` link format, then calls `setSelectedSubjectId(subjectId)` and `setCourseTab('assignments')` to navigate to the specific subject's assignments tab on the course page (not the general assignments section). Falls back to the general assignments section if no subject ID is present.
-- **Grade notifications**: No handler existed before. Added new handler that catches both `notif.type === 'grade'` and `notif.link?.startsWith('grade:')` patterns. Extracts subject ID from `grade:SUBJECT_ID` link format and navigates to the course page with assignments tab active, same as assignment notifications.
-- **Enrollment notifications**: Already correctly navigates to the course page with `setSelectedSubjectId` and `setCurrentPage`. Verified — no changes needed.
-- **File request notifications**: Previously just called `openProfile(user.id)` which opened the profile page but didn't set the active tab. Updated to call `openProfile(user.id, 'requests')` which passes the `'requests'` tab to the profile page. Also updated the legacy `file` type with `link === 'settings'` to do the same.
-- **App store changes** (`app-store.ts`): Added `profileTab: string` and `setProfileTab` to the app state. Updated `openProfile` to accept an optional `tab` parameter. Added `profileTab` to the `partialize` config for persistence.
-- **Profile page changes** (`user-profile-page.tsx`): Changed `<Tabs defaultValue="files">` to `<Tabs value={profileTab} onValueChange={setProfileTab}>` to make the Tabs component controlled by the app store's `profileTab` state. Destructured `profileTab` and `setProfileTab` from `useAppStore`.
-
-Files modified:
-- `/home/z/my-project/src/stores/app-store.ts`: Added profileTab state, updated openProfile signature
-- `/home/z/my-project/src/components/shared/notifications-section.tsx`: Enhanced assignment, grade, and file_request deep linking
-- `/home/z/my-project/src/components/shared/user-profile-page.tsx`: Made Tabs controlled via app store profileTab
+- Removed migrationWarning, migrationSQL, migrationDismissed state variables
+- Removed useEffect that fetched from /api/migrate/assignments-due-date
+- Removed UI banner with raw SQL display
+- Removed unused AlertTriangle import
 
 Stage Summary:
-- Assignment notifications now navigate to the specific subject's assignments tab on the course page
-- Grade notifications now navigate to the specific subject's assignments tab on the course page
-- Enrollment notifications remain correctly handled
-- File request notifications now open the profile page with the "requests" tab active
-- Profile page tab state is now managed by the app store for deep linking support
+- SQL migration warning banner completely removed from assignments section
+- All assignment CRUD functionality preserved
 
 ---
 Task ID: 8
-Agent: Main Agent
-Task: My Files - Fix upload button end-to-end
+Agent: full-stack-developer
+Task: Task #2 - Profile section fixes
 
 Work Log:
-- Traced the full upload flow in `personal-files-section.tsx`:
-  1. Upload button → `openUploadModal()` → sets `uploadModalOpen = true` ✓
-  2. Modal opens with hidden file input + "اضغط لاختيار ملفات" button that triggers `fileInputRef.current?.click()` ✓
-  3. `handleFileSelect()` creates `PendingUpload` entries from selected files ✓
-  4. "رفع الكل" button calls `handleUploadAll()` which uses XHR to POST to `/api/files/upload` ✓
-  5. After upload, `fetchFiles()` refreshes the file list ✓
-  6. API endpoint at `/api/files/upload/route.ts` validates file type/size, uploads to Supabase Storage, inserts DB record ✓
-- **Fixed `handleUploadAll`** toast message: Previously showed unconditional `toast.success('تم رفع الملفات بنجاح')` even when some files failed. Now tracks `successCount` and `failCount`, and shows appropriate toast: all success, partial success with failure count, or all failed.
-- **Added auto-close after successful upload**: Modal now auto-closes 800ms after all uploads succeed (so user can see the 100% progress), but stays open if any files failed so user can retry.
-- **Verified API endpoint**: The `/api/files/upload` endpoint correctly validates file types, size (50MB max), uploads to Supabase Storage, and inserts a user_files record with the display name. The `course-upload` endpoint also works for assigning files to subjects.
-- Pre-existing syntax error fixed: `chat-section.tsx` had AlertDialog components outside the parent motion.div without a React fragment wrapper, causing compilation failure. Added `<>` fragment wrapper.
-
-Files modified:
-- `/home/z/my-project/src/components/shared/personal-files-section.tsx`: Improved handleUploadAll with success/failure tracking and auto-close
-- `/home/z/my-project/src/components/shared/chat-section.tsx`: Fixed JSX syntax error (missing fragment wrapper)
+- Reduced banner height from h-40/h-52 to h-36/h-44
+- Reduced avatar bottom offset from -bottom-16 to -bottom-12
+- Reduced profile info margin from mt-24 to mt-20
+- Set zoom overlay z-[1], status dot z-30 for proper stacking
+- Added "الصفحة الشخصية" navigation button (visible when viewing others' profiles)
 
 Stage Summary:
-- Upload button correctly opens modal, file input works, upload API works, file list refreshes after upload
-- Upload now shows accurate success/failure toast messages instead of always showing success
-- Modal auto-closes after successful upload, stays open on failure for retry
-- Fixed pre-existing chat-section.tsx compilation error
+- Profile image/hero section moved up for better visual hierarchy
+- Z-index stacking fixed for status indicator
+- No duplicate role found (only one display exists)
+- Profile navigation button added
+
+---
+Task ID: 9
+Agent: full-stack-developer
+Task: Task #3 - Connection status with dynamic colors
+
+Work Log:
+- Added STATUS_DOT_CONFIG mapping user statuses to colors and labels
+- Modified ConnectionStatusIndicator to show colored status dot when connected
+- Reads user status from localStorage key 'attenddo-user-status'
+- Listens for user-status-changed socket events and storage events
+- When disconnected: red WifiOff icon; When connecting: amber pulse; When connected: colored status dot
+
+Stage Summary:
+- Connection status now reflects user's chosen status (online/busy/away/invisible) with appropriate colors
+- Real-time sync via socket events and cross-tab sync via storage events
+
+---
+Task ID: 10
+Agent: full-stack-developer
+Task: Task #4 - Chat fixes
+
+Work Log:
+- Enhanced unread counter badge with rose-500 color, shadow, and pulse animation
+- Replaced confirm() with AlertDialog for conversation deletion
+- Fixed message deletion: now removes from array entirely instead of soft-marking
+- Added recentlyDeletedMsgIds ref to prevent poll from restoring deleted messages
+- Improved API delete endpoint fallback logic (soft delete → hard delete → content update)
+
+Stage Summary:
+- Unread badges more visually prominent
+- Modern delete dialog for conversations
+- Message deletion no longer shows false failures
+
+---
+Task ID: 11
+Agent: full-stack-developer
+Task: Task #5 - Notifications deep linking
+
+Work Log:
+- file_request: now navigates to profile with 'requests' tab
+- assignment: navigates to specific course's assignments tab
+- grade: added handler - navigates to course assignments tab
+- lecture: added handler - navigates to course lectures tab
+- announcement: added handler - navigates to notifications section
+- Added Megaphone icon import and announcement/lecture cases in getNotifIcon
+- Made notifications-section.tsx consistent with notification-bell.tsx
+
+Stage Summary:
+- All notification types now deep-link to their exact source
+- Consistent behavior between notification bell and notifications section
+
+---
+Task ID: 12
+Agent: full-stack-developer
+Task: Task #6 - My Files upload fix
+
+Work Log:
+- Added retry mechanism for failed uploads (retry button + retry all)
+- Added accept attribute on file input for supported extensions
+- Added client-side validation for file size (50MB) and MIME type
+- Added error message display for failed uploads
+- Added drag-and-drop support with visual feedback
+- Extracted uploadSingleFile() to avoid code duplication
+- Improved server error message parsing from XHR responses
+
+Stage Summary:
+- Upload button now works end-to-end with retry capability
+- Client-side validation prevents unsupported files
+- Error messages clearly shown to users
+
+---
+Task ID: 13
+Agent: full-stack-developer
+Task: Task #7 - Settings fixes
+
+Work Log:
+- Verified delete account section already hidden for admin/superadmin
+- Added "معلومات المطور" section with developer name and organization
+- Added Code2 icon import and Card/CardContent components
+- Professional styling with emerald color theme
+
+Stage Summary:
+- Delete account already restricted for admin roles
+- Developer info section added (محمود رمضان, تكنولوجيا التعليم الرقمي)

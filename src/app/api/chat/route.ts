@@ -603,12 +603,26 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', messageId);
 
-        // If is_deleted column doesn't exist, just update content
+        // If is_deleted column doesn't exist, try hard delete or content-only update
         if (updateError) {
-          await supabaseServer
+          // Try hard delete first (completely removes the message row)
+          const { error: hardDeleteError } = await supabaseServer
             .from('messages')
-            .update({ content: 'تم حذف هذه الرسالة' })
+            .delete()
             .eq('id', messageId);
+
+          // If hard delete also fails, try content-only update as last resort
+          if (hardDeleteError) {
+            const { error: contentUpdateError } = await supabaseServer
+              .from('messages')
+              .update({ content: 'تم حذف هذه الرسالة' })
+              .eq('id', messageId);
+
+            if (contentUpdateError) {
+              console.error('[Chat API] Delete message: all deletion methods failed', contentUpdateError);
+              return NextResponse.json({ error: 'فشل حذف الرسالة' }, { status: 500 });
+            }
+          }
         }
 
         return NextResponse.json({ success: true, messageId });

@@ -32,6 +32,8 @@ import {
   Maximize2,
   EyeOff,
   Users,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -205,7 +207,38 @@ interface PendingUpload {
   progress: number; // -1 = failed, 0-100 = progress
   uploading: boolean;
   done: boolean;
+  errorMessage?: string;
 }
+
+// Client-side validation constants (must match server-side in /api/files/upload/route.ts)
+const CLIENT_ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'text/plain',
+  'text/csv',
+  'application/zip',
+  'application/x-rar-compressed',
+];
+
+const CLIENT_MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+const CLIENT_ACCEPT_ATTR = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp4,.webm,.mov,.mp3,.wav,.ogg,.txt,.csv,.zip,.rar';
 
 // -------------------------------------------------------
 // Main Component
@@ -229,8 +262,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // ─── Upload state ───
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadAbortRef = useRef<AbortController | null>(null);
 
   // ─── Course assignment state ───
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -488,16 +521,38 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   const handleFileSelect = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
-    const newUploads: PendingUpload[] = Array.from(fileList).map((file) => ({
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      file,
-      customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
-      extension: getFileExtension(file.name),
-      progress: 0,
-      uploading: false,
-      done: false,
-    }));
-    setPendingUploads((prev) => [...prev, ...newUploads]);
+    const rejectedFiles: string[] = [];
+    const newUploads: PendingUpload[] = [];
+
+    Array.from(fileList).forEach((file) => {
+      // Client-side validation: file size
+      if (file.size > CLIENT_MAX_FILE_SIZE) {
+        rejectedFiles.push(`${file.name}: حجم الملف يتجاوز 50 ميجابايت`);
+        return;
+      }
+      // Client-side validation: MIME type
+      if (file.type && !CLIENT_ALLOWED_MIME_TYPES.includes(file.type)) {
+        rejectedFiles.push(`${file.name}: نوع الملف غير مدعوم`);
+        return;
+      }
+      newUploads.push({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        file,
+        customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
+        extension: getFileExtension(file.name),
+        progress: 0,
+        uploading: false,
+        done: false,
+      });
+    });
+
+    if (rejectedFiles.length > 0) {
+      toast.error(`تم رفض ${rejectedFiles.length} ملف: ${rejectedFiles[0]}${rejectedFiles.length > 1 ? ` و${rejectedFiles.length - 1} أخرى` : ''}`);
+    }
+
+    if (newUploads.length > 0) {
+      setPendingUploads((prev) => [...prev, ...newUploads]);
+    }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -518,110 +573,128 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   };
 
   // -------------------------------------------------------
-  // Upload all pending files using XHR for real progress
+  // Upload a single file using XHR (shared by handleUploadAll and retryUpload)
   // -------------------------------------------------------
-  const handleUploadAll = async () => {
-    const toUpload = pendingUploads.filter((p) => !p.done && !p.uploading && p.progress !== -1);
-    if (toUpload.length === 0) return;
-
+  const uploadSingleFile = async (item: PendingUpload): Promise<string> => {
     // Get auth token
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token || '';
+
+    // Mark as uploading
+    setPendingUploads((prev) =>
+      prev.map((p) => (p.id === item.id ? { ...p, uploading: true, progress: 0, errorMessage: undefined } : p))
+    );
+
+    const userFileId = await new Promise<string>((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', item.file);
+      formData.append('userId', profile.id);
+      if (item.customName.trim()) {
+        formData.append('customName', item.customName.trim());
+      }
+
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setPendingUploads((prev) =>
+            prev.map((p) => (p.id === item.id ? { ...p, progress: pct } : p))
+          );
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText);
+            if (result.success) {
+              setPendingUploads((prev) =>
+                prev.map((p) => (p.id === item.id ? { ...p, progress: 100, done: true, uploading: false } : p))
+              );
+              resolve(result.data?.id || '');
+            } else {
+              reject(new Error(result.error || 'فشل الرفع'));
+            }
+          } catch {
+            reject(new Error('استجابة غير صالحة من الخادم'));
+          }
+        } else {
+          // Try to parse error message from response
+          try {
+            const errResult = JSON.parse(xhr.responseText);
+            reject(new Error(errResult.error || `خطأ HTTP ${xhr.status}`));
+          } catch {
+            reject(new Error(`خطأ HTTP ${xhr.status}`));
+          }
+        }
+      });
+
+      xhr.addEventListener('error', () => reject(new Error('خطأ في الشبكة')));
+      xhr.addEventListener('abort', () => reject(new Error('تم الإلغاء')));
+
+      xhr.open('POST', '/api/files/upload');
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.send(formData);
+    });
+
+    // If subjects are selected, also assign to courses
+    if (selectedSubjectForUploadIds.size > 0) {
+      const { data: { session: session2 } } = await supabase.auth.getSession();
+      const token2 = session2?.access_token || '';
+
+      for (const subjectId of selectedSubjectForUploadIds) {
+        const courseFormData = new FormData();
+        courseFormData.append('file', item.file);
+        courseFormData.append('subjectId', subjectId);
+        courseFormData.append('uploadedBy', profile.id);
+        if (item.customName.trim()) {
+          courseFormData.append('customName', item.customName.trim());
+        }
+        courseFormData.append('visibility', 'public');
+        if (userFileId) {
+          courseFormData.append('userFileId', userFileId);
+        }
+
+        await fetch('/api/files/course-upload', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token2}` },
+          body: courseFormData,
+        });
+      }
+
+      // Also update the user_file visibility to public
+      if (userFileId) {
+        await supabase
+          .from('user_files')
+          .update({ visibility: 'public', updated_at: new Date().toISOString() })
+          .eq('id', userFileId);
+      }
+    }
+
+    return userFileId;
+  };
+
+  // -------------------------------------------------------
+  // Upload all pending files (including failed ones for retry)
+  // -------------------------------------------------------
+  const handleUploadAll = async () => {
+    // Include failed uploads (progress === -1) for retry
+    const toUpload = pendingUploads.filter((p) => !p.done && !p.uploading);
+    if (toUpload.length === 0) return;
 
     let successCount = 0;
     let failCount = 0;
 
     for (const item of toUpload) {
-      // Mark as uploading
-      setPendingUploads((prev) =>
-        prev.map((p) => (p.id === item.id ? { ...p, uploading: true, progress: 0 } : p))
-      );
-
       try {
-        const userFileId = await new Promise<string>((resolve, reject) => {
-          const formData = new FormData();
-          formData.append('file', item.file);
-          formData.append('userId', profile.id);
-          if (item.customName.trim()) {
-            formData.append('customName', item.customName.trim());
-          }
-
-          const xhr = new XMLHttpRequest();
-
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const pct = Math.round((e.loaded / e.total) * 100);
-              setPendingUploads((prev) =>
-                prev.map((p) => (p.id === item.id ? { ...p, progress: pct } : p))
-              );
-            }
-          });
-
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const result = JSON.parse(xhr.responseText);
-                if (result.success) {
-                  setPendingUploads((prev) =>
-                    prev.map((p) => (p.id === item.id ? { ...p, progress: 100, done: true, uploading: false } : p))
-                  );
-                  resolve(result.data?.id || '');
-                } else {
-                  reject(new Error(result.error || 'Upload failed'));
-                }
-              } catch {
-                reject(new Error('Invalid response'));
-              }
-            } else {
-              reject(new Error(`HTTP ${xhr.status}`));
-            }
-          });
-
-          xhr.addEventListener('error', () => reject(new Error('Network error')));
-          xhr.addEventListener('abort', () => reject(new Error('Aborted')));
-
-          xhr.open('POST', '/api/files/upload');
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-          xhr.send(formData);
-        });
-
+        await uploadSingleFile(item);
         successCount++;
-
-        // If subjects are selected, also assign to courses
-        if (selectedSubjectForUploadIds.size > 0) {
-          const theFile = item.file;
-          for (const subjectId of selectedSubjectForUploadIds) {
-            const courseFormData = new FormData();
-            courseFormData.append('file', theFile);
-            courseFormData.append('subjectId', subjectId);
-            courseFormData.append('uploadedBy', profile.id);
-            if (item.customName.trim()) {
-              courseFormData.append('customName', item.customName.trim());
-            }
-            courseFormData.append('visibility', 'public');
-            if (userFileId) {
-              courseFormData.append('userFileId', userFileId);
-            }
-
-            await fetch('/api/files/course-upload', {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${token}` },
-              body: courseFormData,
-            });
-          }
-
-          // Also update the user_file visibility to public
-          if (userFileId) {
-            await supabase
-              .from('user_files')
-              .update({ visibility: 'public', updated_at: new Date().toISOString() })
-              .eq('id', userFileId);
-          }
-        }
-      } catch {
+      } catch (err) {
         failCount++;
+        const errMsg = err instanceof Error ? err.message : 'فشل الرفع';
         setPendingUploads((prev) =>
-          prev.map((p) => (p.id === item.id ? { ...p, progress: -1, uploading: false } : p))
+          prev.map((p) => (p.id === item.id ? { ...p, progress: -1, uploading: false, errorMessage: errMsg } : p))
         );
       }
     }
@@ -643,6 +716,34 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         setUploadModalOpen(false);
         setPendingUploads([]);
       }, 800);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Retry a single failed upload
+  // -------------------------------------------------------
+  const retryUpload = async (itemId: string) => {
+    const item = pendingUploads.find((p) => p.id === itemId);
+    if (!item || item.uploading || item.done) return;
+
+    try {
+      await uploadSingleFile(item);
+      toast.success('تم رفع الملف بنجاح');
+      fetchFiles();
+      // If all uploads are now done, auto-close
+      const allDone = pendingUploads.every((p) => p.id === itemId ? true : p.done);
+      if (allDone) {
+        setTimeout(() => {
+          setUploadModalOpen(false);
+          setPendingUploads([]);
+        }, 800);
+      }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'فشل الرفع';
+      setPendingUploads((prev) =>
+        prev.map((p) => (p.id === itemId ? { ...p, progress: -1, uploading: false, errorMessage: errMsg } : p))
+      );
+      toast.error(errMsg);
     }
   };
 
@@ -1937,17 +2038,31 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   ref={fileInputRef}
                   type="file"
                   multiple
+                  accept={CLIENT_ACCEPT_ATTR}
                   onChange={(e) => handleFileSelect(e.target.files)}
                   className="hidden"
                 />
-                <button
+                <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-6 transition-colors hover:border-emerald-400 hover:bg-emerald-50/50"
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); }}
+                  onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); }}
+                  onDrop={(e) => {
+                    e.preventDefault(); e.stopPropagation(); setIsDragOver(false);
+                    handleFileSelect(e.dataTransfer.files);
+                  }}
+                  className={`flex w-full cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
+                    isDragOver
+                      ? 'border-emerald-500 bg-emerald-50/60'
+                      : 'border-emerald-300 bg-emerald-50/30 hover:border-emerald-400 hover:bg-emerald-50/50'
+                  }`}
                 >
-                  <Upload className="h-8 w-8 text-emerald-400" />
-                  <span className="text-sm text-muted-foreground">اضغط لاختيار ملفات</span>
-                  <span className="text-xs text-muted-foreground">يمكنك اختيار أكثر من ملف</span>
-                </button>
+                  <Upload className={`h-8 w-8 ${isDragOver ? 'text-emerald-600' : 'text-emerald-400'}`} />
+                  <span className="text-sm text-muted-foreground">
+                    {isDragOver ? 'أفلت الملفات هنا' : 'اضغط لاختيار ملفات أو اسحبها هنا'}
+                  </span>
+                  <span className="text-xs text-muted-foreground">يمكنك اختيار أكثر من ملف (الحد الأقصى 50 ميجابايت لكل ملف)</span>
+                </div>
               </div>
 
               {/* Pending uploads list */}
@@ -1978,6 +2093,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                             <span className="text-xs text-muted-foreground shrink-0">.{item.extension}</span>
                           )}
                         </div>
+                        {/* Retry button for failed uploads */}
+                        {item.progress === -1 && !item.uploading && (
+                          <button
+                            onClick={() => retryUpload(item.id)}
+                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                            title="إعادة المحاولة"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         {/* Remove button */}
                         {!item.uploading && !item.done && (
                           <button
@@ -2021,6 +2146,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                                   : ''
                             }`}
                           />
+                          {/* Error message */}
+                          {item.progress === -1 && item.errorMessage && (
+                            <div className="flex items-center gap-1 text-[10px] text-rose-500 mt-0.5">
+                              <AlertCircle className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{item.errorMessage}</span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2046,13 +2178,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   >
                     إغلاق
                   </button>
-                  {pendingUploads.some((p) => !p.done && !p.uploading && p.progress !== -1) && (
+                  {pendingUploads.some((p) => !p.done && !p.uploading) && (
                     <button
                       onClick={handleUploadAll}
                       className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 transition-colors"
                     >
                       <Upload className="h-4 w-4" />
-                      رفع الكل
+                      {pendingUploads.some((p) => p.progress === -1) ? 'إعادة محاولة الكل' : 'رفع الكل'}
                     </button>
                   )}
                 </div>

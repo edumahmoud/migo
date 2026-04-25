@@ -7,11 +7,11 @@ import {
   Settings,
   LogOut,
   ChevronDown,
-  Wifi,
   WifiOff,
 } from 'lucide-react';
-import { useSharedSocket } from '@/lib/socket';
+import { useSharedSocket, useSocketEvent } from '@/lib/socket';
 import { useAppStore } from '@/stores/app-store';
+import { useAuthStore } from '@/stores/auth-store';
 import NotificationBell from '@/components/shared/notification-bell';
 import UserAvatar from '@/components/shared/user-avatar';
 
@@ -227,6 +227,26 @@ export default function AppHeader({
 }
 
 // -------------------------------------------------------
+// User status config (mirrors app-sidebar.tsx)
+// -------------------------------------------------------
+const STATUS_DOT_CONFIG: Record<string, { color: string; pulse: boolean; label: string }> = {
+  online: { color: 'bg-emerald-500', pulse: true, label: 'متصل' },
+  busy: { color: 'bg-amber-500', pulse: false, label: 'مشغول' },
+  away: { color: 'bg-orange-500', pulse: false, label: 'بعيد' },
+  invisible: { color: 'bg-gray-400', pulse: false, label: 'غير مرئي' },
+  offline: { color: 'bg-gray-400', pulse: false, label: 'غير متصل' },
+};
+
+const STATUS_STORAGE_KEY = 'attenddo-user-status';
+
+/** Read the current user status from localStorage (client-side only) */
+function getStoredUserStatus(): string {
+  if (typeof window === 'undefined') return 'online';
+  const saved = localStorage.getItem(STATUS_STORAGE_KEY);
+  return saved && STATUS_DOT_CONFIG[saved] ? saved : 'online';
+}
+
+// -------------------------------------------------------
 // Connection status indicator
 // -------------------------------------------------------
 function ConnectionStatusIndicator({
@@ -236,6 +256,36 @@ function ConnectionStatusIndicator({
   status: 'connected' | 'disconnected' | 'connecting';
   isConnected: boolean;
 }) {
+  const user = useAuthStore((s) => s.user);
+  const [userStatus, setUserStatus] = useState<string>(getStoredUserStatus);
+
+  // Listen for status changes via socket (e.g. from settings-section)
+  useSocketEvent<{ userId: string; status: string }>('user-status-changed', (data) => {
+    if (user && data.userId === user.id) {
+      setUserStatus(data.status);
+    }
+  });
+
+  // Listen for storage events (cross-tab sync)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STATUS_STORAGE_KEY && e.newValue && STATUS_DOT_CONFIG[e.newValue]) {
+        setUserStatus(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  // Also poll localStorage on window focus
+  useEffect(() => {
+    const handleFocus = () => {
+      setUserStatus(getStoredUserStatus());
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   if (status === 'connecting') {
     return (
       <div
@@ -252,12 +302,13 @@ function ConnectionStatusIndicator({
   }
 
   if (isConnected) {
+    const dotConfig = STATUS_DOT_CONFIG[userStatus] || STATUS_DOT_CONFIG.online;
     return (
       <div
         className="flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-md"
-        title="متصل بالخادم"
+        title={`متصل بالخادم — ${dotConfig.label}`}
       >
-        <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+        <span className={`h-2.5 w-2.5 rounded-full ${dotConfig.color} ${dotConfig.pulse ? 'animate-pulse' : ''}`} />
         <span className="hidden sm:inline text-[10px] text-emerald-600 font-medium">متصل</span>
       </div>
     );

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle, Megaphone } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
@@ -38,6 +38,7 @@ function getNotifIcon(type: string, title?: string) {
     case 'file': return <FileText className="h-4 w-4 text-blue-600" />;
     case 'attendance': return <UserCheck className="h-4 w-4 text-violet-600" />;
     case 'lecture': return <BookOpen className="h-4 w-4 text-teal-600" />;
+    case 'announcement': return <Megaphone className="h-4 w-4 text-sky-600" />;
     default: return <Info className="h-4 w-4 text-purple-600" />;
   }
 }
@@ -191,12 +192,12 @@ export default function NotificationBell() {
       return;
     }
 
-    // Handle file_request notifications (owner received a new file request) - navigate to own profile
+    // Handle file_request notifications (owner received a new file request) - navigate to own profile requests tab
     // Type can be 'file' or 'file_request' (depends on DB constraint), link format: 'file_request:REQUESTER_ID'
     if (notif.type === 'file_request' || notif.link?.startsWith('file_request:')) {
       setIsOpen(false);
       const { openProfile } = useAppStore.getState();
-      if (user?.id) openProfile(user.id);
+      if (user?.id) openProfile(user.id, 'requests');
       return;
     }
 
@@ -219,14 +220,98 @@ export default function NotificationBell() {
       return;
     }
 
-    // Handle assignment links - navigate to assignments section
+    // Handle assignment links - navigate to the specific subject's assignments tab (course page)
     if (notif.link?.startsWith('assignment:')) {
       setIsOpen(false);
+      const subjectId = notif.link.includes(':') ? notif.link.split(':')[1] : null;
+      if (subjectId) {
+        const { setSelectedSubjectId, setCourseTab } = useAppStore.getState();
+        setSelectedSubjectId(subjectId);
+        setCourseTab('assignments');
+        if (user?.role === 'student') {
+          setStudentSection('subjects');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+          setTeacherSection('subjects');
+          setCurrentPage('teacher-dashboard');
+        }
+      } else {
+        // Fallback: no subject ID, just navigate to assignments section
+        if (user?.role === 'student') {
+          setStudentSection('assignments');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+          setTeacherSection('assignments');
+          setCurrentPage('teacher-dashboard');
+        }
+      }
+      return;
+    }
+
+    // Handle grade links - navigate to the specific subject's assignments tab (course page)
+    if (notif.type === 'grade' || notif.link?.startsWith('grade:')) {
+      setIsOpen(false);
+      const subjectId = notif.link?.startsWith('grade:') ? notif.link.split(':')[1] : null;
+      if (subjectId) {
+        const { setSelectedSubjectId, setCourseTab } = useAppStore.getState();
+        setSelectedSubjectId(subjectId);
+        setCourseTab('assignments');
+        if (user?.role === 'student') {
+          setStudentSection('subjects');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+          setTeacherSection('subjects');
+          setCurrentPage('teacher-dashboard');
+        }
+      } else {
+        // No subject ID, navigate to assignments section
+        if (user?.role === 'student') {
+          setStudentSection('assignments');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+          setTeacherSection('assignments');
+          setCurrentPage('teacher-dashboard');
+        }
+      }
+      return;
+    }
+
+    // Handle lecture links - navigate to the specific subject's lectures tab (course page)
+    if (notif.type === 'lecture' || notif.link?.startsWith('lecture:')) {
+      setIsOpen(false);
+      const subjectId = notif.link?.startsWith('lecture:') ? notif.link.split(':')[1] : null;
+      if (subjectId) {
+        const { setSelectedSubjectId, setCourseTab } = useAppStore.getState();
+        setSelectedSubjectId(subjectId);
+        setCourseTab('lectures');
+        if (user?.role === 'student') {
+          setStudentSection('subjects');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+          setTeacherSection('subjects');
+          setCurrentPage('teacher-dashboard');
+        }
+      } else {
+        // No subject ID, navigate to subjects section
+        if (user?.role === 'student') {
+          setStudentSection('subjects');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+          setTeacherSection('subjects');
+          setCurrentPage('teacher-dashboard');
+        }
+      }
+      return;
+    }
+
+    // Handle announcement notifications - navigate to notifications section
+    if (notif.type === 'announcement') {
+      setIsOpen(false);
       if (user?.role === 'student') {
-        setStudentSection('assignments');
+        setStudentSection('notifications');
         setCurrentPage('student-dashboard');
       } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
-        setTeacherSection('assignments');
+        setTeacherSection('notifications');
         setCurrentPage('teacher-dashboard');
       }
       return;
@@ -247,7 +332,7 @@ export default function NotificationBell() {
     if (notif.type === 'file' && notif.link === 'settings' && notif.title?.includes('طلب ملف')) {
       setIsOpen(false);
       const { openProfile } = useAppStore.getState();
-      if (user?.id) openProfile(user.id);
+      if (user?.id) openProfile(user.id, 'requests');
       return;
     }
 
