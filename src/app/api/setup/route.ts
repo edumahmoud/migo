@@ -195,10 +195,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Action: Auto-create institution_settings table ──
-    // SECURITY: This action ALWAYS requires admin role
+    // SECURITY: Allow unauthenticated access if system is not yet initialized.
+    // If system is already initialized, require admin role.
     if (action === 'create_table') {
-      const { user: authUser, error: authError } = await requireRole(request, ['admin', 'superadmin']);
-      if (authError) return authError;
+      if (isInitialized) {
+        const { user: authUser, error: authError } = await requireRole(request, ['admin', 'superadmin']);
+        if (authError) return authError;
+      }
 
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
       const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';

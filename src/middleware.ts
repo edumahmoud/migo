@@ -5,7 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Routes that require authentication
-const protectedApiRoutes = ['/api/gemini', '/api/admin', '/api/files', '/api/chat', '/api/profile', '/api/enrollment', '/api/attendance', '/api/setup'];
+const protectedApiRoutes = ['/api/gemini', '/api/admin', '/api/files', '/api/chat', '/api/profile', '/api/enrollment', '/api/attendance'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

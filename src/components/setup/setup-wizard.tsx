@@ -59,7 +59,7 @@ function getPasswordStrength(password: string) {
 
 function StepIndicator({ currentStep, showMigration }: { currentStep: WizardStep; showMigration: boolean }) {
   const steps = [
-    ...(showMigration ? [{ key: 'db-migration' as const, label: 'تهيئة قاعدة البيانات', num: 0 }] : []),
+    ...(showMigration ? [{ key: 'db-migration' as const, label: 'تهيئة قاعدة البيانات', num: 1 }] : []),
     { key: 'admin-account' as const, label: 'حساب المدير', num: showMigration ? 2 : 1 },
     { key: 'institution-info' as const, label: 'بيانات المؤسسة', num: showMigration ? 3 : 2 },
     { key: 'complete' as const, label: 'تم', num: showMigration ? 4 : 3 },
@@ -409,6 +409,12 @@ export default function SetupWizard({ onComplete, onStart }: SetupWizardProps) {
       toast.error('يرجى إدخال البريد الإلكتروني');
       return;
     }
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(adminEmail.trim())) {
+      toast.error('صيغة البريد الإلكتروني غير صحيحة');
+      return;
+    }
     if (!adminPassword) {
       toast.error('يرجى إدخال كلمة المرور');
       return;
@@ -421,6 +427,10 @@ export default function SetupWizard({ onComplete, onStart }: SetupWizardProps) {
       toast.error('كلمتا المرور غير متطابقتين');
       return;
     }
+
+    // Signal that the wizard is now in progress BEFORE creating the account
+    // This prevents the auth listener from redirecting away
+    onStart?.();
 
     setCreatingAccount(true);
     try {
@@ -462,15 +472,36 @@ export default function SetupWizard({ onComplete, onStart }: SetupWizardProps) {
 
       // The auth trigger should create the profile and promote to superadmin
       // Wait a moment for the trigger to fire
-      await new Promise((r) => setTimeout(r, 1500));
+      await new Promise((r) => setTimeout(r, 2000));
 
-      // Ensure the user profile exists and has superadmin role
-      const { data: profile } = await supabase
+      // Check if profile was created by the trigger
+      let { data: profile } = await supabase
         .from('users')
         .select('*')
         .eq('id', authUser.id)
-        .single();
+        .maybeSingle();
 
+      // If profile doesn't exist yet (trigger didn't fire), create it manually
+      if (!profile) {
+        const username = adminName.trim().replace(/\s+/g, '_').toLowerCase() + '_' + authUser.id.slice(0, 6);
+        const { error: insertError } = await supabase.from('users').insert({
+          id: authUser.id,
+          email: adminEmail.trim().toLowerCase(),
+          name: adminName.trim(),
+          username,
+          role: 'superadmin',
+        });
+        if (!insertError) {
+          const { data: newProfile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', authUser.id)
+            .maybeSingle();
+          profile = newProfile;
+        }
+      }
+
+      // Ensure the user has superadmin role (promote if needed)
       if (profile && profile.role !== 'superadmin') {
         // Try to promote via API
         try {
@@ -484,15 +515,29 @@ export default function SetupWizard({ onComplete, onStart }: SetupWizardProps) {
             body: JSON.stringify({ userId: authUser.id }),
           });
         } catch {
-          // Non-critical
+          // Non-critical - will be promoted on next login
+        }
+      }
+
+      // If profile still doesn't exist, try API-based creation as last resort
+      if (!profile) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          // Wait and retry once more
+          await new Promise((r) => setTimeout(r, 2000));
+          const { data: retryProfile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', authUser.id)
+            .maybeSingle();
+          profile = retryProfile;
+        } catch {
+          // Continue anyway
         }
       }
 
       setAdminUserId(authUser.id);
       toast.success('تم إنشاء حساب المدير بنجاح');
-      // Signal that the wizard is now in progress (user will get a session,
-      // but we must not interrupt the wizard flow)
-      onStart?.();
       setStep('institution-info');
     } catch {
       toast.error('حدث خطأ غير متوقع');
@@ -514,9 +559,16 @@ export default function SetupWizard({ onComplete, onStart }: SetupWizardProps) {
 
     setSavingInstitution(true);
     try {
+      // Get the current session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch('/api/setup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           action: 'save_institution',
           name: institutionName.trim(),

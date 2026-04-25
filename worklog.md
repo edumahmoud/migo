@@ -331,3 +331,29 @@ Stage Summary:
 - Dropdown menu now has Profile option before Settings
 - Header avatar now shows online/busy/away/offline status dot
 - All changes pass lint without errors
+
+---
+Task ID: fix-7
+Agent: Main
+Task: Review and fix problems in admin registration and institution setup wizard
+
+Work Log:
+- Analyzed all setup wizard files (setup-wizard.tsx, /api/setup/route.ts, /api/auth/check-first-user/route.ts, middleware.ts, page.tsx, auth-store.ts)
+- Found 7 bugs across the setup flow
+- Fixed Bug #1: Removed /api/setup from middleware protected routes (the route handles its own auth)
+- Fixed Bug #2: Changed create_table action in /api/setup to allow unauthenticated access when system is not initialized (was a deadlock - no admin exists yet)
+- Fixed Bug #3: Moved onStart?.() call BEFORE supabase.auth.signUp() to prevent auth listener from redirecting away from wizard
+- Fixed Bug #4: Added email format validation regex to admin account form
+- Fixed Bug #5: Added manual profile creation fallback if auth trigger doesn't fire, plus retry logic with 2-second delay
+- Fixed Bug #6: Fixed step indicator numbering (step 0 → step 1 for migration step)
+- Fixed Bug #7: Added auth headers to save_institution request (admin is now logged in, API requires auth)
+- Also changed profile query from .single() to .maybeSingle() to avoid crash when profile doesn't exist
+
+Stage Summary:
+- 7 bugs fixed in setup wizard flow
+- Middleware no longer blocks setup API during first-time initialization
+- create_table no longer requires auth before any admin exists
+- Admin profile creation has retry/fallback logic
+- Email validation added
+- Step numbering corrected
+- Institution save now includes auth token
