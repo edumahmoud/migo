@@ -309,3 +309,25 @@ Stage Summary:
 - Quiz/summary navigation returns to correct dashboard
 - Settings button now opens settings section
 - Auth subscription properly cleaned up on signOut/re-init
+
+---
+Task ID: fix-6
+Agent: Main
+Task: Fix z-index issue on profile page, add profile to dropdown menu, add status dot on header avatar
+
+Work Log:
+- Added AppSidebar component to the profile page view in page.tsx
+- Added AppSidebar import to page.tsx
+- Added sidebar offset (md:mr-64 / md:mr-[68px]) to profile page main content
+- Fixed profile avatar status dot z-index (removed z-30 to avoid sidebar conflict)
+- Added "الصفحة الشخصية" (Profile) option to header dropdown menu between user info and Settings
+- Added UserCircle icon import to app-header.tsx
+- Created HeaderAvatar component with online status dot overlay
+- Replaced plain UserAvatar in header with HeaderAvatar (includes status indicator)
+- Status dot reads from localStorage and syncs via socket events (same as sidebar)
+
+Stage Summary:
+- Profile page now shows sidebar with proper z-index layering
+- Dropdown menu now has Profile option before Settings
+- Header avatar now shows online/busy/away/offline status dot
+- All changes pass lint without errors

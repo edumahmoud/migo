@@ -8,6 +8,7 @@ import {
   LogOut,
   ChevronDown,
   WifiOff,
+  UserCircle,
 } from 'lucide-react';
 import { useSharedSocket, useSocketEvent } from '@/lib/socket';
 import { useAppStore } from '@/stores/app-store';
@@ -167,11 +168,11 @@ export default function AppHeader({
                     {roleLabel}
                   </span>
                 </div>
-                <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
+                <HeaderAvatar name={userName} avatarUrl={avatarUrl} />
               </div>
               {/* Mobile: Just avatar */}
               <div className="sm:hidden">
-                <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
+                <HeaderAvatar name={userName} avatarUrl={avatarUrl} />
               </div>
               <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 hidden sm:block ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -195,6 +196,16 @@ export default function AppHeader({
                   </div>
 
                   <div className="py-1">
+                    <button
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        openProfile(userId);
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 active:bg-muted/80 transition-colors"
+                    >
+                      <UserCircle className="h-4 w-4 text-muted-foreground" />
+                      الصفحة الشخصية
+                    </button>
                     <button
                       onClick={() => {
                         setDropdownOpen(false);
@@ -244,6 +255,52 @@ function getStoredUserStatus(): string {
   if (typeof window === 'undefined') return 'online';
   const saved = localStorage.getItem(STATUS_STORAGE_KEY);
   return saved && STATUS_DOT_CONFIG[saved] ? saved : 'online';
+}
+
+// -------------------------------------------------------
+// Header avatar with online status dot
+// -------------------------------------------------------
+function HeaderAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string }) {
+  const user = useAuthStore((s) => s.user);
+  const [userStatus, setUserStatus] = useState<string>(getStoredUserStatus);
+
+  // Listen for status changes via socket
+  useSocketEvent<{ userId: string; status: string }>('user-status-changed', (data) => {
+    if (user && data.userId === user.id) {
+      setUserStatus(data.status);
+    }
+  });
+
+  // Listen for storage events (cross-tab sync)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STATUS_STORAGE_KEY && e.newValue && STATUS_DOT_CONFIG[e.newValue]) {
+        setUserStatus(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  // Poll localStorage on window focus
+  useEffect(() => {
+    const handleFocus = () => {
+      setUserStatus(getStoredUserStatus());
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
+  const dotConfig = STATUS_DOT_CONFIG[userStatus] || STATUS_DOT_CONFIG.online;
+
+  return (
+    <div className="relative shrink-0">
+      <UserAvatar name={name} avatarUrl={avatarUrl} size="sm" />
+      <span
+        className={`absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-background ${dotConfig.color} ${dotConfig.pulse ? 'animate-pulse' : ''}`}
+      />
+    </div>
+  );
 }
 
 // -------------------------------------------------------

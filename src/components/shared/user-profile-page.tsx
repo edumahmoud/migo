@@ -493,7 +493,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
               </div>
             )}
             {/* Status indicator */}
-            <span className={`absolute bottom-2 left-2 h-5 w-5 rounded-full ring-3 ring-white dark:ring-gray-900 z-30 ${
+            <span className={`absolute bottom-2 left-2 h-5 w-5 rounded-full ring-3 ring-white dark:ring-gray-900 ${
               getStatusColor(profileUserStatus)
             } ${profileUserStatus === 'online' ? 'animate-pulse' : ''}`} />
           </motion.div>

@@ -13,6 +13,7 @@ import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
 import ResetPasswordForm from '@/components/auth/reset-password-form';
 import AppHeader from '@/components/shared/app-header';
+import AppSidebar from '@/components/shared/app-sidebar';
 import SetupWizard from '@/components/setup/setup-wizard';
 
 // Lazy-load heavy dashboard components to reduce initial compile memory
@@ -310,6 +311,12 @@ function HomeContent() {
 
   // Profile view
   if (currentPage === 'profile' && profileUserId) {
+    // Determine role-based sidebar props
+    const profileRole = user.role === 'superadmin' || user.role === 'admin' ? 'admin' : user.role as 'student' | 'teacher' | 'admin';
+    const profileActiveSection = user.role === 'student' ? useAppStore.getState().studentSection :
+      user.role === 'teacher' ? useAppStore.getState().teacherSection :
+      useAppStore.getState().adminSection;
+
     return (
       <SocketProvider>
         <div className="min-h-screen bg-background" dir="rtl">
@@ -337,7 +344,26 @@ function HomeContent() {
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             sidebarCollapsed={!sidebarOpen}
           />
-          <main className="pt-14 sm:pt-16">
+
+          {/* Sidebar on profile page */}
+          <AppSidebar
+            role={profileRole}
+            activeSection={profileActiveSection}
+            onSectionChange={(section) => {
+              // Navigate back to dashboard with the selected section
+              const dashboard = user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' :
+                user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard';
+              setCurrentPage(dashboard as typeof currentPage);
+              if (user.role === 'student') useAppStore.getState().setStudentSection(section as never);
+              if (user.role === 'teacher') useAppStore.getState().setTeacherSection(section as never);
+              if (user.role === 'admin' || user.role === 'superadmin') useAppStore.getState().setAdminSection(section as never);
+            }}
+          />
+
+          {/* Main Content - dynamic offset for collapsible sidebar */}
+          <main className={`min-h-screen pt-14 sm:pt-16 transition-all duration-300 ${
+            sidebarOpen ? 'md:mr-64' : 'md:mr-[68px]'
+          }`}>
             <UserProfilePage
               userId={profileUserId}
               currentUser={user}
