@@ -6,6 +6,7 @@ import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, Ch
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import type { CourseTab } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -200,14 +201,29 @@ export default function NotificationBell() {
       return;
     }
 
-    // Handle enrollment/subject links - navigate to the course
-    if (notif.link?.startsWith('enrollment:') || notif.link?.startsWith('subject:')) {
-      const subjectId = notif.link.includes(':') ? notif.link.split(':')[1] : null;
+    // Map of link prefixes to course tabs
+    const linkToTab: Record<string, CourseTab> = {
+      enrollment: 'overview',
+      subject: 'overview',
+      assignment: 'assignments',
+      lecture: 'lectures',
+      exam: 'exams',
+      note: 'notes',
+      file: 'files',
+      chat: 'chat',
+    };
+
+    // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID)
+    const courseLinkPrefix = Object.keys(linkToTab).find(prefix => notif.link?.startsWith(prefix + ':'));
+    if (courseLinkPrefix) {
+      const parts = notif.link!.split(':');
+      const subjectId = parts[1] || null;
       if (subjectId) {
         setIsOpen(false);
-        const { setSelectedSubjectId, setStudentSection, setTeacherSection, setCurrentPage } = useAppStore.getState();
+        const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setCurrentPage } = useAppStore.getState();
         setSelectedSubjectId(subjectId);
-        // Also navigate to the correct dashboard section
+        setCourseTab(linkToTab[courseLinkPrefix]);
+        // Navigate to the correct dashboard section
         if (user?.role === 'student') {
           setStudentSection('subjects');
           setCurrentPage('student-dashboard');
@@ -215,19 +231,6 @@ export default function NotificationBell() {
           setTeacherSection('subjects');
           setCurrentPage('teacher-dashboard');
         }
-      }
-      return;
-    }
-
-    // Handle assignment links - navigate to assignments section
-    if (notif.link?.startsWith('assignment:')) {
-      setIsOpen(false);
-      if (user?.role === 'student') {
-        setStudentSection('assignments');
-        setCurrentPage('student-dashboard');
-      } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
-        setTeacherSection('assignments');
-        setCurrentPage('teacher-dashboard');
       }
       return;
     }
@@ -261,8 +264,31 @@ export default function NotificationBell() {
   const navigateToLink = (link: string) => {
     // Link format examples: "assignments", "subjects", "quizzes", "attendance"
     // Or with detail: "assignments?id=xxx"
-    const [section, query] = link.split('?');
+    // Or tab-based: "subjects?tab=lectures&id=SUBJECT_ID"
+    const [section, queryString] = link.split('?');
     const role = user?.role;
+
+    // Parse query params
+    const params = new URLSearchParams(queryString || '');
+    const tab = params.get('tab');
+    const subjectId = params.get('id');
+
+    // Handle tab-based navigation for subjects (e.g., "subjects?tab=lectures&id=SUBJECT_ID")
+    if (section === 'subjects' && subjectId) {
+      const { setSelectedSubjectId, setCourseTab } = useAppStore.getState();
+      setSelectedSubjectId(subjectId);
+      if (tab) {
+        setCourseTab(tab as CourseTab);
+      }
+      if (role === 'student') {
+        setStudentSection('subjects');
+        setCurrentPage('student-dashboard');
+      } else if (role === 'teacher' || role === 'admin' || role === 'superadmin') {
+        setTeacherSection('subjects');
+        setCurrentPage('teacher-dashboard');
+      }
+      return;
+    }
 
     if (role === 'student') {
       const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'settings', 'notifications'];

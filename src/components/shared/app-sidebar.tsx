@@ -83,6 +83,8 @@ function NavItems({
   collapsed: boolean;
   onNavClick?: () => void;
 }) {
+  const { chatUnreadCount } = useAppStore();
+
   return (
     <ul className="space-y-1">
       {navItems.map((item) => {
@@ -117,7 +119,12 @@ function NavItems({
               {!collapsed && (
                 <>
                   <span>{item.label}</span>
-                  {isActive && (
+                  {item.id === 'chat' && chatUnreadCount > 0 && (
+                    <span className="mr-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-bold px-1.5">
+                      {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                    </span>
+                  )}
+                  {isActive && item.id !== 'chat' && (
                     <motion.div
                       layoutId="activeIndicator"
                       className="mr-auto h-2 w-2 rounded-full bg-emerald-500"

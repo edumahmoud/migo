@@ -41,6 +41,10 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   
+  // Chat unread count (global, used by sidebar badge)
+  chatUnreadCount: number;
+  setChatUnreadCount: (count: number) => void;
+  
   // Reset
   reset: () => void;
 }
@@ -56,6 +60,7 @@ const initialState = {
   courseTab: 'overview' as CourseTab,
   selectedStudentId: null as string | null,
   sidebarOpen: false,
+  chatUnreadCount: 0,
 };
 
 export const useAppStore = create<AppState>()(
@@ -74,6 +79,7 @@ export const useAppStore = create<AppState>()(
       setCourseTab: (tab) => set({ courseTab: tab }),
       setSelectedStudentId: (id) => set({ selectedStudentId: id }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
+      setChatUnreadCount: (count) => set({ chatUnreadCount: count }),
       
       reset: () => set(initialState),
     }),

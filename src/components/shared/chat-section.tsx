@@ -34,7 +34,7 @@ import { useStatusStore, getStatusColor, getStatusLabel, isVisible } from '@/sto
 // =====================================================
 interface ChatSectionProps {
   profile: UserProfile;
-  role: 'teacher' | 'student';
+  role: 'teacher' | 'student' | 'admin';
 }
 
 // =====================================================
@@ -104,7 +104,7 @@ function TypingIndicator({ names }: { names: string[] }) {
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
       </div>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-xs text-emerald-600 font-medium animate-pulse">{label}</span>
     </div>
   );
 }
@@ -116,6 +116,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // ─── Shared socket ───
   const { socket, isConnected, joinRoom, leaveRoom, joinAllRooms } = useSharedSocket();
   const { openProfile } = useAppStore();
+  const { setChatUnreadCount } = useAppStore();
 
   // ─── Conversations state ───
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -877,6 +878,16 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     if (local !== undefined) return local;
     return conv.unreadCount || 0;
   }, [localUnread]);
+
+  // =====================================================
+  // Update global unread count for sidebar badge
+  // =====================================================
+  useEffect(() => {
+    const totalUnread = conversations.reduce((sum, conv) => {
+      return sum + getUnreadCount(conv);
+    }, 0);
+    setChatUnreadCount(totalUnread);
+  }, [conversations, localUnread, getUnreadCount, setChatUnreadCount]);
 
   // =====================================================
   // Filter conversations

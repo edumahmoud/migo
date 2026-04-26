@@ -1023,7 +1023,8 @@ export default function SettingsSection({
             </div>
           </motion.div>
 
-          {/* Danger Zone Card */}
+          {/* Danger Zone Card - hidden for superadmin */}
+          {profile.role !== 'superadmin' && (
           <motion.div
             className="rounded-xl border border-rose-200 bg-rose-50/30 shadow-sm overflow-hidden"
             variants={sectionVariants}
@@ -1109,6 +1110,7 @@ export default function SettingsSection({
               </AlertDialog>
             </div>
           </motion.div>
+          )}
         </div>
       </div>
 

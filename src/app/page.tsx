@@ -18,11 +18,12 @@ import SummaryView from '@/components/shared/summary-view';
 import UserProfilePage from '@/components/shared/user-profile-page';
 import AppHeader from '@/components/shared/app-header';
 import SetupWizard from '@/components/setup/setup-wizard';
+import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
 function HomeContent() {
-  const { user, loading, initialized, initialize, signOut, sessionKickedMessage } = useAuthStore();
+  const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo } = useAuthStore();
   const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, reset: resetAppStore, sidebarOpen, setSidebarOpen } = useAppStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
@@ -286,7 +287,7 @@ function HomeContent() {
   if (currentPage === 'profile' && profileUserId) {
     return (
       <SocketProvider>
-        <div className="min-h-screen bg-background" dir="rtl">
+        <div className="min-h-screen bg-background relative z-10" dir="rtl">
           <AppHeader
             userName={user.name}
             userId={user.id}
@@ -324,6 +325,9 @@ function HomeContent() {
 
   // Authenticated content wrapped with SocketProvider
   const dashboardContent = (() => {
+    // Check if user is banned (but not admin - admins can't be banned)
+    const isBannedUser = banInfo && user.role !== 'admin' && user.role !== 'superadmin';
+
     // Superadmin or Admin dashboard
     if (user.role === 'superadmin' || user.role === 'admin' || currentPage === 'admin-dashboard') {
       return (
@@ -341,7 +345,7 @@ function HomeContent() {
 
     // Teacher dashboard
     if (user.role === 'teacher' || currentPage === 'teacher-dashboard') {
-      return (
+      const teacherContent = (
         <TeacherDashboard
           profile={user}
           onSignOut={() => {
@@ -352,10 +356,11 @@ function HomeContent() {
           }}
         />
       );
+      return isBannedUser ? <BannedUserOverlay>{teacherContent}</BannedUserOverlay> : teacherContent;
     }
 
     // Student dashboard (default)
-    return (
+    const studentContent = (
       <StudentDashboard
         profile={user}
         onSignOut={() => {
@@ -366,6 +371,7 @@ function HomeContent() {
         }}
       />
     );
+    return isBannedUser ? <BannedUserOverlay>{studentContent}</BannedUserOverlay> : studentContent;
   })();
 
   return (

@@ -89,3 +89,38 @@ Stage Summary:
 - **Status dots**: Now appear on header avatar, chat conversation list, chat header, and profile page with proper colors
 - **Status selection**: When user changes status in Settings, it's now reflected everywhere in real-time via the centralized store
 - **Socket.IO fix**: Server now supports callback pattern for get-user-status, fixing the profile page's initial status fetch
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Implement 8 feature requests: chat for admin, user ban system, profile fixes, notification navigation, typing animation, unread badges
+
+Work Log:
+- **Task 1**: Added 'chat' to AdminSection type, added chat nav item in admin sidebar, added ChatSection rendering in admin dashboard
+- **Task 2**: Created full user ban system:
+  - DB migration v15 for banned_users table (user_id, ban_until, banned_by, is_active)
+  - /api/admin/ban-user endpoint for banning users with duration
+  - /api/check-ban endpoint for checking active ban status with auto-expiry
+  - Updated unban to set is_active=false instead of deleting
+  - Ban dialog in admin user detail modal with duration selector (1 day/week/month, custom, permanent)
+  - BannedUserOverlay component for restricted users (can login but blocked from features)
+  - Enhanced banned users section with stats, countdown timers, status badges
+  - Auth store updated: banned users can login but get banInfo flag
+- **Task 3**: Added relative z-10 to profile page container so it sits below sidebar z-30
+- **Task 4**: Added "الملف الشخصي" button in header dropdown menu (before settings) with UserCircle icon
+- **Task 5**: Wrapped delete account "Danger Zone" card with profile.role !== 'superadmin' condition
+- **Task 6**: Updated notification-bell.tsx with course-tab-aware navigation:
+  - enrollment/subject → overview tab, assignment → assignments tab, lecture → lectures tab
+  - exam → exams tab, note → notes tab, file → files tab, chat → chat tab
+  - Updated navigateToLink to parse tab and id query params
+- **Task 7**: Updated TypingIndicator in chat-section to use text-emerald-600 font-medium animate-pulse
+- **Task 8**: Added chatUnreadCount to app-store, badge on chat nav item in sidebar, useEffect in ChatSection to compute and sync total unread count
+
+Stage Summary:
+- All 8 tasks implemented and lint passes
+- Chat available for admin/superadmin accounts
+- Full ban system with temporary/permanent bans and restricted user overlay
+- Profile page z-index fixed, profile option in dropdown, delete account hidden for superadmin
+- Notifications navigate to correct course tabs
+- Animated typing indicator in chat
+- Unread message count badge on chat icon in sidebar

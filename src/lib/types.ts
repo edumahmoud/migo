@@ -285,6 +285,13 @@ export interface BannedUser {
   email: string;
   banned_at: string;
   reason?: string;
+  user_id?: string | null;
+  ban_until?: string | null;
+  banned_by?: string | null;
+  is_active?: boolean;
+  // Joined data (populated in admin dashboard)
+  user_name?: string;
+  banned_by_name?: string;
 }
 
 // =====================================================
@@ -333,7 +340,7 @@ export type AppPage =
 
 export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications';
 export type TeacherSection = 'dashboard' | 'subjects' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications';
-export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'settings';
+export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings';
 
 // API response types
 export interface ApiResponse<T = unknown> {

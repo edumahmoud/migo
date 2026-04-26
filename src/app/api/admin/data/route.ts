@@ -97,7 +97,38 @@ export async function GET(request: NextRequest) {
       if (bannedError) {
         console.error('Error fetching banned users:', bannedError);
       } else {
-        results.data = banned;
+        // Enrich banned records with user names and admin names
+        const enrichedBanned = await Promise.all((banned || []).map(async (ban: Record<string, unknown>) => {
+          const enriched = { ...ban };
+          
+          // Fetch banned user's name
+          if (ban.user_id) {
+            const { data: bannedUser } = await supabaseServer
+              .from('users')
+              .select('name')
+              .eq('id', ban.user_id as string)
+              .maybeSingle();
+            if (bannedUser) {
+              enriched.user_name = bannedUser.name;
+            }
+          }
+
+          // Fetch admin who banned's name
+          if (ban.banned_by) {
+            const { data: adminUser } = await supabaseServer
+              .from('users')
+              .select('name')
+              .eq('id', ban.banned_by as string)
+              .maybeSingle();
+            if (adminUser) {
+              enriched.banned_by_name = adminUser.name;
+            }
+          }
+
+          return enriched;
+        }));
+
+        results.data = enrichedBanned;
       }
     }
 

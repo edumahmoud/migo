@@ -4,19 +4,27 @@ import { supabaseServer } from '@/lib/supabase-server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email } = body;
+    const { email, banId } = body;
 
-    if (!email) {
+    if (!email && !banId) {
       return NextResponse.json(
-        { success: false, error: 'البريد الإلكتروني مطلوب' },
+        { success: false, error: 'البريد الإلكتروني أو معرف الحظر مطلوب' },
         { status: 400 }
       );
     }
 
-    const { error } = await supabaseServer
+    // Deactivate the ban instead of deleting it (preserves history)
+    let query = supabaseServer
       .from('banned_users')
-      .delete()
-      .eq('email', email);
+      .update({ is_active: false });
+
+    if (banId) {
+      query = query.eq('id', banId);
+    } else {
+      query = query.eq('email', email);
+    }
+
+    const { error } = await query;
 
     if (error) {
       console.error('Error unbanning user:', error);

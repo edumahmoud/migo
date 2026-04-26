@@ -37,6 +37,9 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Building2,
+  MessageCircle,
+  Clock,
+  Gavel,
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -58,6 +61,7 @@ import { supabase } from '@/lib/supabase';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
 import SettingsSection from '@/components/shared/settings-section';
+import ChatSection from '@/components/shared/chat-section';
 import InstitutionSection from '@/components/admin/institution-section';
 import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -107,6 +111,7 @@ const adminNavItems = [
   { id: 'announcements', label: 'الإعلانات', icon: <Megaphone className="h-5 w-5" /> },
   { id: 'banned', label: 'المحظورون', icon: <Ban className="h-5 w-5" /> },
   { id: 'reports', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
+  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
   { id: 'institution', label: 'المؤسسة', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
 ];
@@ -222,6 +227,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
   const [loadingBanned, setLoadingBanned] = useState(false);
   const [unbanningEmail, setUnbanningEmail] = useState<string | null>(null);
+
+  // ─── Ban dialog state ───
+  const [banDialogOpen, setBanDialogOpen] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [banDuration, setBanDuration] = useState<'permanent' | '1day' | '1week' | '1month' | 'custom'>('permanent');
+  const [banCustomDate, setBanCustomDate] = useState('');
+  const [banningUserId, setBanningUserId] = useState<string | null>(null);
 
   // ─── Announcements state ───
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -486,7 +498,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     }
   }, []);
 
-  const handleUnbanUser = async (email: string) => {
+  const handleUnbanUser = async (email: string, banId?: string) => {
     setUnbanningEmail(email);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -494,7 +506,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       const res = await fetch('/api/admin/unban-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, banId }),
       });
       const result = await res.json();
       if (result.success) {
@@ -507,6 +519,64 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       toast.error('حدث خطأ غير متوقع');
     } finally {
       setUnbanningEmail(null);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Ban user handler
+  // -------------------------------------------------------
+  const handleBanUser = async () => {
+    if (!selectedUser && !banningUserId) return;
+
+    const targetUserId = selectedUser?.id || banningUserId;
+    if (!targetUserId) return;
+
+    // Calculate ban_until based on duration
+    let banUntil: string | null = null;
+    if (banDuration === '1day') {
+      banUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    } else if (banDuration === '1week') {
+      banUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (banDuration === '1month') {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 1);
+      banUntil = d.toISOString();
+    } else if (banDuration === 'custom' && banCustomDate) {
+      banUntil = new Date(banCustomDate).toISOString();
+    }
+    // permanent -> banUntil stays null
+
+    setBanningUserId(targetUserId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const res = await fetch('/api/admin/ban-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          userId: targetUserId,
+          reason: banReason.trim() || undefined,
+          banUntil,
+          bannedBy: profile.id,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success(banUntil ? 'تم حظر المستخدم مؤقتاً' : 'تم حظر المستخدم نهائياً');
+        setBanDialogOpen(false);
+        setBanReason('');
+        setBanDuration('permanent');
+        setBanCustomDate('');
+        setUserDetailOpen(false);
+        fetchBannedUsers();
+        fetchAllData();
+      } else {
+        toast.error(result.error || 'حدث خطأ أثناء حظر المستخدم');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setBanningUserId(null);
     }
   };
 
@@ -1238,20 +1308,176 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <p className="text-xs text-rose-600 mb-3">
                       حذف المستخدم سيؤدي إلى إزالة جميع بياناته نهائياً.
                     </p>
-                    <button
-                      onClick={() => handleDeleteUser(selectedUser.id)}
-                      disabled={deletingUserId === selectedUser.id}
-                      className="flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 transition-colors disabled:opacity-60"
-                    >
-                      {deletingUserId === selectedUser.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )}
-                      حذف المستخدم
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => {
+                          setBanDialogOpen(true);
+                          setBanReason('');
+                          setBanDuration('permanent');
+                          setBanCustomDate('');
+                        }}
+                        disabled={banningUserId === selectedUser.id}
+                        className="flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors disabled:opacity-60"
+                      >
+                        {banningUserId === selectedUser.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Gavel className="h-3.5 w-3.5" />
+                        )}
+                        حظر المستخدم
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(selectedUser.id)}
+                        disabled={deletingUserId === selectedUser.id}
+                        className="flex items-center gap-2 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 transition-colors disabled:opacity-60"
+                      >
+                        {deletingUserId === selectedUser.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        حذف المستخدم
+                      </button>
+                    </div>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Ban user dialog */}
+      <AnimatePresence>
+        {banDialogOpen && selectedUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => { if (!banningUserId) setBanDialogOpen(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
+              dir="rtl"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b p-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
+                    <Gavel className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-foreground">حظر المستخدم</h3>
+                    <p className="text-xs text-muted-foreground">{selectedUser.name}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setBanDialogOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 space-y-4">
+                {/* Reason */}
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">سبب الحظر</label>
+                  <textarea
+                    value={banReason}
+                    onChange={(e) => setBanReason(e.target.value)}
+                    placeholder="أدخل سبب الحظر (اختياري)..."
+                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-colors resize-none"
+                    rows={3}
+                    dir="rtl"
+                  />
+                </div>
+
+                {/* Duration */}
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">مدة الحظر</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { value: 'permanent' as const, label: 'حظر نهائي', icon: <Ban className="h-3.5 w-3.5" /> },
+                      { value: '1day' as const, label: 'يوم واحد', icon: <Clock className="h-3.5 w-3.5" /> },
+                      { value: '1week' as const, label: 'أسبوع', icon: <Clock className="h-3.5 w-3.5" /> },
+                      { value: '1month' as const, label: 'شهر', icon: <Clock className="h-3.5 w-3.5" /> },
+                    ]).map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setBanDuration(opt.value)}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium transition-all ${
+                          banDuration === opt.value
+                            ? 'border-amber-500 bg-amber-50 text-amber-700'
+                            : 'border-border text-muted-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        {opt.icon}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Custom date option */}
+                  <button
+                    onClick={() => setBanDuration('custom')}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium transition-all mt-2 w-full ${
+                      banDuration === 'custom'
+                        ? 'border-amber-500 bg-amber-50 text-amber-700'
+                        : 'border-border text-muted-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <Calendar className="h-3.5 w-3.5" />
+                    تاريخ مخصص
+                  </button>
+                  {banDuration === 'custom' && (
+                    <input
+                      type="datetime-local"
+                      value={banCustomDate}
+                      onChange={(e) => setBanCustomDate(e.target.value)}
+                      min={new Date().toISOString().slice(0, 16)}
+                      className="mt-2 w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-colors"
+                    />
+                  )}
+                </div>
+
+                {/* Warning */}
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                  <p className="text-xs text-amber-700">
+                    {banDuration === 'permanent'
+                      ? '⚠️ الحظر النهائي سيمنع المستخدم من الوصول لجميع الميزات نهائياً ما لم يتم إلغاء الحظر يدوياً.'
+                      : '⚠️ الحظر المؤقت سيمنع المستخدم من الوصول للمقررات والمحادثات والإشعارات حتى انتهاء المدة المحددة.'
+                    }
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    onClick={handleBanUser}
+                    disabled={!!banningUserId || (banDuration === 'custom' && !banCustomDate)}
+                    className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-700 transition-colors disabled:opacity-60 flex-1 justify-center"
+                  >
+                    {banningUserId ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Gavel className="h-4 w-4" />
+                    )}
+                    تأكيد الحظر
+                  </button>
+                  <button
+                    onClick={() => setBanDialogOpen(false)}
+                    className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -1512,13 +1738,34 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // -------------------------------------------------------
   // Render: Banned Users Section
   // -------------------------------------------------------
-  const renderBannedUsers = () => (
+  const renderBannedUsers = () => {
+    // Helper: determine if a ban is expired
+    const isBanExpired = (ban: BannedUser) => {
+      if (!ban.ban_until) return false; // permanent
+      return new Date(ban.ban_until) <= new Date();
+    };
+
+    // Helper: format remaining time
+    const formatRemaining = (banUntil: string) => {
+      const remaining = new Date(banUntil).getTime() - Date.now();
+      if (remaining <= 0) return 'منتهي';
+      const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+      const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+      if (days > 0) return `${days} يوم و ${hours} ساعة`;
+      return `${hours} ساعة`;
+    };
+
+    // Filter tabs
+    const activeBans = bannedUsers.filter((b) => b.is_active && !isBanExpired(b));
+    const expiredBans = bannedUsers.filter((b) => !b.is_active || isBanExpired(b));
+
+    return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">المستخدمون المحظورون</h2>
-          <p className="text-muted-foreground mt-1">المستخدمون الذين تم حظرهم ومنعهم من إعادة التسجيل</p>
+          <p className="text-muted-foreground mt-1">إدارة الحظر المؤقت والنهائي للمستخدمين</p>
         </div>
         <button
           onClick={fetchBannedUsers}
@@ -1527,6 +1774,26 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <Loader2 className={`h-3.5 w-3.5 ${loadingBanned ? 'animate-spin' : 'hidden'}`} />
           تحديث
         </button>
+      </motion.div>
+
+      {/* Stats summary */}
+      <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-xl border bg-card p-4 text-center">
+          <p className="text-2xl font-bold text-rose-700">{activeBans.length}</p>
+          <p className="text-xs text-muted-foreground">حظر نشط</p>
+        </div>
+        <div className="rounded-xl border bg-card p-4 text-center">
+          <p className="text-2xl font-bold text-amber-700">{activeBans.filter((b) => b.ban_until).length}</p>
+          <p className="text-xs text-muted-foreground">حظر مؤقت</p>
+        </div>
+        <div className="rounded-xl border bg-card p-4 text-center">
+          <p className="text-2xl font-bold text-foreground">{activeBans.filter((b) => !b.ban_until).length}</p>
+          <p className="text-xs text-muted-foreground">حظر نهائي</p>
+        </div>
+        <div className="rounded-xl border bg-card p-4 text-center">
+          <p className="text-2xl font-bold text-muted-foreground">{expiredBans.length}</p>
+          <p className="text-xs text-muted-foreground">منتهي الصلاحية</p>
+        </div>
       </motion.div>
 
       {bannedUsers.length === 0 ? (
@@ -1538,53 +1805,105 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <Ban className="h-8 w-8 text-rose-600" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا يوجد مستخدمون محظورون</p>
-          <p className="text-sm text-muted-foreground">سيظهر المستخدمون المحظورون هنا عند حذف مستخدم</p>
+          <p className="text-sm text-muted-foreground">سيظهر المستخدمون المحظورون هنا عند حظر مستخدم</p>
         </motion.div>
       ) : (
         <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {bannedUsers.map((banned) => (
-            <motion.div key={banned.id} variants={itemVariants} {...cardHover}>
-              <div className="group rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-700 text-sm font-bold">
-                    <Ban className="h-5 w-5" />
+          {bannedUsers.map((banned) => {
+            const expired = isBanExpired(banned);
+            const isActive = banned.is_active && !expired;
+            const isPermanent = !banned.ban_until;
+
+            return (
+              <motion.div key={banned.id} variants={itemVariants} {...cardHover}>
+                <div className={`group rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow ${!isActive ? 'opacity-60' : ''}`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                      isActive
+                        ? isPermanent
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-amber-100 text-amber-700'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {isPermanent ? <Ban className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-semibold text-foreground truncate text-sm">
+                        {banned.user_name || banned.email}
+                      </h3>
+                      <p className="text-xs text-muted-foreground truncate">{banned.email}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                        <Calendar className="h-3 w-3" />
+                        {formatDate(banned.banned_at)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold text-foreground truncate text-sm">{banned.email}</h3>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                      <Calendar className="h-3 w-3" />
-                      {formatDate(banned.banned_at)}
+
+                  {/* Ban status badge */}
+                  <div className="mb-3">
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${
+                      isActive
+                        ? isPermanent
+                          ? 'bg-rose-100 text-rose-700 border-rose-200'
+                          : 'bg-amber-100 text-amber-700 border-amber-200'
+                        : 'bg-gray-100 text-gray-500 border-gray-200'
+                    }`}>
+                      {isActive
+                        ? isPermanent
+                          ? 'حظر نهائي'
+                          : `مؤقت - متبقي ${formatRemaining(banned.ban_until!)}`
+                        : 'منتهي الصلاحية'
+                      }
+                    </span>
+                  </div>
+
+                  {/* Ban end date for temporary bans */}
+                  {isActive && banned.ban_until && (
+                    <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      ينتهي في: {formatDate(banned.ban_until)}
                     </p>
+                  )}
+
+                  {banned.reason && (
+                    <p className="text-xs text-muted-foreground mb-2 bg-muted/30 rounded-lg p-2 break-words">
+                      {banned.reason}
+                    </p>
+                  )}
+
+                  {banned.banned_by_name && (
+                    <p className="text-xs text-muted-foreground mb-2">
+                      حظر بواسطة: {banned.banned_by_name}
+                    </p>
+                  )}
+
+                  <div className="flex items-center justify-end pt-2 border-t gap-2">
+                    {isActive ? (
+                      <button
+                        onClick={() => handleUnbanUser(banned.email, banned.id)}
+                        disabled={unbanningEmail === banned.email}
+                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                      >
+                        {unbanningEmail === banned.email ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Unlock className="h-3.5 w-3.5" />
+                        )}
+                        إلغاء الحظر
+                      </button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">تم إلغاء الحظر</span>
+                    )}
                   </div>
                 </div>
-
-                {banned.reason && (
-                  <p className="text-xs text-muted-foreground mb-3 bg-muted/30 rounded-lg p-2 break-words">
-                    {banned.reason}
-                  </p>
-                )}
-
-                <div className="flex items-center justify-end pt-2 border-t">
-                  <button
-                    onClick={() => handleUnbanUser(banned.email)}
-                    disabled={unbanningEmail === banned.email}
-                    className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
-                  >
-                    {unbanningEmail === banned.email ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Unlock className="h-3.5 w-3.5" />
-                    )}
-                    إلغاء الحظر
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </motion.div>
       )}
     </motion.div>
-  );
+    );
+  };
 
   // -------------------------------------------------------
   // Render: Announcements Section
@@ -2608,6 +2927,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'reports' && (
                 <motion.div key="reports" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   {renderReports()}
+                </motion.div>
+              )}
+              {activeSection === 'chat' && (
+                <motion.div key="chat" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  <ChatSection profile={profile} role="admin" />
                 </motion.div>
               )}
               {activeSection === 'settings' && (

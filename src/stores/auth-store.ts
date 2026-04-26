@@ -174,6 +174,7 @@ interface AuthState {
   loading: boolean;
   initialized: boolean;
   sessionKickedMessage: string | null;
+  banInfo: { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
   
   // Actions
   setUser: (user: UserProfile | null) => void;
@@ -184,6 +185,7 @@ interface AuthState {
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
+  checkBanStatus: () => Promise<void>;
 }
 
 // Cleanup function for session validation interval
@@ -194,6 +196,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
   initialized: false,
   sessionKickedMessage: null,
+  banInfo: null,
   
   setUser: (user) => set({ user, loading: false }),
   
@@ -262,18 +265,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
         
         if (profile) {
-          // Check if user's email is banned
+          // Check if user's email is banned (check for active ban)
+          // Handle both old schema (no is_active column) and new schema
           const { data: bannedRecord } = await supabase
             .from('banned_users')
-            .select('id')
+            .select('id, reason, banned_at, ban_until, is_active')
             .eq('email', profile.email)
             .maybeSingle();
 
           if (bannedRecord) {
-            // User is banned - sign out immediately
-            await supabase.auth.signOut();
-            set({ user: null, loading: false, initialized: true });
-            return;
+            // Old schema: is_active doesn't exist (undefined), treat as active
+            // New schema: check is_active
+            const isActive = bannedRecord.is_active === undefined || bannedRecord.is_active === true;
+            
+            // Check if ban has expired
+            const isExpired = bannedRecord.ban_until && new Date(bannedRecord.ban_until) <= new Date();
+            
+            if (isActive && !isExpired) {
+              // User has an active ban - let them log in but set ban flag
+              set({ 
+                user: profile as UserProfile, 
+                loading: false, 
+                initialized: true,
+                banInfo: {
+                  reason: bannedRecord.reason,
+                  bannedAt: bannedRecord.banned_at,
+                  banUntil: bannedRecord.ban_until,
+                  isPermanent: !bannedRecord.ban_until,
+                }
+              });
+
+              // Start session validation even for banned users
+              if (sessionCheckCleanup) sessionCheckCleanup();
+              sessionCheckCleanup = startSessionValidation(profile.id, async () => {
+                await supabase.auth.signOut();
+                set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+              });
+              return;
+            }
+            // Ban expired - user can proceed normally
           }
 
           // Validate session (check if another device took over)
@@ -294,32 +324,67 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
           });
 
-          set({ user: profile as UserProfile, loading: false, initialized: true });
+          set({ user: profile as UserProfile, loading: false, initialized: true, banInfo: null });
         } else {
           set({ loading: false, initialized: true });
         }
       } else {
-        set({ user: null, loading: false, initialized: true });
+        set({ user: null, loading: false, initialized: true, banInfo: null });
       }
     } catch {
-      set({ user: null, loading: false, initialized: true });
+      set({ user: null, loading: false, initialized: true, banInfo: null });
     }
     
     // Listen for auth changes
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        // Check if user's email is banned
+        // Check if user's email is banned (check for active ban)
+        // Handle both old schema (no is_active column) and new schema
         const { data: bannedRecord } = await supabase
           .from('banned_users')
-          .select('id')
+          .select('id, reason, banned_at, ban_until, is_active')
           .eq('email', session.user.email || '')
           .maybeSingle();
 
         if (bannedRecord) {
-          // User is banned - sign out immediately
-          await supabase.auth.signOut();
-          set({ user: null, loading: false });
-          return;
+          // Old schema: is_active doesn't exist (undefined), treat as active
+          // New schema: check is_active
+          const isActive = bannedRecord.is_active === undefined || bannedRecord.is_active === true;
+
+          // Check if ban has expired
+          const isExpired = bannedRecord.ban_until && new Date(bannedRecord.ban_until) <= new Date();
+
+          if (isActive && !isExpired) {
+            // User has an active ban - let them log in but set ban flag
+            let { data: profile } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            if (profile) {
+              if (event === 'SIGNED_IN') {
+                await registerSession(profile.id);
+                if (sessionCheckCleanup) sessionCheckCleanup();
+                sessionCheckCleanup = startSessionValidation(profile.id, async () => {
+                  await supabase.auth.signOut();
+                  set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+                });
+              }
+              set({ 
+                user: profile as UserProfile, 
+                loading: false, 
+                banInfo: {
+                  reason: bannedRecord.reason,
+                  bannedAt: bannedRecord.banned_at,
+                  banUntil: bannedRecord.ban_until,
+                  isPermanent: !bannedRecord.ban_until,
+                }
+              });
+              return;
+            }
+          }
+          // Ban expired - user can proceed normally
         }
 
         let { data: profile } = await supabase
@@ -383,7 +448,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
             });
           }
-          set({ user: profile as UserProfile, loading: false });
+          set({ user: profile as UserProfile, loading: false, banInfo: null });
         }
       } else if (event === 'SIGNED_OUT') {
         // Clean up session validation interval
@@ -391,7 +456,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           sessionCheckCleanup();
           sessionCheckCleanup = null;
         }
-        set({ user: null, loading: false });
+        set({ user: null, loading: false, banInfo: null });
       }
     });
   },
@@ -427,17 +492,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .single();
       
       if (profile) {
-        // Check if user's email is banned
+        // Check if user's email is banned (check for active ban)
+        // Handle both old schema (no is_active column) and new schema
         const { data: bannedRecord } = await supabase
           .from('banned_users')
-          .select('id')
+          .select('id, reason, banned_at, ban_until, is_active')
           .eq('email', profile.email)
           .maybeSingle();
 
         if (bannedRecord) {
-          await supabase.auth.signOut();
-          set({ user: null, loading: false });
-          return { error: 'تم حظر هذا الحساب' };
+          // Old schema: is_active doesn't exist (undefined), treat as active
+          // New schema: check is_active
+          const isActive = bannedRecord.is_active === undefined || bannedRecord.is_active === true;
+
+          // Check if ban has expired
+          const isExpired = bannedRecord.ban_until && new Date(bannedRecord.ban_until) <= new Date();
+
+          if (isActive && !isExpired) {
+            // User has an active ban - let them in but with restricted access
+            await registerSession(authUser.id);
+            if (sessionCheckCleanup) sessionCheckCleanup();
+            sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
+              await supabase.auth.signOut();
+              set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+            });
+            signInRateLimit.attempts = 0;
+            set({ 
+              user: profile as UserProfile, 
+              loading: false,
+              banInfo: {
+                reason: bannedRecord.reason,
+                bannedAt: bannedRecord.banned_at,
+                banUntil: bannedRecord.ban_until,
+                isPermanent: !bannedRecord.ban_until,
+              }
+            });
+            return { error: null };
+          }
+          // Ban expired - user can proceed normally
         }
 
         // Register session on successful sign-in
@@ -452,7 +544,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         // Reset rate limit on successful login
         signInRateLimit.attempts = 0;
-        set({ user: profile as UserProfile, loading: false });
+        set({ user: profile as UserProfile, loading: false, banInfo: null });
         return { error: null };
       }
       
@@ -489,7 +581,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
             });
             signInRateLimit.attempts = 0;
-            set({ user: retryProfile as UserProfile, loading: false });
+            set({ user: retryProfile as UserProfile, loading: false, banInfo: null });
             return { error: null };
           }
         }
@@ -509,10 +601,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (sessionCheckCleanup) sessionCheckCleanup();
         sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
           await supabase.auth.signOut();
-          set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
+          set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
         });
         signInRateLimit.attempts = 0;
-        set({ user: fallbackProfile, loading: false });
+        set({ user: fallbackProfile, loading: false, banInfo: null });
         return { error: null };
       }
       
@@ -531,7 +623,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (sessionCheckCleanup) sessionCheckCleanup();
         sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
           await supabase.auth.signOut();
-          set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
+          set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
         });
 
         // Check if this is the first user (promote to superadmin)
@@ -539,12 +631,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const finalProfile = promotedProfile || newProfile;
 
         signInRateLimit.attempts = 0;
-        set({ user: (finalProfile || newProfile) as UserProfile, loading: false });
+        set({ user: (finalProfile || newProfile) as UserProfile, loading: false, banInfo: null });
         return { error: null };
       }
       
       // Profile was inserted but can't be fetched (RLS) - use fallback from auth data
-      const fallbackProfile: UserProfile = {
+      const fallbackProfile2: UserProfile = {
         id: authUser.id,
         email: authUser.email || sanitizedEmail,
         name: userName,
@@ -558,10 +650,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (sessionCheckCleanup) sessionCheckCleanup();
       sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
         await supabase.auth.signOut();
-        set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
+        set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
       });
       signInRateLimit.attempts = 0;
-      set({ user: fallbackProfile, loading: false });
+      set({ user: fallbackProfile2, loading: false, banInfo: null });
       return { error: null };
     } catch {
       return { error: 'حدث خطأ غير متوقع' };
@@ -734,7 +826,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     // Immediately clear user state for instant UI feedback
-    set({ user: null, loading: false, sessionKickedMessage: null });
+    set({ user: null, loading: false, sessionKickedMessage: null, banInfo: null });
 
     // Clean up session validation interval
     if (sessionCheckCleanup) {
@@ -819,6 +911,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch {
       // Silently fail — keep existing user data
+    }
+  },
+  
+  checkBanStatus: async () => {
+    const { user } = get();
+    if (!user) return;
+    
+    try {
+      const res = await fetch(`/api/check-ban?email=${encodeURIComponent(user.email)}`);
+      const data = await res.json();
+      if (data.success && data.isBanned) {
+        set({ 
+          banInfo: {
+            reason: data.ban?.reason,
+            bannedAt: data.ban?.bannedAt,
+            banUntil: data.ban?.banUntil,
+            isPermanent: data.ban?.isPermanent,
+          }
+        });
+      } else {
+        set({ banInfo: null });
+      }
+    } catch {
+      // Silently fail - keep current banInfo state
     }
   },
 }));

@@ -7,6 +7,7 @@ import {
   Settings,
   LogOut,
   ChevronDown,
+  UserCircle,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
@@ -197,6 +198,16 @@ export default function AppHeader({
                   </div>
 
                   <div className="py-1">
+                    <button
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        openProfile(userId);
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 active:bg-muted/80 transition-colors"
+                    >
+                      <UserCircle className="h-4 w-4 text-muted-foreground" />
+                      الملف الشخصي
+                    </button>
                     <button
                       onClick={() => {
                         setDropdownOpen(false);
