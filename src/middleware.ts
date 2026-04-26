@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
 // Routes that require authentication
 const protectedApiRoutes = ['/api/gemini', '/api/admin', '/api/files'];
 
@@ -17,6 +14,15 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth/callback') ||
     pathname.includes('.') // static files
   ) {
+    return NextResponse.next();
+  }
+
+  // Read env vars at request time (not module load time) for reliability
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Middleware: Missing Supabase env vars');
     return NextResponse.next();
   }
 
@@ -76,7 +82,7 @@ export async function middleware(request: NextRequest) {
 
         // For admin routes, verify the user is an admin
         if (pathname.startsWith('/api/admin')) {
-          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
           if (!supabaseServiceKey) {
             return NextResponse.json(
               { success: false, error: 'خطأ في إعدادات الخادم' },
@@ -125,7 +131,7 @@ export async function middleware(request: NextRequest) {
 
     // For admin routes, verify the user is an admin
     if (pathname.startsWith('/api/admin')) {
-      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (!supabaseServiceKey) {
         return NextResponse.json(
           { success: false, error: 'خطأ في إعدادات الخادم' },

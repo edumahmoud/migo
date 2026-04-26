@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || 'all';
 
     const results: Record<string, unknown> = {};
+    const errors: string[] = [];
 
     if (type === 'all' || type === 'users') {
       const { data: users, error: usersError } = await supabaseServer
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
 
       if (usersError) {
         console.error('Error fetching users:', usersError);
+        errors.push(`users: ${usersError.message}`);
       } else {
         // Enrich users with subject and student counts
         const enrichedUsers = await Promise.all((users || []).map(async (u: Record<string, unknown>) => {
@@ -58,8 +60,9 @@ export async function GET(request: NextRequest) {
 
       if (subjectsError) {
         console.error('Error fetching subjects:', subjectsError);
+        errors.push(`subjects: ${subjectsError.message}`);
       } else {
-        results.subjects = subjects;
+        results.subjects = subjects || [];
       }
     }
 
@@ -71,8 +74,9 @@ export async function GET(request: NextRequest) {
 
       if (scoresError) {
         console.error('Error fetching scores:', scoresError);
+        errors.push(`scores: ${scoresError.message}`);
       } else {
-        results.scores = scores;
+        results.scores = scores || [];
       }
     }
 
@@ -83,6 +87,7 @@ export async function GET(request: NextRequest) {
 
       if (quizError) {
         console.error('Error fetching quiz count:', quizError);
+        errors.push(`quizzes: ${quizError.message}`);
       } else {
         results.quizCount = quizCount ?? 0;
       }
@@ -96,6 +101,7 @@ export async function GET(request: NextRequest) {
 
       if (bannedError) {
         console.error('Error fetching banned users:', bannedError);
+        errors.push(`banned: ${bannedError.message}`);
       } else {
         // Enrich banned records with user names and admin names
         const enrichedBanned = await Promise.all((banned || []).map(async (ban: Record<string, unknown>) => {
@@ -132,11 +138,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // If there were critical errors, include them in the response
+    if (errors.length > 0) {
+      console.error('Admin data fetch had errors:', errors);
+      // Still return partial data with error info
+      return NextResponse.json({ 
+        success: true, 
+        data: results,
+        warnings: errors 
+      });
+    }
+
     return NextResponse.json({ success: true, data: results });
   } catch (error) {
     console.error('Admin data fetch error:', error);
     return NextResponse.json(
-      { success: false, error: 'حدث خطأ أثناء جلب البيانات' },
+      { success: false, error: 'حدث خطأ أثناء جلب البيانات', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

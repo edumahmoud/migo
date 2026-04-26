@@ -294,18 +294,50 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
+      
+      if (!token) {
+        console.error('Admin data fetch: No auth token available');
+        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        setLoadingData(false);
+        return;
+      }
+      
       const res = await fetch('/api/admin/data?type=all', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        console.error('Admin data fetch failed:', res.status, errorData);
+        if (res.status === 401) {
+          toast.error('انتهت صلاحية الجلسة. يرجى تحديث الصفحة أو تسجيل الدخول مرة أخرى');
+        } else if (res.status === 403) {
+          toast.error('غير مصرح بالوصول. يجب أن تكون مشرف أو مدير منصة');
+        } else {
+          toast.error(`خطأ في جلب البيانات: ${errorData.error || res.status}`);
+        }
+        setLoadingData(false);
+        return;
+      }
+      
       const result = await res.json();
       if (result.success && result.data) {
         if (result.data.users) setAllUsers(result.data.users as UserWithMeta[]);
         if (result.data.subjects) setAllSubjects(result.data.subjects as Subject[]);
         if (result.data.scores) setAllScores(result.data.scores as Score[]);
         if (result.data.quizCount !== undefined) setTotalQuizzes(result.data.quizCount as number);
+        
+        // Log warnings if any
+        if (result.warnings && result.warnings.length > 0) {
+          console.warn('Admin data fetch warnings:', result.warnings);
+        }
+      } else if (!result.success) {
+        console.error('Admin data fetch returned error:', result.error);
+        toast.error(result.error || 'حدث خطأ أثناء جلب البيانات');
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
+      toast.error('حدث خطأ غير متوقع أثناء جلب البيانات');
     } finally {
       setLoadingData(false);
     }
