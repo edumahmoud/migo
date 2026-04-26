@@ -358,7 +358,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       const result = await res.json();
       if (result.success) {
         toast.success('تم تغيير الدور بنجاح');
+        // Update selectedUser immediately so the dialog shows the new role
+        setSelectedUser((prev) => prev ? { ...prev, role: newRole } as UserWithMeta : prev);
+        // Refresh data in the background
         fetchAllData(true);
+        // Close the dialog
         setUserDetailOpen(false);
       } else {
         toast.error(result.error || 'حدث خطأ أثناء تغيير الدور');

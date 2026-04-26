@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
+import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,10 +13,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verify the requester is authenticated - try Bearer token first, then cookie auth
+    let authUser = null;
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+      if (!error && user) authUser = user;
+    }
+
+    if (!authUser) {
+      try {
+        const serverClient = await getSupabaseServerClient();
+        const { data: { user }, error } = await serverClient.auth.getUser();
+        if (!error && user) authUser = user;
+      } catch {
+        // Cookie auth failed
+      }
+    }
+
+    if (!authUser) {
+      return NextResponse.json(
+        { success: false, error: 'يجب تسجيل الدخول أولاً' },
+        { status: 401 }
+      );
+    }
+
+    // Verify the requester is admin or superadmin
+    const { data: requesterProfile } = await supabaseServer
+      .from('users')
+      .select('role')
+      .eq('id', authUser.id)
+      .single();
+
+    if (!requesterProfile || (requesterProfile.role !== 'admin' && requesterProfile.role !== 'superadmin')) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح بهذا الإجراء' },
+        { status: 403 }
+      );
+    }
+
     // Fetch user email and name
     const { data: userRecord } = await supabaseServer
       .from('users')
-      .select('email, name')
+      .select('email, name, role')
       .eq('id', userId)
       .single();
 
@@ -24,6 +64,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'المستخدم غير موجود' },
         { status: 404 }
+      );
+    }
+
+    // Only superadmin can ban admins
+    if (userRecord.role === 'admin' && requesterProfile.role !== 'superadmin') {
+      return NextResponse.json(
+        { success: false, error: 'فقط مدير المنصة يمكنه حظر المشرفين' },
+        { status: 403 }
+      );
+    }
+
+    // Cannot ban superadmins
+    if (userRecord.role === 'superadmin') {
+      return NextResponse.json(
+        { success: false, error: 'لا يمكن حظر مدير المنصة' },
+        { status: 403 }
       );
     }
 

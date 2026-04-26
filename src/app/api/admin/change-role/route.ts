@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { userId, newRole } = body;
@@ -20,11 +20,26 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. Verify the requester is authenticated using cookie-based session
-    const serverClient = await getSupabaseServerClient();
-    const { data: { user: authUser }, error: authError } = await serverClient.auth.getUser();
+    // 1. Verify the requester is authenticated - try Bearer token first, then cookie auth
+    let authUser = null;
+    const authHeader = request.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const { data: { user }, error } = await supabaseServer.auth.getUser(token);
+      if (!error && user) authUser = user;
+    }
 
-    if (authError || !authUser) {
+    if (!authUser) {
+      try {
+        const serverClient = await getSupabaseServerClient();
+        const { data: { user }, error } = await serverClient.auth.getUser();
+        if (!error && user) authUser = user;
+      } catch {
+        // Cookie auth failed
+      }
+    }
+
+    if (!authUser) {
       return NextResponse.json(
         { success: false, error: 'يجب تسجيل الدخول أولاً' },
         { status: 401 }
