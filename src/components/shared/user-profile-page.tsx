@@ -409,7 +409,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           variant="ghost"
           size="sm"
           onClick={onBack}
-          className="absolute top-4 right-4 z-10 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm"
+          className="absolute top-4 right-4 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm"
         >
           <ArrowRight className="h-4 w-4" />
           العودة

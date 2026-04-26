@@ -161,6 +161,29 @@ async function checkAndPromoteFirstUser(userId: string): Promise<UserProfile | n
   }
 }
 
+// --- Fallback Profile Helper ---
+
+type UserRole = 'student' | 'teacher' | 'admin' | 'superadmin';
+
+/** Create a fallback profile from auth metadata when RLS blocks DB reads */
+function createFallbackProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; created_at?: string; updated_at?: string }): UserProfile {
+  const userName = (authUser.user_metadata?.full_name as string) || (authUser.user_metadata?.name as string) || authUser.email?.split('@')[0] || 'مستخدم';
+  const avatarUrl = (authUser.user_metadata?.avatar_url as string) || null;
+  const userRole = (authUser.user_metadata?.role as string) || 'student';
+  const validRole = (['teacher', 'admin', 'superadmin'].includes(userRole) ? userRole : 'student') as UserRole;
+
+  return {
+    id: authUser.id,
+    email: authUser.email || '',
+    name: userName,
+    username: generateUsername(userName, authUser.id),
+    role: validRole,
+    avatar_url: avatarUrl,
+    created_at: authUser.created_at || new Date().toISOString(),
+    updated_at: authUser.updated_at || new Date().toISOString(),
+  };
+}
+
 // --- Role-based dashboard helper ---
 
 function getDashboardForRole(role: string): string {
@@ -211,122 +234,64 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
-        let { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        
-        // If profile doesn't exist, try to create it from auth metadata
-        if (!profile) {
-          const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'مستخدم';
-          const avatarUrl = session.user.user_metadata?.avatar_url || null;
-          // Default role is 'student' for all new users
-          const userRole = session.user.user_metadata?.role || 'student';
-          
-          const { error: insertError } = await supabase.from('users').insert({
-            id: session.user.id,
-            email: session.user.email || '',
-            name: userName,
-            username: generateUsername(userName, session.user.id),
-            role: userRole,
-            avatar_url: avatarUrl,
+        // ─── Use server-side API to fetch profile (bypasses RLS) ───
+        // The /api/auth/me endpoint uses the service role key, so it's not affected
+        // by RLS policies that might block client-side queries.
+        try {
+          const res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${session.access_token}` },
           });
           
-          if (insertError) {
-            // Handle duplicate key (race condition with auth trigger)
-            const err = insertError as { code?: string; message?: string };
-            if (err.code === '23505' || (err.message || '').includes('duplicate key')) {
-              const { data: retryProfile } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
-              profile = retryProfile;
-            }
-          } else {
-            // Fetch the newly created profile (with teacher_code if teacher)
-            const { data: newProfile } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
+          if (res.ok) {
+            const data = await res.json();
+            const profile = data.profile as UserProfile | null;
+            const banInfo = data.banInfo as { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
             
-            profile = newProfile;
-
-            // Check if this is the first user (promote to superadmin)
             if (profile) {
-              const promotedProfile = await checkAndPromoteFirstUser(session.user.id);
-              if (promotedProfile) {
-                profile = promotedProfile;
+              // Check if user is banned
+              if (banInfo) {
+                set({ 
+                  user: profile, 
+                  loading: false, 
+                  initialized: true,
+                  banInfo
+                });
+
+                if (sessionCheckCleanup) sessionCheckCleanup();
+                sessionCheckCleanup = startSessionValidation(profile.id, async () => {
+                  await supabase.auth.signOut();
+                  set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+                });
+                return;
               }
-            }
-          }
-        }
-        
-        if (profile) {
-          // Check if user's email is banned (check for active ban)
-          // Handle both old schema (no is_active column) and new schema
-          const { data: bannedRecord } = await supabase
-            .from('banned_users')
-            .select('id, reason, banned_at, ban_until, is_active')
-            .eq('email', profile.email)
-            .maybeSingle();
 
-          if (bannedRecord) {
-            // Old schema: is_active doesn't exist (undefined), treat as active
-            // New schema: check is_active
-            const isActive = bannedRecord.is_active === undefined || bannedRecord.is_active === true;
-            
-            // Check if ban has expired
-            const isExpired = bannedRecord.ban_until && new Date(bannedRecord.ban_until) <= new Date();
-            
-            if (isActive && !isExpired) {
-              // User has an active ban - let them log in but set ban flag
-              set({ 
-                user: profile as UserProfile, 
-                loading: false, 
-                initialized: true,
-                banInfo: {
-                  reason: bannedRecord.reason,
-                  bannedAt: bannedRecord.banned_at,
-                  banUntil: bannedRecord.ban_until,
-                  isPermanent: !bannedRecord.ban_until,
-                }
-              });
-
-              // Start session validation even for banned users
+              // Start periodic session validation
               if (sessionCheckCleanup) sessionCheckCleanup();
               sessionCheckCleanup = startSessionValidation(profile.id, async () => {
                 await supabase.auth.signOut();
-                set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+                set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
               });
-              return;
+
+              set({ user: profile, loading: false, initialized: true, banInfo: null });
+            } else {
+              // Profile couldn't be created — use fallback from auth metadata
+              const fallbackProfile = createFallbackProfile(session.user);
+              if (sessionCheckCleanup) sessionCheckCleanup();
+              sessionCheckCleanup = startSessionValidation(fallbackProfile.id, async () => {
+                await supabase.auth.signOut();
+                set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
+              });
+              set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
             }
-            // Ban expired - user can proceed normally
+          } else {
+            // API call failed — use fallback from auth metadata
+            const fallbackProfile = createFallbackProfile(session.user);
+            set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
           }
-
-          // Validate session (check if another device took over)
-          const isValid = await validateSession(profile.id);
-          if (!isValid) {
-            // Another session took over — sign out
-            await supabase.auth.signOut();
-            set({ user: null, loading: false, initialized: true, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
-            return;
-          }
-
-          // Start periodic session validation
-          // Clean up any previous interval
-          if (sessionCheckCleanup) sessionCheckCleanup();
-          sessionCheckCleanup = startSessionValidation(profile.id, async () => {
-            // Session invalidated by another login
-            await supabase.auth.signOut();
-            set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
-          });
-
-          set({ user: profile as UserProfile, loading: false, initialized: true, banInfo: null });
-        } else {
-          set({ loading: false, initialized: true });
+        } catch {
+          // Network error — use fallback from auth metadata
+          const fallbackProfile = createFallbackProfile(session.user);
+          set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
         }
       } else {
         set({ user: null, loading: false, initialized: true, banInfo: null });
@@ -338,117 +303,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Listen for auth changes
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        // Check if user's email is banned (check for active ban)
-        // Handle both old schema (no is_active column) and new schema
-        const { data: bannedRecord } = await supabase
-          .from('banned_users')
-          .select('id, reason, banned_at, ban_until, is_active')
-          .eq('email', session.user.email || '')
-          .maybeSingle();
-
-        if (bannedRecord) {
-          // Old schema: is_active doesn't exist (undefined), treat as active
-          // New schema: check is_active
-          const isActive = bannedRecord.is_active === undefined || bannedRecord.is_active === true;
-
-          // Check if ban has expired
-          const isExpired = bannedRecord.ban_until && new Date(bannedRecord.ban_until) <= new Date();
-
-          if (isActive && !isExpired) {
-            // User has an active ban - let them log in but set ban flag
-            let { data: profile } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-
-            if (profile) {
-              if (event === 'SIGNED_IN') {
-                await registerSession(profile.id);
-                if (sessionCheckCleanup) sessionCheckCleanup();
-                sessionCheckCleanup = startSessionValidation(profile.id, async () => {
-                  await supabase.auth.signOut();
-                  set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
-                });
-              }
-              set({ 
-                user: profile as UserProfile, 
-                loading: false, 
-                banInfo: {
-                  reason: bannedRecord.reason,
-                  bannedAt: bannedRecord.banned_at,
-                  banUntil: bannedRecord.ban_until,
-                  isPermanent: !bannedRecord.ban_until,
-                }
-              });
-              return;
-            }
-          }
-          // Ban expired - user can proceed normally
-        }
-
-        let { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        
-        // If profile doesn't exist, try to create it from auth metadata
-        if (!profile) {
-          const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'مستخدم';
-          const avatarUrl = session.user.user_metadata?.avatar_url || null;
-          const userRole = session.user.user_metadata?.role || 'student';
-          
-          const { error: insertError } = await supabase.from('users').insert({
-            id: session.user.id,
-            email: session.user.email || '',
-            name: userName,
-            username: generateUsername(userName, session.user.id),
-            role: userRole,
-            avatar_url: avatarUrl,
+        // ─── Use server-side API to fetch profile (bypasses RLS) ───
+        try {
+          const res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${session.access_token}` },
           });
           
-          if (insertError) {
-            const err = insertError as { code?: string; message?: string };
-            if (err.code === '23505' || (err.message || '').includes('duplicate key')) {
-              const { data: retryProfile } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', session.user.id)
-                .single();
-              profile = retryProfile;
+          if (res.ok) {
+            const data = await res.json();
+            const profile = data.profile as UserProfile | null;
+            const banInfo = data.banInfo as { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
+            
+            if (profile) {
+              await registerSession(profile.id);
+              if (sessionCheckCleanup) sessionCheckCleanup();
+              sessionCheckCleanup = startSessionValidation(profile.id, async () => {
+                await supabase.auth.signOut();
+                set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+              });
+              set({ user: profile, loading: false, banInfo: banInfo || null });
+            } else {
+              // Fallback from auth metadata
+              const fallbackProfile = createFallbackProfile(session.user);
+              await registerSession(fallbackProfile.id);
+              if (sessionCheckCleanup) sessionCheckCleanup();
+              sessionCheckCleanup = startSessionValidation(fallbackProfile.id, async () => {
+                await supabase.auth.signOut();
+                set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+              });
+              set({ user: fallbackProfile, loading: false, banInfo: null });
             }
           } else {
-            const { data: newProfile } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-            profile = newProfile;
-
-            // Check if this is the first user (promote to superadmin)
-            if (profile) {
-              const promotedProfile = await checkAndPromoteFirstUser(session.user.id);
-              if (promotedProfile) {
-                profile = promotedProfile;
-              }
-            }
+            // API failed - use fallback
+            const fallbackProfile = createFallbackProfile(session.user);
+            set({ user: fallbackProfile, loading: false, banInfo: null });
           }
-        }
-        
-        if (profile) {
-          // Register session for Google OAuth sign-ins
-          if (event === 'SIGNED_IN') {
-            await registerSession(profile.id);
-
-            // Start periodic session validation
-            if (sessionCheckCleanup) sessionCheckCleanup();
-            sessionCheckCleanup = startSessionValidation(profile.id, async () => {
-              await supabase.auth.signOut();
-              set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
-            });
-          }
-          set({ user: profile as UserProfile, loading: false, banInfo: null });
+        } catch {
+          // Network error - use fallback
+          const fallbackProfile = createFallbackProfile(session.user);
+          set({ user: fallbackProfile, loading: false, banInfo: null });
         }
       } else if (event === 'SIGNED_OUT') {
         // Clean up session validation interval
@@ -485,31 +378,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const authUser = signInData?.user;
       if (!authUser) return { error: 'فشل في الحصول على بيانات المستخدم' };
       
-      let { data: profile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .single();
-      
-      if (profile) {
-        // Check if user's email is banned (check for active ban)
-        // Handle both old schema (no is_active column) and new schema
-        const { data: bannedRecord } = await supabase
-          .from('banned_users')
-          .select('id, reason, banned_at, ban_until, is_active')
-          .eq('email', profile.email)
-          .maybeSingle();
-
-        if (bannedRecord) {
-          // Old schema: is_active doesn't exist (undefined), treat as active
-          // New schema: check is_active
-          const isActive = bannedRecord.is_active === undefined || bannedRecord.is_active === true;
-
-          // Check if ban has expired
-          const isExpired = bannedRecord.ban_until && new Date(bannedRecord.ban_until) <= new Date();
-
-          if (isActive && !isExpired) {
-            // User has an active ban - let them in but with restricted access
+      // ─── Use server-side API to fetch profile (bypasses RLS) ───
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${signInData.session?.access_token || ''}` },
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          const profile = data.profile as UserProfile | null;
+          const banInfo = data.banInfo as { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
+          
+          if (profile) {
             await registerSession(authUser.id);
             if (sessionCheckCleanup) sessionCheckCleanup();
             sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
@@ -517,135 +397,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
             });
             signInRateLimit.attempts = 0;
-            set({ 
-              user: profile as UserProfile, 
-              loading: false,
-              banInfo: {
-                reason: bannedRecord.reason,
-                bannedAt: bannedRecord.banned_at,
-                banUntil: bannedRecord.ban_until,
-                isPermanent: !bannedRecord.ban_until,
-              }
-            });
-            return { error: null };
-          }
-          // Ban expired - user can proceed normally
-        }
-
-        // Register session on successful sign-in
-        await registerSession(authUser.id);
-
-        // Start periodic session validation
-        if (sessionCheckCleanup) sessionCheckCleanup();
-        sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
-          await supabase.auth.signOut();
-          set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
-        });
-
-        // Reset rate limit on successful login
-        signInRateLimit.attempts = 0;
-        set({ user: profile as UserProfile, loading: false, banInfo: null });
-        return { error: null };
-      }
-      
-      // Profile doesn't exist yet - try to create it
-      // This handles users who signed up but profile wasn't created (e.g. email confirmation flow)
-      const userName = authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'مستخدم';
-      const userRole = authUser.user_metadata?.role || 'student';
-      
-      const { error: createError } = await supabase
-        .from('users')
-        .insert({
-          id: authUser.id,
-          email: authUser.email || sanitizedEmail,
-          name: userName,
-          username: generateUsername(userName, authUser.id),
-          role: userRole,
-        });
-      
-      if (createError) {
-        // If duplicate key, the profile was just created (race condition) - fetch it
-        const err = createError as { code?: string; message?: string };
-        if (err.code === '23505' || (err.message || '').includes('duplicate key')) {
-          const { data: retryProfile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', authUser.id)
-            .single();
-          
-          if (retryProfile) {
-            await registerSession(authUser.id);
-            if (sessionCheckCleanup) sessionCheckCleanup();
-            sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
-              await supabase.auth.signOut();
-              set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
-            });
-            signInRateLimit.attempts = 0;
-            set({ user: retryProfile as UserProfile, loading: false, banInfo: null });
+            set({ user: profile, loading: false, banInfo: banInfo || null });
             return { error: null };
           }
         }
-        // Profile exists in DB (created by trigger) but RLS prevents client from reading it
-        // Create fallback profile from auth data so user can proceed
-        const fallbackProfile: UserProfile = {
-          id: authUser.id,
-          email: authUser.email || sanitizedEmail,
-          name: userName,
-          username: generateUsername(userName, authUser.id),
-          role: (userRole === 'teacher' || userRole === 'admin' || userRole === 'superadmin' ? userRole : 'student') as UserRole,
-          avatar_url: authUser.user_metadata?.avatar_url || null,
-          created_at: authUser.created_at || new Date().toISOString(),
-          updated_at: authUser.updated_at || new Date().toISOString(),
-        };
-        await registerSession(authUser.id);
-        if (sessionCheckCleanup) sessionCheckCleanup();
-        sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
-          await supabase.auth.signOut();
-          set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
-        });
-        signInRateLimit.attempts = 0;
-        set({ user: fallbackProfile, loading: false, banInfo: null });
-        return { error: null };
+      } catch {
+        // API call failed, fall through to fallback
       }
       
-      // Fetch the newly created profile
-      const { data: newProfile } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', authUser.id)
-        .single();
-      
-      if (newProfile) {
-        // Register session on successful sign-in (newly created profile)
-        await registerSession(authUser.id);
-
-        // Start periodic session validation
-        if (sessionCheckCleanup) sessionCheckCleanup();
-        sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
-          await supabase.auth.signOut();
-          set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
-        });
-
-        // Check if this is the first user (promote to superadmin)
-        const promotedProfile = await checkAndPromoteFirstUser(authUser.id);
-        const finalProfile = promotedProfile || newProfile;
-
-        signInRateLimit.attempts = 0;
-        set({ user: (finalProfile || newProfile) as UserProfile, loading: false, banInfo: null });
-        return { error: null };
-      }
-      
-      // Profile was inserted but can't be fetched (RLS) - use fallback from auth data
-      const fallbackProfile2: UserProfile = {
-        id: authUser.id,
-        email: authUser.email || sanitizedEmail,
-        name: userName,
-        username: generateUsername(userName, authUser.id),
-        role: (userRole === 'teacher' || userRole === 'admin' || userRole === 'superadmin' ? userRole : 'student') as UserRole,
-        avatar_url: authUser.user_metadata?.avatar_url || null,
-        created_at: authUser.created_at || new Date().toISOString(),
-        updated_at: authUser.updated_at || new Date().toISOString(),
-      };
+      // Fallback: create profile from auth metadata
+      const fallbackProfile = createFallbackProfile(authUser);
       await registerSession(authUser.id);
       if (sessionCheckCleanup) sessionCheckCleanup();
       sessionCheckCleanup = startSessionValidation(authUser.id, async () => {
@@ -653,7 +414,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
       });
       signInRateLimit.attempts = 0;
-      set({ user: fallbackProfile2, loading: false, banInfo: null });
+      set({ user: fallbackProfile, loading: false, banInfo: null });
       return { error: null };
     } catch {
       return { error: 'حدث خطأ غير متوقع' };
@@ -884,7 +645,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!user) return;
     
     try {
-      // Try client-side Supabase first (faster, works if RLS allows)
+      // Use server-side API first (bypasses RLS, more reliable)
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      if (token) {
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile) {
+            set({ user: data.profile as UserProfile });
+            return;
+          }
+        }
+      }
+
+      // Fallback: try client-side Supabase
       const { data: profile } = await supabase
         .from('users')
         .select('*')
@@ -896,16 +673,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // Fallback: use server-side API if client-side fetch fails
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch(`/api/profile/${user.id}`, {
+      // Last fallback: use the profile/[userId] API
+      const res2 = await fetch(`/api/profile/${user.id}`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
-      if (res.ok) {
-        const data = await res.json();
+      if (res2.ok) {
+        const data = await res2.json();
         if (data.profile) {
-          // Merge with existing user data to preserve all fields
           set({ user: { ...user, ...data.profile } as UserProfile });
         }
       }

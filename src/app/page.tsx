@@ -298,10 +298,12 @@ function HomeContent() {
   }
 
   // Profile view
+  // NOTE: Profile page renders WITHOUT sidebar to prevent z-index conflicts.
+  // The sidebar is force-closed via openProfile() in app-store.
   if (currentPage === 'profile' && profileUserId) {
     return (
       <SocketProvider>
-        <div className="relative min-h-screen bg-background" dir="rtl">
+        <div className="min-h-screen bg-background" dir="rtl">
           <AppHeader
             userName={user.name}
             userId={user.id}
