@@ -29,6 +29,17 @@ function HomeContent() {
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
 
+  // ─── Close sidebar when navigating to profile/quiz/summary views ───
+  // These views don't include the sidebar component, so we need to ensure
+  // the mobile Sheet (portal) is closed and desktop sidebar state is reset
+  useEffect(() => {
+    if (currentPage === 'profile' || currentPage === 'quiz' || currentPage === 'summary') {
+      if (sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    }
+  }, [currentPage, sidebarOpen, setSidebarOpen]);
+
   // ─── Setup Wizard state ───
   const [setupCheckDone, setSetupCheckDone] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);

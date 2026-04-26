@@ -1096,8 +1096,23 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       const notesList = (data as LectureNote[]) || [];
       if (notesList.length > 0) {
         const authorIds = [...new Set(notesList.map((n) => n.user_id))];
-        const { data: authors } = await supabase.from('users').select('id, name, title_id, gender, role').in('id', authorIds);
-        const authorMap = new Map((authors || []).map((a: { id: string; name: string; title_id?: string | null; gender?: string | null; role?: string | null }) => [a.id, a]));
+        // Use server-side API to fetch author profiles (bypasses RLS)
+        let authorMap = new Map<string, { id: string; name: string; title_id?: string | null; gender?: string | null; role?: string | null }>();
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const res = await fetch('/api/users/batch', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+            },
+            body: JSON.stringify({ userIds: authorIds }),
+          });
+          if (res.ok) {
+            const { users } = await res.json();
+            authorMap = new Map((users || []).map((a: { id: string; name: string; title_id?: string | null; gender?: string | null; role?: string | null }) => [a.id, a]));
+          }
+        } catch {}
         setExpandedNotes(notesList.map((n) => {
           const author = authorMap.get(n.user_id);
           return { ...n, author_name: author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender) : 'معلم' };
@@ -1121,9 +1136,24 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           const newNote = payload.new as LectureNote;
           // Only show public notes
           if (newNote.visibility !== 'public') return;
-          // Fetch author info for the new note
-          const { data: author } = await supabase.from('users').select('id, name, title_id, gender, role').eq('id', newNote.user_id).single();
-          const authorName = author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender) : 'معلم';
+          // Fetch author info for the new note through server-side API (bypasses RLS)
+          let authorName = 'معلم';
+          try {
+            const { data: { session: sess } } = await supabase.auth.getSession();
+            const res = await fetch('/api/users/batch', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(sess?.access_token ? { 'Authorization': `Bearer ${sess.access_token}` } : {}),
+              },
+              body: JSON.stringify({ userIds: [newNote.user_id] }),
+            });
+            if (res.ok) {
+              const { users } = await res.json();
+              const author = users?.[0];
+              if (author) authorName = formatNameWithTitle(author.name, author.role, author.title_id, author.gender);
+            }
+          } catch {}
           const enriched: LectureNoteWithAuthor = { ...newNote, author_name: authorName };
           setExpandedNotes((prev) => {
             // Prevent duplicates

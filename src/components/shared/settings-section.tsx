@@ -318,6 +318,8 @@ export default function SettingsSection({
   // ─── Cache-busted avatar URL ───
   const avatarSrc = useMemo(() => {
     if (!profile.avatar_url) return '';
+    // Guard: if this URL is actually an institution logo, don't show it as user avatar
+    if (profile.avatar_url.includes('/institution/logos/') || profile.avatar_url.includes('/institution%2Flogos%2F')) return '';
     const hash = profile.avatar_url.split('').reduce((acc, c) => ((acc << 5) - acc + c.charCodeAt(0)) | 0, 0);
     const sep = profile.avatar_url.includes('?') ? '&' : '?';
     return `${profile.avatar_url}${sep}cb=${Math.abs(hash)}`;

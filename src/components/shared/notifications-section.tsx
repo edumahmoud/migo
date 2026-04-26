@@ -184,9 +184,20 @@ export default function NotificationsSection() {
 
   const fetchTeacherForModal = async (teacherId: string) => {
     try {
-      const { data, error } = await supabase.from('users').select('*').eq('id', teacherId).single();
-      if (!error && data) {
-        setLinkRequestModal(prev => prev ? { ...prev, teacher: data, loading: false } : null);
+      // Use server-side API to fetch teacher profile (bypasses RLS)
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/profile/${teacherId}`, {
+        headers: {
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.profile) {
+          setLinkRequestModal(prev => prev ? { ...prev, teacher: data.profile, loading: false } : null);
+        } else {
+          setLinkRequestModal(prev => prev ? { ...prev, loading: false } : null);
+        }
       } else {
         setLinkRequestModal(prev => prev ? { ...prev, loading: false } : null);
       }

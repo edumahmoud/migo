@@ -300,54 +300,57 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const pendingIds = approvedLinks.filter((l) => l.status === 'pending').map((l) => l.teacher_id);
       const rejectedIds = approvedLinks.filter((l) => l.status === 'rejected').map((l) => l.teacher_id);
 
-      // Fetch approved teacher profiles
-      if (approvedIds.length > 0) {
-        const { data: teachers, error: teachersError } = await supabase
-          .from('users')
-          .select('*')
-          .in('id', approvedIds);
-        if (!teachersError) {
-          setLinkedTeachers((teachers as UserProfile[]) || []);
+      // Fetch all teacher profiles through server-side API (bypasses RLS)
+      const allIds = [...approvedIds, ...pendingIds, ...rejectedIds];
+      if (allIds.length > 0) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const res = await fetch('/api/users/batch', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+            },
+            body: JSON.stringify({ userIds: allIds }),
+          });
+          if (res.ok) {
+            const { users } = await res.json();
+            const userMap = new Map((users as UserProfile[]).map(u => [u.id, u]));
+            setLinkedTeachers(approvedIds.map(id => userMap.get(id)).filter(Boolean) as UserProfile[]);
+            setPendingLinkTeachers(pendingIds.map(id => userMap.get(id)).filter(Boolean) as UserProfile[]);
+            setRejectedLinkTeachers(rejectedIds.map(id => userMap.get(id)).filter(Boolean) as UserProfile[]);
+          }
+        } catch {
+          // Fallback: empty results
+          setLinkedTeachers([]);
+          setPendingLinkTeachers([]);
+          setRejectedLinkTeachers([]);
         }
       } else {
         setLinkedTeachers([]);
-      }
-
-      // Fetch pending teacher profiles
-      if (pendingIds.length > 0) {
-        const { data: teachers, error: teachersError } = await supabase
-          .from('users')
-          .select('*')
-          .in('id', pendingIds);
-        if (!teachersError) {
-          setPendingLinkTeachers((teachers as UserProfile[]) || []);
-        }
-      } else {
         setPendingLinkTeachers([]);
-      }
-
-      // Fetch rejected teacher profiles
-      if (rejectedIds.length > 0) {
-        const { data: teachers, error: teachersError } = await supabase
-          .from('users')
-          .select('*')
-          .in('id', rejectedIds);
-        if (!teachersError) {
-          setRejectedLinkTeachers((teachers as UserProfile[]) || []);
-        }
-      } else {
         setRejectedLinkTeachers([]);
       }
     } else {
       // Old schema: no status column, treat all as approved
       if (approvedLinks && approvedLinks.length > 0) {
         const teacherIds = approvedLinks.map((l) => l.teacher_id);
-        const { data: teachers, error: teachersError } = await supabase
-          .from('users')
-          .select('*')
-          .in('id', teacherIds);
-        if (!teachersError) {
-          setLinkedTeachers((teachers as UserProfile[]) || []);
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const res = await fetch('/api/users/batch', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+            },
+            body: JSON.stringify({ userIds: teacherIds }),
+          });
+          if (res.ok) {
+            const { users } = await res.json();
+            setLinkedTeachers((users as UserProfile[]) || []);
+          }
+        } catch {
+          setLinkedTeachers([]);
         }
       } else {
         setLinkedTeachers([]);

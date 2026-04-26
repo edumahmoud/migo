@@ -70,6 +70,15 @@ const iconSizeMap = {
   '2xl': 'h-10 w-10',
 };
 
+/**
+ * Check if a URL looks like an institution logo URL (not a user avatar).
+ * This guards against corrupted avatar_url data in the database where
+ * an institution logo URL was accidentally saved as the user's avatar_url.
+ */
+function isInstitutionLogoUrl(url: string): boolean {
+  return url.includes('/institution/logos/') || url.includes('/institution%2Flogos%2F');
+}
+
 export default function UserAvatar({ name, avatarUrl, size = 'md', className = '' }: UserAvatarProps) {
   const initials = name
     ? name
@@ -83,8 +92,11 @@ export default function UserAvatar({ name, avatarUrl, size = 'md', className = '
 
   // Add cache-busting to avatar URL — stable per URL change
   // Uses a simple hash of the URL so it only changes when the URL itself changes
+  // Also filters out institution logo URLs that may have been corrupted into avatar_url
   const cacheBustedUrl = useMemo(() => {
     if (!avatarUrl) return undefined;
+    // Guard: if this URL is actually an institution logo, don't show it as user avatar
+    if (isInstitutionLogoUrl(avatarUrl)) return undefined;
     // If URL already has a timestamp-based filename from Supabase Storage (avatar_1234567.jpg),
     // it's already unique — just add a lightweight hash for extra safety
     const hash = avatarUrl.split('').reduce((acc, c) => ((acc << 5) - acc + c.charCodeAt(0)) | 0, 0);

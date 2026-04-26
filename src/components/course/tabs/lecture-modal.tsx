@@ -246,10 +246,25 @@ export default function LectureModal({
       const records = (recordsResult.data as AttendanceRecordWithStudent[]) || [];
       if (records.length > 0) {
         const studentIds = records.map((r) => r.student_id);
-        const { data: students } = await supabase.from('users').select('id, name, email').in('id', studentIds);
-        const studentMap = new Map(
-          (students || []).map((s: { id: string; name: string; email: string }) => [s.id, { name: s.name, email: s.email }])
-        );
+        // Use server-side API to fetch student profiles (bypasses RLS)
+        let studentMap = new Map<string, { name: string; email: string }>();
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const res = await fetch('/api/users/batch', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+            },
+            body: JSON.stringify({ userIds: studentIds }),
+          });
+          if (res.ok) {
+            const { users } = await res.json();
+            studentMap = new Map(
+              (users || []).map((s: { id: string; name: string; email: string }) => [s.id, { name: s.name, email: s.email }])
+            );
+          }
+        } catch {}
         const enriched = records.map((r) => ({
           ...r,
           student_name: studentMap.get(r.student_id)?.name || 'طالب',
@@ -289,8 +304,22 @@ export default function LectureModal({
         const presentStudentIds = new Set(attendanceRecords.map((r) => r.student_id));
         const absentIds = allStudentIds.filter((id: string) => !presentStudentIds.has(id));
         if (absentIds.length === 0) { setAbsentStudents([]); return; }
-        const { data: students } = await supabase.from('users').select('id, name, email, avatar_url').in('id', absentIds);
-        setAbsentStudents((students || []) as { id: string; name: string; email: string; avatar_url: string | null }[]);
+        // Use server-side API to fetch student profiles (bypasses RLS)
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const res = await fetch('/api/users/batch', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+            },
+            body: JSON.stringify({ userIds: absentIds }),
+          });
+          if (res.ok) {
+            const { users } = await res.json();
+            setAbsentStudents((users || []) as { id: string; name: string; email: string; avatar_url: string | null }[]);
+          }
+        } catch { setAbsentStudents([]); }
         return;
       }
 
@@ -300,8 +329,22 @@ export default function LectureModal({
 
       if (absentIds.length === 0) { setAbsentStudents([]); return; }
 
-      const { data: students } = await supabase.from('users').select('id, name, email, avatar_url').in('id', absentIds);
-      setAbsentStudents((students || []) as { id: string; name: string; email: string; avatar_url: string | null }[]);
+      // Use server-side API to fetch student profiles (bypasses RLS)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch('/api/users/batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({ userIds: absentIds }),
+        });
+        if (res.ok) {
+          const { users } = await res.json();
+          setAbsentStudents((users || []) as { id: string; name: string; email: string; avatar_url: string | null }[]);
+        }
+      } catch { setAbsentStudents([]); }
     } catch { setAbsentStudents([]); }
     finally { setLoadingAbsent(false); }
   }, [lecture.attendance_session, subjectId, attendanceRecords]);
@@ -346,8 +389,23 @@ export default function LectureModal({
       const notesList = (data as LectureNote[]) || [];
       if (notesList.length > 0) {
         const authorIds = [...new Set(notesList.map((n) => n.user_id))];
-        const { data: authors } = await supabase.from('users').select('id, name').in('id', authorIds);
-        const authorMap = new Map((authors || []).map((a: { id: string; name: string }) => [a.id, a.name]));
+        // Use server-side API to fetch author profiles (bypasses RLS)
+        let authorMap = new Map<string, string>();
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const res = await fetch('/api/users/batch', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+            },
+            body: JSON.stringify({ userIds: authorIds }),
+          });
+          if (res.ok) {
+            const { users } = await res.json();
+            authorMap = new Map((users || []).map((a: { id: string; name: string }) => [a.id, a.name]));
+          }
+        } catch {}
         const enriched = notesList.map((n) => ({
           ...n,
           author_name: authorMap.get(n.user_id) || 'معلم',
