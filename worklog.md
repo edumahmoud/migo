@@ -110,3 +110,23 @@ Stage Summary:
 - Admin actions now have 15-second timeout (30s for data fetch) preventing infinite loading
 - N+1 queries replaced with batch queries, reducing API response time from potentially minutes to ~2 seconds
 - Server is running stably on port 3000
+
+---
+Task ID: 7
+Agent: Main
+Task: Fix profile page layout issues (green banner overlap, sidebar overlap, z-index conflicts)
+
+Work Log:
+- Analyzed screenshot using VLM - identified green banner overlapping header, sidebar overlap, and z-index problems
+- Root cause 1: Profile page root had `z-40` which conflicted with header's `z-40`, causing green banner to render over header
+- Root cause 2: Profile page used `min-h-screen` div (no flex) + `md:mr-64` (margin-right), while admin dashboard correctly uses `flex min-h-screen` div + `flex-1 md:pr-64` (padding-right)
+- Fix 1: Removed `z-40` from UserProfilePage root div
+- Fix 2: Changed profile page layout in page.tsx to match admin dashboard structure:
+  - Outer div: `min-h-screen bg-background` → `flex min-h-screen bg-background`
+  - Main element: `pt-14 sm:pt-16 bg-background min-h-screen md:mr-64` → `flex-1 pt-14 sm:pt-16 pl-0 md:pr-64`
+  - This ensures the sidebar offset works correctly with padding instead of margin
+
+Stage Summary:
+- Profile page now uses the same layout structure as admin dashboard
+- Green banner no longer overlaps with header (z-40 removed)
+- Sidebar properly separated from main content (flex + pr-64 instead of mr-64)

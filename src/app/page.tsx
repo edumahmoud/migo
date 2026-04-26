@@ -371,7 +371,7 @@ function HomeContent() {
 
     return (
       <SocketProvider>
-        <div className="min-h-screen bg-background" dir="rtl">
+        <div className="flex min-h-screen bg-background" dir="rtl">
           <AppHeader
             userName={user.name}
             userId={user.id}
@@ -406,7 +406,9 @@ function HomeContent() {
             onSectionChange={profileSectionChangeHandler}
             customNavItems={profileNavItems}
           />
-          <main className={`pt-14 sm:pt-16 bg-background min-h-screen transition-all duration-300 ${sidebarOpen ? 'md:mr-64' : 'md:mr-[68px]'}`}>
+          <main className={`flex-1 pt-14 sm:pt-16 transition-all duration-300 pl-0 ${
+            sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
+          }`}>
             <UserProfilePage
               userId={profileUserId}
               currentUser={user}
