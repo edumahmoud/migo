@@ -24,9 +24,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import type { UserProfile, Conversation, ChatMessage } from '@/lib/types';
+import type { UserProfile, Conversation, ChatMessage, UserStatus } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
+import { useStatusStore, getStatusColor, getStatusLabel, isVisible } from '@/stores/status-store';
 
 // =====================================================
 // Props
@@ -132,8 +133,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const [setupInfo, setSetupInfo] = useState<{ sqlEditorUrl?: string; steps?: string[] } | null>(null);
 
-  // ─── Online users tracking ───
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  // ─── Status store ───
+  const { userStatuses, init: initStatusStore, getUserStatus, fetchUserStatuses } = useStatusStore();
 
   // ─── New DM state ───
   const [showNewDM, setShowNewDM] = useState(false);
@@ -265,6 +266,26 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       if (backupPollingRef.current) clearInterval(backupPollingRef.current);
     };
   }, [isConnected, pollMessages]);
+
+  // =====================================================
+  // Initialize status store on mount
+  // =====================================================
+  useEffect(() => {
+    initStatusStore();
+  }, [initStatusStore]);
+
+  // =====================================================
+  // Fetch user statuses when conversations load
+  // =====================================================
+  useEffect(() => {
+    if (conversations.length === 0) return;
+    const userIds = conversations
+      .filter(c => c.type === 'individual' && c.otherParticipant?.id)
+      .map(c => c.otherParticipant!.id);
+    if (userIds.length > 0) {
+      fetchUserStatuses(userIds);
+    }
+  }, [conversations, fetchUserStatuses]);
 
   // =====================================================
   // Socket.io event subscriptions (using shared socket)
@@ -403,35 +424,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     }
   });
 
-  // ─── Online users tracking ───
-  useSocketEvent<string[]>('online-users', (userIds) => {
-    setOnlineUsers(new Set(userIds));
-  });
-
-  useSocketEvent<string>('user-online', (userId) => {
-    setOnlineUsers((prev) => new Set(prev).add(userId));
-  });
-
-  useSocketEvent<string>('user-offline', (userId) => {
-    setOnlineUsers((prev) => {
-      const next = new Set(prev);
-      next.delete(userId);
-      return next;
-    });
-  });
-
-  // ─── User status changed ───
-  useSocketEvent<{ userId: string; status: string }>('user-status-changed', (data) => {
-    if (data.status === 'online') {
-      setOnlineUsers((prev) => new Set(prev).add(data.userId));
-    } else {
-      setOnlineUsers((prev) => {
-        const next = new Set(prev);
-        next.delete(data.userId);
-        return next;
-      });
-    }
-  });
+  // ─── Online users & status tracking now handled by status store ───
+  // (The status store listens for: online-users, user-online, user-offline, user-status-changed, user-statuses)
 
   // =====================================================
   // Auto-join rooms when connected
@@ -1079,9 +1073,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         )
     : '';
 
-  const chatHeaderOnline = activeConvInfo?.type === 'individual' && activeConvInfo.otherParticipant?.id
-    ? onlineUsers.has(activeConvInfo.otherParticipant.id)
-    : false;
+  const chatHeaderStatus: UserStatus = activeConvInfo?.type === 'individual' && activeConvInfo.otherParticipant?.id
+    ? getUserStatus(activeConvInfo.otherParticipant.id)
+    : 'offline';
 
   // =====================================================
   // Main render
@@ -1237,7 +1231,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         conv.otherParticipant?.gender
                       );
                   const otherUserId = !isGroup ? conv.otherParticipant?.id : null;
-                  const isOtherOnline = otherUserId ? onlineUsers.has(otherUserId) : false;
+                  const otherUserStatus: UserStatus = otherUserId ? getUserStatus(otherUserId) : 'offline';
+                  const otherIsVisible = otherUserId ? isVisible(otherUserStatus) : false;
 
                   return (
                     <motion.button
@@ -1264,11 +1259,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         ) : (
                           <UserAvatar name={conv.otherParticipant?.name || displayName} avatarUrl={conv.otherParticipant?.avatar_url} size="md" />
                         )}
-                        {/* Online indicator for individual chats */}
+                        {/* Status indicator for individual chats */}
                         {!isGroup && otherUserId && (
                           <div className={`absolute -bottom-0.5 -start-0.5 h-3.5 w-3.5 rounded-full border-2 border-card ${
-                            isOtherOnline ? 'bg-emerald-500' : 'bg-gray-300'
-                          }`} />
+                            getStatusColor(otherUserStatus)
+                          } ${otherUserStatus === 'online' ? 'animate-pulse' : ''}`} />
                         )}
                       </div>
 
@@ -1332,16 +1327,16 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     {/* Online dot in header */}
                     {activeConvInfo.type === 'individual' && (
                       <div className={`absolute -bottom-0.5 -start-0.5 h-3 w-3 rounded-full border-2 border-card ${
-                        chatHeaderOnline ? 'bg-emerald-500' : 'bg-gray-300'
-                      }`} />
+                        getStatusColor(chatHeaderStatus)
+                      } ${chatHeaderStatus === 'online' ? 'animate-pulse' : ''}`} />
                     )}
                   </div>
                   <div className="min-w-0">
                     <h3 className="text-sm font-semibold text-foreground truncate">{chatHeaderName}</h3>
                     <div className="flex items-center gap-1.5">
                       {activeConvInfo.type === 'individual' ? (
-                        <span className="text-[10px] text-muted-foreground">
-                          {chatHeaderOnline ? 'متصل الآن' : 'غير متصل'}
+                        <span className={`text-[10px] font-medium ${chatHeaderStatus === 'online' ? 'text-emerald-600' : chatHeaderStatus === 'busy' ? 'text-amber-600' : chatHeaderStatus === 'away' ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                          {getStatusLabel(chatHeaderStatus)}
                         </span>
                       ) : (
                         <span className="text-[10px] text-muted-foreground">

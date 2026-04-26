@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSharedSocket, useSocketEvent } from '@/lib/socket';
+import { useStatusStore } from '@/stores/status-store';
 import {
   MessageCircle,
   Send,
@@ -76,8 +77,8 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const [setupInfo, setSetupInfo] = useState<{ sqlEditorUrl?: string; steps?: string[] } | null>(null);
 
-  // Online users tracking
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  // Status store
+  const { init: initStatusStore } = useStatusStore();
 
   // Message edit state
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -321,22 +322,12 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
     }
   });
 
-  // ─── Online users tracking ───
-  useSocketEvent<string[]>('online-users', (userIds) => {
-    setOnlineUsers(new Set(userIds));
-  });
+  // Initialize status store
+  useEffect(() => {
+    initStatusStore();
+  }, [initStatusStore]);
 
-  useSocketEvent<string>('user-online', (userId) => {
-    setOnlineUsers((prev) => new Set(prev).add(userId));
-  });
-
-  useSocketEvent<string>('user-offline', (userId) => {
-    setOnlineUsers((prev) => {
-      const next = new Set(prev);
-      next.delete(userId);
-      return next;
-    });
-  });
+  // ─── Online users tracking now handled by status store ───
 
   // -------------------------------------------------------
   // Initialize on mount

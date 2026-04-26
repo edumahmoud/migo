@@ -44,3 +44,48 @@ Stage Summary:
 - **Login/Register**: Shows institution logo and name dynamically
 - **Permissions**: Only superadmin sees "المؤسسة" in sidebar + can modify data via API
 - **No DB changes needed**: All existing tables/RLS policies already support this
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix online status display in messages + implement status selection effects + add status dot on header/profile avatars
+
+Work Log:
+- Created Zustand status store (`src/stores/status-store.ts`) to centralize user presence tracking across all components
+  - Replaces scattered local `onlineUsers: Set<string>` state in chat-section, chat-tab
+  - Provides shared helper functions: getStatusColor, getStatusLabel, getStatusTextColor, getStatusBorderColor, isVisible
+  - Manages both the current user's status (myStatus) and all other users' statuses (userStatuses Map)
+  - Auto-persists own status to localStorage
+  - Subscribes to socket events: online-users, user-online, user-offline, user-status-changed, user-statuses
+  - Exposes setMyStatus (with socket emission), getUserStatus, fetchUserStatuses methods
+- Fixed Socket.IO server (`mini-services/chat-service/index.ts`):
+  - Added callback support for `get-user-status` event (Socket.IO ack pattern)
+  - Now supports both callback pattern (for profile page) and event-based response (for status store)
+- Updated `chat-section.tsx`:
+  - Replaced binary `onlineUsers: Set<string>` with status store's `getUserStatus()` 
+  - Conversation list now shows colored status dots: green (online), amber (busy), orange (away), gray (offline)
+  - Chat header shows proper status label (متصل/مشغول/بعيد/غير متصل) with matching color
+  - Online dot pulses for 'online' status
+  - Fetches user statuses proactively when conversations load
+- Updated `app-header.tsx`:
+  - Added status dot on user avatar in both desktop and mobile views
+  - Dot color matches current status (green/amber/orange/gray)
+  - Pulse animation for online status
+- Updated `user-profile-page.tsx`:
+  - Replaced local socket status tracking with status store
+  - Uses shared status helper functions instead of duplicate local definitions
+  - Fetches user status via store's fetchUserStatuses method
+- Updated `settings-section.tsx`:
+  - Synced with status store: uses myStatus from store instead of local state
+  - setMyStatus handles localStorage + socket emission centrally
+  - Removed duplicate useSocketEvent listener for user-status-changed
+- Updated `chat-tab.tsx` (course group chat):
+  - Replaced local onlineUsers state with status store initialization
+  - Removed duplicate socket event listeners
+
+Stage Summary:
+- **Root cause of "offline" icon**: Chat used binary online/offline Set, removing users who set "busy"/"away" status from the online set
+- **Fix**: Replaced with rich status tracking via Zustand store that preserves the actual status (online/busy/away/offline/invisible)
+- **Status dots**: Now appear on header avatar, chat conversation list, chat header, and profile page with proper colors
+- **Status selection**: When user changes status in Settings, it's now reflected everywhere in real-time via the centralized store
+- **Socket.IO fix**: Server now supports callback pattern for get-user-status, fixing the profile page's initial status fetch

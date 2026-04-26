@@ -164,7 +164,8 @@ io.on('connection', (socket) => {
   });
 
   // ─── Get User Statuses ───
-  socket.on('get-user-status', (data: { userIds: string[] }) => {
+  // Supports both callback pattern AND event-based response
+  socket.on('get-user-status', (data: { userIds: string[] }, callback?: (response: { statuses: Record<string, UserStatus> }) => void) => {
     const requesterId = onlineUsers.get(socket.id)?.id;
     const statuses: Record<string, UserStatus> = {};
 
@@ -172,7 +173,13 @@ io.on('connection', (socket) => {
       statuses[userId] = getVisibleStatus(userId, requesterId);
     }
 
-    socket.emit('user-statuses', statuses);
+    // If callback is provided, use it (Socket.IO ack pattern)
+    if (typeof callback === 'function') {
+      callback({ statuses });
+    } else {
+      // Fallback: emit as a separate event
+      socket.emit('user-statuses', statuses);
+    }
   });
 
   // ─── Join Conversation Room ───

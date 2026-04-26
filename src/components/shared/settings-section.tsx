@@ -46,6 +46,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth-store';
 import { useSharedSocket, useSocketEvent, setSocketAuth } from '@/lib/socket';
+import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import type { UserProfile, UserStatus } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -158,6 +159,9 @@ export default function SettingsSection({
   // ─── Shared socket ───
   const { isConnected, emitStatusChange } = useSharedSocket();
 
+  // ─── Status store ───
+  const { myStatus, setMyStatus, init: initStatusStore } = useStatusStore();
+
   // ─── Form state ───
   const [name, setName] = useState(profile.name);
   const [username, setUsername] = useState(profile.username || '');
@@ -192,16 +196,8 @@ export default function SettingsSection({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
-  // ─── Status / Presence ───
-  const [userStatus, setUserStatus] = useState<UserStatus>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(STATUS_STORAGE_KEY);
-      if (saved && ['online', 'away', 'busy', 'offline', 'invisible'].includes(saved)) {
-        return saved as UserStatus;
-      }
-    }
-    return 'online';
-  });
+  // ─── Status / Presence (now from global store) ───
+  const userStatus = myStatus;
 
   // ─── Set socket auth credentials ───
   useEffect(() => {
@@ -211,29 +207,23 @@ export default function SettingsSection({
   // ─── Re-emit current status whenever socket reconnects ───
   useEffect(() => {
     if (isConnected) {
-      emitStatusChange(profile.id, userStatus);
+      emitStatusChange(profile.id, myStatus);
     }
-    // userStatus intentionally omitted — status changes are emitted via handleStatusChange
-  }, [isConnected, profile.id, emitStatusChange]);
+  }, [isConnected, profile.id, emitStatusChange, myStatus]);
 
-  // ─── Listen for status changes from server ───
-  useSocketEvent<{ userId: string; status: UserStatus }>('user-status-changed', (data) => {
-    if (data.userId === profile.id) {
-      setUserStatus(data.status);
-    }
-  });
+  // ─── Initialize status store ───
+  useEffect(() => {
+    initStatusStore();
+  }, [initStatusStore]);
 
   // ─── Handle status change ───
   const handleStatusChange = useCallback((newStatus: UserStatus) => {
-    setUserStatus(newStatus);
-    localStorage.setItem(STATUS_STORAGE_KEY, newStatus);
-
-    // Emit via shared socket
-    emitStatusChange(profile.id, newStatus);
+    // Update status store (handles localStorage + socket emission)
+    setMyStatus(newStatus, profile.id);
 
     const statusLabel = STATUS_OPTIONS.find(s => s.value === newStatus)?.label || newStatus;
     toast.success(`تم تغيير الحالة إلى: ${statusLabel}`);
-  }, [profile.id, emitStatusChange]);
+  }, [profile.id, setMyStatus]);
 
   // ─── Auth headers helper ───
   const getAuthHeaders = async () => {

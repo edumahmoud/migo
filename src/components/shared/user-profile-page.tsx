@@ -44,10 +44,10 @@ import UserAvatar, { getRoleLabel, getTitleLabel } from '@/components/shared/use
 import UserLink from '@/components/shared/user-link';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import { useStatusStore, getStatusColor as getStoreStatusColor, getStatusLabel as getStoreStatusLabel, getStatusTextColor as getStoreStatusTextColor, getStatusBorderColor as getStoreStatusBorderColor } from '@/stores/status-store';
 import { toast } from 'sonner';
 import type { UserProfile, UserFile, FileRequest, UserStatus } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { useSharedSocket, useSocketEvent } from '@/lib/socket';
 
 // ─── Props ───────────────────────────────────────────────
 interface UserProfilePageProps {
@@ -169,39 +169,19 @@ function getRoleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' 
 }
 
 function getStatusColor(status: UserStatus) {
-  switch (status) {
-    case 'online': return 'bg-emerald-500';
-    case 'busy': return 'bg-amber-500';
-    case 'away': return 'bg-orange-500';
-    default: return 'bg-gray-400';
-  }
+  return getStoreStatusColor(status);
 }
 
 function getStatusLabel(status: UserStatus) {
-  switch (status) {
-    case 'online': return 'متصل';
-    case 'busy': return 'مشغول';
-    case 'away': return 'بعيد';
-    default: return 'غير متصل';
-  }
+  return getStoreStatusLabel(status);
 }
 
 function getStatusTextColor(status: UserStatus) {
-  switch (status) {
-    case 'online': return 'text-emerald-600';
-    case 'busy': return 'text-amber-600';
-    case 'away': return 'text-orange-600';
-    default: return 'text-gray-500';
-  }
+  return getStoreStatusTextColor(status);
 }
 
 function getStatusBorderColor(status: UserStatus) {
-  switch (status) {
-    case 'online': return 'border-emerald-300';
-    case 'busy': return 'border-amber-300';
-    case 'away': return 'border-orange-300';
-    default: return 'border-gray-300';
-  }
+  return getStoreStatusBorderColor(status);
 }
 
 // ─── Component ───────────────────────────────────────────
@@ -225,9 +205,9 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
   // Photo enlargement state
   const [photoEnlarged, setPhotoEnlarged] = useState(false);
 
-  // User status state
-  const [profileUserStatus, setProfileUserStatus] = useState<UserStatus>('offline');
-  const { socket, isConnected } = useSharedSocket();
+  // User status from global store
+  const { getUserStatus, init: initStatusStore, fetchUserStatuses } = useStatusStore();
+  const profileUserStatus = getUserStatus(userId);
 
   const { openProfile } = useAppStore();
 
@@ -299,23 +279,16 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
     }
   }, [userId, currentUser.id]);
 
-  // ─── Fetch user status from socket ───────────────────
+  // ─── Initialize status store & fetch user status ───
   useEffect(() => {
-    if (socket && isConnected && userId) {
-      socket.emit('get-user-status', { userIds: [userId] }, (response: { statuses: Record<string, UserStatus> }) => {
-        if (response?.statuses && response.statuses[userId]) {
-          setProfileUserStatus(response.statuses[userId]);
-        }
-      });
-    }
-  }, [socket, isConnected, userId]);
+    initStatusStore();
+  }, [initStatusStore]);
 
-  // Listen for status changes of the profile user
-  useSocketEvent<{ userId: string; status: UserStatus }>('user-status-changed', (data) => {
-    if (data.userId === userId) {
-      setProfileUserStatus(data.status);
+  useEffect(() => {
+    if (userId) {
+      fetchUserStatuses([userId]);
     }
-  });
+  }, [userId, fetchUserStatuses]);
 
   // ─── Initial load ─────────────────────────────────────
   useEffect(() => {

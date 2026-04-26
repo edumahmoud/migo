@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
+import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import NotificationBell from '@/components/shared/notification-bell';
 import UserAvatar from '@/components/shared/user-avatar';
 
@@ -59,6 +60,12 @@ export default function AppHeader({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { openProfile } = useAppStore();
+  const { myStatus, init: initStatusStore } = useStatusStore();
+
+  // Initialize status store
+  useEffect(() => {
+    initStatusStore();
+  }, [initStatusStore]);
 
   // Gender-aware role label (teachers show their academic title)
   const isFemale = userGender === 'female';
@@ -157,11 +164,16 @@ export default function AppHeader({
                     {roleLabel}
                   </span>
                 </div>
-                <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
+                <div className="relative">
+                  <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
+                  {/* Status dot on desktop avatar */}
+                  <span className={`absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
+                </div>
               </div>
-              {/* Mobile: Just avatar */}
-              <div className="sm:hidden">
+              {/* Mobile: Just avatar with status dot */}
+              <div className="sm:hidden relative">
                 <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
+                <span className={`absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
               </div>
               <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 hidden sm:block ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
