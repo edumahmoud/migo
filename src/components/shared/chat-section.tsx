@@ -1536,7 +1536,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         <div className="shrink-0 relative">
                           <UserAvatar name={user.name} avatarUrl={user.avatar_url} size="md" />
                           <div className={`absolute -bottom-0.5 -start-0.5 h-3 w-3 rounded-full border-2 border-card ${
-                            onlineUsers.has(user.id) ? 'bg-emerald-500' : 'bg-gray-300'
+                            getUserStatus(user.id) === 'online' ? 'bg-emerald-500' : 'bg-gray-300'
                           }`} />
                         </div>
                         <div className="flex-1 min-w-0">
