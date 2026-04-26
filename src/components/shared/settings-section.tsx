@@ -173,9 +173,6 @@ export default function SettingsSection({
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // ─── Migration state ───
-  const [migrationNeeded, setMigrationNeeded] = useState(false);
-  const [migrationSql, setMigrationSql] = useState('');
 
   // ─── Avatar upload ───
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -282,26 +279,6 @@ export default function SettingsSection({
     setTitleId(profile.title_id || (profile.role === 'teacher' ? 'teacher' : ''));
   }, [profile.name, profile.username, profile.gender, profile.title_id, profile.role]);
 
-  // ─── Check migration on mount ───
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/migrate/users-gender-title');
-        const data = await res.json();
-        if (data.needsMigration) {
-          // Get the SQL
-          const postRes = await fetch('/api/migrate/users-gender-title', { method: 'POST' });
-          const postData = await postRes.json();
-          if (postData.sql) {
-            setMigrationNeeded(true);
-            setMigrationSql(postData.sql);
-          }
-        }
-      } catch {
-        // Silently ignore migration check errors
-      }
-    })();
-  }, []);
 
   // ─── Track changes ───
   useEffect(() => {
@@ -553,23 +530,6 @@ export default function SettingsSection({
         <p className="text-sm text-muted-foreground mt-0.5">إدارة الملف الشخصي وإعدادات الحساب</p>
       </div>
 
-      {/* Migration warning banner */}
-      {migrationNeeded && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 flex items-start gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-amber-800">بعض أعمدة قاعدة البيانات مفقودة</p>
-            <p className="text-[11px] text-amber-700 mt-1">يرجى تنفيذ SQL التالي في Supabase SQL Editor:</p>
-            <pre className="mt-1.5 rounded bg-amber-100/80 p-2 text-[10px] font-mono text-amber-900 overflow-x-auto whitespace-pre-wrap" dir="ltr">{migrationSql}</pre>
-          </div>
-          <button
-            onClick={() => setMigrationNeeded(false)}
-            className="shrink-0 text-amber-600 hover:text-amber-800"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
 
       {/* Main grid: two columns on desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

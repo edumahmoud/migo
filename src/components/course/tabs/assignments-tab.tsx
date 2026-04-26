@@ -164,16 +164,6 @@ interface SubmissionWithStudent extends Submission {
 }
 
 // -------------------------------------------------------
-// Migration check result type
-// -------------------------------------------------------
-interface MigrationCheckResult {
-  needsMigration: boolean;
-  currentType?: string;
-  message?: string;
-  sql?: string;
-}
-
-// -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function AssignmentsTab({ profile, role, subjectId }: AssignmentsTabProps) {
@@ -184,10 +174,6 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
 
   // ─── Active/Expired tab ───
   const [activeTab, setActiveTab] = useState<'active' | 'expired'>('active');
-
-  // ─── Migration check ───
-  const [migrationInfo, setMigrationInfo] = useState<MigrationCheckResult | null>(null);
-  const [migrationBannerDismissed, setMigrationBannerDismissed] = useState(false);
 
   // ─── Create modal ───
   const [createOpen, setCreateOpen] = useState(false);
@@ -325,52 +311,6 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
     } finally {
       setLoadingSubmissions(false);
     }
-  }, []);
-
-  // -------------------------------------------------------
-  // Migration check on mount
-  // -------------------------------------------------------
-  useEffect(() => {
-    const checkMigration = async () => {
-      try {
-        const res = await fetch('/api/migrate/assignments-due-date');
-        if (res.ok) {
-          const data: MigrationCheckResult = await res.json();
-          if (data.needsMigration) {
-            setMigrationInfo(data);
-          }
-        }
-      } catch {
-        // Silently fail - migration check is non-critical
-      }
-      // Also check show_grade column
-      try {
-        const res = await fetch('/api/migrate/assignments-show-grade');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.needsMigration) {
-            setMigrationInfo((prev) => {
-              // Merge: if there's already a due_date migration, append show_grade info
-              if (prev && prev.needsMigration) {
-                return {
-                  ...prev,
-                  message: (prev.message || '') + '\n\n⚠️ عمود show_grade غير موجود أيضًا. ' + (data.message || ''),
-                  sql: (prev.sql || '') + '\n\n' + (data.sql || ''),
-                };
-              }
-              return {
-                needsMigration: true,
-                message: data.message,
-                sql: data.sql,
-              };
-            });
-          }
-        }
-      } catch {
-        // Silently fail
-      }
-    };
-    checkMigration();
   }, []);
 
   useEffect(() => {
@@ -780,40 +720,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         )}
       </motion.div>
 
-      {/* Migration warning banner */}
-      <AnimatePresence>
-        {migrationInfo && migrationInfo.needsMigration && !migrationBannerDismissed && (
-          <motion.div
-            variants={itemVariants}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-start gap-3"
-          >
-            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-800">
-                عمود الموعد النهائي من نوع DATE — يجب تغييره إلى TIMESTAMPTZ
-              </p>
-              {migrationInfo.sql && (
-                <pre className="mt-2 rounded-lg bg-amber-100/80 p-2 text-[11px] text-amber-900 overflow-x-auto font-mono" dir="ltr">
-                  {migrationInfo.sql}
-                </pre>
-              )}
-              <p className="mt-1.5 text-xs text-amber-700">
-                نفّذ SQL أعلاه في محرر SQL في لوحة تحكم Supabase
-              </p>
-            </div>
-            <button
-              onClick={() => setMigrationBannerDismissed(true)}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-amber-600 hover:bg-amber-100 transition-colors"
-              title="إخفاء"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* Active/Expired Tab Switcher */}
       {!loading && assignments.length > 0 && (

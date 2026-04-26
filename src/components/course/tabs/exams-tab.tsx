@@ -109,8 +109,6 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   // ─── Sub-tab ───
   const [subTab, setSubTab] = useState<ExamSubTab>('active');
 
-  // ─── Migration status ───
-  const [needsMigration, setNeedsMigration] = useState(false);
 
   // ─── Data ───
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -178,13 +176,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       const { data, error } = quizzesResult;
       if (error) {
         console.error('Error fetching quizzes:', error);
-        if (error.code === 'PGRST204' && error.message?.includes('is_finished')) {
-          setNeedsMigration(true);
-        }
       } else {
-        if (data && data.length > 0 && !('is_finished' in data[0])) {
-          setNeedsMigration(true);
-        }
         setQuizzes((data as Quiz[]) || []);
       }
 
@@ -508,11 +500,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         .eq('id', quiz.id);
       if (error) {
         console.error('Error toggling quiz finished state:', error);
-        if (error.code === 'PGRST204') {
-          toast.error('يجب إضافة عمود is_finished لقاعدة البيانات. يرجى تشغيل SQL: ALTER TABLE public.quizzes ADD COLUMN IF NOT EXISTS is_finished BOOLEAN DEFAULT false');
-        } else {
-          toast.error(`حدث خطأ أثناء تحديث حالة الاختبار: ${error.message}`);
-        }
+        toast.error('حدث خطأ أثناء تحديث حالة الاختبار');
       } else {
         toast.success(currentlyFinished ? 'تم إعادة تفعيل الاختبار' : 'تم إنهاء الاختبار');
         fetchData();
@@ -1381,41 +1369,6 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           )}
         </div>
       </motion.div>
-
-      {/* Migration banner - show when is_finished column is missing */}
-      {needsMigration && role === 'teacher' && (
-        <motion.div variants={itemVariants} className="rounded-xl border border-amber-200 bg-amber-50 p-4" dir="rtl">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-bold text-amber-800">تحديث قاعدة البيانات مطلوب</h4>
-              <p className="text-xs text-amber-700 mt-1">
-                لتفعيل ميزة إنهاء الاختبار، يجب إضافة عمود is_finished لقاعدة البيانات.
-                افتح محرر SQL في لوحة تحكم Supabase وقم بتشغيل الأمر التالي:
-              </p>
-              <div className="mt-2 flex items-center gap-2 rounded-lg bg-amber-100/80 border border-amber-200 p-2.5">
-                <code className="text-xs text-amber-900 font-mono flex-1 overflow-x-auto" dir="ltr">
-                  ALTER TABLE public.quizzes ADD COLUMN IF NOT EXISTS is_finished BOOLEAN DEFAULT false;
-                </code>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText('ALTER TABLE public.quizzes ADD COLUMN IF NOT EXISTS is_finished BOOLEAN DEFAULT false;');
-                    toast.success('تم نسخ أمر SQL');
-                  }}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-amber-700 hover:bg-amber-200 transition-colors"
-                  title="نسخ"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <p className="text-xs text-amber-600 mt-2">
-                <Database className="h-3 w-3 inline ml-1" />
-                Supabase Dashboard → SQL Editor → Paste & Run → Refresh
-              </p>
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* Quiz list */}
       {loading ? (

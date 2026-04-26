@@ -22,7 +22,6 @@ import {
   FolderOpen,
   FileUp,
   CheckCircle,
-  AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -217,10 +216,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
   // ─── Submission filter (student) ───
   const [submissionFilter, setSubmissionFilter] = useState<'all' | 'submitted' | 'not_submitted'>('all');
 
-  // ─── Migration warning ───
-  const [migrationWarning, setMigrationWarning] = useState<string | null>(null);
-  const [migrationSQL, setMigrationSQL] = useState<string | null>(null);
-  const [migrationDismissed, setMigrationDismissed] = useState(false);
+
 
   // -------------------------------------------------------
   // Fetch assignments
@@ -391,24 +387,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
     if (selectedAssignment) fetchSubmissions(selectedAssignment.id);
   }, [selectedAssignment, fetchSubmissions]);
 
-  // -------------------------------------------------------
-  // Migration check on mount
-  // -------------------------------------------------------
-  useEffect(() => {
-    const checkMigration = async () => {
-      try {
-        const res = await fetch('/api/migrate/assignments-due-date');
-        const data = await res.json();
-        if (data.needsMigration && data.sql) {
-          setMigrationWarning(data.message || 'يجب تحديث نوع عمود الموعد النهائي في قاعدة البيانات.');
-          setMigrationSQL(data.sql);
-        }
-      } catch {
-        // Silently ignore - not critical for functionality
-      }
-    };
-    checkMigration();
-  }, []);
+
 
   // -------------------------------------------------------
   // Derived: active vs expired assignments
@@ -941,35 +920,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         )}
       </motion.div>
 
-      {/* Migration warning banner */}
-      <AnimatePresence>
-        {migrationWarning && !migrationDismissed && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="rounded-xl border border-amber-200 bg-amber-50 p-3 overflow-hidden"
-          >
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-amber-800 font-medium">{migrationWarning}</p>
-                {migrationSQL && (
-                  <pre className="mt-2 rounded-lg bg-amber-100/60 p-2 text-[11px] text-amber-900 overflow-x-auto whitespace-pre-wrap font-mono" dir="ltr">
-                    {migrationSQL}
-                  </pre>
-                )}
-              </div>
-              <button
-                onClick={() => setMigrationDismissed(true)}
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-amber-600 hover:bg-amber-100 transition-colors"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
 
       {/* Active / Expired Tabs */}
       <motion.div variants={itemVariants} className="flex gap-1 rounded-lg bg-muted/50 p-1 w-fit">
