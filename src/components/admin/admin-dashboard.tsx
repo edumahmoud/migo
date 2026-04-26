@@ -289,11 +289,37 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // -------------------------------------------------------
   const [changingRole, setChangingRole] = useState(false);
 
+  // ─── Helper: fetch with timeout ───
+  const fetchWithTimeout = useCallback(async (url: string, options: RequestInit = {}, timeoutMs = 15000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      return res;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('انتهت مهلة الطلب. يرجى المحاولة مرة أخرى');
+      }
+      throw error;
+    }
+  }, []);
+
+  // ─── Helper: get auth token ───
+  const getAuthToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.access_token || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const fetchAllData = useCallback(async (silent = false) => {
     if (!silent) setLoadingData(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      const token = await getAuthToken();
       
       if (!token) {
         console.error('Admin data fetch: No auth token available');
@@ -302,9 +328,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         return;
       }
       
-      const res = await fetch('/api/admin/data?type=all', {
+      const res = await fetchWithTimeout('/api/admin/data?type=all', {
         headers: { 'Authorization': `Bearer ${token}` },
-      });
+      }, 30000); // 30s timeout for data fetch
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -339,18 +365,22 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      if (!silent) toast.error('حدث خطأ غير متوقع أثناء جلب البيانات');
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع أثناء جلب البيانات';
+      if (!silent) toast.error(message);
     } finally {
       if (!silent) setLoadingData(false);
     }
-  }, []);
+  }, [fetchWithTimeout, getAuthToken]);
 
   const handleChangeRole = async (userId: string, newRole: 'student' | 'teacher' | 'admin' | 'superadmin') => {
     setChangingRole(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch('/api/admin/change-role', {
+      const token = await getAuthToken();
+      if (!token) {
+        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        return;
+      }
+      const res = await fetchWithTimeout('/api/admin/change-role', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ userId, newRole }),
@@ -367,8 +397,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       } else {
         toast.error(result.error || 'حدث خطأ أثناء تغيير الدور');
       }
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(message);
     } finally {
       setChangingRole(false);
     }
@@ -401,9 +432,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const fetchUsageStats = useCallback(async (period: 'day' | 'month' | 'year') => {
     setLoadingUsageStats(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch(`/api/admin/usage-stats?period=${period}`, {
+      const token = await getAuthToken();
+      if (!token) return;
+      const res = await fetchWithTimeout(`/api/admin/usage-stats?period=${period}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const result = await res.json();
@@ -415,7 +446,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     } finally {
       setLoadingUsageStats(false);
     }
-  }, []);
+  }, [fetchWithTimeout, getAuthToken]);
 
   // Refetch usage stats when period changes (only if reports section is active)
   useEffect(() => {
@@ -468,11 +499,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const handleDeleteUser = async (userId: string) => {
     setDeletingUserId(userId);
     try {
-      const { data: { session: delSession } } = await supabase.auth.getSession();
-      const delToken = delSession?.access_token || '';
-      const res = await fetch('/api/admin/delete-user', {
+      const token = await getAuthToken();
+      if (!token) {
+        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        return;
+      }
+      const res = await fetchWithTimeout('/api/admin/delete-user', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${delToken}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ userId }),
       });
       const result = await res.json();
@@ -484,8 +518,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       } else {
         toast.error(result.error || 'حدث خطأ أثناء حذف المستخدم');
       }
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(message);
     } finally {
       setDeletingUserId(null);
     }
@@ -497,11 +532,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const handleDeleteSubject = async (subjectId: string) => {
     setDeletingSubjectId(subjectId);
     try {
-      const { data: { session: subSession } } = await supabase.auth.getSession();
-      const subToken = subSession?.access_token || '';
-      const res = await fetch('/api/admin/delete-subject', {
+      const token = await getAuthToken();
+      if (!token) {
+        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        return;
+      }
+      const res = await fetchWithTimeout('/api/admin/delete-subject', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${subToken}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ subjectId }),
       });
       const result = await res.json();
@@ -513,8 +551,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       } else {
         toast.error(result.error || 'حدث خطأ أثناء حذف المقرر');
       }
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(message);
     } finally {
       setDeletingSubjectId(null);
     }
@@ -526,9 +565,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const fetchBannedUsers = useCallback(async () => {
     setLoadingBanned(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch('/api/admin/data?type=banned', {
+      const token = await getAuthToken();
+      if (!token) return;
+      const res = await fetchWithTimeout('/api/admin/data?type=banned', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const result = await res.json();
@@ -538,18 +577,21 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         setBannedUsers([]);
       }
     } catch {
-      // ignore
+      setBannedUsers([]);
     } finally {
       setLoadingBanned(false);
     }
-  }, []);
+  }, [fetchWithTimeout, getAuthToken]);
 
   const handleUnbanUser = async (email: string, banId?: string) => {
     setUnbanningEmail(email);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch('/api/admin/unban-user', {
+      const token = await getAuthToken();
+      if (!token) {
+        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        return;
+      }
+      const res = await fetchWithTimeout('/api/admin/unban-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ email, banId }),
@@ -561,8 +603,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       } else {
         toast.error(result.error || 'حدث خطأ أثناء إلغاء الحظر');
       }
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(message);
     } finally {
       setUnbanningEmail(null);
     }
@@ -594,9 +637,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
     setBanningUserId(targetUserId);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch('/api/admin/ban-user', {
+      const token = await getAuthToken();
+      if (!token) {
+        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        return;
+      }
+      const res = await fetchWithTimeout('/api/admin/ban-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -619,8 +665,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       } else {
         toast.error(result.error || 'حدث خطأ أثناء حظر المستخدم');
       }
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(message);
     } finally {
       setBanningUserId(null);
     }
@@ -632,9 +679,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const fetchAnnouncements = useCallback(async () => {
     setLoadingAnnouncements(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch('/api/admin/announcements', {
+      const token = await getAuthToken();
+      if (!token) return;
+      const res = await fetchWithTimeout('/api/admin/announcements', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const result = await res.json();
@@ -646,7 +693,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     } finally {
       setLoadingAnnouncements(false);
     }
-  }, []);
+  }, [fetchWithTimeout, getAuthToken]);
 
   const handleCreateAnnouncement = async () => {
     if (!newAnnTitle.trim() || !newAnnContent.trim()) {
@@ -655,9 +702,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     }
     setCreatingAnnouncement(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch('/api/admin/announcements', {
+      const token = await getAuthToken();
+      if (!token) {
+        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        return;
+      }
+      const res = await fetchWithTimeout('/api/admin/announcements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -678,8 +728,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       } else {
         toast.error(result.error || 'حدث خطأ أثناء إنشاء الإعلان');
       }
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(message);
     } finally {
       setCreatingAnnouncement(false);
     }
@@ -687,9 +738,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
   const handleToggleAnnouncement = async (id: string, isActive: boolean) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch('/api/admin/announcements', {
+      const token = await getAuthToken();
+      if (!token) {
+        toast.error('لا يوجد جلسة نشطة');
+        return;
+      }
+      const res = await fetchWithTimeout('/api/admin/announcements', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ id, is_active: !isActive }),
@@ -701,17 +755,21 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       } else {
         toast.error(result.error || 'حدث خطأ');
       }
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(message);
     }
   };
 
   const handleDeleteAnnouncement = async (id: string) => {
     setDeletingAnnouncementId(id);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch('/api/admin/announcements', {
+      const token = await getAuthToken();
+      if (!token) {
+        toast.error('لا يوجد جلسة نشطة');
+        return;
+      }
+      const res = await fetchWithTimeout('/api/admin/announcements', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ id }),
@@ -723,8 +781,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       } else {
         toast.error(result.error || 'حدث خطأ أثناء حذف الإعلان');
       }
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (error) {
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(message);
     } finally {
       setDeletingAnnouncementId(null);
     }
@@ -739,10 +798,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     setLoadingSubjectDetail(true);
 
     try {
-      const { data: { session: detailSession } } = await supabase.auth.getSession();
-      const detailToken = detailSession?.access_token || '';
-      const res = await fetch(`/api/admin/subject-detail?subjectId=${subject.id}`, {
-        headers: { 'Authorization': `Bearer ${detailToken}` },
+      const token = await getAuthToken();
+      if (!token) {
+        setSubjectTeacher(null);
+        setSubjectStudents([]);
+        return;
+      }
+      const res = await fetchWithTimeout(`/api/admin/subject-detail?subjectId=${subject.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
       const result = await res.json();
       if (result.success && result.data) {
