@@ -220,16 +220,19 @@ export default function NotificationBell() {
       const subjectId = parts[1] || null;
       if (subjectId) {
         setIsOpen(false);
-        const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setCurrentPage } = useAppStore.getState();
+        const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
         setSelectedSubjectId(subjectId);
         setCourseTab(linkToTab[courseLinkPrefix]);
         // Navigate to the correct dashboard section
         if (user?.role === 'student') {
           setStudentSection('subjects');
           setCurrentPage('student-dashboard');
-        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+        } else if (user?.role === 'teacher') {
           setTeacherSection('subjects');
           setCurrentPage('teacher-dashboard');
+        } else if (user?.role === 'admin' || user?.role === 'superadmin') {
+          setAdminSection('subjects');
+          setCurrentPage('admin-dashboard');
         }
       }
       return;

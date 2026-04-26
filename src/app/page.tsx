@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 import { SocketProvider, setSocketAuth, destroySocket } from '@/lib/socket';
 import LoginForm from '@/components/auth/login-form';
 import RegisterForm from '@/components/auth/register-form';
@@ -24,7 +25,7 @@ type AuthMode = 'login' | 'register' | 'forgot-password';
 
 function HomeContent() {
   const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo } = useAuthStore();
-  const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, reset: resetAppStore, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection } = useAppStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
 
@@ -289,7 +290,7 @@ function HomeContent() {
   if (currentPage === 'profile' && profileUserId) {
     return (
       <SocketProvider>
-        <div className="min-h-screen bg-background" dir="rtl">
+        <div className="relative z-20 min-h-screen bg-background" dir="rtl">
           <AppHeader
             userName={user.name}
             userId={user.id}
@@ -303,14 +304,23 @@ function HomeContent() {
               setCurrentPage('auth');
               signOut();
             }}
-            onOpenSettings={() => setCurrentPage(
-              user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' :
-              user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard'
-            )}
+            onOpenSettings={() => {
+              // Set the section to 'settings' in the appropriate store before navigating
+              if (user.role === 'superadmin' || user.role === 'admin') {
+                setAdminSection('settings' as AdminSection);
+                setCurrentPage('admin-dashboard');
+              } else if (user.role === 'teacher') {
+                setTeacherSection('settings' as TeacherSection);
+                setCurrentPage('teacher-dashboard');
+              } else {
+                setStudentSection('settings' as StudentSection);
+                setCurrentPage('student-dashboard');
+              }
+            }}
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             sidebarCollapsed={!sidebarOpen}
           />
-          <main className="pt-14 sm:pt-16">
+          <main className="relative z-10 pt-14 sm:pt-16 bg-background min-h-screen">
             <UserProfilePage
               userId={profileUserId}
               currentUser={user}

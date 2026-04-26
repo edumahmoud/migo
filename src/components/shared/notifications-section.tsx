@@ -19,6 +19,7 @@ import {
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import type { CourseTab } from '@/lib/types';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -97,39 +98,44 @@ export default function NotificationsSection() {
     }
 
     // Handle file_request notifications (owner received a new file request) - navigate to own profile
-    // Type can be 'file' or 'file_request' (depends on DB constraint), link format: 'file_request:REQUESTER_ID'
     if (notif.type === 'file_request' || notif.link?.startsWith('file_request:')) {
       const { openProfile } = useAppStore.getState();
       if (user?.id) openProfile(user.id);
       return;
     }
 
-    // Handle enrollment/subject links - navigate to the course
-    if (notif.link?.startsWith('enrollment:') || notif.link?.startsWith('subject:')) {
-      const subjectId = notif.link.includes(':') ? notif.link.split(':')[1] : null;
+    // Map of link prefixes to course tabs — matches notification-bell.tsx
+    const linkToTab: Record<string, CourseTab> = {
+      enrollment: 'overview',
+      subject: 'overview',
+      assignment: 'assignments',
+      lecture: 'lectures',
+      exam: 'exams',
+      note: 'notes',
+      file: 'files',
+      chat: 'chat',
+    };
+
+    // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID)
+    const courseLinkPrefix = Object.keys(linkToTab).find(prefix => notif.link?.startsWith(prefix + ':'));
+    if (courseLinkPrefix) {
+      const parts = notif.link!.split(':');
+      const subjectId = parts[1] || null;
       if (subjectId) {
-        const { setSelectedSubjectId, setStudentSection, setTeacherSection, setCurrentPage } = useAppStore.getState();
+        const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
         setSelectedSubjectId(subjectId);
-        // Also navigate to the correct dashboard section
+        setCourseTab(linkToTab[courseLinkPrefix]);
+        // Navigate to the correct dashboard section
         if (user?.role === 'student') {
           setStudentSection('subjects');
           setCurrentPage('student-dashboard');
-        } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
+        } else if (user?.role === 'teacher') {
           setTeacherSection('subjects');
           setCurrentPage('teacher-dashboard');
+        } else if (user?.role === 'admin' || user?.role === 'superadmin') {
+          setAdminSection('subjects');
+          setCurrentPage('admin-dashboard');
         }
-      }
-      return;
-    }
-
-    // Handle assignment links - navigate to assignments section
-    if (notif.link?.startsWith('assignment:')) {
-      if (user?.role === 'student') {
-        setStudentSection('assignments');
-        setCurrentPage('student-dashboard');
-      } else if (user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'superadmin') {
-        setTeacherSection('assignments');
-        setCurrentPage('teacher-dashboard');
       }
       return;
     }

@@ -152,3 +152,28 @@ Stage Summary:
 - Login page no longer flashes "أتيندو" before institution name loads
 - Timezone selector added to institution settings
 - Back button in setup wizard has visible green-tinted styling
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Fix settings button redirecting to admin dashboard instead of settings page + fix profile page z-index + update notification navigation + various fixes
+
+Work Log:
+- **Settings redirect fix**: Added `adminSection` to app store (Zustand with persist) matching `studentSection` and `teacherSection`
+  - Updated admin dashboard to sync `activeSection` with `adminSection` from the store (like student/teacher dashboards)
+  - Fixed `handleSectionChange` in admin dashboard to also call `storeSetAdminSection`
+  - Fixed `onOpenSettings` in profile view (page.tsx) to set the section to 'settings' in the appropriate store before navigating
+  - Updated `ActiveSectionLabel` in app-header to use `adminSection` for admin roles
+- **Profile page z-index**: Added `relative z-20` to profile page wrapper and `relative z-10 bg-background min-h-screen` to main content to ensure it covers any sidebar elements
+- **Notification navigation**: Updated notifications-section's `handleNotificationClick` with comprehensive `linkToTab` mapping:
+  - Added `linkToTab` record mapping enrollment→overview, assignment→assignments, lecture→lectures, exam→exams, note→notes, file→files, chat→chat
+  - Now handles all link prefix types (previously only enrollment:, subject:, assignment:)
+  - Added admin role support for navigation (setAdminSection + admin-dashboard)
+  - Updated notification-bell.tsx similarly to support admin navigation with setAdminSection
+- **Verified existing features**: Confirmed that chat section for admin, user banning system, profile in dropdown menu, delete account hidden for superadmin, typing indicator, and unread badges are all already implemented from previous sessions
+
+Stage Summary:
+- **Settings fix**: Admin dashboard now persists active section in store; clicking Settings from profile page correctly navigates to the settings section within the dashboard
+- **Profile z-index**: Added proper z-index and background to profile page to prevent sidebar overlap
+- **Notification navigation**: Both notification-bell and notifications-section now have complete `linkToTab` mapping with admin support
+- **app-store**: Added `adminSection` + `setAdminSection` to persisted state

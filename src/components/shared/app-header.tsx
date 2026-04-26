@@ -239,7 +239,7 @@ export default function AppHeader({
 // Active section label (shows current section name on mobile)
 // -------------------------------------------------------
 function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 'superadmin' }) {
-  const { studentSection, teacherSection } = useAppStore();
+  const { studentSection, teacherSection, adminSection } = useAppStore();
 
   const sectionLabels: Record<string, string> = {
     dashboard: 'لوحة التحكم',
@@ -251,9 +251,16 @@ function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 
     students: 'الطلاب',
     analytics: 'التقارير',
     settings: 'الإعدادات',
+    users: 'المستخدمون',
+    reports: 'التقارير',
+    announcements: 'الإعلانات',
+    banned: 'المحظورون',
+    institution: 'المؤسسة',
+    chat: 'المحادثات',
+    notifications: 'الإشعارات',
   };
 
-  const activeSection = role === 'student' ? studentSection : role === 'teacher' ? teacherSection : 'dashboard';
+  const activeSection = role === 'student' ? studentSection : role === 'teacher' ? teacherSection : (role === 'admin' || role === 'superadmin') ? adminSection : 'dashboard';
   const label = sectionLabels[activeSection] || '';
 
   return (
