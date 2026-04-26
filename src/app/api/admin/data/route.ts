@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false });
 
       if (usersError) {
-        console.error('Error fetching users:', usersError);
-        errors.push(`users: ${usersError.message}`);
+        console.error('[admin/data] Error fetching users:', JSON.stringify(usersError));
+        errors.push(`users: ${usersError.message} (code: ${usersError.code})`);
       } else {
         // Enrich users with subject and student counts
         const enrichedUsers = await Promise.all((users || []).map(async (u: Record<string, unknown>) => {
