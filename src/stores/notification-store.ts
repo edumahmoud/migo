@@ -55,6 +55,12 @@ function dbToNotification(db: DBNotification): Notification {
 // Polling interval for notification fallback (milliseconds)
 const NOTIFICATION_REFETCH_INTERVAL = 15000; // 15 seconds
 
+/** Check if a Supabase error is caused by RLS infinite recursion (42P17) */
+function isRLSRecursionError(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  return error.code === '42P17' || /infinite recursion/i.test(error.message ?? '');
+}
+
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
@@ -81,7 +87,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .limit(100);
 
       if (error) {
-        console.error('Failed to refetch notifications:', JSON.stringify({ message: error.message, code: error.code, details: error.details }, null, 2));
+        if (!isRLSRecursionError(error)) {
+          console.error('Failed to refetch notifications:', JSON.stringify({ message: error.message, code: error.code, details: error.details }, null, 2));
+        }
         return;
       }
 
@@ -102,6 +110,24 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     // Mark as initializing to block concurrent calls
     set({ initializing: true });
+
+    // Early RLS recursion check — try a lightweight query first
+    try {
+      const { error: probeError } = await supabase
+        .from('notifications')
+        .select('id')
+        .limit(1);
+      if (isRLSRecursionError(probeError)) {
+        console.warn('Notification store: RLS recursion detected, skipping real-time setup');
+        set({ initialized: true, initializing: false, currentUserId: userId });
+        return;
+      }
+    } catch {
+      // If even the probe throws, degrade gracefully
+      console.warn('Notification store: probe query failed, degrading gracefully');
+      set({ initialized: true, initializing: false, currentUserId: userId });
+      return;
+    }
 
     // Clean up any existing subscription first
     get().cleanup();
@@ -127,7 +153,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .limit(100);
 
       if (error) {
-        console.error('Failed to fetch notifications:', JSON.stringify({ message: error.message, code: error.code, details: error.details }, null, 2));
+        if (isRLSRecursionError(error)) {
+          console.warn('Notification store: RLS recursion on fetch, degrading gracefully');
+        } else {
+          console.error('Failed to fetch notifications:', JSON.stringify({ message: error.message, code: error.code, details: error.details }, null, 2));
+        }
         // Still set initialized so we don't keep retrying on every render
         set({ initialized: true, initializing: false, currentUserId: userId });
         return;
@@ -241,13 +271,17 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       });
 
       if (error) {
-        console.error('Failed to create notification in DB:', error);
+        if (isRLSRecursionError(error)) {
+          console.warn('Notification store: RLS recursion on insert, adding locally');
+        } else {
+          console.error('Failed to create notification in DB:', error);
+        }
         // Fallback: add to store directly (client-side only)
         get().addNotification(notification);
       }
       // If successful, the real-time subscription or polling will handle adding it
     } catch (err) {
-      console.error('Failed to create notification:', err);
+      console.warn('Notification store: create failed, adding locally');
       // Fallback: add to store directly (client-side only)
       get().addNotification(notification);
     }
@@ -286,7 +320,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .update({ read: true })
         .eq('id', id)
         .then(({ error }) => {
-          if (error) console.error('Failed to mark notification as read in DB:', error);
+          if (error) {
+            if (isRLSRecursionError(error)) console.warn('Notification store: RLS recursion on markAsRead');
+            else console.error('Failed to mark notification as read in DB:', error);
+          }
         });
     }
   },
@@ -309,7 +346,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .in('id', dbNotifIds)
         .eq('user_id', state.currentUserId)
         .then(({ error }) => {
-          if (error) console.error('Failed to mark all notifications as read in DB:', error);
+          if (error) {
+            if (isRLSRecursionError(error)) console.warn('Notification store: RLS recursion on markAllAsRead');
+            else console.error('Failed to mark all notifications as read in DB:', error);
+          }
         });
     }
   },
@@ -331,7 +371,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .delete()
         .eq('id', id)
         .then(({ error }) => {
-          if (error) console.error('Failed to delete notification from DB:', error);
+          if (error) {
+            if (isRLSRecursionError(error)) console.warn('Notification store: RLS recursion on clearNotification');
+            else console.error('Failed to delete notification from DB:', error);
+          }
         });
     }
   },
@@ -349,7 +392,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .delete()
         .eq('user_id', state.currentUserId)
         .then(({ error }) => {
-          if (error) console.error('Failed to clear all notifications from DB:', error);
+          if (error) {
+            if (isRLSRecursionError(error)) console.warn('Notification store: RLS recursion on clearAll');
+            else console.error('Failed to clear all notifications from DB:', error);
+          }
         });
     }
   },

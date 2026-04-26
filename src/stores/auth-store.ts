@@ -612,6 +612,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     // Sanitize text fields in updates
     const sanitizedUpdates: Partial<UserProfile> = { ...updates };
+
+    // Guard: prevent institution logo URLs from being stored as user avatar_url
+    if (sanitizedUpdates.avatar_url && (
+      sanitizedUpdates.avatar_url.includes('/institution/logos/') ||
+      sanitizedUpdates.avatar_url.includes('/institution%2Flogos%2F')
+    )) {
+      delete sanitizedUpdates.avatar_url;
+    }
+
     if (sanitizedUpdates.name) {
       sanitizedUpdates.name = sanitizeInput(sanitizedUpdates.name);
       if (!isValidName(sanitizedUpdates.name)) {

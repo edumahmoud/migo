@@ -396,7 +396,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
   }
 
   return (
-    <div dir="rtl" className="max-w-5xl mx-auto pb-8 px-2 sm:px-0">
+    <div dir="rtl" className="relative z-40 max-w-5xl mx-auto pb-8 px-2 sm:px-0">
       {/* ─── Cover Banner ─────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0 }}

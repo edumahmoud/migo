@@ -122,6 +122,20 @@ export async function GET(request: NextRequest) {
       profile.avatar_url = null;
     }
 
+    // Sync role to auth app_metadata so middleware can check it without DB query
+    // This is critical for when RLS policies cause infinite recursion (42P17)
+    // The middleware falls back to checking app_metadata.role
+    const currentAppRole = authUser.app_metadata?.role;
+    if (currentAppRole !== profile.role) {
+      try {
+        await supabaseServer.auth.admin.updateUserById(authUser.id, {
+          app_metadata: { role: profile.role },
+        });
+      } catch {
+        // Non-critical: if this fails, the middleware will still try the DB query
+      }
+    }
+
     return NextResponse.json({ profile, banInfo });
   } catch (err) {
     console.error('[auth/me] Error:', err);

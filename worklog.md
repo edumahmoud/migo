@@ -1,49 +1,79 @@
+# Attendu Project Worklog
+
 ---
 Task ID: 1
 Agent: Main Agent
-Task: Fix 3 critical bugs - DB/RLS login issue, avatar/logo separation, profile z-index
+Task: Fix RLS infinite recursion (42P17) causing all client-side Supabase queries to fail
 
 Work Log:
-- Created /api/auth/me endpoint that fetches user profile using service role key (bypasses RLS)
-- Rewrote auth-store initialize() to use /api/auth/me instead of client-side Supabase queries
-- Rewrote auth-store signInWithEmail() to use /api/auth/me instead of client-side Supabase queries
-- Rewrote auth-store onAuthStateChange SIGNED_IN handler to use /api/auth/me
-- Rewrote auth-store refreshProfile() to use /api/auth/me as primary method
-- Added createFallbackProfile() helper that creates a profile from auth metadata when API fails
-- The /api/auth/me endpoint also auto-creates profiles for new users and cleans up corrupted avatar_url
-- Fixed profile page z-index by removing `relative` class from wrapper div and `z-10` from back button
-- The profile page now renders WITHOUT sidebar (no z-index conflict possible)
-- The avatar_url cleanup in /api/auth/me automatically clears institution logo URLs from user avatars
-- Verified all changes pass lint and the dev server compiles successfully
+- Diagnosed root cause: The "Admins can read all users" RLS policy on `users` table queries the `users` table itself, creating infinite recursion (42P17)
+- Confirmed the issue with live testing: `supabase.from('users').select(...)` with anon key returns "infinite recursion detected in policy for relation users"
+- Confirmed service role key DOES bypass RLS and can read all tables successfully
+- Created `supabase/fix_rls_recursion_final.sql` with correct fix using SECURITY DEFINER `is_admin()` function
+- Could NOT execute SQL automatically (no database password available)
+- Created API routes `/api/admin/fix-rls` and `/api/admin/apply-rls-fix` for diagnostic and SQL fix execution
 
 Stage Summary:
-- Bug 1 (DB/RLS): All auth profile fetches now use /api/auth/me (service role key, bypasses RLS). Every path has a fallback to createFallbackProfile() so login can never hang indefinitely.
-- Bug 2 (Avatar/Logo): /api/auth/me auto-cleans corrupted avatar_url containing /institution/logos/. The institution-logo API already separates logo uploads from avatar uploads. Both user-avatar.tsx and settings-section.tsx already have guards.
-- Bug 3 (z-index): Profile page no longer has `relative` or `z-10` that could create stacking context conflicts. openProfile() already sets sidebarOpen=false. Profile view doesn't include AppSidebar component.
+- Root cause identified and SQL fix file created
+- SQL fix must be executed manually in Supabase Dashboard SQL Editor
+- Service role key works fine for backend queries (bypasses RLS)
+
 ---
-Task ID: 1
-Agent: Main
-Task: Fix admin dashboard showing 0 for all statistics - user management and statistics not visible to platform admin
+Task ID: 2
+Agent: Main Agent
+Task: Fix middleware admin check that was returning 403 errors
 
 Work Log:
-- Analyzed uploaded screenshots: First shows Supabase Table Editor with 3 users, second shows admin dashboard with all stats at 0
-- Root Cause Analysis identified 3 issues:
-  1. `supabaseServer` singleton in `/src/lib/supabase-server.ts` was created at module load time with potentially empty env vars
-  2. `/api/admin/data/route.ts` silently swallowed errors - returning `{success: true, data: {}}` even when all queries failed
-  3. Middleware also had module-level env var reads that could be empty
-- Fixed `supabaseServer` to use lazy Proxy-based initialization that reads env vars at first access time
-- Fixed `/api/admin/data/route.ts` to include error details in response and default empty arrays
-- Fixed middleware to read env vars at request time instead of module load time
-- Added proper error handling to admin dashboard `fetchAllData` with toast messages for 401/403/500 errors
-- Created diagnostic API endpoint at `/api/migrate/admin-rls-fix` for testing
-- Verified service role key can read all data (3 users, 0 subjects, etc.) via diagnostic endpoint
-- Created comprehensive RLS policy fix SQL at `supabase/fix_admin_rls_policies.sql`
-- RLS policies are secondary since service role bypasses RLS, but important for client-side queries
+- Changed middleware from using `createServerClient` (from @supabase/ssr) to `createClient` (from @supabase/supabase-js) for admin role check
+- `createClient` with service role key reliably bypasses RLS
+- Added JWT fast-path: Check `app_metadata.role` and `user_metadata.role` from JWT claims first (no DB query needed)
+- Only fall back to DB query if JWT claims don't have admin role
+- Updated `/api/auth/me` to sync `profile.role` to `auth.app_metadata.role` on every login
 
 Stage Summary:
-- Core fix: `supabaseServer` lazy initialization (was module-level singleton, now Proxy-based lazy getter)
-- Core fix: Error handling in `/api/admin/data/route.ts` (no longer silently returns empty data)
-- Core fix: Middleware env var reads moved to request time
-- Enhancement: Admin dashboard now shows error toasts instead of silent 0 stats
-- Diagnostic: Confirmed service role reads all data correctly (3 users accessible)
-- Pending: RLS policies need to be applied via Supabase Dashboard SQL Editor (file: supabase/fix_admin_rls_policies.sql)
+- Middleware now uses JWT claims for fast admin check (no DB query)
+- Falls back to `createClient` with service role key for DB check
+- No more `createServerClient` for admin verification (avoids potential RLS issues)
+
+---
+Task ID: 3
+Agent: Subagent
+Task: Fix notification store to handle RLS errors gracefully
+
+Work Log:
+- Added `isRLSRecursionError()` helper that checks for error code "42P17" or message containing "infinite recursion"
+- Added early RLS probe in `initializeNotifications` - if probe fails with 42P17, set initialized=true and return early
+- Reduced logging for RLS recursion errors (console.warn instead of console.error)
+- Made notification store degrade gracefully when RLS recursion exists
+
+Stage Summary:
+- Notification store no longer crashes or spams console on RLS recursion
+- Works locally even when Supabase queries fail
+
+---
+Task ID: 4
+Agent: Subagent
+Task: Fix institution logo appearing as user avatar (Bug 2)
+
+Work Log:
+- Added server-side validation in `/api/profile/route.ts` to reject avatar_url values containing institution logo paths
+- Added client-side guard in `auth-store.ts` updateProfile to strip institution logo URLs from avatar updates
+- Existing defensive measures: `/api/auth/me` already cleans up corrupted avatar_url values
+
+Stage Summary:
+- Institution logo paths are now blocked from being stored as user avatar_url
+- Both client-side and server-side guards are in place
+
+---
+Task ID: 5
+Agent: Subagent
+Task: Fix profile page z-index appearing above sidebar (Bug 3)
+
+Work Log:
+- Changed desktop sidebar z-index from `z-30` to `z-50`
+- Added `relative z-40` to profile page container
+- This ensures sidebar (z-50) always appears above profile page (z-40)
+
+Stage Summary:
+- Sidebar z-index: z-50, Profile page z-index: z-40
+- Sidebar always appears on top when both are visible

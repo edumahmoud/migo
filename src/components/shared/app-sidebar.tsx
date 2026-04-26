@@ -189,7 +189,7 @@ export default function AppSidebar({
   // Desktop: Fixed right sidebar (RTL), collapsible
   return (
     <aside
-      className={`fixed right-0 top-14 sm:top-16 z-30 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-l bg-background shadow-sm transition-all duration-300 ease-in-out ${
+      className={`fixed right-0 top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-l bg-background shadow-sm transition-all duration-300 ease-in-out ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
     >

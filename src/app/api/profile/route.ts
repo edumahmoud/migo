@@ -71,6 +71,10 @@ export async function POST(request: NextRequest) {
 
         case 'avatar_url':
           if (typeof value === 'string') {
+            // Guard: reject institution logo URLs — they must not be stored as user avatar_url
+            if (value.includes('/institution/logos/') || value.includes('/institution%2Flogos%2F')) {
+              return NextResponse.json({ error: 'لا يمكن استخدام شعار المؤسسة كصورة شخصية' }, { status: 400 });
+            }
             sanitizedUpdates.avatar_url = value;
           } else if (value === null) {
             sanitizedUpdates.avatar_url = null;

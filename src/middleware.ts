@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 
 // Routes that require authentication
 const protectedApiRoutes = ['/api/gemini', '/api/admin', '/api/files'];
@@ -82,35 +83,36 @@ export async function middleware(request: NextRequest) {
 
         // For admin routes, verify the user is an admin
         if (pathname.startsWith('/api/admin')) {
-          const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-          if (!supabaseServiceKey) {
-            return NextResponse.json(
-              { success: false, error: 'خطأ في إعدادات الخادم' },
-              { status: 500 }
-            );
-          }
+          // Check 1: Fast path - check role from JWT claims (app_metadata synced by /api/auth/me)
+          const jwtRole = headerUser.app_metadata?.role || headerUser.user_metadata?.role;
+          if (jwtRole === 'admin' || jwtRole === 'superadmin') {
+            // Role confirmed from JWT - no DB query needed
+          } else {
+            // Check 2: Query the database using service role key (bypasses RLS)
+            const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            if (!supabaseServiceKey) {
+              return NextResponse.json(
+                { success: false, error: 'خطأ في إعدادات الخادم' },
+                { status: 500 }
+              );
+            }
 
-          const supabaseAdmin = createServerClient(supabaseUrl, supabaseServiceKey, {
-            cookies: {
-              getAll() {
-                return request.cookies.getAll();
-              },
-              setAll() {
-                // Admin client doesn't need to set cookies
-              },
-            },
-          });
-          const { data: profile } = await supabaseAdmin
-            .from('users')
-            .select('role')
-            .eq('id', headerUser.id)
-            .single();
+            const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+              auth: { autoRefreshToken: false, persistSession: false },
+            });
+            const { data: profile } = await supabaseAdmin
+              .from('users')
+              .select('role')
+              .eq('id', headerUser.id)
+              .single();
 
-          if (!profile || (profile.role !== 'admin' && profile.role !== 'superadmin')) {
-            return NextResponse.json(
-              { success: false, error: 'غير مصرح بالوصول' },
-              { status: 403 }
-            );
+            const userRole = profile?.role;
+            if (!userRole || (userRole !== 'admin' && userRole !== 'superadmin')) {
+              return NextResponse.json(
+                { success: false, error: 'غير مصرح بالوصول' },
+                { status: 403 }
+              );
+            }
           }
         }
 
@@ -131,35 +133,36 @@ export async function middleware(request: NextRequest) {
 
     // For admin routes, verify the user is an admin
     if (pathname.startsWith('/api/admin')) {
-      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      if (!supabaseServiceKey) {
-        return NextResponse.json(
-          { success: false, error: 'خطأ في إعدادات الخادم' },
-          { status: 500 }
-        );
-      }
+      // Check 1: Fast path - check role from JWT claims (app_metadata synced by /api/auth/me)
+      const jwtRole = user.app_metadata?.role || user.user_metadata?.role;
+      if (jwtRole === 'admin' || jwtRole === 'superadmin') {
+        // Role confirmed from JWT - no DB query needed
+      } else {
+        // Check 2: Query the database using service role key (bypasses RLS)
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!supabaseServiceKey) {
+          return NextResponse.json(
+            { success: false, error: 'خطأ في إعدادات الخادم' },
+            { status: 500 }
+          );
+        }
 
-      const supabaseAdmin = createServerClient(supabaseUrl, supabaseServiceKey, {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll() {
-            // Admin client doesn't need to set cookies
-          },
-        },
-      });
-      const { data: profile } = await supabaseAdmin
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+        const { data: profile } = await supabaseAdmin
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
 
-      if (!profile || (profile.role !== 'admin' && profile.role !== 'superadmin')) {
-        return NextResponse.json(
-          { success: false, error: 'غير مصرح بالوصول' },
-          { status: 403 }
-        );
+        const userRole = profile?.role;
+        if (!userRole || (userRole !== 'admin' && userRole !== 'superadmin')) {
+          return NextResponse.json(
+            { success: false, error: 'غير مصرح بالوصول' },
+            { status: 403 }
+          );
+        }
       }
     }
 
