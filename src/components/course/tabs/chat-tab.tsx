@@ -246,6 +246,15 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           );
         }
+        // Also check for duplicate content from same sender within 10 seconds
+        // (handles case where optimistic msg was already replaced by API response)
+        const isContentDuplicate = prev.some((m) =>
+          m.id !== msg.id &&
+          m.sender_id === msg.sender_id &&
+          m.content === msg.content &&
+          Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 10000
+        );
+        if (isContentDuplicate) return prev;
         return [...prev, msg].sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
@@ -289,6 +298,14 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           );
         }
+        // Also check for duplicate content from same sender within 10 seconds
+        const isContentDuplicate = prev.some((m) =>
+          m.id !== data.message.id &&
+          m.sender_id === data.message.sender_id &&
+          m.content === data.message.content &&
+          Math.abs(new Date(m.created_at).getTime() - new Date(data.message.created_at).getTime()) < 10000
+        );
+        if (isContentDuplicate) return prev;
         return [...prev, data.message].sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );

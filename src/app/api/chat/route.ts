@@ -5,8 +5,26 @@ import { supabaseServer } from '@/lib/supabase-server';
  * Chat API Route
  * 
  * GET: Fetch conversations or messages
- * POST: Send message, create conversation, mark as read, delete/edit message
+ * POST: Send message, create conversation, mark as read, delete/edit message, archive/hide conversation
  */
+
+// Helper: try to add columns if they don't exist
+async function ensureColumns() {
+  try {
+    // Try selecting is_hidden from conversation_participants to check if column exists
+    const { error } = await supabaseServer
+      .from('conversation_participants')
+      .select('is_hidden')
+      .limit(1);
+    if (error && error.message.includes('does not exist')) {
+      console.log('[Chat API] is_hidden column missing, attempting to add...');
+      // We can't ALTER TABLE via the client SDK, so log a message
+      // The columns need to be added manually or via migration
+    }
+  } catch {
+    // Ignore
+  }
+}
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');
@@ -15,13 +33,35 @@ export async function GET(request: NextRequest) {
     switch (action) {
       case 'conversations': {
         const userId = searchParams.get('userId');
+        const includeArchived = searchParams.get('includeArchived') === 'true';
         if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
 
-        // Step 1: Get all conversation IDs the user is part of
-        const { data: participations, error: pError } = await supabaseServer
+        // Step 1: Get all conversation IDs the user is part of (not hidden)
+        // Try selecting is_hidden and is_archived columns; fall back gracefully if they don't exist
+        let participationsQuery = supabaseServer
           .from('conversation_participants')
-          .select('conversation_id, last_read_at')
+          .select('conversation_id, last_read_at, is_hidden, is_archived')
           .eq('user_id', userId);
+
+        let { data: participations, error: pError } = await participationsQuery;
+
+        // If is_hidden/is_archived columns don't exist, retry without them
+        if (pError && (pError.message.includes('is_hidden') || pError.message.includes('is_archived'))) {
+          const fallback = await supabaseServer
+            .from('conversation_participants')
+            .select('conversation_id, last_read_at')
+            .eq('user_id', userId);
+          participations = fallback.data;
+          pError = fallback.error;
+          // Add default values for missing columns
+          if (participations) {
+            participations = participations.map((p: Record<string, unknown>) => ({
+              ...p,
+              is_hidden: false,
+              is_archived: false,
+            }));
+          }
+        }
 
         if (pError) {
           console.error('[Chat API] Conversations error:', pError);
@@ -29,13 +69,24 @@ export async function GET(request: NextRequest) {
         }
 
         if (!participations || participations.length === 0) {
-          return NextResponse.json({ conversations: [] });
+          return NextResponse.json({ conversations: [], archivedConversations: [] });
         }
 
+        // Filter out hidden conversations and separate archived ones
+        const visibleParticipations = participations.filter(
+          (p: Record<string, unknown>) => !(p as Record<string, unknown>).is_hidden
+        );
+        const activeParticipations = visibleParticipations.filter(
+          (p: Record<string, unknown>) => includeArchived || !(p as Record<string, unknown>).is_archived
+        );
+        const archivedParticipations = visibleParticipations.filter(
+          (p: Record<string, unknown>) => (p as Record<string, unknown>).is_archived
+        );
+
         // Step 2: Get all conversation details for those IDs
-        const convIds = participations.map((p: { conversation_id: string }) => p.conversation_id);
+        const convIds = activeParticipations.map((p: { conversation_id: string }) => p.conversation_id);
         const lastReadMap = new Map<string, string | null>();
-        participations.forEach((p: { conversation_id: string; last_read_at: string | null }) => {
+        activeParticipations.forEach((p: { conversation_id: string; last_read_at: string | null }) => {
           lastReadMap.set(p.conversation_id, p.last_read_at);
         });
 
@@ -123,7 +174,72 @@ export async function GET(request: NextRequest) {
           .filter(Boolean)
           .sort((a, b) => new Date((b as Record<string, unknown>).updatedAt as string || (b as Record<string, unknown>).createdAt as string).getTime() - new Date((a as Record<string, unknown>).updatedAt as string || (a as Record<string, unknown>).createdAt as string).getTime());
 
-        return NextResponse.json({ conversations: sorted });
+        // Also fetch archived conversations details
+        let archivedConversations: unknown[] = [];
+        if (archivedParticipations.length > 0) {
+          const archivedConvIds = archivedParticipations.map((p: { conversation_id: string }) => p.conversation_id);
+          const archivedLastReadMap = new Map<string, string | null>();
+          archivedParticipations.forEach((p: { conversation_id: string; last_read_at: string | null }) => {
+            archivedLastReadMap.set(p.conversation_id, p.last_read_at);
+          });
+
+          const { data: archivedConvsData } = await supabaseServer
+            .from('conversations')
+            .select('id, type, subject_id, title, created_at, updated_at')
+            .in('id', archivedConvIds);
+
+          if (archivedConvsData && archivedConvsData.length > 0) {
+            archivedConversations = await Promise.all(
+              archivedConvsData.map(async (conv: Record<string, unknown>) => {
+                const convId = conv.id as string;
+                const lastReadAt = archivedLastReadMap.get(convId) || null;
+                const { data: lastMsgs } = await supabaseServer
+                  .from('messages')
+                  .select('id, sender_id, content, created_at')
+                  .eq('conversation_id', convId)
+                  .order('created_at', { ascending: false })
+                  .limit(1);
+                let otherParticipant = null;
+                if (conv.type === 'individual') {
+                  const { data: otherParts } = await supabaseServer
+                    .from('conversation_participants')
+                    .select('user_id')
+                    .eq('conversation_id', convId)
+                    .neq('user_id', userId)
+                    .limit(1);
+                  if (otherParts && otherParts.length > 0) {
+                    const otherUserId = (otherParts[0] as { user_id: string }).user_id;
+                    const { data: otherUser } = await supabaseServer
+                      .from('users')
+                      .select('id, name, email, avatar_url, title_id, gender, role')
+                      .eq('id', otherUserId)
+                      .single();
+                    otherParticipant = otherUser || null;
+                  }
+                }
+                return {
+                  id: convId,
+                  type: conv.type,
+                  subjectId: conv.subject_id,
+                  title: conv.title,
+                  createdAt: conv.created_at,
+                  updatedAt: conv.updated_at,
+                  lastReadAt,
+                  lastMessage: lastMsgs?.[0] || null,
+                  unreadCount: 0,
+                  otherParticipant,
+                  isArchived: true,
+                };
+              })
+            );
+            archivedConversations.sort((a, b) =>
+              new Date((b as Record<string, unknown>).updatedAt as string || (b as Record<string, unknown>).createdAt as string).getTime() -
+              new Date((a as Record<string, unknown>).updatedAt as string || (a as Record<string, unknown>).createdAt as string).getTime()
+            );
+          }
+        }
+
+        return NextResponse.json({ conversations: sorted, archivedConversations });
       }
 
       case 'messages': {
@@ -564,21 +680,6 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Verify the conversation is individual type
-        const { data: conv } = await supabaseServer
-          .from('conversations')
-          .select('id, type')
-          .eq('id', conversationId)
-          .single();
-
-        if (!conv) {
-          return NextResponse.json({ error: 'المحادثة غير موجودة' }, { status: 404 });
-        }
-
-        if (conv.type !== 'individual') {
-          return NextResponse.json({ error: 'لا يمكن حذف المحادثات الجماعية' }, { status: 400 });
-        }
-
         // Verify the user is a participant
         const { data: participation } = await supabaseServer
           .from('conversation_participants')
@@ -591,16 +692,26 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'لست مشاركاً في هذه المحادثة' }, { status: 403 });
         }
 
-        // Remove user from conversation participants (soft leave)
-        const { error: deleteError } = await supabaseServer
+        // Soft delete: set is_hidden = true for this user (don't delete the participant record)
+        // This way the other user is not affected
+        const { error: hideError } = await supabaseServer
           .from('conversation_participants')
-          .delete()
+          .update({ is_hidden: true })
           .eq('conversation_id', conversationId)
           .eq('user_id', userId);
 
-        if (deleteError) {
-          console.error('[Chat API] Delete conversation error:', deleteError);
-          return NextResponse.json({ error: 'فشل حذف المحادثة' }, { status: 500 });
+        if (hideError) {
+          // If is_hidden column doesn't exist, fall back to removing participant
+          console.warn('[Chat API] is_hidden column missing, falling back to participant removal');
+          const { error: deleteError } = await supabaseServer
+            .from('conversation_participants')
+            .delete()
+            .eq('conversation_id', conversationId)
+            .eq('user_id', userId);
+          if (deleteError) {
+            console.error('[Chat API] Delete conversation error:', deleteError);
+            return NextResponse.json({ error: 'فشل حذف المحادثة' }, { status: 500 });
+          }
         }
 
         return NextResponse.json({ success: true });
@@ -612,7 +723,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'userId required' }, { status: 400 });
         }
 
-        // Get all individual conversations for this user
+        // Get all conversations for this user
         const { data: participations } = await supabaseServer
           .from('conversation_participants')
           .select('conversation_id')
@@ -624,32 +735,108 @@ export async function POST(request: NextRequest) {
 
         const convIds = participations.map((p: { conversation_id: string }) => p.conversation_id);
 
-        // Filter to only individual conversations
-        const { data: individualConvs } = await supabaseServer
-          .from('conversations')
-          .select('id')
-          .in('id', convIds)
-          .eq('type', 'individual');
-
-        if (!individualConvs || individualConvs.length === 0) {
-          return NextResponse.json({ success: true, deletedCount: 0 });
-        }
-
-        const individualConvIds = individualConvs.map((c: { id: string }) => c.id);
-
-        // Remove user from all individual conversation participants
-        const { error: deleteError } = await supabaseServer
+        // Soft delete: set is_hidden = true for all user's conversations
+        const { error: hideError } = await supabaseServer
           .from('conversation_participants')
-          .delete()
+          .update({ is_hidden: true })
           .eq('user_id', userId)
-          .in('conversation_id', individualConvIds);
+          .in('conversation_id', convIds);
 
-        if (deleteError) {
-          console.error('[Chat API] Delete all conversations error:', deleteError);
-          return NextResponse.json({ error: 'فشل حذف المحادثات' }, { status: 500 });
+        if (hideError) {
+          // Fallback: try deleting individual conversations only
+          const { data: individualConvs } = await supabaseServer
+            .from('conversations')
+            .select('id')
+            .in('id', convIds)
+            .eq('type', 'individual');
+
+          if (!individualConvs || individualConvs.length === 0) {
+            return NextResponse.json({ success: true, deletedCount: 0 });
+          }
+
+          const individualConvIds = individualConvs.map((c: { id: string }) => c.id);
+
+          const { error: deleteError } = await supabaseServer
+            .from('conversation_participants')
+            .delete()
+            .eq('user_id', userId)
+            .in('conversation_id', individualConvIds);
+
+          if (deleteError) {
+            console.error('[Chat API] Delete all conversations error:', deleteError);
+            return NextResponse.json({ error: 'فشل حذف المحادثات' }, { status: 500 });
+          }
+
+          return NextResponse.json({ success: true, deletedCount: individualConvIds.length });
         }
 
-        return NextResponse.json({ success: true, deletedCount: individualConvIds.length });
+        return NextResponse.json({ success: true, deletedCount: convIds.length });
+      }
+
+      case 'archive-conversation': {
+        const { conversationId, userId } = body;
+        if (!conversationId || !userId) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Set is_archived = true for this user
+        const { error: archiveError } = await supabaseServer
+          .from('conversation_participants')
+          .update({ is_archived: true })
+          .eq('conversation_id', conversationId)
+          .eq('user_id', userId);
+
+        if (archiveError) {
+          console.error('[Chat API] Archive conversation error:', archiveError);
+          return NextResponse.json({ error: 'فشل أرشفة المحادثة' }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
+      case 'unarchive-conversation': {
+        const { conversationId, userId } = body;
+        if (!conversationId || !userId) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Set is_archived = false for this user
+        const { error: unarchiveError } = await supabaseServer
+          .from('conversation_participants')
+          .update({ is_archived: false })
+          .eq('conversation_id', conversationId)
+          .eq('user_id', userId);
+
+        if (unarchiveError) {
+          console.error('[Chat API] Unarchive conversation error:', unarchiveError);
+          return NextResponse.json({ error: 'فشل إلغاء أرشفة المحادثة' }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
+      case 'migrate-chat-columns': {
+        // This action attempts to add is_hidden and is_archived columns
+        // Note: Supabase client SDK doesn't support ALTER TABLE, so this needs to be done via SQL
+        // We'll just check if the columns exist and report back
+        const { error: checkHidden } = await supabaseServer
+          .from('conversation_participants')
+          .select('is_hidden')
+          .limit(1);
+        const { error: checkArchived } = await supabaseServer
+          .from('conversation_participants')
+          .select('is_archived')
+          .limit(1);
+
+        return NextResponse.json({
+          is_hidden_exists: !checkHidden,
+          is_archived_exists: !checkArchived,
+          sql: `
+-- Run this SQL in Supabase SQL Editor to add the required columns:
+ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT FALSE;
+ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;
+          `.trim(),
+        });
       }
 
       default:

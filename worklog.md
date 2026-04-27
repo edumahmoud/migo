@@ -174,3 +174,55 @@ Stage Summary:
 - Edited messages show `(معدّلة منذ X د)` with the edit timestamp
 - Group conversations show stacked participant avatars instead of just a Hash icon
 - All changes pass `bun run lint` with zero errors
+
+---
+Task ID: 9
+Agent: Main
+Task: Comprehensive chat improvements (7 user requirements) - Round 2
+
+Work Log:
+1. **Sidebar Notification Badge (All States)**: Fixed the chat notification badge on the sidebar icon to show even when the sidebar is collapsed. Previously it only appeared when `!collapsed`. Now uses `relative` positioning on the icon span with an absolute-positioned badge that scales down when collapsed.
+
+2. **Back Button for All Screen Sizes**: Removed `md:hidden` class from the back button in the chat header so it's visible on all screen sizes, not just mobile.
+
+3. **Fixed Duplicate Message Display (Critical)**: Added content-based deduplication check (`isContentDuplicate`) in both `new-message` and `chat-notification` socket handlers in both `chat-section.tsx` and `chat-tab.tsx`. The new check looks for messages with the same sender_id, same content, and within 10 seconds timestamp difference — even if the optimistic message was already replaced by the API response (no longer `temp-` prefixed).
+
+4. **Archive/Delete Actions with Confirmation Dialog**:
+   - Added `archive-conversation` and `unarchive-conversation` API actions
+   - Added 3-dot menu on each conversation item with Archive and Delete options
+   - Added 3-dot menu in the chat header with Archive and Delete options for the active conversation
+   - Added AlertDialog confirmation before any delete action
+   - Added collapsible "المؤرشفة (X)" section at bottom of conversations list
+   - Each archived conversation has an Unarchive button
+   - Used shadcn/ui AlertDialog and Collapsible components
+
+5. **Confirmation Dialog Before Delete**: Added AlertDialog with Arabic text for both single delete ("هل أنت متأكد من حذف هذه المحادثة؟") and delete all ("هل أنت متأكد من حذف جميع المحادثات؟") with Cancel and Delete buttons.
+
+6. **Pinned Input Area at Bottom**: Made the message input `sticky bottom-0 z-10` on small screens with `sm:relative` for desktop, ensuring it stays visible at the bottom when scrolling.
+
+7. **Fixed First-Time Chat Notification**: Changed the `new-conversation` socket handler to only show a toast about the new conversation without incrementing unread count, since there are no messages yet.
+
+8. **Fixed Chat Deletion Being Synced Across Sides (API)**:
+   - Changed `delete-conversation` to use `is_hidden` flag instead of removing participant record
+   - Falls back to participant removal if `is_hidden` column doesn't exist
+   - Changed `delete-all-conversations` similarly
+   - The other user's conversation is completely unaffected
+   - API conversations query now filters out `is_hidden` conversations and separates `is_archived` ones
+   - Graceful fallback when `is_hidden`/`is_archived` columns don't exist
+
+9. **Database Migration**: Added `migrate-chat-columns` API action that checks column existence. The SQL needs to be run manually in Supabase SQL Editor:
+   ```sql
+   ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT FALSE;
+   ALTER TABLE conversation_participants ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;
+   ```
+
+Stage Summary:
+- Chat notification badge now shows on sidebar icon regardless of collapsed state
+- Back button visible on all screen sizes
+- Duplicate messages no longer appear (content-based dedup added)
+- Archive/delete actions with confirmation dialog fully implemented
+- Message input pinned at bottom on small screens
+- First-time chat no longer triggers false unread notification
+- Chat deletion is now per-user (other side unaffected) using is_hidden flag
+- All changes pass `bun run lint` with zero errors
+- NOTE: is_hidden and is_archived columns need to be added to Supabase for full functionality

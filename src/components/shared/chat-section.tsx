@@ -21,6 +21,11 @@ import {
   WifiOff,
   RefreshCw,
   MoreHorizontal,
+  Archive,
+  ArchiveRestore,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -28,6 +33,17 @@ import type { UserProfile, Conversation, ChatMessage, UserStatus } from '@/lib/t
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
 import { useStatusStore, getStatusColor, getStatusLabel, isVisible } from '@/stores/status-store';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 // =====================================================
 // Props
@@ -164,6 +180,28 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // ─── Unread tracking (local override for real-time updates) ───
   const [localUnread, setLocalUnread] = useState<Map<string, number>>(new Map());
 
+  // ─── Archived conversations ───
+  const [archivedConversations, setArchivedConversations] = useState<Conversation[]>([]);
+
+  // ─── Confirmation dialog state ───
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({ open: false, title: '', description: '', onConfirm: () => {} });
+
+  // ─── Archived section collapsible ───
+  const [archivedOpen, setArchivedOpen] = useState(false);
+
+  // ─── Conversation action menu ───
+  const [convMenuId, setConvMenuId] = useState<string | null>(null);
+  const convMenuRef = useRef<HTMLDivElement>(null);
+
+  // ─── Chat header actions menu ───
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+
   // ─── Refs ───
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -210,6 +248,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
       setConvFetchError(null);
       setConversations(data.conversations || []);
+      setArchivedConversations(data.archivedConversations || []);
       return data.conversations || [];
     } catch (err) {
       console.error('Fetch conversations error:', err);
@@ -321,6 +360,15 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               : m
           );
         }
+        // Also check for duplicate content from same sender within 10 seconds
+        // (handles case where optimistic msg was already replaced by API response)
+        const isContentDuplicate = prev.some((m) =>
+          m.id !== msg.id &&
+          m.sender_id === msg.sender_id &&
+          m.content === msg.content &&
+          Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 10000
+        );
+        if (isContentDuplicate) return prev;
         return [...prev, msg];
       });
       // Mark as read since we're viewing this conversation
@@ -368,6 +416,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               : m
           );
         }
+        // Also check for duplicate content from same sender within 10 seconds
+        const isContentDuplicate = prev.some((m) =>
+          m.id !== data.message.id &&
+          m.sender_id === data.message.sender_id &&
+          m.content === data.message.content &&
+          Math.abs(new Date(m.created_at).getTime() - new Date(data.message.created_at).getTime()) < 10000
+        );
+        if (isContentDuplicate) return prev;
         return [...prev, data.message];
       });
       // Mark as read
@@ -400,6 +456,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     conversationType: string;
   }>('new-conversation', (data) => {
     joinRoom(data.conversationId);
+    // Only show toast about new conversation, don't increment unread count
+    // since there are no messages yet
     toast(`محادثة جديدة من ${data.fromUser.name}`, {
       description: 'تم إنشاء محادثة جديدة',
       icon: <MessageCircle className="h-4 w-4 text-emerald-600" />,
@@ -491,6 +549,12 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     const handleClick = (e: MouseEvent) => {
       if (messageMenuRef.current && !messageMenuRef.current.contains(e.target as Node)) {
         setMessageMenuId(null);
+      }
+      if (convMenuRef.current && !convMenuRef.current.contains(e.target as Node)) {
+        setConvMenuId(null);
+      }
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setHeaderMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -908,23 +972,97 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   };
 
   // =====================================================
-  // Delete conversation (individual only)
+  // Delete conversation (any type - uses is_hidden flag)
   // =====================================================
-  const handleDeleteConversation = async (convId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleDeleteConversation = async (convId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setConfirmDialog({
+      open: true,
+      title: 'حذف المحادثة',
+      description: 'هل أنت متأكد من حذف هذه المحادثة؟',
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete-conversation', conversationId: convId, userId: profile.id }),
+          });
+          const data = await res.json();
+          if (data.error) {
+            toast.error(data.error);
+            return;
+          }
+          toast.success('تم حذف المحادثة');
+          if (activeConvId === convId) {
+            setActiveConvId(null);
+            setActiveConvInfo(null);
+            setMessages([]);
+            setShowChat(false);
+          }
+          fetchConversations();
+        } catch (err) {
+          console.error('Delete conversation error:', err);
+          toast.error('فشل حذف المحادثة');
+        }
+      },
+    });
+  };
+
+  // =====================================================
+  // Delete all conversations
+  // =====================================================
+  const handleDeleteAllConversations = async () => {
+    if (conversations.length === 0) {
+      toast.error('لا توجد محادثات لحذفها');
+      return;
+    }
+    setConfirmDialog({
+      open: true,
+      title: 'حذف جميع المحادثات',
+      description: 'هل أنت متأكد من حذف جميع المحادثات؟',
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete-all-conversations', userId: profile.id }),
+          });
+          const data = await res.json();
+          if (data.error) {
+            toast.error(data.error);
+            return;
+          }
+          toast.success(`تم حذف ${data.deletedCount || 0} محادثة`);
+          setActiveConvId(null);
+          setActiveConvInfo(null);
+          setMessages([]);
+          setShowChat(false);
+          fetchConversations();
+        } catch (err) {
+          console.error('Delete all conversations error:', err);
+          toast.error('فشل حذف المحادثات');
+        }
+      },
+    });
+  };
+
+  // =====================================================
+  // Archive conversation
+  // =====================================================
+  const handleArchiveConversation = async (convId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete-conversation', conversationId: convId, userId: profile.id }),
+        body: JSON.stringify({ action: 'archive-conversation', conversationId: convId, userId: profile.id }),
       });
       const data = await res.json();
       if (data.error) {
         toast.error(data.error);
         return;
       }
-      toast.success('تم حذف المحادثة');
-      // If the deleted conversation was active, clear it
+      toast.success('تم أرشفة المحادثة');
       if (activeConvId === convId) {
         setActiveConvId(null);
         setActiveConvInfo(null);
@@ -933,44 +1071,31 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       }
       fetchConversations();
     } catch (err) {
-      console.error('Delete conversation error:', err);
-      toast.error('فشل حذف المحادثة');
+      console.error('Archive conversation error:', err);
+      toast.error('فشل أرشفة المحادثة');
     }
   };
 
   // =====================================================
-  // Delete all individual conversations
+  // Unarchive conversation
   // =====================================================
-  const handleDeleteAllConversations = async () => {
-    const individualConvs = conversations.filter(c => c.type === 'individual');
-    if (individualConvs.length === 0) {
-      toast.error('لا توجد محادثات خاصة لحذفها');
-      return;
-    }
+  const handleUnarchiveConversation = async (convId: string) => {
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete-all-conversations', userId: profile.id }),
+        body: JSON.stringify({ action: 'unarchive-conversation', conversationId: convId, userId: profile.id }),
       });
       const data = await res.json();
       if (data.error) {
         toast.error(data.error);
         return;
       }
-      toast.success(`تم حذف ${data.deletedCount || 0} محادثة`);
-      // Clear active conversation if it was individual
-      const activeConv = conversations.find(c => c.id === activeConvId);
-      if (activeConv?.type === 'individual') {
-        setActiveConvId(null);
-        setActiveConvInfo(null);
-        setMessages([]);
-        setShowChat(false);
-      }
+      toast.success('تم إلغاء أرشفة المحادثة');
       fetchConversations();
     } catch (err) {
-      console.error('Delete all conversations error:', err);
-      toast.error('فشل حذف المحادثات');
+      console.error('Unarchive conversation error:', err);
+      toast.error('فشل إلغاء أرشفة المحادثة');
     }
   };
 
@@ -1018,6 +1143,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // =====================================================
   useEffect(() => {
     const totalUnread = conversations.reduce((sum, conv) => {
+      // Don't count unread for archived conversations
       return sum + getUnreadCount(conv);
     }, 0);
     setChatUnreadCount(totalUnread);
@@ -1262,12 +1388,12 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     {isConnected ? 'متصل' : 'غير متصل'}
                   </span>
                 </div>
-                {/* Delete all individual conversations button */}
-                {conversations.some(c => c.type === 'individual') && (
+                {/* Delete all conversations button */}
+                {conversations.length > 0 && (
                   <button
                     onClick={handleDeleteAllConversations}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
-                    title="حذف جميع المحادثات الخاصة"
+                    title="حذف جميع المحادثات"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -1463,16 +1589,43 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                             <span className="text-[10px] text-muted-foreground">
                               {lastMsg ? relativeTime(lastMsg.created_at) : ''}
                             </span>
-                            {/* Delete button for individual conversations */}
-                            {!isGroup && (
+                            {/* Conversation actions menu */}
+                            <div className="relative" ref={convMenuId === conv.id ? convMenuRef : null}>
                               <button
-                                onClick={(e) => handleDeleteConversation(conv.id, e)}
-                                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                                title="حذف المحادثة"
+                                onClick={(e) => { e.stopPropagation(); setConvMenuId(convMenuId === conv.id ? null : conv.id); }}
+                                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                title="المزيد"
                               >
-                                <Trash2 className="h-3 w-3" />
+                                <MoreHorizontal className="h-3 w-3" />
                               </button>
-                            )}
+                              <AnimatePresence>
+                                {convMenuId === conv.id && (
+                                  <motion.div
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    transition={{ duration: 0.1 }}
+                                    className="absolute end-0 top-6 z-30 bg-card border rounded-xl shadow-lg py-1 min-w-[130px]"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      onClick={() => { setConvMenuId(null); handleArchiveConversation(conv.id); }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-right"
+                                    >
+                                      <Archive className="h-3.5 w-3.5" />
+                                      أرشفة
+                                    </button>
+                                    <button
+                                      onClick={() => { setConvMenuId(null); handleDeleteConversation(conv.id); }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-right"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      حذف
+                                    </button>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center justify-between gap-2 mt-0.5">
@@ -1493,6 +1646,82 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 })}
               </div>
             )}
+
+            {/* ─── Archived conversations section ─── */}
+            {archivedConversations.length > 0 && (
+              <Collapsible open={archivedOpen} onOpenChange={setArchivedOpen} className="border-t">
+                <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-2.5 text-right hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <Archive className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      المؤرشفة ({archivedConversations.length})
+                    </span>
+                  </div>
+                  {archivedOpen ? (
+                    <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="py-1">
+                    {archivedConversations.map((conv) => {
+                      const isGroup = conv.type === 'group';
+                      const displayName = isGroup
+                        ? conv.title || 'محادثة جماعية'
+                        : formatNameWithTitle(
+                            conv.otherParticipant?.name || 'محادثة خاصة',
+                            conv.otherParticipant?.role,
+                            conv.otherParticipant?.title_id,
+                            conv.otherParticipant?.gender
+                          );
+                      const lastMsg = conv.lastMessage;
+
+                      return (
+                        <div
+                          key={conv.id}
+                          className="flex items-center gap-3 p-3 text-right hover:bg-muted/30 transition-colors opacity-60"
+                        >
+                          <div className="shrink-0">
+                            {isGroup ? (
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                                <Hash className="h-5 w-5" />
+                              </div>
+                            ) : (
+                              <UserAvatar name={conv.otherParticipant?.name || displayName} avatarUrl={conv.otherParticipant?.avatar_url} size="md" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-semibold text-foreground truncate">{displayName}</span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {lastMsg && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {relativeTime(lastMsg.created_at)}
+                                  </span>
+                                )}
+                                <button
+                                  onClick={() => handleUnarchiveConversation(conv.id)}
+                                  className="flex h-5 w-5 items-center justify-center rounded text-emerald-600/60 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                  title="إلغاء الأرشفة"
+                                >
+                                  <ArchiveRestore className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">
+                              {lastMsg
+                                ? (lastMsg.content.length > 35 ? lastMsg.content.substring(0, 35) + '...' : lastMsg.content)
+                                : 'لا توجد رسائل بعد'}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
           </div>
         </div>
 
@@ -1504,10 +1733,10 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             <>
               {/* ─── Chat header ─── */}
               <div className="shrink-0 p-3 border-b bg-card flex items-center gap-3">
-                {/* Back button (mobile) */}
+                {/* Back button (all screen sizes) */}
                 <button
                   onClick={() => setShowChat(false)}
-                  className="md:hidden flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
                 >
                   <ArrowRight className="h-4 w-4" />
                 </button>
@@ -1581,12 +1810,48 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     </div>
                   )}
                 </div>
+
+                {/* More actions menu */}
+                <div className="relative" ref={headerMenuRef}>
+                  <button
+                    onClick={() => setHeaderMenuOpen(!headerMenuOpen)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                  <AnimatePresence>
+                    {headerMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.12 }}
+                        className="absolute end-0 top-9 z-30 bg-card border rounded-xl shadow-lg py-1 min-w-[140px]"
+                      >
+                        <button
+                          onClick={() => { setHeaderMenuOpen(false); handleArchiveConversation(activeConvId!); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-right"
+                        >
+                          <Archive className="h-3.5 w-3.5" />
+                          أرشفة
+                        </button>
+                        <button
+                          onClick={() => { setHeaderMenuOpen(false); handleDeleteConversation(activeConvId!); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-right"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          حذف
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               {/* ─── Messages area ─── */}
               <div
                 ref={messagesContainerRef}
-                className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5"
+                className="flex-1 min-h-0 overflow-y-auto py-3 space-y-1.5 sm:static"
                 style={{ scrollbarGutter: 'stable' }}
               >
                 {messagesLoading ? (
@@ -1623,8 +1888,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 )}
               </AnimatePresence>
 
-              {/* ─── Message input ─── */}
-              <div className="shrink-0 p-3 border-t bg-card">
+              {/* ─── Message input (pinned at bottom) ─── */}
+              <div className="shrink-0 p-3 border-t bg-card sm:relative sticky bottom-0 z-10">
                 <div className="flex items-end gap-2">
                   <input
                     type="text"
@@ -1772,6 +2037,40 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ============================================ */}
+      {/* CONFIRMATION DIALOG                          */}
+      {/* ============================================ */}
+      <AlertDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDialog((prev) => ({ ...prev, open: false }));
+        }}
+      >
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-right">
+              <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+              {confirmDialog.title}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-right">
+              {confirmDialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-start">
+            <AlertDialogCancel className="rounded-lg">إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                confirmDialog.onConfirm();
+                setConfirmDialog((prev) => ({ ...prev, open: false }));
+              }}
+              className="rounded-lg bg-red-600 text-white hover:bg-red-700"
+            >
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }

@@ -110,20 +110,25 @@ function NavItems({
               title={collapsed ? item.label : undefined}
             >
               <span
-                className={`transition-colors duration-200 shrink-0 ${
+                className={`transition-colors duration-200 shrink-0 relative ${
                   isActive ? 'text-emerald-600' : 'text-muted-foreground'
                 }`}
               >
                 {item.icon}
+                {/* Notification badge on chat icon - always visible */}
+                {item.id === 'chat' && chatUnreadCount > 0 && (
+                  <span
+                    className={`absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-emerald-600 text-white font-bold ${
+                      collapsed ? 'h-4 min-w-4 text-[8px] px-0.5' : 'h-5 min-w-5 text-[10px] px-1.5'
+                    }`}
+                  >
+                    {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                  </span>
+                )}
               </span>
               {!collapsed && (
                 <>
                   <span>{item.label}</span>
-                  {item.id === 'chat' && chatUnreadCount > 0 && (
-                    <span className="mr-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-bold px-1.5">
-                      {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
-                    </span>
-                  )}
                   {isActive && item.id !== 'chat' && (
                     <motion.div
                       layoutId="activeIndicator"
