@@ -460,7 +460,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
   useEffect(() => {
     fetchAllData();
-  }, [fetchAllData]);
+    fetchBannedUsers();
+  }, [fetchAllData, fetchBannedUsers]);
 
   // Update total submissions from scores
   useEffect(() => {
@@ -1035,12 +1036,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           value={studentCount}
           color="amber"
         />
-        <StatCard
-          icon={<BookOpen className="h-5 w-5" />}
-          label="المقررات"
-          value={allSubjects.length}
-          color="rose"
-        />
+        <div onClick={() => setActiveSection('banned')} className="cursor-pointer">
+          <StatCard
+            icon={<Ban className="h-5 w-5" />}
+            label="المحظورون"
+            value={bannedUsers.filter(b => b.is_active !== false && (!b.ban_until || new Date(b.ban_until) > new Date())).length}
+            color="rose"
+          />
+        </div>
       </motion.div>
 
       {/* Two columns: 2/3 + 1/3 */}
