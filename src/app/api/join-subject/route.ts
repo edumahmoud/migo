@@ -216,7 +216,7 @@ export async function POST(request: Request) {
         'enrollment',
         'طلب انضمام جديد',
         `طلب الطالب ${profile.name || 'طالب'} الانضمام إلى مقرر "${subject.name}"`,
-        `enrollment:${subject.id}`
+        `enrollment:${subject.id}:overview`
       );
     }
 
@@ -233,7 +233,7 @@ export async function POST(request: Request) {
           'enrollment',
           'طلب انضمام جديد',
           `طلب الطالب ${profile.name || 'طالب'} الانضمام إلى مقرر "${subject.name}"`,
-          `enrollment:${subject.id}`
+          `enrollment:${subject.id}:overview`
         );
       }
     } catch {

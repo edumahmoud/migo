@@ -149,7 +149,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم قبول طلب الانضمام',
         `تم قبول طلب انضمامك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}`
+        `subject:${subjectId}:overview`
       );
 
       return NextResponse.json({ success: true, message: 'تم قبول الطالب بنجاح' });
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم رفض طلب الانضمام',
         `تم رفض طلب انضمامك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}`
+        `subject:${subjectId}:overview`
       );
 
       return NextResponse.json({ success: true, message: 'تم رفض الطلب' });
@@ -214,7 +214,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم قبول طلب الانضمام',
         `تم قبول طلب انضمامك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}`
+        `subject:${subjectId}:overview`
       );
 
       return NextResponse.json({
@@ -255,7 +255,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم رفض طلب الانضمام',
         `تم رفض طلب انضمامك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}`
+        `subject:${subjectId}:overview`
       );
 
       return NextResponse.json({
@@ -289,7 +289,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم إضافتك إلى مقرر',
         `تم إضافتك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}`
+        `subject:${subjectId}:overview`
       );
 
       return NextResponse.json({ success: true, message: 'تم إضافة الطالب بنجاح' });
@@ -316,7 +316,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم إزالتك من المقرر',
         `تم إزالتك من مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}`
+        `subject:${subjectId}:overview`
       );
 
       return NextResponse.json({ success: true, message: 'تم إزالة الطالب من المقرر' });

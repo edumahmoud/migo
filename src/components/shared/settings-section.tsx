@@ -21,6 +21,11 @@ import {
   Download,
   WifiOff,
   Check,
+  BellRing,
+  BellOff,
+  Bell,
+  RotateCcw,
+  Smartphone,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -133,6 +138,7 @@ const STATUS_OPTIONS: {
 ];
 
 const STATUS_STORAGE_KEY = 'attenddo-user-status';
+const ORIENTATION_LOCK_KEY = 'attendo-orientation-locked';
 
 // -------------------------------------------------------
 // Animation variants
@@ -193,6 +199,14 @@ export default function SettingsSection({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
+  // ─── Notification permission ───
+  const [pushPermission, setPushPermission] = useState<NotificationPermissionState>('default');
+  const [isTogglingPush, setIsTogglingPush] = useState(false);
+
+  // ─── Orientation lock ───
+  const [orientationLocked, setOrientationLocked] = useState(false);
+  const [orientationSupported, setOrientationSupported] = useState(false);
+
   // ─── Status / Presence (now from global store) ───
   const userStatus = myStatus;
 
@@ -212,6 +226,23 @@ export default function SettingsSection({
   useEffect(() => {
     initStatusStore();
   }, [initStatusStore]);
+
+  // ─── Check notification permission ───
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!('Notification' in window)) return;
+    setPushPermission(Notification.permission);
+  }, []);
+
+  // ─── Check orientation lock support ───
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const supported = !!(screen as any)?.orientation?.lock;
+    setOrientationSupported(supported);
+    // Check if previously locked
+    const wasLocked = localStorage.getItem(ORIENTATION_LOCK_KEY) === 'true';
+    setOrientationLocked(wasLocked);
+  }, []);
 
   // ─── Handle status change ───
   const handleStatusChange = useCallback((newStatus: UserStatus) => {
@@ -515,6 +546,93 @@ export default function SettingsSection({
 
   // ─── Current status info ───
   const currentStatusInfo = STATUS_OPTIONS.find(s => s.value === userStatus) || STATUS_OPTIONS[0];
+
+  // ─── Toggle push notifications ───
+  const handleTogglePush = async () => {
+    setIsTogglingPush(true);
+    try {
+      if (pushPermission === 'granted') {
+        // Disable push — unsubscribe
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          await subscription.unsubscribe();
+          await fetch('/api/push/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: subscription.endpoint }),
+          });
+        }
+        setPushPermission('default');
+        toast.success('تم إيقاف الإشعارات الخارجية');
+      } else {
+        // Enable push — request permission and subscribe
+        const result = await Notification.requestPermission();
+        setPushPermission(result);
+        if (result !== 'granted') {
+          toast.error('تم رفض إذن الإشعارات. يمكنك تفعيله من إعدادات المتصفح.');
+          return;
+        }
+        const registration = await navigator.serviceWorker.ready;
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        if (!vapidKey) {
+          toast.error('إشعارات Push غير مهيأة حالياً');
+          return;
+        }
+        const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4);
+        const base64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = window.atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: outputArray,
+        });
+        const subJSON = subscription.toJSON();
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: profile.id,
+            subscription: { endpoint: subJSON.endpoint, keys: { p256dh: subJSON.keys?.p256dh, auth: subJSON.keys?.auth } },
+          }),
+        });
+        toast.success('تم تفعيل الإشعارات بنجاح! ستصلك الإشعارات حتى عند إغلاق المتصفح.');
+      }
+    } catch (error) {
+      console.error('Push toggle error:', error);
+      toast.error('حدث خطأ في تغيير إعدادات الإشعارات');
+    } finally {
+      setIsTogglingPush(false);
+    }
+  };
+
+  // ─── Toggle orientation lock ───
+  const handleToggleOrientation = async () => {
+    try {
+      const screenOrientation = (screen as any)?.orientation;
+      if (!screenOrientation?.lock) {
+        toast.info('قفل الاتجاه غير مدعوم في هذا المتصفح');
+        return;
+      }
+      if (orientationLocked) {
+        // Unlock
+        await screenOrientation.unlock();
+        setOrientationLocked(false);
+        localStorage.setItem(ORIENTATION_LOCK_KEY, 'false');
+        toast.success('تم إلغاء قفل اتجاه الشاشة');
+      } else {
+        // Lock to portrait
+        await screenOrientation.lock('portrait');
+        setOrientationLocked(true);
+        localStorage.setItem(ORIENTATION_LOCK_KEY, 'true');
+        toast.success('تم قفل اتجاه الشاشة على الوضع العمودي');
+      }
+    } catch (error) {
+      console.error('Orientation lock error:', error);
+      toast.error('قفل الاتجاه غير مدعوم أو تم رفض الإذن');
+    }
+  };
 
   // ─── Render ───
   return (
@@ -871,8 +989,128 @@ export default function SettingsSection({
           </motion.div>
         </div>
 
-        {/* ─── Right column: Password + Danger Zone ─── */}
+        {/* ─── Right column: App Settings + Password + Danger Zone ─── */}
         <div className="space-y-4">
+          {/* App Settings Card (Notifications + Orientation) */}
+          <motion.div
+            className="rounded-xl border bg-card shadow-sm overflow-hidden"
+            variants={sectionVariants}
+            initial="hidden"
+            animate="visible"
+            custom={2}
+          >
+            <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
+              <Smartphone className="h-4 w-4 text-emerald-600" />
+              <h3 className="font-semibold text-foreground text-sm">إعدادات التطبيق</h3>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Push Notifications Toggle */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                    pushPermission === 'granted'
+                      ? 'bg-emerald-100 text-emerald-600'
+                      : pushPermission === 'denied'
+                        ? 'bg-rose-100 text-rose-600'
+                        : 'bg-amber-100 text-amber-600'
+                  }`}>
+                    {pushPermission === 'granted' ? (
+                      <BellRing className="h-4 w-4" />
+                    ) : pushPermission === 'denied' ? (
+                      <BellOff className="h-4 w-4" />
+                    ) : (
+                      <Bell className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">الإشعارات الخارجية</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {pushPermission === 'granted'
+                        ? 'مفعّلة — ستصلك الإشعارات عند إغلاق المتصفح'
+                        : pushPermission === 'denied'
+                          ? 'محظورة — فعّلها من إعدادات المتصفح'
+                          : 'غير مفعّلة — اضغط لتفعيل الإشعارات خارج المتصفح'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleTogglePush}
+                  disabled={isTogglingPush || pushPermission === 'denied'}
+                  className={`relative shrink-0 h-6 w-11 rounded-full transition-colors duration-200 ${
+                    pushPermission === 'granted'
+                      ? 'bg-emerald-500'
+                      : pushPermission === 'denied'
+                        ? 'bg-rose-300 cursor-not-allowed'
+                        : 'bg-muted-foreground/30'
+                  }`}
+                  aria-label={pushPermission === 'granted' ? 'إيقاف الإشعارات' : 'تفعيل الإشعارات'}
+                >
+                  <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    pushPermission === 'granted' ? 'translate-x-[22px]' : 'translate-x-0.5'
+                  }`}>
+                    {isTogglingPush && (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <Loader2 className="h-3 w-3 animate-spin text-emerald-600" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t" />
+
+              {/* Orientation Lock Toggle */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                    orientationLocked
+                      ? 'bg-blue-100 text-blue-600'
+                      : 'bg-muted/50 text-muted-foreground'
+                  }`}>
+                    <RotateCcw className={`h-4 w-4 ${orientationLocked ? 'rotate-180' : ''} transition-transform`} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">قفل اتجاه الشاشة</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {orientationLocked
+                        ? 'مقفل — الشاشة ثابتة على الوضع العمودي'
+                        : 'غير مقفل — الشاشة تدور تلقائياً مع الجهاز'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleToggleOrientation}
+                  disabled={!orientationSupported}
+                  className={`relative shrink-0 h-6 w-11 rounded-full transition-colors duration-200 ${
+                    orientationLocked
+                      ? 'bg-blue-500'
+                      : !orientationSupported
+                        ? 'bg-muted-foreground/20 cursor-not-allowed'
+                        : 'bg-muted-foreground/30'
+                  }`}
+                  aria-label={orientationLocked ? 'إلغاء قفل الشاشة' : 'قفل الشاشة'}
+                  title={!orientationSupported ? 'غير مدعوم في هذا المتصفح' : undefined}
+                >
+                  <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    orientationLocked ? 'translate-x-[22px]' : 'translate-x-0.5'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Info note */}
+              {!orientationSupported && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-2.5 flex items-start gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-700">
+                    قفل اتجاه الشاشة يعمل فقط عند تثبيت التطبيق كـ PWA على الهاتف. في المتصفح العادي، يمكنك قفل الاتجاه من إعدادات الجهاز.
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+
           {/* Password Change Card */}
           <motion.div
             className="rounded-xl border bg-card shadow-sm overflow-hidden"

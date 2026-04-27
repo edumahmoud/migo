@@ -1,7 +1,97 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { sendPushNotification, type PushSubscriptionLike } from '@/lib/web-push';
 
 // ─── Notification helpers using service role (bypasses RLS) ───
+
+/**
+ * Send a push notification to a specific user.
+ * Fetches their push subscriptions from DB and sends to all of them.
+ */
+async function pushToUser(userId: string, title: string, message: string, url?: string, type?: string) {
+  try {
+    const { data: subs } = await supabaseServer
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth_key')
+      .eq('user_id', userId);
+
+    if (!subs || subs.length === 0) return;
+
+    const payload = { title, message, url: url || '/', type };
+    const expiredEndpoints: string[] = [];
+
+    for (const sub of subs) {
+      const subscription: PushSubscriptionLike = {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh, auth: sub.auth_key },
+      };
+
+      const success = await sendPushNotification(subscription, payload);
+      if (!success) {
+        // Mark for removal (410 Gone or 404 Not Found)
+        expiredEndpoints.push(sub.endpoint);
+      }
+    }
+
+    // Clean up expired subscriptions
+    if (expiredEndpoints.length > 0) {
+      for (const endpoint of expiredEndpoints) {
+        await supabaseServer
+          .from('push_subscriptions')
+          .delete()
+          .eq('endpoint', endpoint);
+      }
+      console.log(`[push] Cleaned up ${expiredEndpoints.length} expired subscription(s) for user ${userId}`);
+    }
+  } catch (err) {
+    console.error('[push] Failed to send push notification:', err);
+  }
+}
+
+/**
+ * Send push notifications to multiple users.
+ */
+async function pushToUsers(userIds: string[], title: string, message: string, url?: string, type?: string) {
+  if (userIds.length === 0) return;
+
+  try {
+    // Fetch all push subscriptions for these users
+    const { data: subs } = await supabaseServer
+      .from('push_subscriptions')
+      .select('user_id, endpoint, p256dh, auth_key')
+      .in('user_id', userIds);
+
+    if (!subs || subs.length === 0) return;
+
+    const payload = { title, message, url: url || '/', type };
+    const expiredEndpoints: string[] = [];
+
+    for (const sub of subs) {
+      const subscription: PushSubscriptionLike = {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh, auth: sub.auth_key },
+      };
+
+      const success = await sendPushNotification(subscription, payload);
+      if (!success) {
+        expiredEndpoints.push(sub.endpoint);
+      }
+    }
+
+    // Clean up expired subscriptions
+    if (expiredEndpoints.length > 0) {
+      for (const endpoint of expiredEndpoints) {
+        await supabaseServer
+          .from('push_subscriptions')
+          .delete()
+          .eq('endpoint', endpoint);
+      }
+      console.log(`[push] Cleaned up ${expiredEndpoints.length} expired subscription(s)`);
+    }
+  } catch (err) {
+    console.error('[push] Failed to send bulk push notifications:', err);
+  }
+}
 
 async function notifyUser(userId: string, type: string, title: string, message: string, link?: string) {
   try {
@@ -14,6 +104,9 @@ async function notifyUser(userId: string, type: string, title: string, message: 
     });
     if (error) {
       console.error('[notify] Failed to send notification:', error.message, error.details);
+    } else {
+      // Also send push notification (non-blocking)
+      pushToUser(userId, title, message, link, type).catch(() => {});
     }
   } catch (err) {
     console.error('[notify] Failed to send notification (exception):', err);
@@ -40,6 +133,9 @@ async function notifyUsers(userIds: string[], type: string, title: string, messa
           console.error('[notify] Also failed for user', row.user_id, ':', singleError.message);
         }
       }
+    } else {
+      // Also send push notifications (non-blocking)
+      pushToUsers(userIds, title, message, link, type).catch(() => {});
     }
   } catch (err) {
     console.error('[notify] Failed to send bulk notifications (exception):', err);
@@ -87,7 +183,7 @@ export async function POST(request: NextRequest) {
           'assignment',
           'مهمة جديدة',
           `أنشأ المعلم ${teacherName || 'المعلم'} مهمة "${assignmentTitle}"`,
-          `subject:${subjectId}`
+          `subject:${subjectId}:assignments`
         );
         return NextResponse.json({ success: true, notified: studentIds.length });
       }
@@ -99,19 +195,22 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
+        const { subjectId: submittedSubjectId } = body;
+        const submittedLink = submittedSubjectId ? `subject:${submittedSubjectId}:assignments` : `assignment:${assignmentId}`;
+
         await notifyUser(
           teacherId,
           'assignment',
           'تسليم مهمة جديد',
           `سلم الطالب ${studentName || 'طالب'} مهمة "${assignmentTitle}"`,
-          `assignment:${assignmentId}`
+          submittedLink
         );
         return NextResponse.json({ success: true });
       }
 
       // ─── 3) Teacher grades a submission → notify the student ───
       case 'assignment_graded': {
-        const { studentId, assignmentTitle, score, maxScore, teacherName } = body;
+        const { studentId, assignmentTitle, score, maxScore, teacherName, subjectId: gradedSubjectId } = body;
         if (!studentId || !assignmentTitle) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
@@ -120,12 +219,14 @@ export async function POST(request: NextRequest) {
           ? ` (${score}/${maxScore})`
           : '';
 
+        const gradedLink = gradedSubjectId ? `subject:${gradedSubjectId}:assignments` : 'assignments';
+
         await notifyUser(
           studentId,
           'grade',
           'تم تقييم مهمة',
           `قيّم المعلم ${teacherName || 'المعلم'} مهمتك "${assignmentTitle}"${scoreText}`,
-          `assignments`
+          gradedLink
         );
         return NextResponse.json({ success: true });
       }
@@ -144,7 +245,7 @@ export async function POST(request: NextRequest) {
           'attendance',
           'بدأت جلسة حضور',
           `بدأ المعلم ${teacherName || 'المعلم'} جلسة حضور${lectureText} في مقرر "${subjectName || 'المقرر'}"`,
-          `subject:${subjectId}`
+          `subject:${subjectId}:lectures`
         );
         return NextResponse.json({ success: true, notified: studentIds.length });
       }
@@ -163,7 +264,7 @@ export async function POST(request: NextRequest) {
           'system',
           'ملاحظة جديدة',
           `نشر المعلم ${teacherName || 'المعلم'} ملاحظة جديدة${previewText}`,
-          `subject:${subjectId}`
+          `subject:${subjectId}:notes`
         );
         return NextResponse.json({ success: true, notified: studentIds.length });
       }
@@ -181,7 +282,6 @@ export async function POST(request: NextRequest) {
         // Format date and time together
         let dateTimeText = '';
         if (lectureDate && lectureTime) {
-          // Format the date nicely in Arabic and append the time
           try {
             const formattedDate = new Date(lectureDate).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
             const [h, m] = lectureTime.split(':').map(Number);
@@ -210,13 +310,11 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Try 'lecture' type first (better categorization), fall back to 'system' if DB constraint doesn't support it
         let usedType = 'lecture';
         const notifTitle = 'محاضرة جديدة';
         const notifMessage = `أنشأ المعلم ${teacherName || 'المعلم'} محاضرة${titleText}${dateTimeText}`;
-        const notifLink = `subject:${subjectId}`;
+        const notifLink = `subject:${subjectId}:lectures`;
 
-        // Try inserting with 'lecture' type for the first student
         let lectureTypeSupported = true;
         if (studentIds.length > 0) {
           const { error: testError } = await supabaseServer.from('notifications').insert({
@@ -233,18 +331,33 @@ export async function POST(request: NextRequest) {
         }
 
         if (lectureTypeSupported) {
-          // 'lecture' type is supported - send to remaining students
           const remainingIds = studentIds.slice(1);
           if (remainingIds.length > 0) {
             await notifyUsers(remainingIds, 'lecture', notifTitle, notifMessage, notifLink);
           }
         } else {
-          // 'lecture' type NOT supported - send to ALL students with 'system' type
           await notifyUsers(studentIds, 'system', notifTitle, notifMessage, notifLink);
         }
 
         console.log(`[notify] lecture_created: notified ${studentIds.length} students for subject ${subjectId} (type: ${usedType})`);
         return NextResponse.json({ success: true, notified: studentIds.length, type: usedType });
+      }
+
+      // ─── 7) Chat message push notification ───
+      case 'chat_message': {
+        const { recipientId, senderName, messagePreview, conversationId } = body;
+        if (!recipientId) {
+          return NextResponse.json({ error: 'Missing recipientId' }, { status: 400 });
+        }
+
+        await notifyUser(
+          recipientId,
+          'system',
+          `رسالة من ${senderName || 'مستخدم'}`,
+          messagePreview || 'لديك رسالة جديدة',
+          'chat'
+        );
+        return NextResponse.json({ success: true });
       }
 
       default:

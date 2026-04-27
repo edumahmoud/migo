@@ -1,5 +1,7 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import webpush from 'web-push';
+import { createClient } from '@supabase/supabase-js';
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
@@ -34,6 +36,79 @@ interface TypingPayload {
   conversationId: string;
   userId: string;
   userName: string;
+}
+
+// -------------------------------------------------------
+// Push Notification Setup
+// -------------------------------------------------------
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails('mailto:support@attendo.app', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  console.log('[Chat] Web Push configured');
+} else {
+  console.warn('[Chat] VAPID keys not configured — push notifications disabled');
+}
+
+const supabase = SUPABASE_URL && SUPABASE_SERVICE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } })
+  : null;
+
+if (!supabase) {
+  console.warn('[Chat] Supabase not configured — push subscriptions unavailable');
+}
+
+interface PushSubscriptionRow {
+  endpoint: string;
+  p256dh: string;
+  auth_key: string;
+}
+
+/**
+ * Send a push notification to a user who is offline.
+ * Fetches their push subscriptions from Supabase and sends via web-push.
+ */
+async function sendPushToOfflineUser(userId: string, title: string, body: string, url?: string) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !supabase) return;
+
+  try {
+    const { data: subs, error } = await supabase
+      .from('push_subscriptions')
+      .select('endpoint, p256dh, auth_key')
+      .eq('user_id', userId);
+
+    if (error || !subs || subs.length === 0) return;
+
+    const payload = JSON.stringify({ title, message: body, url: url || '/' });
+    const expiredEndpoints: string[] = [];
+
+    for (const sub of subs as PushSubscriptionRow[]) {
+      try {
+        await webpush.sendNotification({
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.p256dh, auth: sub.auth_key },
+        }, payload);
+      } catch (err: unknown) {
+        const error = err as { statusCode?: number };
+        if (error.statusCode === 410 || error.statusCode === 404) {
+          expiredEndpoints.push(sub.endpoint);
+        }
+      }
+    }
+
+    // Clean up expired subscriptions
+    if (expiredEndpoints.length > 0) {
+      for (const endpoint of expiredEndpoints) {
+        await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint);
+      }
+      console.log(`[Chat/Push] Cleaned ${expiredEndpoints.length} expired subscription(s) for user ${userId}`);
+    }
+  } catch (err) {
+    console.error('[Chat/Push] Error sending push:', err);
+  }
 }
 
 // -------------------------------------------------------
@@ -233,12 +308,24 @@ io.on('connection', (socket) => {
     if (data.participantIds && data.participantIds.length > 0) {
       for (const participantId of data.participantIds) {
         if (participantId !== data.senderId) {
+          // Send in-app notification via Socket.IO
           emitToUser(participantId, 'chat-notification', {
             conversationId: data.conversationId,
             message,
             senderName: data.senderName,
             content: data.content,
           });
+
+          // If the recipient is NOT online, also send a push notification
+          const isRecipientOnline = userSockets.has(participantId);
+          if (!isRecipientOnline) {
+            sendPushToOfflineUser(
+              participantId,
+              `رسالة من ${data.senderName}`,
+              data.content.substring(0, 100),
+              'chat'
+            ).catch(() => {});
+          }
         }
       }
     }

@@ -653,6 +653,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 score: scoreVal,
                 maxScore: selectedAssignment.max_score,
                 teacherName: profile.name,
+                subjectId: selectedAssignment.subject_id,
               }),
             });
           } catch { /* notification failure is non-critical */ }
@@ -759,6 +760,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               teacherId: selectedAssignment.teacher_id,
               studentName: profile.name,
               assignmentTitle: selectedAssignment.title,
+              subjectId: selectedAssignment.subject_id,
             }),
           });
         } catch { /* notification failure is non-critical */ }

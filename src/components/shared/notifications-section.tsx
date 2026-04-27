@@ -116,15 +116,19 @@ export default function NotificationsSection() {
       chat: 'chat',
     };
 
-    // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID)
+    // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID or subject:SUBJECT_ID:tab)
     const courseLinkPrefix = Object.keys(linkToTab).find(prefix => notif.link?.startsWith(prefix + ':'));
     if (courseLinkPrefix) {
       const parts = notif.link!.split(':');
       const subjectId = parts[1] || null;
+      // Support 3-part links like "subject:SUBJECT_ID:assignments" where the 3rd part overrides the tab
+      const explicitTab = parts[2] || null;
       if (subjectId) {
         const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
         setSelectedSubjectId(subjectId);
-        setCourseTab(linkToTab[courseLinkPrefix]);
+        // Use explicit tab if provided (3rd part), otherwise use prefix-based mapping
+        const tab = explicitTab && linkToTab[explicitTab] ? linkToTab[explicitTab] : linkToTab[courseLinkPrefix];
+        setCourseTab(tab);
         // Navigate to the correct dashboard section
         if (user?.role === 'student') {
           setStudentSection('subjects');
@@ -164,17 +168,39 @@ export default function NotificationsSection() {
   };
 
   const navigateToLink = (link: string) => {
-    const [section] = link.split('?');
+    const [section, queryString] = link.split('?');
     const role = user?.role;
 
+    // Parse query params for deep navigation
+    const params = new URLSearchParams(queryString || '');
+    const tab = params.get('tab');
+    const subjectId = params.get('id');
+
+    // Handle tab-based navigation for subjects (e.g., "subjects?tab=lectures&id=SUBJECT_ID")
+    if (section === 'subjects' && subjectId) {
+      const { setSelectedSubjectId, setCourseTab } = useAppStore.getState();
+      setSelectedSubjectId(subjectId);
+      if (tab) {
+        setCourseTab(tab as CourseTab);
+      }
+      if (role === 'student') {
+        setStudentSection('subjects');
+        setCurrentPage('student-dashboard');
+      } else if (role === 'teacher' || role === 'admin' || role === 'superadmin') {
+        setTeacherSection('subjects');
+        setCurrentPage('teacher-dashboard');
+      }
+      return;
+    }
+
     if (role === 'student') {
-      const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'settings', 'notifications'];
+      const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'chat', 'settings', 'notifications'];
       if (validSections.includes(section)) {
         setStudentSection(section as any);
         setCurrentPage('student-dashboard');
       }
     } else if (role === 'teacher') {
-      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'settings', 'notifications'];
+      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications'];
       if (validSections.includes(section)) {
         setTeacherSection(section as any);
         setCurrentPage('teacher-dashboard');

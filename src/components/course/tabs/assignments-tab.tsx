@@ -590,6 +590,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
               teacherId: selectedAssignment.teacher_id,
               studentName: profile.name,
               assignmentTitle: selectedAssignment.title,
+              subjectId,
             }),
           });
         } catch { /* notification failure is non-critical */ }
@@ -644,6 +645,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                 score: scoreVal,
                 maxScore: selectedAssignment.max_score,
                 teacherName: profile.name,
+                subjectId,
               }),
             });
           } catch { /* notification failure is non-critical */ }

@@ -213,16 +213,20 @@ export default function NotificationBell() {
       chat: 'chat',
     };
 
-    // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID)
+    // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID or subject:SUBJECT_ID:tab)
     const courseLinkPrefix = Object.keys(linkToTab).find(prefix => notif.link?.startsWith(prefix + ':'));
     if (courseLinkPrefix) {
       const parts = notif.link!.split(':');
       const subjectId = parts[1] || null;
+      // Support 3-part links like "subject:SUBJECT_ID:assignments" where the 3rd part overrides the tab
+      const explicitTab = parts[2] || null;
       if (subjectId) {
         setIsOpen(false);
         const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
         setSelectedSubjectId(subjectId);
-        setCourseTab(linkToTab[courseLinkPrefix]);
+        // Use explicit tab if provided (3rd part), otherwise use prefix-based mapping
+        const tab = explicitTab && linkToTab[explicitTab] ? linkToTab[explicitTab] : linkToTab[courseLinkPrefix];
+        setCourseTab(tab);
         // Navigate to the correct dashboard section
         if (user?.role === 'student') {
           setStudentSection('subjects');
@@ -294,15 +298,15 @@ export default function NotificationBell() {
     }
 
     if (role === 'student') {
-      const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'settings', 'notifications'];
+      const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'chat', 'settings', 'notifications'];
       if (validSections.includes(section)) {
-        setStudentSection(section as 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'settings' | 'notifications');
+        setStudentSection(section as 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications');
         setCurrentPage('student-dashboard');
       }
     } else if (role === 'teacher') {
-      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'settings', 'notifications'];
+      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications'];
       if (validSections.includes(section)) {
-        setTeacherSection(section as 'dashboard' | 'subjects' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'settings' | 'notifications');
+        setTeacherSection(section as 'dashboard' | 'subjects' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications');
         setCurrentPage('teacher-dashboard');
       }
     }
