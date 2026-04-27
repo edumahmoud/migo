@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSharedSocket, useSocketEvent } from '@/lib/socket';
 import {
   MessageCircle,
-  Send,
+  ArrowUp,
   Loader2,
   Hash,
   Search,
@@ -74,7 +74,11 @@ const slideInRight = {
 // Relative time helper (Arabic)
 // =====================================================
 function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
+  const diff = Date.now() - date.getTime();
+  if (diff < 0) return 'الآن';
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'الآن';
   if (mins < 60) return `منذ ${mins} د`;
@@ -82,7 +86,7 @@ function relativeTime(dateStr: string): string {
   if (hours < 24) return `منذ ${hours} س`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `منذ ${days} ي`;
-  return new Date(dateStr).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
 }
 
 // =====================================================
@@ -299,7 +303,24 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
     if (convId === currentActiveId) {
       setMessages((prev) => {
+        // Check if we already have this message (by ID)
         if (prev.some((m) => m.id === msg.id)) return prev;
+        // Also check if this is the server version of our optimistic message
+        // (same sender, same content, within last 10 seconds)
+        const isDuplicate = prev.some((m) =>
+          m.id.startsWith('temp-') &&
+          m.sender_id === msg.sender_id &&
+          m.content === msg.content &&
+          Date.now() - new Date(m.created_at).getTime() < 10000
+        );
+        if (isDuplicate) {
+          // Replace the optimistic message with the server one
+          return prev.map((m) =>
+            m.id.startsWith('temp-') && m.sender_id === msg.sender_id && m.content === msg.content
+              ? msg
+              : m
+          );
+        }
         return [...prev, msg];
       });
       // Mark as read since we're viewing this conversation
@@ -331,7 +352,22 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
     if (data.conversationId === currentActiveId) {
       setMessages((prev) => {
+        // Check if we already have this message (by ID)
         if (prev.some((m) => m.id === data.message.id)) return prev;
+        // Check if this is the server version of our optimistic message
+        const isDuplicate = prev.some((m) =>
+          m.id.startsWith('temp-') &&
+          m.sender_id === data.message.sender_id &&
+          m.content === data.message.content &&
+          Date.now() - new Date(m.created_at).getTime() < 10000
+        );
+        if (isDuplicate) {
+          return prev.map((m) =>
+            m.id.startsWith('temp-') && m.sender_id === data.message.sender_id && m.content === data.message.content
+              ? data.message
+              : m
+          );
+        }
         return [...prev, data.message];
       });
       // Mark as read
@@ -373,11 +409,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   });
 
   // ─── Message updated (edit) ───
-  useSocketEvent<{ messageId: string; content: string; isEdited: boolean }>('message-updated', (data) => {
+  useSocketEvent<{ messageId: string; content: string; isEdited: boolean; editedAt?: string }>('message-updated', (data) => {
     setMessages((prev) =>
       prev.map((m) =>
         m.id === data.messageId
-          ? { ...m, content: data.content, is_edited: data.isEdited }
+          ? { ...m, content: data.content, is_edited: data.isEdited, edited_at: data.editedAt || new Date().toISOString() }
           : m
       )
     );
@@ -695,13 +731,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         return;
       }
       setMessages((prev) =>
-        prev.map((m) => m.id === msgId ? { ...m, content: trimmed, is_edited: true } : m)
+        prev.map((m) => m.id === msgId ? { ...m, content: trimmed, is_edited: true, edited_at: new Date().toISOString() } : m)
       );
       socket?.emit('message-updated', {
         conversationId: activeConvId,
         messageId: msgId,
         content: trimmed,
         isEdited: true,
+        editedAt: new Date().toISOString(),
       });
       setEditingMessageId(null);
       setEditContent('');
@@ -869,6 +906,103 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       setCreatingChat(false);
     }
   };
+
+  // =====================================================
+  // Delete conversation (individual only)
+  // =====================================================
+  const handleDeleteConversation = async (convId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete-conversation', conversationId: convId, userId: profile.id }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+      toast.success('تم حذف المحادثة');
+      // If the deleted conversation was active, clear it
+      if (activeConvId === convId) {
+        setActiveConvId(null);
+        setActiveConvInfo(null);
+        setMessages([]);
+        setShowChat(false);
+      }
+      fetchConversations();
+    } catch (err) {
+      console.error('Delete conversation error:', err);
+      toast.error('فشل حذف المحادثة');
+    }
+  };
+
+  // =====================================================
+  // Delete all individual conversations
+  // =====================================================
+  const handleDeleteAllConversations = async () => {
+    const individualConvs = conversations.filter(c => c.type === 'individual');
+    if (individualConvs.length === 0) {
+      toast.error('لا توجد محادثات خاصة لحذفها');
+      return;
+    }
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete-all-conversations', userId: profile.id }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+      toast.success(`تم حذف ${data.deletedCount || 0} محادثة`);
+      // Clear active conversation if it was individual
+      const activeConv = conversations.find(c => c.id === activeConvId);
+      if (activeConv?.type === 'individual') {
+        setActiveConvId(null);
+        setActiveConvInfo(null);
+        setMessages([]);
+        setShowChat(false);
+      }
+      fetchConversations();
+    } catch (err) {
+      console.error('Delete all conversations error:', err);
+      toast.error('فشل حذف المحادثات');
+    }
+  };
+
+  // ─── Conversation participants cache for group avatars ───
+  const [groupParticipants, setGroupParticipants] = useState<Map<string, UserProfile[]>>(new Map());
+
+  // Fetch participants for group conversations to show stacked avatars
+  useEffect(() => {
+    const groupConvs = conversations.filter(c => c.type === 'group' && !groupParticipants.has(c.id));
+    if (groupConvs.length === 0) return;
+
+    Promise.all(
+      groupConvs.map(async (conv) => {
+        try {
+          const res = await fetch(`/api/chat?action=participants&conversationId=${conv.id}`);
+          const data = await res.json();
+          const parts: UserProfile[] = (data.participants || [])
+            .map((p: { users: UserProfile }) => p.users)
+            .filter(Boolean);
+          return { convId: conv.id, participants: parts };
+        } catch {
+          return null;
+        }
+      })
+    ).then((results) => {
+      const newMap = new Map(groupParticipants);
+      results.filter(Boolean).forEach((r) => {
+        if (r) newMap.set(r.convId, r.participants);
+      });
+      setGroupParticipants(newMap);
+    });
+  }, [conversations]);
 
   // =====================================================
   // Get effective unread count (server + local overrides)
@@ -1050,7 +1184,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               {relativeTime(msg.created_at)}
             </span>
             {isEdited && !isDeleted && (
-              <span className="text-[10px] text-emerald-500/60 font-medium">(معدّلة)</span>
+              <span className="text-[10px] text-emerald-500/60 font-medium">
+                {msg.edited_at ? `(معدّلة ${relativeTime(msg.edited_at)})` : '(معدّلة)'}
+              </span>
             )}
           </div>
         </div>
@@ -1126,6 +1262,16 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     {isConnected ? 'متصل' : 'غير متصل'}
                   </span>
                 </div>
+                {/* Delete all individual conversations button */}
+                {conversations.some(c => c.type === 'individual') && (
+                  <button
+                    onClick={handleDeleteAllConversations}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
+                    title="حذف جميع المحادثات الخاصة"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 {/* New DM button */}
                 <button
                   onClick={() => setShowNewDM(true)}
@@ -1264,9 +1410,38 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       {/* Avatar */}
                       <div className="shrink-0 relative">
                         {conv.type === 'group' ? (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                            <Hash className="h-5 w-5" />
-                          </div>
+                          (() => {
+                            const gParts = groupParticipants.get(conv.id);
+                            if (gParts && gParts.length >= 2) {
+                              const shownParts = gParts.slice(0, 3);
+                              return (
+                                <div className="relative h-10 w-10">
+                                  {shownParts.map((p, idx) => (
+                                    <div
+                                      key={p.id}
+                                      className="absolute"
+                                      style={{
+                                        top: idx === 0 ? 0 : idx === 1 ? 0 : 14,
+                                        right: idx === 0 ? 0 : idx === 1 ? 14 : 7,
+                                        zIndex: 3 - idx,
+                                      }}
+                                    >
+                                      <UserAvatar
+                                        name={p.name || ''}
+                                        avatarUrl={p.avatar_url}
+                                        size="xs"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                                <Hash className="h-5 w-5" />
+                              </div>
+                            );
+                          })()
                         ) : (
                           <UserAvatar name={conv.otherParticipant?.name || displayName} avatarUrl={conv.otherParticipant?.avatar_url} size="md" />
                         )}
@@ -1284,9 +1459,21 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                           <span className={`text-sm truncate ${isActive ? 'font-bold text-emerald-700' : 'font-semibold text-foreground'}`}>
                             {displayName}
                           </span>
-                          <span className="text-[10px] text-muted-foreground shrink-0">
-                            {lastMsg ? relativeTime(lastMsg.created_at) : ''}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] text-muted-foreground">
+                              {lastMsg ? relativeTime(lastMsg.created_at) : ''}
+                            </span>
+                            {/* Delete button for individual conversations */}
+                            {!isGroup && (
+                              <button
+                                onClick={(e) => handleDeleteConversation(conv.id, e)}
+                                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                                title="حذف المحادثة"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center justify-between gap-2 mt-0.5">
                           <p className="text-xs text-muted-foreground truncate">
@@ -1329,9 +1516,34 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="shrink-0 relative">
                     {activeConvInfo.type === 'group' ? (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                        <Hash className="h-4 w-4" />
-                      </div>
+                      (() => {
+                        const gParts = groupParticipants.get(activeConvInfo.id);
+                        if (gParts && gParts.length >= 2) {
+                          const shownParts = gParts.slice(0, 3);
+                          return (
+                            <div className="relative h-9 w-9">
+                              {shownParts.map((p, idx) => (
+                                <div
+                                  key={p.id}
+                                  className="absolute"
+                                  style={{
+                                    top: idx === 0 ? 0 : idx === 1 ? 0 : 12,
+                                    right: idx === 0 ? 0 : idx === 1 ? 12 : 6,
+                                    zIndex: 3 - idx,
+                                  }}
+                                >
+                                  <UserAvatar name={p.name || ''} avatarUrl={p.avatar_url} size="xs" />
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                            <Hash className="h-4 w-4" />
+                          </div>
+                        );
+                      })()
                     ) : (
                       <UserAvatar name={chatHeaderName} avatarUrl={activeConvInfo.otherParticipant?.avatar_url} size="md" />
                     )}
@@ -1437,7 +1649,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     {sending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Send className="h-4 w-4 rotate-180" />
+                      <ArrowUp className="h-4 w-4" />
                     )}
                   </button>
                 </div>

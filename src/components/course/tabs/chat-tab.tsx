@@ -6,7 +6,7 @@ import { useSharedSocket, useSocketEvent } from '@/lib/socket';
 import { useStatusStore } from '@/stores/status-store';
 import {
   MessageCircle,
-  Send,
+  ArrowUp,
   Loader2,
   Users,
   Hash,
@@ -51,7 +51,11 @@ const itemVariants = {
 // Relative time helper
 // -------------------------------------------------------
 function relativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
+  const diff = Date.now() - date.getTime();
+  if (diff < 0) return 'الآن';
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'الآن';
   if (mins < 60) return `منذ ${mins} دقيقة`;
@@ -59,7 +63,7 @@ function relativeTime(dateStr: string): string {
   if (hours < 24) return `منذ ${hours} ساعة`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `منذ ${days} يوم`;
-  return new Date(dateStr).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
 }
 
 // -------------------------------------------------------
@@ -223,7 +227,25 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
 
     if (msgConvId === currentConvId) {
       setMessages((prev) => {
+        // Check if we already have this message (by ID)
         if (prev.some((m) => m.id === msg.id)) return prev;
+        // Check if this is the server version of our optimistic message
+        const isDuplicate = prev.some((m) =>
+          m.id.startsWith('temp-') &&
+          m.sender_id === msg.sender_id &&
+          m.content === msg.content &&
+          Date.now() - new Date(m.created_at).getTime() < 10000
+        );
+        if (isDuplicate) {
+          // Replace the optimistic message with the server one
+          return prev.map((m) =>
+            m.id.startsWith('temp-') && m.sender_id === msg.sender_id && m.content === msg.content
+              ? msg
+              : m
+          ).sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        }
         return [...prev, msg].sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
@@ -249,7 +271,24 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
     const currentConvId = conversationIdRef.current;
     if (data.conversationId === currentConvId) {
       setMessages((prev) => {
+        // Check if we already have this message (by ID)
         if (prev.some((m) => m.id === data.message.id)) return prev;
+        // Check if this is the server version of our optimistic message
+        const isDuplicate = prev.some((m) =>
+          m.id.startsWith('temp-') &&
+          m.sender_id === data.message.sender_id &&
+          m.content === data.message.content &&
+          Date.now() - new Date(m.created_at).getTime() < 10000
+        );
+        if (isDuplicate) {
+          return prev.map((m) =>
+            m.id.startsWith('temp-') && m.sender_id === data.message.sender_id && m.content === data.message.content
+              ? data.message
+              : m
+          ).sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        }
         return [...prev, data.message].sort(
           (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
@@ -273,11 +312,11 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   });
 
   // ─── Message updated (edit) ───
-  useSocketEvent<{ messageId: string; content: string; isEdited: boolean }>('message-updated', (data) => {
+  useSocketEvent<{ messageId: string; content: string; isEdited: boolean; editedAt?: string }>('message-updated', (data) => {
     setMessages((prev) =>
       prev.map((m) =>
         m.id === data.messageId
-          ? { ...m, content: data.content, is_edited: data.isEdited }
+          ? { ...m, content: data.content, is_edited: data.isEdited, edited_at: data.editedAt || new Date().toISOString() }
           : m
       )
     );
@@ -500,7 +539,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       // Optimistic update
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === msgId ? { ...m, content: trimmed, is_edited: true } : m
+          m.id === msgId ? { ...m, content: trimmed, is_edited: true, edited_at: new Date().toISOString() } : m
         )
       );
       // Notify via socket
@@ -509,6 +548,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         messageId: msgId,
         content: trimmed,
         isEdited: true,
+        editedAt: new Date().toISOString(),
       });
       setEditingMessageId(null);
       setEditContent('');
@@ -640,7 +680,9 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               {relativeTime(msg.created_at)}
             </span>
             {isEdited && !isDeleted && (
-              <span className="text-[10px] text-emerald-500/70 font-medium">(معدّلة)</span>
+              <span className="text-[10px] text-emerald-500/70 font-medium">
+                {msg.edited_at ? `(معدّلة ${relativeTime(msg.edited_at)})` : '(معدّلة)'}
+              </span>
             )}
           </div>
 
@@ -867,7 +909,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           disabled={!newMessage.trim() || sending}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
         >
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
         </button>
       </div>
     </motion.div>

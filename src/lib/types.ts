@@ -419,6 +419,7 @@ export interface ChatMessage {
   created_at: string;
   is_deleted?: boolean;
   is_edited?: boolean;
+  edited_at?: string | null;
   conversationId?: string;
   conversation_id?: string;
   sender?: {

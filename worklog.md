@@ -130,3 +130,47 @@ Stage Summary:
 - Profile page now uses the same layout structure as admin dashboard
 - Green banner no longer overlaps with header (z-40 removed)
 - Sidebar properly separated from main content (flex + pr-64 instead of mr-64)
+
+---
+Task ID: 8
+Agent: Main
+Task: Comprehensive improvements to chat system in Arabic RTL educational platform
+
+Work Log:
+1. **Fixed Send Arrow Icon** — Replaced `Send` icon with `ArrowUp` icon from lucide-react in both `chat-section.tsx` and `chat-tab.tsx`. The old `<Send className="h-4 w-4 rotate-180" />` looked like a rotated paper airplane; now uses `<ArrowUp className="h-4 w-4" />` for a proper send arrow.
+
+2. **Fixed Duplicate Messages & "Invalid Date" Issue**:
+   - Fixed `relativeTime()` in both files to guard against invalid/null dates: returns `''` if `dateStr` is falsy or `new Date(dateStr)` produces `NaN`
+   - Added negative diff guard (returns 'الآن' if diff < 0)
+   - Added optimistic message deduplication in `new-message` and `chat-notification` socket handlers: checks for `temp-` prefixed messages with same sender/content within 10 seconds, and replaces them with the server version instead of duplicating
+
+3. **Added Delete Conversation & Delete All Conversations**:
+   - **Backend** (`/api/chat/route.ts`): Added `delete-conversation` action (removes user from `conversation_participants` for individual conversations only) and `delete-all-conversations` action (removes user from all individual conversation participants)
+   - **Frontend** (`chat-section.tsx`): Added trash icon button on each individual conversation item in the list (shows on hover), added "delete all" button in the conversations panel header (only visible when individual conversations exist), added `handleDeleteConversation` and `handleDeleteAllConversations` handlers with proper state cleanup
+
+4. **Enhanced Message Editing with `edited_at` Timestamp**:
+   - **Types** (`/lib/types.ts`): Added `edited_at?: string | null` field to `ChatMessage` interface
+   - **Backend**: Updated `edit-message` action to also set `edited_at: new Date().toISOString()`. If `edited_at` column doesn't exist, falls back to updating without it, then without `is_edited` too
+   - **Backend**: Updated `messages` GET query to also select `edited_at` column
+   - **Frontend**: When `isEdited` is true, shows `(معدّلة منذ 5 د)` format using `relativeTime(msg.edited_at)`, falling back to `(معدّلة)` if `edited_at` is not available
+   - Updated `message-updated` socket event type to include `editedAt?: string` and pass it through the socket emit
+
+5. **Verified Message Deletion**: Confirmed code paths for `delete-message` action are intact — both the backend (soft delete with `is_deleted` flag and content replacement) and frontend (optimistic update + socket broadcast) are working correctly.
+
+6. **Verified Message Notifications**: Confirmed `setChatUnreadCount` is called in the `useEffect` that computes total unread from conversations + local overrides. The sidebar chat badge updates correctly. Unread badges on individual conversations via `getUnreadCount(conv)` work as expected.
+
+7. **Improved Avatars for Group Conversations**:
+   - Added `groupParticipants` state (Map<string, UserProfile[]>) to cache participants for group conversations
+   - Added `useEffect` to fetch participants for group conversations when the conversation list loads
+   - For group conversations with 2+ participants, shows stacked overlapping avatars (up to 3) in both the conversation list and the chat header
+   - Falls back to the Hash icon if participants aren't loaded yet or there are fewer than 2
+
+Stage Summary:
+- Send button now uses ArrowUp icon (no more rotated paper airplane)
+- No more "Invalid Date" in message timestamps
+- No more duplicate messages from optimistic + socket broadcast
+- Individual conversations can be deleted (trash icon on hover)
+- All individual conversations can be deleted at once (header button)
+- Edited messages show `(معدّلة منذ X د)` with the edit timestamp
+- Group conversations show stacked participant avatars instead of just a Hash icon
+- All changes pass `bun run lint` with zero errors

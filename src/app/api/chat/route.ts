@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
         // Fetch messages
         const { data: messages, error } = await supabaseServer
           .from('messages')
-          .select('id, sender_id, content, created_at, is_deleted, is_edited')
+          .select('id, sender_id, content, created_at, is_deleted, is_edited, edited_at')
           .eq('conversation_id', conversationId)
           .order('created_at', { ascending: false })
           .limit(limit);
@@ -526,24 +526,130 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'لا يمكنك تعديل رسالة محذوفة' }, { status: 400 });
         }
 
-        // Try to update with is_edited column
+        // Try to update with is_edited and edited_at columns
         const { error: updateError } = await supabaseServer
           .from('messages')
           .update({
             content: content.trim(),
             is_edited: true,
+            edited_at: new Date().toISOString(),
           })
           .eq('id', messageId);
 
-        // If is_edited column doesn't exist, just update content
+        // If edited_at column doesn't exist, retry without it
         if (updateError) {
-          await supabaseServer
+          const { error: retryError } = await supabaseServer
             .from('messages')
-            .update({ content: content.trim() })
+            .update({
+              content: content.trim(),
+              is_edited: true,
+            })
             .eq('id', messageId);
+
+          if (retryError) {
+            // If is_edited also doesn't exist, just update content
+            await supabaseServer
+              .from('messages')
+              .update({ content: content.trim() })
+              .eq('id', messageId);
+          }
         }
 
         return NextResponse.json({ success: true, messageId, content: content.trim() });
+      }
+
+      case 'delete-conversation': {
+        const { conversationId, userId } = body;
+        if (!conversationId || !userId) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Verify the conversation is individual type
+        const { data: conv } = await supabaseServer
+          .from('conversations')
+          .select('id, type')
+          .eq('id', conversationId)
+          .single();
+
+        if (!conv) {
+          return NextResponse.json({ error: 'المحادثة غير موجودة' }, { status: 404 });
+        }
+
+        if (conv.type !== 'individual') {
+          return NextResponse.json({ error: 'لا يمكن حذف المحادثات الجماعية' }, { status: 400 });
+        }
+
+        // Verify the user is a participant
+        const { data: participation } = await supabaseServer
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', conversationId)
+          .eq('user_id', userId)
+          .single();
+
+        if (!participation) {
+          return NextResponse.json({ error: 'لست مشاركاً في هذه المحادثة' }, { status: 403 });
+        }
+
+        // Remove user from conversation participants (soft leave)
+        const { error: deleteError } = await supabaseServer
+          .from('conversation_participants')
+          .delete()
+          .eq('conversation_id', conversationId)
+          .eq('user_id', userId);
+
+        if (deleteError) {
+          console.error('[Chat API] Delete conversation error:', deleteError);
+          return NextResponse.json({ error: 'فشل حذف المحادثة' }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true });
+      }
+
+      case 'delete-all-conversations': {
+        const { userId } = body;
+        if (!userId) {
+          return NextResponse.json({ error: 'userId required' }, { status: 400 });
+        }
+
+        // Get all individual conversations for this user
+        const { data: participations } = await supabaseServer
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', userId);
+
+        if (!participations || participations.length === 0) {
+          return NextResponse.json({ success: true, deletedCount: 0 });
+        }
+
+        const convIds = participations.map((p: { conversation_id: string }) => p.conversation_id);
+
+        // Filter to only individual conversations
+        const { data: individualConvs } = await supabaseServer
+          .from('conversations')
+          .select('id')
+          .in('id', convIds)
+          .eq('type', 'individual');
+
+        if (!individualConvs || individualConvs.length === 0) {
+          return NextResponse.json({ success: true, deletedCount: 0 });
+        }
+
+        const individualConvIds = individualConvs.map((c: { id: string }) => c.id);
+
+        // Remove user from all individual conversation participants
+        const { error: deleteError } = await supabaseServer
+          .from('conversation_participants')
+          .delete()
+          .eq('user_id', userId)
+          .in('conversation_id', individualConvIds);
+
+        if (deleteError) {
+          console.error('[Chat API] Delete all conversations error:', deleteError);
+          return NextResponse.json({ error: 'فشل حذف المحادثات' }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true, deletedCount: individualConvIds.length });
       }
 
       default:
