@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
           banned_by_name: ban.banned_by ? userNameMap[ban.banned_by as string] || undefined : undefined,
         }));
 
-        results.data = enrichedBanned;
+        results.banned = enrichedBanned;
       }
     }
 

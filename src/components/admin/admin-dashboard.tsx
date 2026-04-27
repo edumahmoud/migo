@@ -474,7 +474,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     setActiveSection(section as AdminSection);
     storeSetAdminSection(section as AdminSection);
     // Fetch section-specific data
-    if (section === 'banned') fetchBannedUsers();
+    if (section === 'banned' || section === 'users') fetchBannedUsers();
     if (section === 'announcements') fetchAnnouncements();
     if (section === 'reports') fetchUsageStats(usagePeriod);
   };
@@ -635,8 +635,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const result = await res.json();
-      if (result.success && Array.isArray(result.data)) {
-        setBannedUsers(result.data as BannedUser[]);
+      if (result.success && result.data) {
+        const bannedData = result.data.banned || result.data.data || result.data;
+        setBannedUsers(Array.isArray(bannedData) ? bannedData as BannedUser[] : []);
       } else {
         setBannedUsers([]);
       }
@@ -1308,6 +1309,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 onClick={() => {
                   setSelectedUser(user);
                   setUserDetailOpen(true);
+                  if (bannedUsers.length === 0) fetchBannedUsers();
                 }}
               >
                 {/* Accent top bar */}
@@ -1324,9 +1326,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   </div>
 
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
-                      {getRoleLabel(user.role)}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
+                        {getRoleLabel(user.role)}
+                      </span>
+                      {bannedUsers.some(b => b.email === user.email && b.is_active !== false && (!b.ban_until || new Date(b.ban_until) > new Date())) && (
+                        <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border bg-rose-100 text-rose-700 border-rose-200">
+                          محظور
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs text-muted-foreground flex items-center gap-1" title={formatDateTime(user.created_at)}>
                       <Clock className="h-3 w-3" />
                       {formatDateTime(user.created_at)}
@@ -1390,6 +1399,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     onClick={() => {
                       setSelectedUser(user);
                       setUserDetailOpen(true);
+                      if (bannedUsers.length === 0) fetchBannedUsers();
                     }}
                   >
                     <td className="p-3">
@@ -1404,9 +1414,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       <span className="text-sm text-muted-foreground truncate max-w-[200px] block">{user.email}</span>
                     </td>
                     <td className="p-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
-                        {getRoleLabel(user.role)}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
+                          {getRoleLabel(user.role)}
+                        </span>
+                        {bannedUsers.some(b => b.email === user.email && b.is_active !== false && (!b.ban_until || new Date(b.ban_until) > new Date())) && (
+                          <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border bg-rose-100 text-rose-700 border-rose-200">
+                            محظور
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3 hidden md:table-cell">
                       {user.role === 'teacher' && (
@@ -1586,33 +1603,85 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 )}
 
                 {/* Danger zone - not for self and not for superadmins */}
-                {!isSelf(selectedUser.id) && selectedUser.role !== 'superadmin' && (
-                  <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-4 mt-4">
+                {!isSelf(selectedUser.id) && selectedUser.role !== 'superadmin' && (() => {
+                  const userBan = bannedUsers.find(b => b.email === selectedUser.email && b.is_active !== false);
+                  const isBanExpired = userBan?.ban_until ? new Date(userBan.ban_until) <= new Date() : false;
+                  const isUserBanned = !!userBan && !isBanExpired;
+                  return (
+                  <div className={`rounded-lg border p-4 mt-4 ${isUserBanned ? 'border-amber-200 bg-amber-50/50' : 'border-rose-200 bg-rose-50/50'}`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle className="h-4 w-4 text-rose-500" />
-                      <span className="text-sm font-semibold text-rose-600">منطقة الخطر</span>
+                      {isUserBanned ? (
+                        <Gavel className="h-4 w-4 text-amber-500" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 text-rose-500" />
+                      )}
+                      <span className={`text-sm font-semibold ${isUserBanned ? 'text-amber-600' : 'text-rose-600'}`}>
+                        {isUserBanned ? 'المستخدم محظور' : 'منطقة الخطر'}
+                      </span>
                     </div>
-                    <p className="text-xs text-rose-600 mb-3">
-                      حذف المستخدم سيؤدي إلى إزالة جميع بياناته نهائياً.
-                    </p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        onClick={() => {
-                          setBanDialogOpen(true);
-                          setBanReason('');
-                          setBanDuration('permanent');
-                          setBanCustomDate('');
-                        }}
-                        disabled={banningUserId === selectedUser.id}
-                        className="flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors disabled:opacity-60"
-                      >
-                        {banningUserId === selectedUser.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Gavel className="h-3.5 w-3.5" />
+
+                    {isUserBanned && userBan && (
+                      <div className="rounded-lg bg-amber-100/60 border border-amber-200 p-3 mb-3 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                            userBan.ban_until
+                              ? 'bg-amber-100 text-amber-700 border-amber-200'
+                              : 'bg-rose-100 text-rose-700 border-rose-200'
+                          }`}>
+                            {userBan.ban_until ? 'حظر مؤقت' : 'حظر نهائي'}
+                          </span>
+                        </div>
+                        {userBan.reason && (
+                          <p className="text-xs text-amber-700">السبب: {userBan.reason}</p>
                         )}
-                        حظر المستخدم
-                      </button>
+                        {userBan.ban_until && (
+                          <p className="text-xs text-amber-700">ينتهي في: {formatDate(userBan.ban_until)}</p>
+                        )}
+                        {userBan.banned_by_name && (
+                          <p className="text-xs text-amber-600">بواسطة: {userBan.banned_by_name}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {!isUserBanned && (
+                      <p className="text-xs text-rose-600 mb-3">
+                        حذف المستخدم سيؤدي إلى إزالة جميع بياناته نهائياً.
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {isUserBanned ? (
+                        <button
+                          onClick={() => handleUnbanUser(selectedUser.email, userBan?.id)}
+                          disabled={unbanningEmail === selectedUser.email}
+                          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                        >
+                          {unbanningEmail === selectedUser.email ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Unlock className="h-3.5 w-3.5" />
+                          )}
+                          إلغاء الحظر
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setBanDialogOpen(true);
+                            setBanReason('');
+                            setBanDuration('permanent');
+                            setBanCustomDate('');
+                          }}
+                          disabled={banningUserId === selectedUser.id}
+                          className="flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors disabled:opacity-60"
+                        >
+                          {banningUserId === selectedUser.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Gavel className="h-3.5 w-3.5" />
+                          )}
+                          حظر المستخدم
+                        </button>
+                      )}
                       <button
                         onClick={() => handleDeleteUser(selectedUser.id)}
                         disabled={deletingUserId === selectedUser.id}
@@ -1627,7 +1696,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </button>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Self-action notice */}
                 {isSelf(selectedUser.id) && (
