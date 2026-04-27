@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
           studentIds.length > 0
             ? supabaseServer
                 .from('teacher_student_links')
-                .select('student_id')
+                .select('student_id, teacher_id')
                 .in('student_id', studentIds)
             : { data: [], error: null },
         ]);
@@ -69,10 +69,25 @@ export async function GET(request: NextRequest) {
         }
 
         const studentLinkCountMap: Record<string, number> = {};
+        const studentTeachersMap: Record<string, Set<string>> = {};
         if (studentLinksData.data) {
           for (const row of studentLinksData.data) {
             studentLinkCountMap[row.student_id] = (studentLinkCountMap[row.student_id] || 0) + 1;
+            if (!studentTeachersMap[row.student_id]) {
+              studentTeachersMap[row.student_id] = new Set();
+            }
+            studentTeachersMap[row.student_id].add(row.teacher_id);
           }
+        }
+
+        // Calculate subject count for each student (subjects from their linked teachers)
+        const studentSubjectCountMap: Record<string, number> = {};
+        for (const [studentId, teacherIds] of Object.entries(studentTeachersMap)) {
+          let count = 0;
+          for (const tid of teacherIds) {
+            count += subjectCountMap[tid] || 0;
+          }
+          studentSubjectCountMap[studentId] = count;
         }
 
         // Merge counts into users
@@ -83,6 +98,9 @@ export async function GET(request: NextRequest) {
             meta.studentCount = teacherStudentCountMap[u.id as string] || 0;
           }
           if (u.role === 'student') {
+            meta.teacherCount = studentLinkCountMap[u.id as string] || 0;
+            meta.subjectCount = studentSubjectCountMap[u.id as string] || 0;
+            // Keep studentCount for backward compatibility (represents teacher links)
             meta.studentCount = studentLinkCountMap[u.id as string] || 0;
           }
           return meta;

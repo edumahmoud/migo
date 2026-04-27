@@ -235,6 +235,7 @@ function pctColorClass(pct: number): string {
 interface UserWithMeta extends UserProfile {
   subjectCount?: number;
   studentCount?: number;
+  teacherCount?: number;
 }
 
 // -------------------------------------------------------
@@ -566,8 +567,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ userId }),
-      });
-      const result = await res.json();
+      }, 20000);
+      let result;
+      try {
+        result = await res.json();
+      } catch {
+        throw new Error(res.ok ? 'حدث خطأ غير متوقع' : `خطأ في الخادم (${res.status})`);
+      }
       if (result.success) {
         toast.success('تم حذف المستخدم بنجاح');
         setUserDetailOpen(false);
@@ -709,8 +715,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           banUntil,
           bannedBy: profile.id,
         }),
-      });
-      const result = await res.json();
+      }, 20000);
+      let result;
+      try {
+        result = await res.json();
+      } catch {
+        throw new Error(res.ok ? 'حدث خطأ غير متوقع' : `خطأ في الخادم (${res.status})`);
+      }
       if (result.success) {
         toast.success(banUntil ? 'تم حظر المستخدم مؤقتاً' : 'تم حظر المستخدم نهائياً');
         setBanDialogOpen(false);
@@ -1312,7 +1323,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-2">
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
                       {getRoleLabel(user.role)}
                     </span>
@@ -1321,6 +1332,36 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       {formatDateTime(user.created_at)}
                     </span>
                   </div>
+
+                  {/* Stats row */}
+                  {(user.role === 'teacher' || user.role === 'student') && (
+                    <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+                      {user.role === 'teacher' && (
+                        <>
+                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 rounded-md px-1.5 py-0.5">
+                            <BookOpen className="h-3 w-3" />
+                            {user.subjectCount ?? 0} مقرر
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[11px] text-teal-600 bg-teal-50 rounded-md px-1.5 py-0.5">
+                            <Users className="h-3 w-3" />
+                            {user.studentCount ?? 0} طالب
+                          </span>
+                        </>
+                      )}
+                      {user.role === 'student' && (
+                        <>
+                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 rounded-md px-1.5 py-0.5">
+                            <BookOpen className="h-3 w-3" />
+                            {user.subjectCount ?? 0} مقرر
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-[11px] text-purple-600 bg-purple-50 rounded-md px-1.5 py-0.5">
+                            <GraduationCap className="h-3 w-3" />
+                            {user.teacherCount ?? 0} معلم
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -1336,6 +1377,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <th className="text-right font-medium p-3">المستخدم</th>
                   <th className="text-right font-medium p-3 hidden sm:table-cell">البريد الإلكتروني</th>
                   <th className="text-right font-medium p-3">الصفة</th>
+                  <th className="text-right font-medium p-3 hidden md:table-cell">الإحصائيات</th>
                   <th className="text-right font-medium p-3">وقت التسجيل</th>
                   <th className="text-right font-medium p-3 w-12"></th>
                 </tr>
@@ -1365,6 +1407,31 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
                         {getRoleLabel(user.role)}
                       </span>
+                    </td>
+                    <td className="p-3 hidden md:table-cell">
+                      {user.role === 'teacher' && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-0.5 text-[11px] text-emerald-600 bg-emerald-50 rounded px-1.5 py-0.5">
+                            <BookOpen className="h-2.5 w-2.5" />{user.subjectCount ?? 0}
+                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-[11px] text-teal-600 bg-teal-50 rounded px-1.5 py-0.5">
+                            <Users className="h-2.5 w-2.5" />{user.studentCount ?? 0}
+                          </span>
+                        </div>
+                      )}
+                      {user.role === 'student' && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-0.5 text-[11px] text-emerald-600 bg-emerald-50 rounded px-1.5 py-0.5">
+                            <BookOpen className="h-2.5 w-2.5" />{user.subjectCount ?? 0}
+                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-[11px] text-purple-600 bg-purple-50 rounded px-1.5 py-0.5">
+                            <GraduationCap className="h-2.5 w-2.5" />{user.teacherCount ?? 0}
+                          </span>
+                        </div>
+                      )}
+                      {(user.role === 'admin' || user.role === 'superadmin') && (
+                        <span className="text-[11px] text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="p-3">
                       <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
@@ -1464,9 +1531,15 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
                 {/* Stats for student */}
                 {selectedUser.role === 'student' && (
-                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-center">
-                    <p className="text-lg font-bold text-blue-700">{selectedUser.studentCount ?? 0}</p>
-                    <p className="text-xs text-blue-600">معلم مربوط</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-center">
+                      <p className="text-lg font-bold text-purple-700">{selectedUser.teacherCount ?? 0}</p>
+                      <p className="text-xs text-purple-600">معلم مربوط</p>
+                    </div>
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-center">
+                      <p className="text-lg font-bold text-emerald-700">{selectedUser.subjectCount ?? 0}</p>
+                      <p className="text-xs text-emerald-600">مقرر دراسي</p>
+                    </div>
                   </div>
                 )}
 

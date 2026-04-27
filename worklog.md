@@ -361,3 +361,36 @@ Stage Summary:
 - Sort by newest/oldest registration date
 - Admin/supervisor cannot take actions on their own account
 - All changes pass lint
+
+---
+Task ID: 11
+Agent: Main Agent
+Task: Add stats to user cards + fix ban/delete infinite loading
+
+Work Log:
+1. **Added stats to user cards (grid view)**: 
+   - Teachers show: 📗 X مقرر + 👥 X طالب
+   - Students show: 📗 X مقرر + 🎓 X معلم
+   - Stats appear in a bordered row at bottom of each card
+2. **Added stats to list view**: Added "الإحصائيات" column in table showing subject/teacher/student counts
+3. **Updated API (admin/data/route.ts)**:
+   - Changed student links query to select both `student_id` and `teacher_id` (was only selecting `student_id`)
+   - Added `studentTeachersMap` to map students to their linked teachers
+   - Added `studentSubjectCountMap` to calculate subject counts for students (sum of subjects from all linked teachers)
+   - Added `teacherCount` field to student enrichment
+   - Added `subjectCount` field to student enrichment
+4. **Updated UserWithMeta interface**: Added `teacherCount` field
+5. **Updated detail modal for students**: Changed from single "معلم مربوط" stat to grid showing "معلم مربوط" + "مقرر دراسي"
+6. **Fixed ban/delete infinite loading**:
+   - Added safe JSON parsing with try/catch around `res.json()` in both `handleDeleteUser` and `handleBanUser`
+   - If JSON parsing fails, throws a meaningful error with HTTP status code
+   - Increased timeout from 15s to 20s for both ban and delete operations
+   - Better error messages: shows server status code when response is not OK
+
+Stage Summary:
+- User cards now show subject/student/teacher counts directly
+- Students see: number of subjects + number of linked teachers
+- Teachers see: number of subjects + number of students
+- API now calculates subject counts for students via their linked teachers
+- Ban/delete operations have more robust error handling preventing infinite loading
+- All changes pass lint
