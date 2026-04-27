@@ -50,5 +50,7 @@ test
 prompt
 
 server.log
+# Runtime data (fallback conversation store)
+/data/
 # Skills directory
 /skills/

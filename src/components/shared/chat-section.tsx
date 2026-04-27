@@ -1515,7 +1515,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   const otherIsVisible = otherUserId ? isVisible(otherUserStatus) : false;
 
                   return (
-                    <motion.button
+                    <motion.div
                       key={conv.id}
                       variants={itemVariants}
                       onClick={() => openConversation(conv.id, {
@@ -1524,7 +1524,20 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         title: conv.title,
                         otherParticipant: conv.otherParticipant,
                       })}
-                      className={`w-full flex items-center gap-3 p-3 text-right transition-all hover:bg-muted/50 ${
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openConversation(conv.id, {
+                            id: conv.id,
+                            type: conv.type,
+                            title: conv.title,
+                            otherParticipant: conv.otherParticipant,
+                          });
+                        }
+                      }}
+                      className={`w-full flex items-center gap-3 p-3 text-right transition-all hover:bg-muted/50 cursor-pointer ${
                         isActive
                           ? 'bg-emerald-50 border-s-2 border-emerald-500'
                           : 'border-s-2 border-transparent'
@@ -1590,7 +1603,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                             <div className="relative" ref={convMenuId === conv.id ? convMenuRef : null}>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setConvMenuId(convMenuId === conv.id ? null : conv.id); }}
-                                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
                                 title="المزيد"
                               >
                                 <MoreHorizontal className="h-3 w-3" />
@@ -1638,7 +1651,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                           )}
                         </div>
                       </div>
-                    </motion.button>
+                    </motion.div>
                   );
                 })}
               </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { getAllUserSettings, setArchived, setHidden } from './conversation-store';
 
 /**
  * Chat API Route
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
         let { data: participations, error: pError } = await participationsQuery;
 
         // If is_hidden/is_archived columns don't exist, retry without them
+        // and merge with file-based fallback store
         if (pError && (pError.message.includes('is_hidden') || pError.message.includes('is_archived'))) {
           const fallback = await supabaseServer
             .from('conversation_participants')
@@ -53,13 +55,17 @@ export async function GET(request: NextRequest) {
             .eq('user_id', userId);
           participations = fallback.data;
           pError = fallback.error;
-          // Add default values for missing columns
+          // Merge with file-based fallback store for archive/hidden state
           if (participations) {
-            participations = participations.map((p: Record<string, unknown>) => ({
-              ...p,
-              is_hidden: false,
-              is_archived: false,
-            }));
+            const userSettings = getAllUserSettings(userId);
+            participations = participations.map((p: Record<string, unknown>) => {
+              const settings = userSettings.get((p as { conversation_id: string }).conversation_id);
+              return {
+                ...p,
+                is_hidden: settings?.is_hidden || false,
+                is_archived: settings?.is_archived || false,
+              };
+            });
           }
         }
 
@@ -779,7 +785,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Set is_archived = true for this user
+        // Try database column first, fall back to file-based store
         const { error: archiveError } = await supabaseServer
           .from('conversation_participants')
           .update({ is_archived: true })
@@ -787,6 +793,12 @@ export async function POST(request: NextRequest) {
           .eq('user_id', userId);
 
         if (archiveError) {
+          // Column likely doesn't exist — use file-based fallback
+          if (archiveError.message.includes('is_archived') || archiveError.message.includes('does not exist') || archiveError.message.includes('column')) {
+            console.log('[Chat API] is_archived column missing, using file-based fallback');
+            setArchived(userId, conversationId, true);
+            return NextResponse.json({ success: true });
+          }
           console.error('[Chat API] Archive conversation error:', archiveError);
           return NextResponse.json({ error: 'فشل أرشفة المحادثة' }, { status: 500 });
         }
@@ -800,7 +812,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Set is_archived = false for this user
+        // Try database column first, fall back to file-based store
         const { error: unarchiveError } = await supabaseServer
           .from('conversation_participants')
           .update({ is_archived: false })
@@ -808,6 +820,12 @@ export async function POST(request: NextRequest) {
           .eq('user_id', userId);
 
         if (unarchiveError) {
+          // Column likely doesn't exist — use file-based fallback
+          if (unarchiveError.message.includes('is_archived') || unarchiveError.message.includes('does not exist') || unarchiveError.message.includes('column')) {
+            console.log('[Chat API] is_archived column missing, using file-based fallback');
+            setArchived(userId, conversationId, false);
+            return NextResponse.json({ success: true });
+          }
           console.error('[Chat API] Unarchive conversation error:', unarchiveError);
           return NextResponse.json({ error: 'فشل إلغاء أرشفة المحادثة' }, { status: 500 });
         }
