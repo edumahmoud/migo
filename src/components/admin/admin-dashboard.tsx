@@ -40,8 +40,6 @@ import {
   MessageCircle,
   Clock,
   Gavel,
-  LayoutGrid,
-  List,
   ArrowUpDown,
 } from 'lucide-react';
 import {
@@ -271,7 +269,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const [userDetailOpen, setUserDetailOpen] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<string | null>(null);
-  const [userDisplayMode, setUserDisplayMode] = useState<'grid' | 'list'>('grid');
+  const [userPage, setUserPage] = useState(1);
+  const usersPerPage = 12;
   const [userSortOrder, setUserSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   // ─── Subject detail ───
@@ -1214,7 +1213,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // Check if user is self (admin/supervisor viewing themselves)
   const isSelf = (userId: string) => userId === profile.id;
 
-  const renderUsers = () => (
+  const renderUsers = () => {
+    // Pagination
+    const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+    const paginatedUsers = filteredUsers.slice((userPage - 1) * usersPerPage, userPage * usersPerPage);
+
+    return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1227,26 +1231,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <Users className="h-4 w-4" />
             <span>{filteredUsers.length} مستخدم</span>
           </div>
-          {/* Display mode toggle */}
-          <div className="flex items-center rounded-lg border bg-muted/50">
-            <button
-              onClick={() => setUserDisplayMode('grid')}
-              className={`p-1.5 rounded-r-lg transition-colors ${userDisplayMode === 'grid' ? 'bg-purple-600 text-white' : 'text-muted-foreground hover:text-foreground'}`}
-              title="عرض شبكي"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setUserDisplayMode('list')}
-              className={`p-1.5 rounded-l-lg transition-colors ${userDisplayMode === 'list' ? 'bg-purple-600 text-white' : 'text-muted-foreground hover:text-foreground'}`}
-              title="عرض قائمة"
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
           {/* Sort toggle */}
           <button
-            onClick={() => setUserSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest')}
+            onClick={() => { setUserSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest'); setUserPage(1); }}
             className="flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
             title={userSortOrder === 'newest' ? 'ترتيب: الأحدث أولاً' : 'ترتيب: الأقدم أولاً'}
           >
@@ -1263,7 +1250,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <input
             type="text"
             value={userSearch}
-            onChange={(e) => setUserSearch(e.target.value)}
+            onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
             placeholder="بحث بالاسم أو البريد الإلكتروني..."
             className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-colors"
             dir="rtl"
@@ -1273,7 +1260,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           {(['all', 'student', 'teacher', 'admin', 'superadmin'] as const).map((role) => (
             <button
               key={role}
-              onClick={() => setRoleFilter(role)}
+              onClick={() => { setRoleFilter(role); setUserPage(1); }}
               className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all whitespace-nowrap ${
                 roleFilter === role
                   ? 'border-purple-500 bg-purple-50 text-purple-700'
@@ -1286,7 +1273,51 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         </div>
       </motion.div>
 
-      {/* Users display */}
+      {/* Pagination top */}
+      {totalPages > 1 && (
+        <motion.div variants={itemVariants} className="flex items-center justify-center gap-1.5">
+          <button
+            onClick={() => setUserPage(p => Math.max(1, p - 1))}
+            disabled={userPage === 1}
+            className="flex items-center justify-center h-8 w-8 rounded-lg border text-xs font-medium hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1)
+            .filter(p => p === 1 || p === totalPages || Math.abs(p - userPage) <= 1)
+            .reduce<(number | string)[]>((acc, p, idx, arr) => {
+              if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('...');
+              acc.push(p);
+              return acc;
+            }, [])
+            .map((item, idx) =>
+              typeof item === 'string' ? (
+                <span key={`ellipsis-${idx}`} className="flex items-center justify-center h-8 w-8 text-xs text-muted-foreground">...</span>
+              ) : (
+                <button
+                  key={item}
+                  onClick={() => setUserPage(item)}
+                  className={`flex items-center justify-center h-8 w-8 rounded-lg border text-xs font-medium transition-colors ${
+                    userPage === item
+                      ? 'bg-purple-600 text-white border-purple-600'
+                      : 'hover:bg-muted/50 text-muted-foreground'
+                  }`}
+                >
+                  {item}
+                </button>
+              )
+            )}
+          <button
+            onClick={() => setUserPage(p => Math.min(totalPages, p + 1))}
+            disabled={userPage === totalPages}
+            className="flex items-center justify-center h-8 w-8 rounded-lg border text-xs font-medium hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft className="h-4 w-4 rotate-180" />
+          </button>
+        </motion.div>
+      )}
+
+      {/* Users display - Cards only */}
       {filteredUsers.length === 0 ? (
         <motion.div
           variants={itemVariants}
@@ -1302,10 +1333,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             {userSearch || roleFilter !== 'all' ? 'جرّب البحث بكلمات مختلفة' : 'سيظهر المستخدمون هنا بعد تسجيلهم'}
           </p>
         </motion.div>
-      ) : userDisplayMode === 'grid' ? (
-        /* ─── Grid view ─── */
+      ) : (
         <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredUsers.map((user) => (
+          {paginatedUsers.map((user) => (
             <motion.div key={user.id} variants={itemVariants} {...cardHover}>
               <div
                 className={`group relative rounded-xl border-2 bg-card shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden ${getRoleCardClass(user.role)}`}
@@ -1378,95 +1408,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               </div>
             </motion.div>
           ))}
-        </motion.div>
-      ) : (
-        /* ─── List view ─── */
-        <motion.div variants={containerVariants} className="rounded-xl border bg-card shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted/50 sticky top-0">
-                <tr className="text-xs text-muted-foreground">
-                  <th className="text-right font-medium p-3">المستخدم</th>
-                  <th className="text-right font-medium p-3 hidden sm:table-cell">البريد الإلكتروني</th>
-                  <th className="text-right font-medium p-3">الصفة</th>
-                  <th className="text-right font-medium p-3 hidden md:table-cell">الإحصائيات</th>
-                  <th className="text-right font-medium p-3">وقت التسجيل</th>
-                  <th className="text-right font-medium p-3 w-12"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredUsers.map((user) => (
-                  <tr
-                    key={user.id}
-                    className={`hover:bg-muted/30 transition-colors cursor-pointer border-r-4 ${getRoleCardClass(user.role)}`}
-                    onClick={() => {
-                      setSelectedUser(user);
-                      setUserDetailOpen(true);
-                      if (bannedUsers.length === 0) fetchBannedUsers();
-                    }}
-                  >
-                    <td className="p-3">
-                      <div className="flex items-center gap-2.5">
-                        <UserAvatar name={user.name} avatarUrl={user.avatar_url} size="xs" />
-                        <span className="text-sm font-medium text-foreground truncate max-w-[150px]">
-                          {formatNameWithTitle(user.name, user.role, user.gender, user.title_id)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-3 hidden sm:table-cell">
-                      <span className="text-sm text-muted-foreground truncate max-w-[200px] block">{user.email}</span>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
-                          {getRoleLabel(user.role)}
-                        </span>
-                        {bannedUsers.some(b => b.email === user.email && b.is_active !== false && (!b.ban_until || new Date(b.ban_until) > new Date())) && (
-                          <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border bg-rose-100 text-rose-700 border-rose-200">
-                            محظور
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-3 hidden md:table-cell">
-                      {user.role === 'teacher' && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center gap-0.5 text-[11px] text-emerald-600 bg-emerald-50 rounded px-1.5 py-0.5">
-                            <BookOpen className="h-2.5 w-2.5" />{user.subjectCount ?? 0}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 text-[11px] text-teal-600 bg-teal-50 rounded px-1.5 py-0.5">
-                            <Users className="h-2.5 w-2.5" />{user.studentCount ?? 0}
-                          </span>
-                        </div>
-                      )}
-                      {user.role === 'student' && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center gap-0.5 text-[11px] text-emerald-600 bg-emerald-50 rounded px-1.5 py-0.5">
-                            <BookOpen className="h-2.5 w-2.5" />{user.subjectCount ?? 0}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 text-[11px] text-purple-600 bg-purple-50 rounded px-1.5 py-0.5">
-                            <GraduationCap className="h-2.5 w-2.5" />{user.teacherCount ?? 0}
-                          </span>
-                        </div>
-                      )}
-                      {(user.role === 'admin' || user.role === 'superadmin') && (
-                        <span className="text-[11px] text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
-                        <Clock className="h-3 w-3" />
-                        {formatDateTime(user.created_at)}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </motion.div>
       )}
 
@@ -1857,7 +1798,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         )}
       </AnimatePresence>
     </motion.div>
-  );
+    );
+  };
 
   // -------------------------------------------------------
   // Render: Subjects Section
