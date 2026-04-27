@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 import path from "path";
 
+const isVercel = process.env.VERCEL === '1';
+
 const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
@@ -13,8 +15,9 @@ const nextConfig: NextConfig = {
     'localhost',
   ],
   // Proxy Socket.IO requests to the chat service on port 3003
-  // The client connects to /socket.io/?XTransformPort=3003
+  // Only works in local/self-hosted environments (not Vercel)
   async rewrites() {
+    if (isVercel) return [];
     return [
       {
         source: '/socket.io/:path*',

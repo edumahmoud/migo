@@ -64,10 +64,20 @@ export interface UseSharedSocketReturn extends SocketContextValue {
 // =====================================================
 
 // Socket.IO client connects to the chat service on port 3003.
-// Next.js rewrites /socket.io/* → http://localhost:3003/socket.io/*
-// Caddy also supports this via XTransformPort query param.
+// Next.js rewrites /socket.io/* → http://localhost:3003/socket.io/* (local only)
+// On Vercel, the chat service URL should be set via NEXT_PUBLIC_CHAT_SERVICE_URL env var.
+// If not set, Socket.IO will attempt connection but fail gracefully.
 
-const SOCKET_URL = '/socket.io';
+function getSocketUrl(): string {
+  // If a custom chat service URL is provided (e.g. for Vercel deployment), use it
+  const customUrl = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL;
+  if (customUrl) return customUrl;
+
+  // Default: use /socket.io path which is proxied by Next.js rewrites locally
+  return '/socket.io';
+}
+
+const SOCKET_URL = getSocketUrl();
 
 const SOCKET_OPTIONS: Parameters<typeof io>[1] = {
   transports: ['websocket', 'polling'],
