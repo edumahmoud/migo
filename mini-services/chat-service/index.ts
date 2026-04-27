@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const httpServer = createServer();
 const io = new Server(httpServer, {
-  path: '/',
+  path: '/socket.io',
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],

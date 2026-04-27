@@ -12,6 +12,16 @@ const nextConfig: NextConfig = {
     '.z.ai',
     'localhost',
   ],
+  // Proxy Socket.IO requests to the chat service on port 3003
+  // The client connects to /socket.io/?XTransformPort=3003
+  async rewrites() {
+    return [
+      {
+        source: '/socket.io/:path*',
+        destination: 'http://localhost:3003/socket.io/:path*',
+      },
+    ];
+  },
 };
 
 export default nextConfig;

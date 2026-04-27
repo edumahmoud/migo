@@ -63,17 +63,21 @@ export interface UseSharedSocketReturn extends SocketContextValue {
 // Constants
 // =====================================================
 
-const SOCKET_URL = '/?XTransformPort=3003';
+// Socket.IO client connects to the chat service on port 3003.
+// Next.js rewrites /socket.io/* → http://localhost:3003/socket.io/*
+// Caddy also supports this via XTransformPort query param.
+
+const SOCKET_URL = '/socket.io';
 
 const SOCKET_OPTIONS: Parameters<typeof io>[1] = {
   transports: ['websocket', 'polling'],
-  forceNew: false,        // KEY: reuse existing connection, don't create new
+  forceNew: false,            // KEY: reuse existing connection, don't create new
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   timeout: 10000,
-  autoConnect: false,     // We connect manually after setup
+  autoConnect: false,         // We connect manually after setup
 };
 
 // =====================================================
