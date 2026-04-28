@@ -1,3 +1,8 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+// Load parent project's .env.local
+config({ path: resolve(import.meta.dirname, '../../.env.local') });
+
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import webpush from 'web-push';
@@ -71,7 +76,7 @@ interface PushSubscriptionRow {
  * Send a push notification to a user who is offline.
  * Fetches their push subscriptions from Supabase and sends via web-push.
  */
-async function sendPushToOfflineUser(userId: string, title: string, body: string, url?: string) {
+async function sendPushToOfflineUser(userId: string, title: string, body: string, url?: string, type?: string) {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !supabase) return;
 
   try {
@@ -82,7 +87,7 @@ async function sendPushToOfflineUser(userId: string, title: string, body: string
 
     if (error || !subs || subs.length === 0) return;
 
-    const payload = JSON.stringify({ title, message: body, url: url || '/' });
+    const payload = JSON.stringify({ title, message: body, url: url || '/', type: type || 'system' });
     const expiredEndpoints: string[] = [];
 
     for (const sub of subs as PushSubscriptionRow[]) {
@@ -323,6 +328,7 @@ io.on('connection', (socket) => {
               participantId,
               `رسالة من ${data.senderName}`,
               data.content.substring(0, 100),
+              `chat:${data.conversationId}`,
               'chat'
             ).catch(() => {});
           }

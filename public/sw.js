@@ -223,6 +223,16 @@ self.addEventListener('push', (event) => {
         { action: 'open', title: 'عرض النتيجة' },
         { action: 'dismiss', title: 'لاحقاً' },
       ];
+    } else if (data.type === 'file') {
+      options.actions = [
+        { action: 'open', title: 'عرض الملف' },
+        { action: 'dismiss', title: 'لاحقاً' },
+      ];
+    } else if (data.type === 'enrollment') {
+      options.actions = [
+        { action: 'open', title: 'عرض' },
+        { action: 'dismiss', title: 'تجاهل' },
+      ];
     }
 
     event.waitUntil(
