@@ -496,3 +496,54 @@ Stage Summary:
 - Recipients of shared files are visible to all recipients with a detailed modal
 - API enriched with other_recipients data for shared files
 - All changes pass lint (no new errors)
+
+---
+Task ID: 14
+Agent: Main Agent
+Task: Enable external push notifications (outside the app browser)
+
+Work Log:
+1. **Root Cause: VAPID keys were missing from .env.local**
+   - Without VAPID keys, `web-push.ts` logs a warning and all `sendPushNotification()` calls return `false`
+   - `sw-registration.tsx` can't subscribe to push because `VAPID_PUBLIC_KEY` is undefined
+   - `notification-permission.tsx` shows "إشعارات Push غير مهيأة حالياً" error toast
+   - Chat service logs "[Chat] VAPID keys not configured — push notifications disabled"
+
+2. **Generated VAPID keys using `npx web-push generate-vapid-keys --json`**
+   - Public key: BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE
+   - Private key: (stored in .env.local)
+   - Added both to `.env.local` as `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`
+
+3. **Updated chat service (mini-services/chat-service/index.ts)**:
+   - Added `dotenv` import with path to parent `.env.local`
+   - Installed `web-push`, `@supabase/supabase-js`, and `dotenv` packages
+   - Added `type` parameter to `sendPushToOfflineUser()` function
+   - Changed push payload to include `type` field for proper SW notification actions
+   - Fixed chat push URL from `'chat'` to `chat:${data.conversationId}` for deep linking
+   - Chat service now logs "[Chat] Web Push configured" on startup
+
+4. **Updated file-requests API (src/app/api/file-requests/route.ts)**:
+   - Added `sendPushNotification` import from `@/lib/web-push`
+   - File request creation: sends push notification to file owner
+   - File request approval: sends push notification to requester
+   - File request rejection: sends push notification to requester
+   - All push notifications include proper `type: 'file'` and `url` fields
+
+5. **Updated Service Worker (public/sw.js)**:
+   - Added action buttons for `file` type notifications: "عرض الملف" / "لاحقاً"
+   - Added action buttons for `enrollment` type notifications: "عرض" / "تجاهل"
+
+6. **Verified push_subscriptions table exists in Supabase** (returns empty array, no error)
+7. **Restarted both Next.js and chat service** — both pick up VAPID keys correctly
+8. **Pushed to GitHub**
+
+Stage Summary:
+- VAPID keys generated and configured in .env.local
+- Chat service loads env vars via dotenv and sends push notifications for offline users
+- File request notifications now also send push notifications externally
+- Service Worker supports file and enrollment notification types
+- All push notifications include proper type and URL for deep linking
+- The entire push notification pipeline is now functional:
+  Client subscribes → pushManager.subscribe() → POST /api/push/subscribe → Supabase
+  Server triggers → /api/notify or chat-service → web-push.sendNotification()
+  Client SW → push event → showNotification() → notificationclick → deep link
