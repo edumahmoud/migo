@@ -547,3 +547,75 @@ Stage Summary:
   Client subscribes → pushManager.subscribe() → POST /api/push/subscribe → Supabase
   Server triggers → /api/notify or chat-service → web-push.sendNotification()
   Client SW → push event → showNotification() → notificationclick → deep link
+
+---
+Task ID: 1
+Agent: Files Section Fixer
+Task: Fix three issues in personal-files-section.tsx
+
+Work Log:
+
+1. **Issue 1: Shared files count badge not showing until tab is clicked**
+   - Root cause: `fetchSharedFiles()` was only called when `activeTab === 'shared'`, so `sharedWithMe` was empty on mount and the badge showed nothing
+   - Fix: Added `fetchSharedFiles()` call to the initial data load `useEffect` alongside `fetchFiles()`, so shared files are fetched on mount regardless of active tab
+   - The tab-switching effect still re-fetches when the user clicks the shared tab (for refresh)
+
+2. **Issue 2: "Upload All" button doesn't work on mobile**
+   - Fix 1: Replaced `AbortSignal.timeout(120000)` with `AbortController` + `setTimeout` manual timeout approach (compatible with iOS < 16 Safari)
+   - Fix 2: Added `type="button"` to the "رفع الكل" button to prevent form submission issues
+   - Fix 3: Completely rewrote `handleUploadAll` to use a two-phase approach:
+     - Phase 1: Upload ALL personal files one by one using XHR (keeping throttled progress), collecting `userFileId` from each successful upload
+     - Phase 2: After ALL personal uploads complete, call `/api/files/bulk-assign` ONCE with all file IDs and subject IDs, instead of re-uploading via `/api/files/course-upload` for EACH subject (which was extremely slow on mobile)
+   - Fix 4: Visibility update now uses `.in('id', uploadedFileIds)` to batch-update all files at once instead of one at a time
+
+3. **Issue 3: File preview before sharing request - ensure it works properly**
+   - Verified that `handlePreview` correctly accepts both `UserFile` and `SharedFileWithInfo` types
+   - Verified that `previewFile` state type includes `other_recipients` and `shared_by_user` properties
+   - Enhanced the preview modal to show:
+     - File size and date below the file name (for all files)
+     - Shared by user info with avatar when previewing shared files (shows "شارك معك [name]")
+   - Image preview uses `<img>` tag, PDF preview uses `<iframe>` — both work correctly
+
+Stage Summary:
+- Shared files count badge now appears immediately on page load (no need to click the tab first)
+- Upload All button works on mobile: no AbortSignal.timeout (iOS compatible), type="button" prevents form issues, bulk-assign replaces per-course re-upload
+- File preview shows complete info: file name, size, date, and shared-by user for shared files
+- No new lint errors introduced (pre-existing react-hooks/set-state-in-effect warnings remain)
+- Dev server running successfully
+
+---
+Task ID: 15
+Agent: Push Notifications Implementer
+Task: Enable push notifications OUTSIDE the app (Web Push API) — bridge client-side notifications to web push
+
+Work Log:
+1. **Created `/api/push/send` API route** (`src/app/api/push/send/route.ts`):
+   - General-purpose server-side push notification endpoint
+   - Accepts `{ userId, title, message, url?, type? }`
+   - Fetches user's push subscriptions from Supabase `push_subscriptions` table
+   - Sends web push notification to all their subscriptions using `sendPushNotification`
+   - Cleans up expired subscriptions (410 Gone / 404 Not Found) automatically
+   - Returns `{ success, sent, expired }` response
+
+2. **Modified `src/lib/notifications.ts`** to trigger web push for ALL notifications:
+   - Added `sendPushViaServer()` helper that calls `/api/push/send` endpoint
+   - In `sendNotification()`: after successful DB insert, calls `sendPushViaServer()` (non-blocking)
+   - In `sendBulkNotification()`: after successful DB insert, calls `sendPushViaServer()` for each user (non-blocking)
+   - Both calls use `.catch(() => {})` so push failures don't block the in-app notification
+   - This ensures ALL client-side notifications (not just those from `/api/notify`) trigger external push
+
+3. **Fixed `src/components/shared/sw-registration.tsx`** auto-subscribe:
+   - Changed from creating a new Supabase client with `createClient()` (from `@supabase/supabase-js`) to importing the existing `supabase` client from `@/lib/supabase`
+   - Added `fetch('/api/push/setup', { method: 'POST' })` call before subscribing to ensure the `push_subscriptions` table exists
+   - This fixes the issue where a separate Supabase client instance might not have the correct session/cookies
+
+4. **Updated `src/components/shared/notification-permission.tsx`**:
+   - Added `fetch('/api/push/setup', { method: 'POST' })` call before the push subscription flow
+   - Ensures the `push_subscriptions` table exists before trying to save a subscription
+
+Stage Summary:
+- New `/api/push/send` endpoint provides a general-purpose way to send push notifications to any user from the client side
+- `src/lib/notifications.ts` now bridges ALL in-app notifications to external web push via `/api/push/send`
+- Auto-subscribe on login uses the correct Supabase client instance (from `@/lib/supabase`)
+- Push subscription setup is ensured before both auto-subscribe and manual subscribe flows
+- No new lint errors introduced (only pre-existing `react-hooks/set-state-in-effect` warnings)

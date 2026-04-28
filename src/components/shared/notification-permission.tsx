@@ -42,6 +42,13 @@ export default function NotificationPermission() {
         return;
       }
 
+      // Ensure push_subscriptions table exists before subscribing
+      try {
+        await fetch('/api/push/setup', { method: 'POST' });
+      } catch {
+        // Non-critical — table might already exist
+      }
+
       // Register service worker if not already
       const registration = await navigator.serviceWorker.ready;
 

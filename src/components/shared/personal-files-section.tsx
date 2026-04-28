@@ -433,7 +433,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   useEffect(() => {
     fetchFiles();
-  }, [fetchFiles]);
+    // Also fetch shared files on mount so the count badge appears immediately
+    fetchSharedFiles();
+  }, [fetchFiles, fetchSharedFiles]);
 
   useEffect(() => {
     if (activeTab === 'shared') {
@@ -531,6 +533,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
     };
 
+    // Phase 1: Upload all personal files and collect IDs
+    const uploadedFileIds: string[] = [];
+
     for (let i = 0; i < toUpload.length; i++) {
       const item = toUpload[i];
 
@@ -594,46 +599,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           xhr.send(formData);
         });
 
-        // If subjects are selected, also assign to courses
-        if (selectedSubjectForUploadIds.size > 0) {
-          const theFile = item.file;
-          for (const subjectId of selectedSubjectForUploadIds) {
-            const courseFormData = new FormData();
-            courseFormData.append('file', theFile);
-            courseFormData.append('subjectId', subjectId);
-            courseFormData.append('uploadedBy', profile.id);
-            if (item.customName.trim()) {
-              courseFormData.append('customName', item.customName.trim());
-            }
-            courseFormData.append('visibility', 'public');
-            if (userFileId) {
-              courseFormData.append('userFileId', userFileId);
-            }
-
-            try {
-              await fetch('/api/files/course-upload', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: courseFormData,
-                signal: AbortSignal.timeout(120000), // 2 min timeout per course upload
-              });
-            } catch (courseErr) {
-              console.error('Course upload failed:', courseErr);
-              // Don't fail the whole upload if course assignment fails
-            }
-          }
-
-          // Also update the user_file visibility to public
-          if (userFileId) {
-            try {
-              await supabase
-                .from('user_files')
-                .update({ visibility: 'public', updated_at: new Date().toISOString() })
-                .eq('id', userFileId);
-            } catch {
-              // Non-critical: visibility update failure shouldn't break the flow
-            }
-          }
+        if (userFileId) {
+          uploadedFileIds.push(userFileId);
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Upload failed';
@@ -641,6 +608,50 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         setPendingUploads((prev) =>
           prev.map((p) => (p.id === item.id ? { ...p, progress: -1, uploading: false } : p))
         );
+      }
+    }
+
+    // Phase 2: Bulk assign all uploaded files to courses (if subjects were selected)
+    if (uploadedFileIds.length > 0 && selectedSubjectForUploadIds.size > 0) {
+      try {
+        // First, update visibility of all uploaded files to 'public' (required for bulk-assign)
+        await supabase
+          .from('user_files')
+          .update({ visibility: 'public', updated_at: new Date().toISOString() })
+          .in('id', uploadedFileIds);
+
+        // Then use bulk-assign API to link files to courses in a single request
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min manual timeout (iOS < 16 compatible)
+
+        try {
+          const res = await fetch('/api/files/bulk-assign', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              fileIds: uploadedFileIds,
+              subjectIds: Array.from(selectedSubjectForUploadIds),
+              userId: profile.id,
+            }),
+            signal: controller.signal,
+          });
+          const result = await res.json();
+          if (result.success) {
+            if (result.data?.skipped > 0) {
+              toast.info(`تم إسناد ${result.data.created} ملف للمقررات، تم تخطي ${result.data.skipped} (موجودة مسبقاً)`);
+            }
+          } else {
+            console.error('Bulk assign error:', result.error);
+          }
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      } catch (assignErr) {
+        console.error('Bulk assign failed:', assignErr);
+        // Don't fail the whole upload if course assignment fails
       }
     }
 
@@ -2106,6 +2117,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   </button>
                   {pendingUploads.some((p) => !p.done && !p.uploading && p.progress !== -1) && (
                     <button
+                      type="button"
                       onClick={handleUploadAll}
                       className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 transition-colors"
                     >
@@ -2610,8 +2622,24 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4 shrink-0">
-              <h3 className="text-sm font-bold text-foreground truncate">{previewFile.file_name}</h3>
-              <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-bold text-foreground truncate">{previewFile.file_name}</h3>
+                <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                  <span>{formatFileSize(previewFile.file_size)}</span>
+                  <span>•</span>
+                  <span>{formatDate(previewFile.created_at)}</span>
+                </div>
+                {/* Show shared by info for shared files */}
+                {previewFile.shared_by_user && (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <UserAvatar name={previewFile.shared_by_user.name || 'مستخدم'} avatarUrl={previewFile.shared_by_user.avatar_url} size="xs" />
+                    <span className="text-xs text-muted-foreground">
+                      شارك معك {formatNameWithTitle(previewFile.shared_by_user.name || 'مستخدم', previewFile.shared_by_user.role, previewFile.shared_by_user.title_id, previewFile.shared_by_user.gender)}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => handleDownload(previewFile)}
                   className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"

@@ -152,13 +152,16 @@ export default function ServiceWorkerRegistration() {
       // Only subscribe if permission already granted (don't prompt on every visit)
       if (Notification.permission !== 'granted') return;
 
-      // Get current user from Supabase auth
+      // Ensure push_subscriptions table exists before subscribing
       try {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
+        await fetch('/api/push/setup', { method: 'POST' });
+      } catch {
+        // Non-critical — table might already exist
+      }
+
+      // Get current user from Supabase auth using the existing client
+      try {
+        const { supabase } = await import('@/lib/supabase');
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user?.id) {
           await subscribeToPush(registration, session.user.id);
