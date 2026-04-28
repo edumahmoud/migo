@@ -188,10 +188,22 @@ function getFileExtension(fileName: string): string {
 // -------------------------------------------------------
 // Shared file with user info
 // -------------------------------------------------------
+interface SharedFileRecipient {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  role: string;
+  title_id: string | null;
+  gender: string | null;
+  permission: string;
+}
+
 interface SharedFileWithInfo extends UserFile {
   shared_by_user?: UserProfile;
   shared_at?: string;
   permission?: 'view' | 'edit' | 'download';
+  other_recipients?: SharedFileRecipient[];
+  total_recipients_count?: number;
 }
 
 // -------------------------------------------------------
@@ -289,7 +301,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   // ─── Preview modal state ───
-  const [previewFile, setPreviewFile] = useState<UserFile | null>(null);
+  const [previewFile, setPreviewFile] = useState<(UserFile & { other_recipients?: SharedFileRecipient[]; shared_by_user?: UserProfile }) | null>(null);
+
+  // ─── Shared file recipients modal ───
+  const [showRecipientsFile, setShowRecipientsFile] = useState<SharedFileWithInfo | null>(null);
 
   // -------------------------------------------------------
   // Fetch my files
@@ -490,6 +505,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
   // -------------------------------------------------------
   // Upload all pending files using XHR for real progress
+  // Optimized for mobile: throttled progress updates, yielding to event loop, timeouts
   // -------------------------------------------------------
   const handleUploadAll = async () => {
     const toUpload = pendingUploads.filter((p) => !p.done && !p.uploading && p.progress !== -1);
@@ -499,11 +515,34 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token || '';
 
-    for (const item of toUpload) {
+    // Throttled progress updater - only update state when progress changes significantly or enough time has passed
+    const progressTimers = new Map<string, { lastPct: number; lastTime: number }>();
+    const PROGRESS_THROTTLE_MS = 200; // Minimum ms between progress state updates
+    const PROGRESS_THROTTLE_PCT = 5;  // Minimum % change to force an update
+
+    const throttledProgressUpdate = (id: string, pct: number) => {
+      const now = Date.now();
+      const prev = progressTimers.get(id);
+      if (!prev || (now - prev.lastTime >= PROGRESS_THROTTLE_MS) || (Math.abs(pct - prev.lastPct) >= PROGRESS_THROTTLE_PCT) || pct === 100 || pct === 0) {
+        progressTimers.set(id, { lastPct: pct, lastTime: now });
+        setPendingUploads((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, progress: pct } : p))
+        );
+      }
+    };
+
+    for (let i = 0; i < toUpload.length; i++) {
+      const item = toUpload[i];
+
       // Mark as uploading
       setPendingUploads((prev) =>
         prev.map((p) => (p.id === item.id ? { ...p, uploading: true, progress: 0 } : p))
       );
+
+      // Yield to the event loop between uploads so the UI can update (critical on mobile)
+      if (i > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
 
       try {
         const userFileId = await new Promise<string>((resolve, reject) => {
@@ -516,12 +555,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
           const xhr = new XMLHttpRequest();
 
+          // Timeout for slow mobile connections (5 minutes for large files)
+          xhr.timeout = 5 * 60 * 1000;
+
           xhr.upload.addEventListener('progress', (e) => {
             if (e.lengthComputable) {
               const pct = Math.round((e.loaded / e.total) * 100);
-              setPendingUploads((prev) =>
-                prev.map((p) => (p.id === item.id ? { ...p, progress: pct } : p))
-              );
+              throttledProgressUpdate(item.id, pct);
             }
           });
 
@@ -547,6 +587,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
           xhr.addEventListener('error', () => reject(new Error('Network error')));
           xhr.addEventListener('abort', () => reject(new Error('Aborted')));
+          xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
 
           xhr.open('POST', '/api/files/upload');
           xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -569,22 +610,34 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               courseFormData.append('userFileId', userFileId);
             }
 
-            await fetch('/api/files/course-upload', {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${token}` },
-              body: courseFormData,
-            });
+            try {
+              await fetch('/api/files/course-upload', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: courseFormData,
+                signal: AbortSignal.timeout(120000), // 2 min timeout per course upload
+              });
+            } catch (courseErr) {
+              console.error('Course upload failed:', courseErr);
+              // Don't fail the whole upload if course assignment fails
+            }
           }
 
           // Also update the user_file visibility to public
           if (userFileId) {
-            await supabase
-              .from('user_files')
-              .update({ visibility: 'public', updated_at: new Date().toISOString() })
-              .eq('id', userFileId);
+            try {
+              await supabase
+                .from('user_files')
+                .update({ visibility: 'public', updated_at: new Date().toISOString() })
+                .eq('id', userFileId);
+            } catch {
+              // Non-critical: visibility update failure shouldn't break the flow
+            }
           }
         }
-      } catch {
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Upload failed';
+        console.error(`Upload error for ${item.customName}:`, errorMsg);
         setPendingUploads((prev) =>
           prev.map((p) => (p.id === item.id ? { ...p, progress: -1, uploading: false } : p))
         );
@@ -1254,12 +1307,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   };
 
   // -------------------------------------------------------
-  // Preview file
+  // Preview file (works with both UserFile and SharedFileWithInfo)
   // -------------------------------------------------------
-  const handlePreview = (file: UserFile) => {
+  const handlePreview = (file: UserFile | SharedFileWithInfo) => {
     const lower = file.file_type.toLowerCase();
     if (lower.includes('image') || lower.includes('pdf')) {
-      setPreviewFile(file);
+      setPreviewFile(file as UserFile & { other_recipients?: SharedFileRecipient[]; shared_by_user?: UserProfile });
     } else {
       handleDownload(file);
     }
@@ -1793,14 +1846,56 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   </div>
                 </div>
 
-                {/* Download button */}
-                <button
-                  onClick={() => handleDownload(file)}
-                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-50 text-emerald-700 px-3 py-2 text-xs font-medium hover:bg-emerald-100 transition-colors"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  تحميل الملف
-                </button>
+                {/* Other recipients preview */}
+                {file.other_recipients && file.other_recipients.length > 0 && (
+                  <div className="mb-3">
+                    <button
+                      onClick={() => setShowRecipientsFile(file)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-emerald-600 transition-colors w-full"
+                    >
+                      <Users className="h-3.5 w-3.5" />
+                      <span>مشارك مع {file.total_recipients_count || (file.other_recipients.length + 1)} شخص</span>
+                      <span className="flex -space-x-1.5 space-x-reverse mr-1">
+                        {file.other_recipients.slice(0, 3).map((r) => (
+                          <span key={r.id} className="inline-block h-5 w-5 rounded-full bg-muted border-2 border-background overflow-hidden">
+                            {r.avatar_url ? (
+                              <img src={r.avatar_url} alt={r.name} className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="flex h-full w-full items-center justify-center text-[8px] font-bold text-muted-foreground">
+                                {r.name?.charAt(0) || '?'}
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                        {file.other_recipients.length > 3 && (
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted border-2 border-background text-[8px] font-bold text-muted-foreground">
+                            +{file.other_recipients.length - 3}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2">
+                  {/* Preview button */}
+                  <button
+                    onClick={() => handlePreview(file)}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-50 text-emerald-700 px-3 py-2 text-xs font-medium hover:bg-emerald-100 transition-colors"
+                  >
+                    <Maximize2 className="h-3.5 w-3.5" />
+                    معاينة
+                  </button>
+                  {/* Download button */}
+                  <button
+                    onClick={() => handleDownload(file)}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-muted text-muted-foreground px-3 py-2 text-xs font-medium hover:bg-muted/80 transition-colors"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    تحميل
+                  </button>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -2716,6 +2811,110 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   );
 
   // -------------------------------------------------------
+  // Render: Shared Recipients Modal (who else is this file shared with)
+  // -------------------------------------------------------
+  const renderRecipientsModal = () => (
+    <AnimatePresence>
+      {showRecipientsFile && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={() => setShowRecipientsFile(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
+            dir="rtl"
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b p-5 shrink-0">
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <Users className="h-5 w-5 text-emerald-600" />
+                المستلمون
+              </h3>
+              <button
+                onClick={() => setShowRecipientsFile(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar min-h-0">
+              {/* File info */}
+              <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                  {getFileIcon(showRecipientsFile.file_type)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground truncate">{showRecipientsFile.file_name}</p>
+                  <p className="text-xs text-muted-foreground">{formatFileSize(showRecipientsFile.file_size)}</p>
+                </div>
+              </div>
+
+              {/* Owner info */}
+              {showRecipientsFile.shared_by_user && (
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                    <Share2 className="h-3.5 w-3.5" />
+                    صاحب الملف
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
+                    <UserAvatar name={showRecipientsFile.shared_by_user.name || 'مستخدم'} avatarUrl={showRecipientsFile.shared_by_user.avatar_url} size="xs" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {formatNameWithTitle(showRecipientsFile.shared_by_user.name || 'مستخدم', showRecipientsFile.shared_by_user.role, showRecipientsFile.shared_by_user.title_id, showRecipientsFile.shared_by_user.gender)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">صاحب الملف</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Other recipients */}
+              <div>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                  <Users className="h-3.5 w-3.5" />
+                  مشارك مع ({showRecipientsFile.total_recipients_count || (showRecipientsFile.other_recipients?.length || 0) + 1} شخص)
+                </div>
+                {showRecipientsFile.other_recipients && showRecipientsFile.other_recipients.length > 0 ? (
+                  <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                    {showRecipientsFile.other_recipients.map((recipient) => (
+                      <div key={recipient.id} className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
+                        <UserAvatar name={recipient.name || 'مستخدم'} avatarUrl={recipient.avatar_url} size="xs" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {formatNameWithTitle(recipient.name || 'مستخدم', recipient.role, recipient.title_id, recipient.gender)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {getPermissionLabel(recipient.permission as 'view' | 'edit' | 'download')}
+                          </p>
+                        </div>
+                        <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {getPermissionIcon(recipient.permission as 'view' | 'edit' | 'download')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground/60">أنت المستلم الوحيد لهذا الملف</p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  // -------------------------------------------------------
   // Main Render
   // -------------------------------------------------------
   return (
@@ -2734,13 +2933,22 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         </button>
         <button
           onClick={() => setActiveTab('shared')}
-          className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+          className={`rounded-full px-4 py-2 text-sm font-medium transition-all flex items-center gap-1.5 ${
             activeTab === 'shared'
               ? 'bg-emerald-600 text-white shadow-sm'
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
         >
           مشاركة معي
+          {sharedWithMe.length > 0 && (
+            <span className={`inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[18px] h-[18px] px-1 ${
+              activeTab === 'shared'
+                ? 'bg-white/20 text-white'
+                : 'bg-emerald-100 text-emerald-700'
+            }`}>
+              {sharedWithMe.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -2764,6 +2972,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {renderAssignModal()}
       {renderPreviewModal()}
       {renderBulkShareModal()}
+      {renderRecipientsModal()}
     </div>
   );
 }
