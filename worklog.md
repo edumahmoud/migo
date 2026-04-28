@@ -450,3 +450,49 @@ Stage Summary:
   CREATE INDEX IF NOT EXISTS idx_banned_users_ban_until ON public.banned_users(ban_until);
   UPDATE public.banned_users SET is_active = true WHERE is_active IS NULL;
   ```
+
+---
+Task ID: 13
+Agent: Main Agent
+Task: File management improvements - Fix Upload All mobile hang, add shared file count, enable preview, show recipients
+
+Work Log:
+1. **Fixed "Upload All" button hanging on mobile**:
+   - Added throttled progress updates: only update React state every 200ms or when progress changes by 5%+ (was updating on every XHR progress event, causing excessive re-renders)
+   - Added `await new Promise(resolve => setTimeout(resolve, 50))` between file uploads to yield to the event loop, allowing UI to update
+   - Added 5-minute XHR timeout for large file uploads on slow mobile connections
+   - Added `xhr.addEventListener('timeout', ...)` handler with Arabic error message
+   - Added 2-minute AbortSignal timeout for course-upload fetch calls
+   - Wrapped course-upload and visibility update in try/catch so they don't fail the entire upload
+   - Better error logging with file name in catch block
+
+2. **Added file count badge on "مشاركة معي" tab**:
+   - Tab button now shows a count badge with number of shared files
+   - Badge styling adapts to active/inactive tab state (white on green when active, green on gray when inactive)
+
+3. **Enabled file preview for shared files**:
+   - Added "معاينة" (Preview) button on shared file cards alongside download button
+   - Updated `handlePreview` function to accept both `UserFile` and `SharedFileWithInfo` types
+   - Updated `previewFile` state type to include shared file properties
+   - Preview modal works for shared files (images and PDFs)
+
+4. **Enabled seeing who file is shared with (for recipients)**:
+   - Updated `/api/files/shared-with-me` API to include `other_recipients` and `total_recipients_count` for each shared file
+   - API now batch-fetches all file_shares for each file and their user profiles efficiently
+   - Added `SharedFileRecipient` interface for recipient data
+   - Shared file cards show mini avatar stack of other recipients with count "مشارك مع X شخص"
+   - Clicking the recipients row opens a new "المستلمون" modal showing:
+     - File info header
+     - File owner info with avatar
+     - Full list of other recipients with avatars, names, and permissions
+     - Message when user is the only recipient
+
+5. **Pushed to GitHub**: All changes committed and pushed successfully
+
+Stage Summary:
+- Upload All button no longer hangs on mobile (throttled progress, event loop yielding, timeouts)
+- Shared files count visible on tab badge
+- Shared files can be previewed (images/PDFs) before download
+- Recipients of shared files are visible to all recipients with a detailed modal
+- API enriched with other_recipients data for shared files
+- All changes pass lint (no new errors)
