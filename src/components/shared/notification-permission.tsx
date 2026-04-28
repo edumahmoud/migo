@@ -5,27 +5,37 @@ import { Bell, BellOff, BellRing } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
 
+// VAPID key hardcoded as fallback (same as env var, needed when env is not inlined)
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
+
 /**
  * NotificationPermission — shows a button to enable/disable push notifications.
- * Displays the current permission state and allows the user to toggle it.
+ * Works in two modes:
+ * 1. Full Web Push (PWA installed / standalone browser) — subscribes to push, notifications arrive outside app
+ * 2. In-app notifications fallback (iframe/embedded) — just requests Notification permission for in-app alerts
  */
 export default function NotificationPermission() {
   const [permission, setPermission] = useState<NotificationPermissionState>('default');
   const [loading, setLoading] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   const { user } = useAuthStore();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!('Notification' in window)) return;
 
-    setPermission(Notification.permission);
+    // Check current notification permission
+    if ('Notification' in window) {
+      setPermission(Notification.permission);
+    }
+
+    // Detect if running as standalone PWA
+    const standalone = window.matchMedia('(display-mode: standalone)').matches
+      || (navigator as any).standalone === true
+      || document.referrer.includes('android-app://');
+    setIsStandalone(standalone);
   }, []);
 
-  // Don't render if not supported or not logged in
-  if (typeof window !== 'undefined' && (!('Notification' in window) || !('serviceWorker' in navigator))) {
-    return null;
-  }
-
+  // Don't render if not logged in
   if (!user) return null;
 
   const handleEnable = async () => {
@@ -33,62 +43,65 @@ export default function NotificationPermission() {
     setLoading(true);
 
     try {
-      // Request notification permission
-      const result = await Notification.requestPermission();
-      setPermission(result);
+      // Step 1: Request notification permission
+      if ('Notification' in window) {
+        const result = await Notification.requestPermission();
+        setPermission(result);
 
-      if (result !== 'granted') {
-        toast.error('تم رفض إذن الإشعارات. يمكنك تفعيله من إعدادات المتصفح.');
-        return;
+        if (result !== 'granted') {
+          toast.error('تم رفض إذن الإشعارات. يمكنك تفعيله من إعدادات المتصفح.');
+          return;
+        }
+
+        toast.success('تم تفعيل الإشعارات!');
       }
 
-      // Ensure push_subscriptions table exists before subscribing
-      try {
-        await fetch('/api/push/setup', { method: 'POST' });
-      } catch {
-        // Non-critical — table might already exist
-      }
+      // Step 2: Try Web Push subscription (only works in standalone/secure context)
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        try {
+          // Ensure push_subscriptions table exists
+          await fetch('/api/push/setup', { method: 'POST' }).catch(() => {});
 
-      // Register service worker if not already
-      const registration = await navigator.serviceWorker.ready;
+          // Wait for SW to be ready
+          const registration = await navigator.serviceWorker.ready;
 
-      // Get VAPID key
-      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidKey) {
-        toast.error('إشعارات Push غير مهيأة حالياً');
-        return;
-      }
+          // Check if push is supported by the browser
+          if (registration.pushManager) {
+            // Subscribe to push
+            const subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+            });
 
-      // Subscribe to push
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      });
+            // Send subscription to server
+            const subJSON = subscription.toJSON();
+            const res = await fetch('/api/push/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: user.id,
+                subscription: {
+                  endpoint: subJSON.endpoint,
+                  keys: {
+                    p256dh: subJSON.keys?.p256dh,
+                    auth: subJSON.keys?.auth,
+                  },
+                },
+              }),
+            });
 
-      // Send subscription to server
-      const subJSON = subscription.toJSON();
-      const res = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          subscription: {
-            endpoint: subJSON.endpoint,
-            keys: {
-              p256dh: subJSON.keys?.p256dh,
-              auth: subJSON.keys?.auth,
-            },
-          },
-        }),
-      });
-
-      if (res.ok) {
-        toast.success('تم تفعيل الإشعارات بنجاح! ستصلك الإشعارات حتى عند إغلاق المتصفح.');
-      } else {
-        toast.error('حدث خطأ في حفظ إعدادات الإشعارات');
+            if (res.ok) {
+              toast.success('تم تفعيل الإشعارات الخارجية بنجاح! ستصلك حتى عند إغلاق المتصفح.');
+            }
+          }
+        } catch (pushError) {
+          // Push subscription failed (common in iframe/sandbox) — in-app notifications still work
+          console.warn('[Push] Web Push subscription failed (in-app notifications still active):', pushError);
+          toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA من المتصفح.');
+        }
       }
     } catch (error) {
-      console.error('Push subscription error:', error);
+      console.error('Notification permission error:', error);
       toast.error('حدث خطأ في تفعيل الإشعارات');
     } finally {
       setLoading(false);
@@ -98,25 +111,27 @@ export default function NotificationPermission() {
   const handleDisable = async () => {
     setLoading(true);
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
+      // Try to unsubscribe from push
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          const subscription = await registration.pushManager.getSubscription();
 
-      if (subscription) {
-        const endpoint = subscription.endpoint;
-
-        // Unsubscribe from push
-        await subscription.unsubscribe();
-
-        // Remove from server
-        await fetch('/api/push/unsubscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint }),
-        });
+          if (subscription) {
+            await subscription.unsubscribe();
+            await fetch('/api/push/unsubscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ endpoint: subscription.endpoint }),
+            });
+          }
+        } catch {
+          // Push not available, just update permission state
+        }
       }
 
       setPermission('default');
-      toast.success('تم إيقاف الإشعارات');
+      toast.success('تم إيقاف الإشعارات الخارجية');
     } catch (error) {
       console.error('Push unsubscribe error:', error);
       toast.error('حدث خطأ في إيقاف الإشعارات');
@@ -133,9 +148,9 @@ export default function NotificationPermission() {
         disabled={loading}
         className="relative flex h-9 w-9 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 transition-colors touch-manipulation"
         aria-label="الإشعارات مفعّلة - اضغط لإيقافها"
-        title="الإشعارات مفعّلة"
+        title={isStandalone ? 'الإشعارات الخارجية مفعّلة' : 'الإشعارات مفعّلة (داخل التطبيق)'}
       >
-        <BellRing className="h-5 w-5" />
+        {loading ? <span className="h-4 w-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /> : <BellRing className="h-5 w-5" />}
       </button>
     );
   }
@@ -145,7 +160,7 @@ export default function NotificationPermission() {
     return (
       <button
         onClick={() => {
-          toast.info('يرجى تفعيل الإشعارات من إعدادات المتصفح (المزيد > الإعدادات > الإشعارات)');
+          toast.info('يرجى تفعيل الإشعارات من إعدادات المتصفح: المزيد ⚙️ > الإعدادات > الإشعارات > السماح');
         }}
         className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground/40 hover:bg-muted/30 transition-colors touch-manipulation"
         aria-label="الإشعارات محظورة"
@@ -165,11 +180,17 @@ export default function NotificationPermission() {
       aria-label="تفعيل الإشعارات"
       title="فعّل الإشعارات لتصلك حتى عند إغلاق المتصفح"
     >
-      <Bell className="h-5 w-5" />
-      <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-        <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-      </span>
+      {loading ? (
+        <span className="h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+      ) : (
+        <>
+          <Bell className="h-5 w-5" />
+          <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+          </span>
+        </>
+      )}
     </button>
   );
 }

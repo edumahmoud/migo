@@ -553,51 +553,71 @@ export default function SettingsSection({
     try {
       if (pushPermission === 'granted') {
         // Disable push — unsubscribe
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-        if (subscription) {
-          await subscription.unsubscribe();
-          await fetch('/api/push/unsubscribe', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ endpoint: subscription.endpoint }),
-          });
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          const subscription = await registration.pushManager.getSubscription();
+          if (subscription) {
+            await subscription.unsubscribe();
+            await fetch('/api/push/unsubscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ endpoint: subscription.endpoint }),
+            });
+          }
+        } catch {
+          // Push not available, just update UI
         }
         setPushPermission('default');
         toast.success('تم إيقاف الإشعارات الخارجية');
       } else {
-        // Enable push — request permission and subscribe
+        // Enable push — request permission first
+        if (!('Notification' in window)) {
+          toast.error('المتصفح لا يدعم الإشعارات');
+          return;
+        }
+
         const result = await Notification.requestPermission();
         setPushPermission(result);
         if (result !== 'granted') {
           toast.error('تم رفض إذن الإشعارات. يمكنك تفعيله من إعدادات المتصفح.');
           return;
         }
-        const registration = await navigator.serviceWorker.ready;
-        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-        if (!vapidKey) {
-          toast.error('إشعارات Push غير مهيأة حالياً');
-          return;
+
+        toast.success('تم تفعيل الإشعارات!');
+
+        // Try Web Push subscription (only works in standalone/secure context)
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+          try {
+            // Ensure push_subscriptions table exists
+            await fetch('/api/push/setup', { method: 'POST' }).catch(() => {});
+
+            const registration = await navigator.serviceWorker.ready;
+            const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
+            const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4);
+            const base64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
+            const subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: outputArray,
+            });
+            const subJSON = subscription.toJSON();
+            await fetch('/api/push/subscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: profile.id,
+                subscription: { endpoint: subJSON.endpoint, keys: { p256dh: subJSON.keys?.p256dh, auth: subJSON.keys?.auth } },
+              }),
+            });
+            toast.success('تم تفعيل الإشعارات الخارجية! ستصلك حتى عند إغلاق المتصفح.');
+          } catch (pushError) {
+            // Push subscription failed (common in iframe/sandbox)
+            console.warn('[Push] Web Push subscription failed:', pushError);
+            toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.');
+          }
         }
-        const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4);
-        const base64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/');
-        const rawData = window.atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
-        for (let i = 0; i < rawData.length; ++i) { outputArray[i] = rawData.charCodeAt(i); }
-        const subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: outputArray,
-        });
-        const subJSON = subscription.toJSON();
-        await fetch('/api/push/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: profile.id,
-            subscription: { endpoint: subJSON.endpoint, keys: { p256dh: subJSON.keys?.p256dh, auth: subJSON.keys?.auth } },
-          }),
-        });
-        toast.success('تم تفعيل الإشعارات بنجاح! ستصلك الإشعارات حتى عند إغلاق المتصفح.');
       }
     } catch (error) {
       console.error('Push toggle error:', error);

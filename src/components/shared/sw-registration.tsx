@@ -11,8 +11,8 @@ import { useEffect } from 'react';
  * - Stores subscription in Supabase for server-side push delivery
  */
 
-// VAPID public key from environment
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+// VAPID public key from environment (with fallback hardcoded key)
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
 
 /**
  * Convert a base64 string to Uint8Array for the push subscription.
