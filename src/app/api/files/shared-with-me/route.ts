@@ -1,11 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { createClient } from '@supabase/supabase-js';
 
 export async function GET(request: NextRequest) {
   try {
-    const serverClient = await getSupabaseServerClient();
-    const { data: { user }, error: authError } = await serverClient.auth.getUser();
-    if (authError || !user) {
+    let userId: string | null = null;
+
+    // Method 1: Try cookie-based auth (works on desktop browsers)
+    try {
+      const serverClient = await getSupabaseServerClient();
+      const { data: { user }, error: authError } = await serverClient.auth.getUser();
+      if (!authError && user) {
+        userId = user.id;
+      }
+    } catch {
+      // Cookie-based auth failed, try token-based
+    }
+
+    // Method 2: Try Authorization header token (works on mobile browsers)
+    if (!userId) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        try {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+          if (supabaseUrl && supabaseAnonKey) {
+            const tokenClient = createClient(supabaseUrl, supabaseAnonKey, {
+              auth: { autoRefreshToken: false, persistSession: false },
+              global: { headers: { Authorization: `Bearer ${token}` } },
+            });
+            const { data: { user }, error } = await tokenClient.auth.getUser(token);
+            if (!error && user) {
+              userId = user.id;
+            }
+          }
+        } catch {
+          // Token-based auth also failed
+        }
+      }
+    }
+
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -13,7 +49,7 @@ export async function GET(request: NextRequest) {
     const { data: shares, error } = await supabaseServer
       .from('file_shares')
       .select('id, file_id, shared_by, shared_with, permission, created_at')
-      .eq('shared_with', user.id)
+      .eq('shared_with', userId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -39,7 +75,7 @@ export async function GET(request: NextRequest) {
         .from('file_shares')
         .select('id, shared_with, permission')
         .eq('file_id', share.file_id)
-        .neq('shared_with', user.id);
+        .neq('shared_with', userId);
 
       const otherRecipients: { id: string; name: string; avatar_url: string | null; role: string; title_id: string | null; gender: string | null; permission: string }[] = [];
       if (allFileShares && allFileShares.length > 0) {

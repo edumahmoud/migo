@@ -335,7 +335,23 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const fetchSharedFiles = useCallback(async () => {
     setLoadingShared(true);
     try {
-      const res = await fetch('/api/files/shared-with-me');
+      // Get auth token for mobile browsers where cookies may not be sent
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch('/api/files/shared-with-me', { headers });
+
+      if (!res.ok) {
+        console.error('Fetch shared files failed:', res.status);
+        setSharedWithMe([]);
+        return;
+      }
+
       const data = await res.json();
       if (data.shares) {
         setSharedWithMe(data.shares as SharedFileWithInfo[]);
@@ -510,7 +526,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Optimized for mobile: throttled progress updates, yielding to event loop, timeouts
   // -------------------------------------------------------
   const handleUploadAll = async () => {
-    const toUpload = pendingUploads.filter((p) => !p.done && !p.uploading && p.progress !== -1);
+    // Reset failed uploads first so they can be retried
+    setPendingUploads((prev) =>
+      prev.map((p) => (p.progress === -1 ? { ...p, progress: 0, uploading: false } : p))
+    );
+
+    // Small delay to let state update before filtering
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const toUpload = pendingUploads.filter((p) => !p.done && !p.uploading);
     if (toUpload.length === 0) return;
 
     // Get auth token
@@ -545,8 +569,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       );
 
       // Yield to the event loop between uploads so the UI can update (critical on mobile)
+      // Use longer delay on mobile for smoother UX
       if (i > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        await new Promise((resolve) => setTimeout(resolve, isMobile ? 150 : 50));
       }
 
       try {
@@ -1322,9 +1348,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   const handlePreview = (file: UserFile | SharedFileWithInfo) => {
     const lower = file.file_type.toLowerCase();
-    if (lower.includes('image') || lower.includes('pdf')) {
+    // Support preview for images, PDFs, videos, and audio files
+    if (lower.includes('image') || lower.includes('pdf') || lower.includes('video') || lower.includes('audio')) {
       setPreviewFile(file as UserFile & { other_recipients?: SharedFileRecipient[]; shared_by_user?: UserProfile });
     } else {
+      // For unsupported types, download directly
       handleDownload(file);
     }
   };
@@ -2115,14 +2143,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   >
                     إغلاق
                   </button>
-                  {pendingUploads.some((p) => !p.done && !p.uploading && p.progress !== -1) && (
+                  {/* Upload All / Retry button — visible whenever there are pending or failed files and nothing is currently uploading */}
+                  {pendingUploads.some((p) => !p.done && !p.uploading) && (
                     <button
                       type="button"
                       onClick={handleUploadAll}
-                      className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 transition-colors"
+                      className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 transition-colors touch-manipulation"
                     >
                       <Upload className="h-4 w-4" />
-                      رفع الكل
+                      {pendingUploads.some((p) => p.progress === -1) ? 'إعادة المحاولة' : 'رفع الكل'}
                     </button>
                   )}
                 </div>
@@ -2671,7 +2700,43 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   className="w-full h-[70vh] border-0"
                   title={previewFile.file_name}
                 />
-              ) : null}
+              ) : previewFile.file_type.toLowerCase().includes('video') ? (
+                <div className="flex items-center justify-center p-4 min-h-[300px] bg-black/5">
+                  <video
+                    src={previewFile.file_url}
+                    controls
+                    className="max-w-full max-h-[70vh] rounded-lg"
+                  >
+                    متصفحك لا يدعم تشغيل الفيديو
+                  </video>
+                </div>
+              ) : previewFile.file_type.toLowerCase().includes('audio') ? (
+                <div className="flex items-center justify-center p-8 min-h-[200px]">
+                  <div className="w-full max-w-md text-center space-y-4">
+                    <FileAudio className="h-16 w-16 mx-auto text-emerald-500" />
+                    <p className="text-sm font-medium text-foreground truncate">{previewFile.file_name}</p>
+                    <audio
+                      src={previewFile.file_url}
+                      controls
+                      className="w-full"
+                    >
+                      متصفحك لا يدعم تشغيل الصوت
+                    </audio>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 min-h-[300px] space-y-3">
+                  <File className="h-16 w-16 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">لا يمكن معاينة هذا الملف مباشرة</p>
+                  <button
+                    onClick={() => handleDownload(previewFile)}
+                    className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
+                  >
+                    <Download className="h-4 w-4" />
+                    تحميل الملف
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.div>
