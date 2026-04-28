@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
 
     const expiredEndpoints: string[] = [];
     let sent = 0;
+    let skipped = 0;
 
     for (const sub of subs) {
       const subscription: PushSubscriptionLike = {
@@ -61,11 +62,15 @@ export async function POST(request: NextRequest) {
         keys: { p256dh: sub.p256dh, auth: sub.auth_key },
       };
 
-      const success = await sendPushNotification(subscription, payload);
-      if (success) {
+      const result = await sendPushNotification(subscription, payload);
+      if (result.success) {
         sent++;
-      } else {
+      } else if (result.expired) {
+        // Only delete if the subscription is actually expired (410/404)
         expiredEndpoints.push(sub.endpoint);
+      } else {
+        // VAPID not configured or other error — don't delete the subscription
+        skipped++;
       }
     }
 
@@ -86,6 +91,7 @@ export async function POST(request: NextRequest) {
       success: true,
       sent,
       expired: expiredEndpoints.length,
+      skipped,
     });
   } catch (error) {
     console.error('[push/send] Error:', error);

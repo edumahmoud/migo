@@ -15,7 +15,9 @@ import {
   Check,
   XCircle,
   Bell,
+  Wifi,
   WifiOff,
+  RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -92,7 +94,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
 
   // Shared socket — replaces local socket creation
-  const { socket, isConnected, joinRoom } = useSharedSocket();
+  const { socket, status, isConnected, joinRoom } = useSharedSocket();
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -847,12 +849,21 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          {!isConnected && (
-            <WifiOff className="h-3 w-3 text-amber-500" />
+          {status === 'connecting' && (
+            <RefreshCw className="h-3 w-3 text-amber-500 animate-spin" />
           )}
-          <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-rose-400'}`} />
+          {status === 'disconnected' && (
+            <WifiOff className="h-3 w-3 text-rose-400" />
+          )}
+          <div className={`h-2 w-2 rounded-full ${
+            status === 'connected' ? 'bg-emerald-500'
+              : status === 'connecting' ? 'bg-amber-400 animate-pulse'
+              : 'bg-rose-400'
+          }`} />
           <span className="text-[10px] text-muted-foreground">
-            {isConnected ? 'متصل' : 'غير متصل'}
+            {status === 'connected' ? 'متصل'
+              : status === 'connecting' ? 'جاري الاتصال...'
+              : 'غير متصل'}
           </span>
         </div>
       </motion.div>

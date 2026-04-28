@@ -1,9 +1,12 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'atendo-v1';
-const STATIC_CACHE = 'atendo-static-v1';
-const DYNAMIC_CACHE = 'atendo-dynamic-v1';
-const API_CACHE = 'atendo-api-v1';
+const CACHE_NAME = 'atendo-v2';
+const STATIC_CACHE = 'atendo-static-v2';
+const DYNAMIC_CACHE = 'atendo-dynamic-v2';
+const API_CACHE = 'atendo-api-v2';
+
+// Build version — update this comment to force SW cache bust
+// BUILD_VERSION: 2.0.0
 
 // Static assets to precache
 const PRECACHE_URLS = [
@@ -16,7 +19,7 @@ const PRECACHE_URLS = [
   '/logo.svg',
 ];
 
-// Install event — precache static assets (with per-URL error handling)
+// ─── Install ───
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then(async (cache) => {
@@ -30,11 +33,10 @@ self.addEventListener('install', (event) => {
       }
     })
   );
-  // Activate immediately without waiting
   self.skipWaiting();
 });
 
-// Activate event — clean up old caches
+// ─── Activate ─── Clean up old caches + dynamic cache
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -46,18 +48,15 @@ self.addEventListener('activate', (event) => {
             return caches.delete(name);
           })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  // Claim all clients immediately
-  self.clients.claim();
 });
 
-// Helper: check if request is for an API call
+// ─── Helpers ───
 function isApiRequest(url) {
   return url.pathname.startsWith('/api/');
 }
 
-// Helper: check if request is for a static asset
 function isStaticAsset(url) {
   return (
     url.pathname.endsWith('.js') ||
@@ -71,12 +70,29 @@ function isStaticAsset(url) {
   );
 }
 
-// Helper: check if request is for Supabase
 function isSupabaseRequest(url) {
   return url.hostname.includes('supabase.co');
 }
 
-// Fetch event — network-first for API, cache-first for static, stale-while-revalidate for pages
+function isHtmlPage(request) {
+  return (
+    request.mode === 'navigate' ||
+    request.headers.get('accept')?.includes('text/html')
+  );
+}
+
+// ─── Offline fallback ───
+async function getOfflinePage() {
+  const cached = await caches.match('/offline');
+  if (cached) return cached;
+  // Fallback if offline page not cached
+  return new Response(
+    '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>لا يوجد اتصال</title><style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f0fdf4;text-align:center;direction:rtl}h1{color:#065f46}p{color:#374151}</style></head><body><div><h1>لا يوجد اتصال</h1><p>تحقق من اتصالك بالإنترنت وحاول مرة أخرى.</p></div></body></html>',
+    { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+  );
+}
+
+// ─── Fetch ───
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -84,31 +100,39 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (request.method !== 'GET') return;
 
-  // Skip cross-origin requests except Supabase and fonts
-  if (url.origin !== self.location.origin && !isSupabaseRequest(url) && !url.hostname.includes('fonts.googleapis.com') && !url.hostname.includes('fonts.gstatic.com')) {
+  // Skip cross-origin except Supabase & fonts
+  if (
+    url.origin !== self.location.origin &&
+    !isSupabaseRequest(url) &&
+    !url.hostname.includes('fonts.googleapis.com') &&
+    !url.hostname.includes('fonts.gstatic.com')
+  ) {
     return;
   }
 
-  // Strategy: Network First for API calls
+  // ─── Strategy: Network First for API ───
   if (isApiRequest(url)) {
     event.respondWith(
       caches.open(API_CACHE).then((cache) =>
         fetch(request)
           .then((response) => {
-            // Cache successful API responses for 30 seconds
             if (response.ok) {
-              const cloned = response.clone();
-              cache.put(request, cloned);
+              cache.put(request, response.clone());
             }
             return response;
           })
           .catch(() => {
-            // Fallback to cache if offline
             return cache.match(request).then((cached) => {
-              return cached || new Response(JSON.stringify({ error: 'أنت غير متصل بالإنترنت' }), {
-                status: 503,
-                headers: { 'Content-Type': 'application/json' },
-              });
+              return (
+                cached ||
+                new Response(
+                  JSON.stringify({ error: 'أنت غير متصل بالإنترنت' }),
+                  {
+                    status: 503,
+                    headers: { 'Content-Type': 'application/json' },
+                  }
+                )
+              );
             });
           })
       )
@@ -116,7 +140,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy: Cache First for static assets
+  // ─── Strategy: Cache First for static assets ───
   if (isStaticAsset(url) || url.pathname.includes('/_next/static/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
@@ -133,7 +157,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy: Stale While Revalidate for pages and Supabase
+  // ─── Strategy: Network First for HTML pages ───
+  // This prevents serving stale HTML that references deleted JS chunks
+  if (isHtmlPage(request)) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const cloned = response.clone();
+            caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, cloned));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(request).then((cached) => {
+            return cached || getOfflinePage();
+          });
+        })
+    );
+    return;
+  }
+
+  // ─── Strategy: Stale While Revalidate for everything else ───
   event.respondWith(
     caches.match(request).then((cached) => {
       const fetchPromise = fetch(request)
@@ -145,10 +190,6 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // If both cache and network fail, show offline page for navigation requests
-          if (request.mode === 'navigate') {
-            return caches.match('/offline');
-          }
           return new Response('Offline', { status: 503 });
         });
 
@@ -157,14 +198,14 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Handle messages from the app
+// ─── Messages ───
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
 });
 
-// Push notification support
+// ─── Push Notifications ───
 self.addEventListener('push', (event) => {
   if (!event.data) {
     event.waitUntil(
@@ -181,13 +222,11 @@ self.addEventListener('push', (event) => {
 
   try {
     const data = event.data.json();
-
-    // Build notification options with dynamic icon support
     const options = {
       body: data.message || 'لديك إشعار جديد',
       icon: '/icon-192x192.png',
       badge: '/icon-192x192.png',
-      dir: 'rtl' as const,
+      dir: 'rtl',
       lang: 'ar',
       vibrate: [100, 50, 100],
       data: {
@@ -195,14 +234,11 @@ self.addEventListener('push', (event) => {
         type: data.type || 'system',
       },
       actions: data.actions || [],
-      // Android-specific: set tag to group similar notifications
       tag: data.type ? `attendo-${data.type}` : 'attendo-default',
       renotify: true,
-      // Timestamp for sorting
       timestamp: Date.now(),
     };
 
-    // Add action buttons based on notification type
     if (data.type === 'chat' || data.type === 'system') {
       options.actions = [
         { action: 'open', title: 'فتح' },
@@ -251,36 +287,38 @@ self.addEventListener('push', (event) => {
   }
 });
 
-// Handle notification click — use postMessage for SPA routing
+// ─── Notification Click ───
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  // Handle action button clicks
   if (event.action === 'dismiss') {
-    return; // User dismissed, do nothing
+    return;
   }
 
   const url = event.notification.data?.url || '/';
   const notifType = event.notification.data?.type || 'system';
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Find an existing app window and postMessage to it
-      for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.postMessage({ type: 'NOTIFICATION_CLICK', url, notifType });
-          return client.focus();
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            client.postMessage({
+              type: 'NOTIFICATION_CLICK',
+              url,
+              notifType,
+            });
+            return client.focus();
+          }
         }
-      }
-      // No existing window — open a new one with deeplink query param
-      const deeplinkUrl = '/?deeplink=' + encodeURIComponent(url);
-      return self.clients.openWindow(deeplinkUrl);
-    })
+        const deeplinkUrl = '/?deeplink=' + encodeURIComponent(url);
+        return self.clients.openWindow(deeplinkUrl);
+      })
   );
 });
 
-// Handle notification close (for analytics)
 self.addEventListener('notificationclose', (event) => {
-  // Could send analytics about dismissed notifications
   console.log('[SW] Notification closed:', event.notification.tag);
 });
+

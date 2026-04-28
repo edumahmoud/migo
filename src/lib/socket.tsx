@@ -12,7 +12,7 @@
 //   - Real-time messages not being delivered properly
 //
 // Usage:
-//   1. Wrap your app with <SocketProvider>
+//   1. Wrap your app with <SocketProvider> (in layout.tsx)
 //   2. Use `useSharedSocket()` hook in components
 //   3. Or use `getSocket()` for non-React code
 // =====================================================
@@ -26,6 +26,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type ReactElement,
 } from 'react';
 import { io, Socket } from 'socket.io-client';
 import type { UserStatus } from '@/lib/types';
@@ -82,16 +83,17 @@ function getSocketUrl(): string {
 const SOCKET_URL = getSocketUrl();
 
 const SOCKET_OPTIONS: Parameters<typeof io>[1] = {
-  path: '/socket.io',         // Path on the server where Socket.IO is served
+  path: '/socket.io',                    // Path on the server where Socket.IO is served
   transports: ['polling', 'websocket'],  // Try polling first — works through Next.js rewrites & Caddy proxy
-  forceNew: false,            // KEY: reuse existing connection, don't create new
+  forceNew: false,                       // KEY: reuse existing connection, don't create new
   reconnection: true,
-  reconnectionAttempts: 10,   // Stop retrying after 10 attempts to avoid infinite "connecting"
+  reconnectionAttempts: Infinity,        // Keep trying forever (with backoff)
   reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  timeout: 10000,
-  autoConnect: false,         // We connect manually after setup
-  query: { XTransformPort: '3003' },  // Caddy gateway uses this to route to chat service
+  reconnectionDelayMax: 30000,           // Max 30s between retries
+  timeout: 20000,                        // Increase timeout for slower networks
+  autoConnect: true,                     // Auto-connect on creation — avoids race conditions
+  withCredentials: false,                // Don't send cookies — avoids CORS issues when chat service runs on different port
+  query: { XTransformPort: '3003' },     // Caddy gateway uses this to route to chat service
 };
 
 // =====================================================
@@ -109,10 +111,16 @@ let providerCount = 0;
 
 /** Provider-level status listeners (named so we can remove ONLY these, not auto-auth) */
 let providerConnectHandler: (() => void) | null = null;
-let providerDisconnectHandler: (() => void) | null = null;
-let providerReconnectAttemptHandler: (() => void) | null = null;
+let providerDisconnectHandler: ((reason: string) => void) | null = null;
+let providerReconnectAttemptHandler: ((attempt: number) => void) | null = null;
 let providerIoReconnectAttemptHandler: (() => void) | null = null;
+let providerConnectErrorHandler: ((err: Error) => void) | null = null;
+let providerIoReconnectFailedHandler: (() => void) | null = null;
+let providerIoErrorHandler: ((err: Error) => void) | null = null;
 let providerListenersAttached = false;
+
+/** Reconnection attempt counter for logging */
+let reconnectAttempts = 0;
 
 /**
  * Get or create the singleton Socket.IO instance.
@@ -128,6 +136,7 @@ export function getSocket(): Socket {
 
     // ─── Auto-authenticate on every (re)connect ───
     socketInstance.on('connect', () => {
+      reconnectAttempts = 0;
       if (authCredentials) {
         socketInstance!.emit('auth', {
           userId: authCredentials.userId,
@@ -135,11 +144,20 @@ export function getSocket(): Socket {
         });
       }
     });
-  }
 
-  // If the socket exists but was disconnected, reconnect
-  if (!socketInstance.connected && !socketInstance.active) {
-    socketInstance.connect();
+    // ─── Log connection errors for debugging ───
+    socketInstance.on('connect_error', (err) => {
+      console.warn('[Socket] connect_error:', err.message);
+    });
+
+    // ─── Handle disconnect with reason ───
+    socketInstance.on('disconnect', (reason) => {
+      console.warn('[Socket] disconnected:', reason);
+      // If the server disconnected us, try to reconnect
+      if (reason === 'io server disconnect') {
+        socketInstance?.connect();
+      }
+    });
   }
 
   return socketInstance;
@@ -172,6 +190,7 @@ export function destroySocket(): void {
   }
   authCredentials = null;
   providerListenersAttached = false;
+  reconnectAttempts = 0;
 }
 
 // =====================================================
@@ -251,7 +270,7 @@ export interface SocketProviderProps {
  *   cleans up status listeners (but does NOT destroy the socket
  *   so other consumers can still use `getSocket()` directly).
  */
-export function SocketProvider({ children }: SocketProviderProps): JSX.Element {
+export function SocketProvider({ children }: SocketProviderProps): ReactElement {
   const [status, setStatus] = useState<SocketConnectionStatus>('disconnected');
   const socketRef = useRef<Socket | null>(null);
 
@@ -265,8 +284,11 @@ export function SocketProvider({ children }: SocketProviderProps): JSX.Element {
     // Set initial status
     if (socket.connected) {
       setStatus('connected');
+    } else if (socket.io.opts.autoConnect) {
+      // Socket is actively trying to connect — show connecting, not disconnected
+      setStatus('connecting');
     } else {
-      setStatus(socket.active ? 'connecting' : 'disconnected');
+      setStatus('disconnected');
     }
 
     // Only attach provider-level status listeners once
@@ -275,24 +297,41 @@ export function SocketProvider({ children }: SocketProviderProps): JSX.Element {
     if (!providerListenersAttached) {
       providerListenersAttached = true;
 
-      providerConnectHandler = () => setStatus('connected');
-      providerDisconnectHandler = () => setStatus('disconnected');
-      providerReconnectAttemptHandler = () => setStatus('connecting');
-      providerIoReconnectAttemptHandler = () => setStatus('connecting');
+      providerConnectHandler = () => {
+        reconnectAttempts = 0;
+        setStatus('connected');
+      };
+      providerDisconnectHandler = (reason: string) => {
+        console.warn('[SocketProvider] disconnect:', reason);
+        setStatus('disconnected');
+      };
+      providerReconnectAttemptHandler = (attempt: number) => {
+        reconnectAttempts = attempt;
+        setStatus('connecting');
+      };
+      providerIoReconnectAttemptHandler = () => {
+        setStatus('connecting');
+      };
+      providerConnectErrorHandler = (err: Error) => {
+        console.warn('[SocketProvider] connect_error:', err.message);
+        setStatus('disconnected');
+      };
 
       socket.on('connect', providerConnectHandler);
       socket.on('disconnect', providerDisconnectHandler);
       socket.on('reconnect_attempt', providerReconnectAttemptHandler);
+      socket.on('connect_error', providerConnectErrorHandler);
       socket.io.on('reconnect_attempt', providerIoReconnectAttemptHandler);
       // Also listen for io-level reconnect success as a safety net
       socket.io.on('reconnect', providerConnectHandler);
       // When reconnection fails permanently (after all attempts), set to disconnected
-      socket.io.on('reconnect_failed', () => setStatus('disconnected'));
-    }
-
-    // Ensure the socket is connected
-    if (!socket.connected) {
-      socket.connect();
+      providerIoReconnectFailedHandler = () => setStatus('disconnected');
+      socket.io.on('reconnect_failed', providerIoReconnectFailedHandler);
+      // Handle manager errors
+      providerIoErrorHandler = (err: Error) => {
+        console.error('[SocketProvider] manager error:', err.message);
+      };
+      socket.io.on('error', providerIoErrorHandler);
     }
 
     return () => {
@@ -306,15 +345,27 @@ export function SocketProvider({ children }: SocketProviderProps): JSX.Element {
         if (socket && providerListenersAttached) {
           if (providerConnectHandler) socket.off('connect', providerConnectHandler);
           if (providerDisconnectHandler) socket.off('disconnect', providerDisconnectHandler);
-          if (providerReconnectAttemptHandler) socket.off('reconnect_attempt', providerReconnectAttemptHandler);
+          if (providerReconnectAttemptHandler) socket.off('reconnect_attempt', providerReconnectAttemptHandler as (attempt: number) => void);
+          if (providerConnectErrorHandler) socket.off('connect_error', providerConnectErrorHandler);
           if (providerIoReconnectAttemptHandler) {
             socket.io.off('reconnect_attempt', providerIoReconnectAttemptHandler);
+          }
+          if (providerConnectHandler) {
             socket.io.off('reconnect', providerConnectHandler);
+          }
+          if (providerIoReconnectFailedHandler) {
+            socket.io.off('reconnect_failed', providerIoReconnectFailedHandler);
+          }
+          if (providerIoErrorHandler) {
+            socket.io.off('error', providerIoErrorHandler);
           }
           providerConnectHandler = null;
           providerDisconnectHandler = null;
           providerReconnectAttemptHandler = null;
           providerIoReconnectAttemptHandler = null;
+          providerConnectErrorHandler = null;
+          providerIoReconnectFailedHandler = null;
+          providerIoErrorHandler = null;
           providerListenersAttached = false;
         }
       }
@@ -323,20 +374,20 @@ export function SocketProvider({ children }: SocketProviderProps): JSX.Element {
 
   // ─── Memoize context value to prevent unnecessary re-renders ───
   // Use state instead of ref to avoid accessing ref during render
-  const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
+  const [socketInstanceState, setSocketInstanceState] = useState<Socket | null>(null);
 
   // Sync ref to state when socket changes (in effects, not during render)
   useEffect(() => {
-    setSocketInstance(socketRef.current);
+    setSocketInstanceState(socketRef.current);
   }, [status]);
 
   const contextValue = useMemo<SocketContextValue>(
     () => ({
-      socket: socketInstance,
+      socket: socketInstanceState,
       status,
       isConnected: status === 'connected',
     }),
-    [socketInstance, status],
+    [socketInstanceState, status],
   );
 
   return (
@@ -437,3 +488,4 @@ export function useSocketEvent<T = unknown>(
     };
   }, [event]);
 }
+

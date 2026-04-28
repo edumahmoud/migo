@@ -134,7 +134,7 @@ function TypingIndicator({ names }: { names: string[] }) {
 // =====================================================
 export default function ChatSection({ profile, role }: ChatSectionProps) {
   // ─── Shared socket ───
-  const { socket, isConnected, joinRoom, leaveRoom, joinAllRooms } = useSharedSocket();
+  const { socket, status, isConnected, joinRoom, leaveRoom, joinAllRooms } = useSharedSocket();
   const { openProfile } = useAppStore();
   const { setChatUnreadCount } = useAppStore();
 
@@ -1375,14 +1375,22 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               </div>
               <div className="flex items-center gap-2">
                 {/* Socket connection indicator */}
-                <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted/50" title={isConnected ? 'متصل بالسيرفر' : 'غير متصل - يتم التحديث تلقائياً'}>
-                  {isConnected ? (
+                <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted/50" title={
+                  status === 'connected' ? 'متصل بالسيرفر'
+                    : status === 'connecting' ? 'جاري الاتصال بالسيرفر...'
+                    : 'غير متصل - يتم التحديث تلقائياً'
+                }>
+                  {status === 'connected' ? (
                     <Wifi className="h-3 w-3 text-emerald-500" />
+                  ) : status === 'connecting' ? (
+                    <RefreshCw className="h-3 w-3 text-amber-500 animate-spin" />
                   ) : (
                     <WifiOff className="h-3 w-3 text-rose-400" />
                   )}
                   <span className="text-[10px] text-muted-foreground">
-                    {isConnected ? 'متصل' : 'غير متصل'}
+                    {status === 'connected' ? 'متصل'
+                      : status === 'connecting' ? 'جاري الاتصال...'
+                      : 'غير متصل'}
                   </span>
                 </div>
                 {/* Delete all conversations button */}
@@ -1816,8 +1824,10 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
                 {/* Connection status in header */}
                 <div className="flex items-center gap-1">
-                  {isConnected ? (
+                  {status === 'connected' ? (
                     <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+                  ) : status === 'connecting' ? (
+                    <RefreshCw className="h-3.5 w-3.5 text-amber-500 animate-spin" />
                   ) : (
                     <div className="flex items-center gap-1" title="يتم التحديث كل 5 ثوانٍ">
                       <WifiOff className="h-3.5 w-3.5 text-rose-400" />

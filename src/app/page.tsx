@@ -7,7 +7,7 @@ import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDa
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
-import { SocketProvider, setSocketAuth, destroySocket } from '@/lib/socket';
+import { setSocketAuth, destroySocket } from '@/lib/socket';
 import LoginForm from '@/components/auth/login-form';
 import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
@@ -373,56 +373,54 @@ function HomeContent() {
     };
 
     return (
-      <SocketProvider>
-        <div className="flex min-h-screen bg-background" dir="rtl">
-          <AppHeader
-            userName={user.name}
-            userId={user.id}
-            userRole={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
-            userGender={user.gender}
-            titleId={user.title_id}
-            avatarUrl={user.avatar_url}
-            onSignOut={() => {
-              destroySocket();
-              resetAppStore();
-              setCurrentPage('auth');
-              signOut();
-            }}
-            onOpenSettings={() => {
-              if (user.role === 'superadmin' || user.role === 'admin') {
-                setAdminSection('settings' as AdminSection);
-                setCurrentPage('admin-dashboard');
-              } else if (user.role === 'teacher') {
-                setTeacherSection('settings' as TeacherSection);
-                setCurrentPage('teacher-dashboard');
-              } else {
-                setStudentSection('settings' as StudentSection);
-                setCurrentPage('student-dashboard');
-              }
-            }}
-            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-            sidebarCollapsed={!sidebarOpen}
+      <div className="flex min-h-screen bg-background" dir="rtl">
+        <AppHeader
+          userName={user.name}
+          userId={user.id}
+          userRole={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
+          userGender={user.gender}
+          titleId={user.title_id}
+          avatarUrl={user.avatar_url}
+          onSignOut={() => {
+            destroySocket();
+            resetAppStore();
+            setCurrentPage('auth');
+            signOut();
+          }}
+          onOpenSettings={() => {
+            if (user.role === 'superadmin' || user.role === 'admin') {
+              setAdminSection('settings' as AdminSection);
+              setCurrentPage('admin-dashboard');
+            } else if (user.role === 'teacher') {
+              setTeacherSection('settings' as TeacherSection);
+              setCurrentPage('teacher-dashboard');
+            } else {
+              setStudentSection('settings' as StudentSection);
+              setCurrentPage('student-dashboard');
+            }
+          }}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          sidebarCollapsed={!sidebarOpen}
+        />
+        <AppSidebar
+          role={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
+          activeSection={profileActiveSection}
+          onSectionChange={profileSectionChangeHandler}
+          customNavItems={profileNavItems}
+        />
+        <main className={`flex-1 pt-14 sm:pt-16 transition-all duration-300 pl-0 ${
+          sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
+        }`}>
+          <UserProfilePage
+            userId={profileUserId}
+            currentUser={user}
+            onBack={() => setCurrentPage(
+              user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' :
+              user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard'
+            )}
           />
-          <AppSidebar
-            role={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
-            activeSection={profileActiveSection}
-            onSectionChange={profileSectionChangeHandler}
-            customNavItems={profileNavItems}
-          />
-          <main className={`flex-1 pt-14 sm:pt-16 transition-all duration-300 pl-0 ${
-            sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
-          }`}>
-            <UserProfilePage
-              userId={profileUserId}
-              currentUser={user}
-              onBack={() => setCurrentPage(
-                user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' :
-                user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard'
-              )}
-            />
-          </main>
-        </div>
-      </SocketProvider>
+        </main>
+      </div>
     );
   }
 
@@ -478,11 +476,9 @@ function HomeContent() {
   })();
 
   return (
-    <SocketProvider>
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-emerald-50/30" dir="rtl">
-        {dashboardContent}
-      </div>
-    </SocketProvider>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-emerald-50/30" dir="rtl">
+      {dashboardContent}
+    </div>
   );
 }
 

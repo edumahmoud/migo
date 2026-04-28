@@ -24,8 +24,16 @@ if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
 export { webpush };
 
 /**
+ * Result of sending a push notification.
+ */
+export type PushSendResult =
+  | { success: true; expired: false }
+  | { success: false; expired: true }    // 410/404 — subscription should be removed
+  | { success: false; expired: false };  // Other error (VAPID missing, network, etc.)
+
+/**
  * Send a push notification to a specific subscription.
- * Returns true if sent successfully, false otherwise.
+ * Returns detailed result to distinguish expired subscriptions from config errors.
  */
 export async function sendPushNotification(
   subscription: PushSubscriptionLike,
@@ -36,23 +44,24 @@ export async function sendPushNotification(
     type?: string;
     actions?: Array<{ action: string; title: string; icon?: string }>;
   }
-): Promise<boolean> {
+): Promise<PushSendResult> {
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    return false;
+    console.warn('[Push] VAPID keys not configured — skipping push send');
+    return { success: false, expired: false };
   }
 
   try {
     await webpush.sendNotification(subscription, JSON.stringify(payload));
-    return true;
+    return { success: true, expired: false };
   } catch (error: unknown) {
     const err = error as { statusCode?: number };
     // 410 = subscription expired, 404 = subscription invalid
     if (err.statusCode === 410 || err.statusCode === 404) {
-      console.log('Push subscription expired or invalid, should be removed');
-      return false;
+      console.log('[Push] Subscription expired or invalid (status %d), removing', err.statusCode);
+      return { success: false, expired: true };
     }
     console.error('Push notification send error:', error);
-    return false;
+    return { success: false, expired: false };
   }
 }
 

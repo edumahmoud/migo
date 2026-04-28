@@ -33,7 +33,8 @@ async function waitForServiceWorker(timeoutMs = 4000): Promise<ServiceWorkerRegi
  * 2. In-app notifications fallback (iframe/embedded) — just requests Notification permission for in-app alerts
  */
 export default function NotificationPermission() {
-  const [permission, setPermission] = useState<NotificationPermissionState>('default');
+  const [permission, setPermission] = useState<NotificationPermission>('default');
+  const [pushDisabled, setPushDisabled] = useState(false); // Tracks user preference (separate from browser permission)
   const [loading, setLoading] = useState(false);
   const { user } = useAuthStore();
 
@@ -43,6 +44,16 @@ export default function NotificationPermission() {
     // Check current notification permission
     if ('Notification' in window) {
       setPermission(Notification.permission);
+    }
+
+    // Check if user previously disabled push (stored in localStorage)
+    try {
+      const disabled = localStorage.getItem('push_disabled');
+      if (disabled === '1') {
+        setPushDisabled(true);
+      }
+    } catch {
+      // localStorage not available
     }
   }, []);
 
@@ -63,8 +74,6 @@ export default function NotificationPermission() {
           toast.error('تم رفض إذن الإشعارات. يمكنك تفعيله من إعدادات المتصفح.');
           return;
         }
-
-        toast.success('تم تفعيل الإشعارات!');
       }
 
       // Step 2: Try Web Push subscription (only works in standalone/secure context)
@@ -78,7 +87,7 @@ export default function NotificationPermission() {
           // Subscribe to push
           const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as BufferSource,
           });
 
           // Send subscription to server
@@ -99,11 +108,13 @@ export default function NotificationPermission() {
           });
 
           if (res.ok) {
-            toast.success('تم تفعيل الإشعارات الخارجية بنجاح! ستصلك حتى عند إغلاق المتصفح.');
+            setPushDisabled(false);
+            try { localStorage.removeItem('push_disabled'); } catch {}
+            toast.success('تم تفعيل الإشعارات بنجاح! ستصلك حتى عند إغلاق المتصفح.');
           }
         } catch (pushError) {
           // Push subscription failed (common in iframe/sandbox) — in-app notifications still work
-          console.warn('[Push] Web Push subscription failed (in-app notifications still active):', pushError);
+          console.warn('[Push] Web Push subscription failed:', pushError);
           toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA من المتصفح.');
         }
       } else {
@@ -135,11 +146,13 @@ export default function NotificationPermission() {
             });
           }
         } catch {
-          // Push not available, just update permission state
+          // Push not available, just update preference state
         }
       }
 
-      setPermission('default');
+      // Store user preference (browser permission can't be changed programmatically)
+      setPushDisabled(true);
+      try { localStorage.setItem('push_disabled', '1'); } catch {}
       toast.success('تم إيقاف الإشعارات الخارجية');
     } catch (error) {
       console.error('Push unsubscribe error:', error);
@@ -149,8 +162,30 @@ export default function NotificationPermission() {
     }
   };
 
-  // Permission granted — show as enabled
-  if (permission === 'granted') {
+  // User explicitly disabled push OR browser permission denied — show as disabled
+  if (pushDisabled || permission === 'denied') {
+    const isDenied = permission === 'denied';
+    return (
+      <button
+        onClick={isDenied ? () => {
+          toast.info('يرجى تفعيل الإشعارات من إعدادات المتصفح: المزيد ⚙️ > الإعدادات > الإشعارات > السماح');
+        } : handleEnable}
+        disabled={loading}
+        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground/40 hover:bg-muted/30 transition-colors touch-manipulation"
+        aria-label={isDenied ? 'الإشعارات محظورة' : 'الإشعارات متوقفة - اضغط للتفعيل'}
+        title={isDenied ? 'الإشعارات محظورة - فعّلها من إعدادات المتصفح' : 'الإشعارات متوقفة'}
+      >
+        {loading ? (
+          <span className="h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <BellOff className="h-5 w-5" />
+        )}
+      </button>
+    );
+  }
+
+  // Permission granted and not disabled — show as enabled
+  if (permission === 'granted' && !pushDisabled) {
     return (
       <button
         onClick={handleDisable}
@@ -160,22 +195,6 @@ export default function NotificationPermission() {
         title="الإشعارات مفعّلة"
       >
         {loading ? <span className="h-4 w-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /> : <BellRing className="h-5 w-5" />}
-      </button>
-    );
-  }
-
-  // Permission denied — show as blocked
-  if (permission === 'denied') {
-    return (
-      <button
-        onClick={() => {
-          toast.info('يرجى تفعيل الإشعارات من إعدادات المتصفح: المزيد ⚙️ > الإعدادات > الإشعارات > السماح');
-        }}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground/40 hover:bg-muted/30 transition-colors touch-manipulation"
-        aria-label="الإشعارات محظورة"
-        title="الإشعارات محظورة - فعّلها من إعدادات المتصفح"
-      >
-        <BellOff className="h-5 w-5" />
       </button>
     );
   }
@@ -215,3 +234,4 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   }
   return outputArray;
 }
+

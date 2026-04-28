@@ -6,6 +6,8 @@ import InstitutionHead from "@/components/shared/institution-head";
 import ServiceWorkerRegistration from "@/components/shared/sw-registration";
 import InstallPrompt from "@/components/shared/install-prompt";
 
+import { SocketProvider } from "@/lib/socket";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -57,11 +59,37 @@ export default function RootLayout({
         <InstitutionHead />
         <link rel="apple-touch-icon" href="/api/icon/180" data-dynamic-apple />
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* White screen detection: reload once if body stays empty after 8s */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                var reloaded = sessionStorage.getItem('_wsr');
+                if (reloaded) return;
+                var start = Date.now();
+                function check() {
+                  var elapsed = Date.now() - start;
+                  var body = document.body;
+                  var hasContent = body && (body.children.length > 0 || body.textContent.trim().length > 0);
+                  if (!hasContent && elapsed > 8000) {
+                    sessionStorage.setItem('_wsr', '1');
+                    window.location.reload();
+                  } else if (elapsed < 12000) {
+                    requestAnimationFrame(check);
+                  }
+                }
+                requestAnimationFrame(check);
+              })();
+            `,
+          }}
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        {children}
+        <SocketProvider>
+          {children}
+        </SocketProvider>
         <Toaster />
         <ServiceWorkerRegistration />
         <InstallPrompt />

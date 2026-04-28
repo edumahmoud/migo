@@ -13,7 +13,6 @@ import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import NotificationBell from '@/components/shared/notification-bell';
-import NotificationPermission from '@/components/shared/notification-permission';
 import UserAvatar from '@/components/shared/user-avatar';
 
 // -------------------------------------------------------
@@ -142,8 +141,6 @@ export default function AppHeader({
 
         {/* ── Left side: Notifications + User ── */}
         <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
-          {/* Push Notification Permission Toggle */}
-          <NotificationPermission />
           {/* Notification Bell */}
           <NotificationBell />
 

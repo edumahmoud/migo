@@ -27,9 +27,9 @@ CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON public.push_subscri
 -- Enable RLS
 ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 
--- Policy: users can read their own subscriptions
+-- Policy: users can only read their own subscriptions
 CREATE POLICY "Users can read own push subscriptions" ON public.push_subscriptions
-  FOR SELECT USING (true);
+  FOR SELECT USING (auth.uid() = user_id);
 
 -- Policy: service role can do everything (handled via service key)
 CREATE POLICY "Service role full access" ON public.push_subscriptions

@@ -11,6 +11,16 @@ import { useEffect } from 'react';
  * - Stores subscription in Supabase for server-side push delivery
  */
 
+// Global promise so other components can wait for SW registration
+let swRegistrationPromise: Promise<ServiceWorkerRegistration | null> | null = null;
+
+export function getSWRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (swRegistrationPromise) return swRegistrationPromise;
+  if (!('serviceWorker' in navigator)) return Promise.resolve(null);
+  // Fallback: wait for ready state
+  return navigator.serviceWorker.ready.then(r => r as ServiceWorkerRegistration).catch(() => null);
+}
+
 // VAPID public key from environment (with fallback hardcoded key)
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
 
@@ -61,7 +71,7 @@ async function subscribeToPush(
     // Subscribe to push
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as BufferSource,
     });
 
     // Sync subscription to server
@@ -114,6 +124,9 @@ export default function ServiceWorkerRegistration() {
         const registration = await navigator.serviceWorker.register('/sw.js', {
           scope: '/',
         });
+
+        // Store globally so other components can await it
+        swRegistrationPromise = Promise.resolve(registration);
 
         // Check for updates periodically (store interval ID for cleanup)
         updateIntervalId = setInterval(() => {

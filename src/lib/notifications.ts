@@ -78,6 +78,11 @@ export async function sendNotification({
 /**
  * Send a notification to multiple users at once.
  *
+ * Optimizations:
+ * - Deduplicates userIds to avoid duplicate notifications
+ * - Uses Promise.allSettled for parallel push delivery
+ * - Limits concurrent push requests to avoid overwhelming the server
+ *
  * @example
  * ```ts
  * await sendBulkNotification({
@@ -104,8 +109,11 @@ export async function sendBulkNotification({
 }) {
   if (userIds.length === 0) return;
 
+  // Deduplicate userIds to prevent duplicate notifications
+  const uniqueUserIds = [...new Set(userIds)];
+
   try {
-    const rows = userIds.map((userId) => ({
+    const rows = uniqueUserIds.map((userId) => ({
       user_id: userId,
       type,
       title,
@@ -117,13 +125,64 @@ export async function sendBulkNotification({
 
     if (error) {
       console.error('Failed to send bulk notifications:', error);
-    } else {
-      // Also send as external push notifications (non-blocking, one per user)
-      for (const uid of userIds) {
-        sendPushViaServer(uid, title, message, link, type).catch(() => {});
-      }
+      return;
+    }
+
+    // Send external push notifications in parallel batches
+    // to avoid overwhelming the server with too many concurrent requests
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < uniqueUserIds.length; i += BATCH_SIZE) {
+      const batch = uniqueUserIds.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(
+        batch.map((uid) => sendPushViaServer(uid, title, message, link, type))
+      );
     }
   } catch (err) {
     console.error('Failed to send bulk notifications:', err);
   }
 }
+
+/**
+ * Send a notification to all users with a specific role.
+ *
+ * @example
+ * ```ts
+ * await sendNotificationToRole({
+ *   role: 'student',
+ *   type: 'announcement',
+ *   title: 'إعلان هام',
+ *   message: 'سيتم إجراء صيانة للنظام غداً',
+ * });
+ * ```
+ */
+export async function sendNotificationToRole({
+  role,
+  type,
+  title,
+  message,
+  link,
+}: {
+  role: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  link?: string;
+}) {
+  try {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role', role);
+
+    if (error || !users || users.length === 0) {
+      console.error('Failed to fetch users for role notification:', error);
+      return;
+    }
+
+    const userIds = users.map((u) => u.id);
+    await sendBulkNotification({ userIds, type, title, message, link });
+  } catch (err) {
+    console.error('Failed to send role notification:', err);
+  }
+}
+
