@@ -107,27 +107,35 @@ export default function ServiceWorkerRegistration() {
     if (typeof window === 'undefined') return;
     if (!('serviceWorker' in navigator)) return;
 
+    let updateIntervalId: ReturnType<typeof setInterval> | null = null;
+
     const registerSW = async () => {
       try {
         const registration = await navigator.serviceWorker.register('/sw.js', {
           scope: '/',
         });
 
-        // Check for updates periodically
-        setInterval(() => {
+        // Check for updates periodically (store interval ID for cleanup)
+        updateIntervalId = setInterval(() => {
           registration.update();
         }, 60 * 60 * 1000); // Every hour
 
-        // Handle updates
+        // Handle updates — send SKIP_WAITING and reload when new SW is installed
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing;
           if (!newWorker) return;
 
           newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'activated') {
-              console.log('[PWA] New service worker activated');
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New version available — tell it to activate immediately
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
             }
           });
+        });
+
+        // When the controlling SW changes (after SKIP_WAITING), reload the page
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
         });
 
         console.log('[PWA] Service Worker registered successfully');
@@ -160,12 +168,48 @@ export default function ServiceWorkerRegistration() {
       }
     };
 
+    // Handle deeplink from ?deeplink= query param on initial page load
+    const handleInitialDeeplink = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const deeplink = params.get('deeplink');
+        if (deeplink) {
+          const url = decodeURIComponent(deeplink);
+          window.dispatchEvent(new CustomEvent('notification-deeplink', {
+            detail: { url, notifType: 'system' },
+          }));
+          // Clean up the URL without reloading
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('deeplink');
+          window.history.replaceState({}, '', cleanUrl.pathname);
+        }
+      } catch {
+        // Ignore malformed deeplink
+      }
+    };
+
     // Register after page load for better performance
     if (document.readyState === 'complete') {
       registerSW();
+      handleInitialDeeplink();
     } else {
-      window.addEventListener('load', registerSW);
+      window.addEventListener('load', () => {
+        registerSW();
+        handleInitialDeeplink();
+      });
     }
+
+    // Listen for messages from the service worker (notification click deeplinks)
+    const handleSWMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NOTIFICATION_CLICK') {
+        const { url, notifType } = event.data;
+        window.dispatchEvent(new CustomEvent('notification-deeplink', {
+          detail: { url, notifType },
+        }));
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleSWMessage);
 
     // Listen for custom event to subscribe to push (triggered by notification permission UI)
     const handleSubscribePush = async (event: Event) => {
@@ -184,6 +228,8 @@ export default function ServiceWorkerRegistration() {
     window.addEventListener('subscribe-push', handleSubscribePush);
 
     return () => {
+      if (updateIntervalId) clearInterval(updateIntervalId);
+      navigator.serviceWorker.removeEventListener('message', handleSWMessage);
       window.removeEventListener('subscribe-push', handleSubscribePush);
     };
   }, []);

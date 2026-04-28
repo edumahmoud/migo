@@ -387,7 +387,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
       if (lecturesResult.error) { setLectures([]); if (isInitial) setLoading(false); return; }
 
-      const lecturesList = (lecturesResult.data as Lecture[]) || [];
+      const lecturesList = ((lecturesResult.data as Lecture[]) || []).filter(l => !l.title.startsWith('__'));
       const sessionsList = (sessionsResult.data as AttendanceSession[]) || [];
       const sessionMap = new Map<string, AttendanceSession>();
       sessionsList.forEach((s) => sessionMap.set(s.lecture_id, s));

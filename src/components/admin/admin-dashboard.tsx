@@ -457,6 +457,31 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     }
   };
 
+  // -------------------------------------------------------
+  // Fetch banned users (declared early to avoid TDZ)
+  // -------------------------------------------------------
+  const fetchBannedUsers = useCallback(async () => {
+    setLoadingBanned(true);
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+      const res = await fetchWithTimeout('/api/admin/data?type=banned', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const result = await res.json();
+      if (result.success && result.data) {
+        const bannedData = result.data.banned || result.data.data || result.data;
+        setBannedUsers(Array.isArray(bannedData) ? bannedData as BannedUser[] : []);
+      } else {
+        setBannedUsers([]);
+      }
+    } catch {
+      setBannedUsers([]);
+    } finally {
+      setLoadingBanned(false);
+    }
+  }, [fetchWithTimeout, getAuthToken]);
+
   useEffect(() => {
     fetchAllData();
     fetchBannedUsers();
@@ -623,30 +648,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     }
   };
 
-  // -------------------------------------------------------
-  // Fetch banned users
-  // -------------------------------------------------------
-  const fetchBannedUsers = useCallback(async () => {
-    setLoadingBanned(true);
-    try {
-      const token = await getAuthToken();
-      if (!token) return;
-      const res = await fetchWithTimeout('/api/admin/data?type=banned', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const result = await res.json();
-      if (result.success && result.data) {
-        const bannedData = result.data.banned || result.data.data || result.data;
-        setBannedUsers(Array.isArray(bannedData) ? bannedData as BannedUser[] : []);
-      } else {
-        setBannedUsers([]);
-      }
-    } catch {
-      setBannedUsers([]);
-    } finally {
-      setLoadingBanned(false);
-    }
-  }, [fetchWithTimeout, getAuthToken]);
 
   const handleUnbanUser = async (email: string, banId?: string) => {
     setUnbanningEmail(email);

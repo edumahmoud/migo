@@ -350,12 +350,14 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Missing recipientId' }, { status: 400 });
         }
 
+        const chatLink = conversationId ? `chat:${conversationId}` : 'chat';
+
         await notifyUser(
           recipientId,
-          'system',
+          'chat',
           `رسالة من ${senderName || 'مستخدم'}`,
           messagePreview || 'لديك رسالة جديدة',
-          'chat'
+          chatLink
         );
         return NextResponse.json({ success: true });
       }

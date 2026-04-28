@@ -176,6 +176,51 @@ export default function NotificationBell() {
     }
   };
 
+  /** Parse notification link and navigate using app store */
+  const navigateToLink = (link: string) => {
+    // Link format examples: "assignments", "subjects", "quizzes", "attendance"
+    // Or with detail: "assignments?id=xxx"
+    // Or tab-based: "subjects?tab=lectures&id=SUBJECT_ID"
+    const [section, queryString] = link.split('?');
+    const role = user?.role;
+
+    // Parse query params
+    const params = new URLSearchParams(queryString || '');
+    const tab = params.get('tab');
+    const subjectId = params.get('id');
+
+    // Handle tab-based navigation for subjects (e.g., "subjects?tab=lectures&id=SUBJECT_ID")
+    if (section === 'subjects' && subjectId) {
+      const { setSelectedSubjectId, setCourseTab } = useAppStore.getState();
+      setSelectedSubjectId(subjectId);
+      if (tab) {
+        setCourseTab(tab as CourseTab);
+      }
+      if (role === 'student') {
+        setStudentSection('subjects');
+        setCurrentPage('student-dashboard');
+      } else if (role === 'teacher' || role === 'admin' || role === 'superadmin') {
+        setTeacherSection('subjects');
+        setCurrentPage('teacher-dashboard');
+      }
+      return;
+    }
+
+    if (role === 'student') {
+      const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'chat', 'settings', 'notifications'];
+      if (validSections.includes(section)) {
+        setStudentSection(section as 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications');
+        setCurrentPage('student-dashboard');
+      }
+    } else if (role === 'teacher') {
+      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications'];
+      if (validSections.includes(section)) {
+        setTeacherSection(section as 'dashboard' | 'subjects' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications');
+        setCurrentPage('teacher-dashboard');
+      }
+    }
+  };
+
   /** Handle clicking a notification — mark as read and navigate if link is provided */
   const handleNotificationClick = (notif: { id: string; type: string; title?: string; read: boolean; link?: string | null; message?: string }) => {
     if (!notif.read) {
@@ -267,50 +312,29 @@ export default function NotificationBell() {
     }
   };
 
-  /** Parse notification link and navigate using app store */
-  const navigateToLink = (link: string) => {
-    // Link format examples: "assignments", "subjects", "quizzes", "attendance"
-    // Or with detail: "assignments?id=xxx"
-    // Or tab-based: "subjects?tab=lectures&id=SUBJECT_ID"
-    const [section, queryString] = link.split('?');
-    const role = user?.role;
+  // Ref to always point to the latest handleNotificationClick
+  const handleNotificationClickRef = useRef(handleNotificationClick);
+  useEffect(() => {
+    handleNotificationClickRef.current = handleNotificationClick;
+  });
 
-    // Parse query params
-    const params = new URLSearchParams(queryString || '');
-    const tab = params.get('tab');
-    const subjectId = params.get('id');
+  // Listen for deeplink events from SW (notification clicks and initial page load deeplinks)
+  useEffect(() => {
+    const handleDeeplink = (event: Event) => {
+      const { url, notifType } = (event as CustomEvent).detail || {};
+      if (url && handleNotificationClickRef.current) {
+        handleNotificationClickRef.current({
+          id: `deeplink-${Date.now()}`,
+          type: notifType || 'system',
+          read: false,
+          link: url,
+        });
+      }
+    };
 
-    // Handle tab-based navigation for subjects (e.g., "subjects?tab=lectures&id=SUBJECT_ID")
-    if (section === 'subjects' && subjectId) {
-      const { setSelectedSubjectId, setCourseTab } = useAppStore.getState();
-      setSelectedSubjectId(subjectId);
-      if (tab) {
-        setCourseTab(tab as CourseTab);
-      }
-      if (role === 'student') {
-        setStudentSection('subjects');
-        setCurrentPage('student-dashboard');
-      } else if (role === 'teacher' || role === 'admin' || role === 'superadmin') {
-        setTeacherSection('subjects');
-        setCurrentPage('teacher-dashboard');
-      }
-      return;
-    }
-
-    if (role === 'student') {
-      const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'chat', 'settings', 'notifications'];
-      if (validSections.includes(section)) {
-        setStudentSection(section as 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications');
-        setCurrentPage('student-dashboard');
-      }
-    } else if (role === 'teacher') {
-      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications'];
-      if (validSections.includes(section)) {
-        setTeacherSection(section as 'dashboard' | 'subjects' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications');
-        setCurrentPage('teacher-dashboard');
-      }
-    }
-  };
+    window.addEventListener('notification-deeplink', handleDeeplink);
+    return () => window.removeEventListener('notification-deeplink', handleDeeplink);
+  }, []);
 
   return (
     <>

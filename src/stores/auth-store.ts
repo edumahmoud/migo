@@ -224,6 +224,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user, loading: false }),
   
   initialize: async () => {
+    const initPromise = (async () => {
     try {
       // If Supabase is not configured, skip initialization and show auth page
       if (!isSupabaseConfigured) {
@@ -237,62 +238,67 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // ─── Use server-side API to fetch profile (bypasses RLS) ───
         // The /api/auth/me endpoint uses the service role key, so it's not affected
         // by RLS policies that might block client-side queries.
+        const meController = new AbortController();
+        const meTimeoutId = setTimeout(() => meController.abort(), 8000);
         try {
-          const res = await fetch('/api/auth/me', {
-            headers: { 'Authorization': `Bearer ${session.access_token}` },
-          });
-          
-          if (res.ok) {
-            const data = await res.json();
-            const profile = data.profile as UserProfile | null;
-            const banInfo = data.banInfo as { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
+            const res = await fetch('/api/auth/me', {
+              headers: { 'Authorization': `Bearer ${session.access_token}` },
+              signal: meController.signal,
+            });
+            clearTimeout(meTimeoutId);
             
-            if (profile) {
-              // Check if user is banned
-              if (banInfo) {
-                set({ 
-                  user: profile, 
-                  loading: false, 
-                  initialized: true,
-                  banInfo
-                });
+            if (res.ok) {
+              const data = await res.json();
+              const profile = data.profile as UserProfile | null;
+              const banInfo = data.banInfo as { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
+              
+              if (profile) {
+                // Check if user is banned
+                if (banInfo) {
+                  set({ 
+                    user: profile, 
+                    loading: false, 
+                    initialized: true,
+                    banInfo
+                  });
 
+                  if (sessionCheckCleanup) sessionCheckCleanup();
+                  sessionCheckCleanup = startSessionValidation(profile.id, async () => {
+                    await supabase.auth.signOut();
+                    set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+                  });
+                  return;
+                }
+
+                // Start periodic session validation
                 if (sessionCheckCleanup) sessionCheckCleanup();
                 sessionCheckCleanup = startSessionValidation(profile.id, async () => {
                   await supabase.auth.signOut();
-                  set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
+                  set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
                 });
-                return;
+
+                set({ user: profile, loading: false, initialized: true, banInfo: null });
+              } else {
+                // Profile couldn't be created — use fallback from auth metadata
+                const fallbackProfile = createFallbackProfile(session.user);
+                if (sessionCheckCleanup) sessionCheckCleanup();
+                sessionCheckCleanup = startSessionValidation(fallbackProfile.id, async () => {
+                  await supabase.auth.signOut();
+                  set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
+                });
+                set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
               }
-
-              // Start periodic session validation
-              if (sessionCheckCleanup) sessionCheckCleanup();
-              sessionCheckCleanup = startSessionValidation(profile.id, async () => {
-                await supabase.auth.signOut();
-                set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
-              });
-
-              set({ user: profile, loading: false, initialized: true, banInfo: null });
             } else {
-              // Profile couldn't be created — use fallback from auth metadata
+              // API call failed — use fallback from auth metadata
               const fallbackProfile = createFallbackProfile(session.user);
-              if (sessionCheckCleanup) sessionCheckCleanup();
-              sessionCheckCleanup = startSessionValidation(fallbackProfile.id, async () => {
-                await supabase.auth.signOut();
-                set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر' });
-              });
               set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
             }
-          } else {
-            // API call failed — use fallback from auth metadata
+          } catch {
+            // Network error / timeout — use fallback from auth metadata
+            clearTimeout(meTimeoutId);
             const fallbackProfile = createFallbackProfile(session.user);
             set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
           }
-        } catch {
-          // Network error — use fallback from auth metadata
-          const fallbackProfile = createFallbackProfile(session.user);
-          set({ user: fallbackProfile, loading: false, initialized: true, banInfo: null });
-        }
       } else {
         set({ user: null, loading: false, initialized: true, banInfo: null });
       }
@@ -352,6 +358,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: null, loading: false, banInfo: null });
       }
     });
+    })();
+
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error('Auth init timeout')), 10000);
+    });
+    try {
+      await Promise.race([initPromise, timeoutPromise]);
+    } catch (error) {
+      set({ user: null, loading: false, initialized: true });
+    }
   },
   
   signInWithEmail: async (email, password) => {

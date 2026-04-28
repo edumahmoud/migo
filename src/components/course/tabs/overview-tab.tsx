@@ -146,7 +146,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
         supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('subject_id', subjectId),
       ]);
 
-      const lectures = (lecturesResult.data as Lecture[]) || [];
+      const lectures = ((lecturesResult.data as Lecture[]) || []).filter(l => !l.title.startsWith('__'));
       setRecentLectures(lectures.slice(0, 3));
 
       const files = (filesResult.data as SubjectFile[]) || [];

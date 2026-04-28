@@ -87,8 +87,11 @@ function HomeContent() {
 
   // Check if the system needs initial setup (no users in DB)
   const checkSetupStatus = useCallback(async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     try {
-      const res = await fetch('/api/setup');
+      const res = await fetch('/api/setup', { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (res.ok) {
         const data = await res.json();
         if (!data.initialized) {
@@ -96,7 +99,7 @@ function HomeContent() {
         }
       }
     } catch {
-      // If the API fails, assume setup is not needed (don't block)
+      // timeout or error - still mark as done
     }
     setSetupCheckDone(true);
   }, []);

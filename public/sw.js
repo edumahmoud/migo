@@ -16,12 +16,18 @@ const PRECACHE_URLS = [
   '/logo.svg',
 ];
 
-// Install event — precache static assets
+// Install event — precache static assets (with per-URL error handling)
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
+    caches.open(STATIC_CACHE).then(async (cache) => {
       console.log('[SW] Precaching static assets');
-      return cache.addAll(PRECACHE_URLS);
+      for (const url of PRECACHE_URLS) {
+        try {
+          await cache.add(url);
+        } catch (err) {
+          console.warn('[SW] Failed to precache:', url, err);
+        }
+      }
     })
   );
   // Activate immediately without waiting
@@ -164,8 +170,8 @@ self.addEventListener('push', (event) => {
     event.waitUntil(
       self.registration.showNotification('أتيندو', {
         body: 'لديك إشعار جديد',
-        icon: '/api/icon/192',
-        badge: '/api/icon/192',
+        icon: '/icon-192x192.png',
+        badge: '/icon-192x192.png',
         dir: 'rtl',
         lang: 'ar',
       })
@@ -179,8 +185,8 @@ self.addEventListener('push', (event) => {
     // Build notification options with dynamic icon support
     const options = {
       body: data.message || 'لديك إشعار جديد',
-      icon: '/api/icon/192',
-      badge: '/api/icon/192',
+      icon: '/icon-192x192.png',
+      badge: '/icon-192x192.png',
       dir: 'rtl' as const,
       lang: 'ar',
       vibrate: [100, 50, 100],
@@ -226,8 +232,8 @@ self.addEventListener('push', (event) => {
     event.waitUntil(
       self.registration.showNotification('أتيندو', {
         body: 'لديك إشعار جديد',
-        icon: '/api/icon/192',
-        badge: '/api/icon/192',
+        icon: '/icon-192x192.png',
+        badge: '/icon-192x192.png',
         dir: 'rtl',
         lang: 'ar',
       })
@@ -235,7 +241,7 @@ self.addEventListener('push', (event) => {
   }
 });
 
-// Handle notification click
+// Handle notification click — use postMessage for SPA routing
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -245,18 +251,20 @@ self.addEventListener('notificationclick', (event) => {
   }
 
   const url = event.notification.data?.url || '/';
+  const notifType = event.notification.data?.type || 'system';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Focus existing window if available
+      // Find an existing app window and postMessage to it
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(url);
+          client.postMessage({ type: 'NOTIFICATION_CLICK', url, notifType });
           return client.focus();
         }
       }
-      // Open new window
-      return self.clients.openWindow(url);
+      // No existing window — open a new one with deeplink query param
+      const deeplinkUrl = '/?deeplink=' + encodeURIComponent(url);
+      return self.clients.openWindow(deeplinkUrl);
     })
   );
 });

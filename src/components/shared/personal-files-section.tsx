@@ -320,49 +320,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const fetchSharedFiles = useCallback(async () => {
     setLoadingShared(true);
     try {
-      const { data: shares, error: sharesError } = await supabase
-        .from('file_shares')
-        .select('*')
-        .eq('shared_with', profile.id)
-        .order('created_at', { ascending: false });
-
-      if (sharesError) {
-        console.error('Error fetching shared files:', sharesError);
-        setSharedWithMe([]);
-      } else if (shares && shares.length > 0) {
-        const sharedFiles: SharedFileWithInfo[] = [];
-        for (const share of shares) {
-          const { data: fileData } = await supabase
-            .from('user_files')
-            .select('*')
-            .eq('id', share.file_id)
-            .single();
-
-          if (fileData) {
-            const { data: sharerProfile } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', share.shared_by)
-              .single();
-
-            sharedFiles.push({
-              ...(fileData as UserFile),
-              shared_by_user: (sharerProfile as UserProfile) || undefined,
-              shared_at: share.created_at,
-              permission: share.permission,
-            });
-          }
-        }
-        setSharedWithMe(sharedFiles);
+      const res = await fetch('/api/files/shared-with-me');
+      const data = await res.json();
+      if (data.shares) {
+        setSharedWithMe(data.shares as SharedFileWithInfo[]);
       } else {
         setSharedWithMe([]);
       }
     } catch (err) {
       console.error('Fetch shared files error:', err);
+      setSharedWithMe([]);
     } finally {
       setLoadingShared(false);
     }
-  }, [profile.id]);
+  }, []);
 
   // -------------------------------------------------------
   // Fetch file shares (for share modal)
@@ -620,7 +591,19 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
     }
 
-    toast.success('تم رفع الملفات بنجاح');
+    // Check actual upload results instead of showing success unconditionally
+    setPendingUploads((current) => {
+      const successful = current.filter((p) => p.done);
+      const failed = current.filter((p) => p.progress === -1);
+      if (successful.length > 0 && failed.length === 0) {
+        toast.success('تم رفع الملفات بنجاح');
+      } else if (successful.length > 0 && failed.length > 0) {
+        toast.error(`تم رفع ${successful.length} ملف، فشل ${failed.length} ملف`);
+      } else if (failed.length > 0) {
+        toast.error('فشل رفع جميع الملفات');
+      }
+      return current;
+    });
     fetchFiles();
   };
 
@@ -1405,7 +1388,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     مشاركة
                   </DropdownMenuItem>
                 )}
-                {file.visibility === 'public' && (
+                {(profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') && file.visibility === 'public' && (
                   <DropdownMenuItem onClick={() => openAssignModal(file.id)}>
                     <FolderPlus className="h-4 w-4 ml-2" />
                     اسناد لمقرر
@@ -1688,7 +1671,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         جعل خاصاً
                       </DropdownMenuItem>
                     )}
-                    {Array.from(selectedFileIds).every(id => files.find(f => f.id === id)?.visibility === 'public') && (
+                    {(profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') && Array.from(selectedFileIds).every(id => files.find(f => f.id === id)?.visibility === 'public') && (
                       <DropdownMenuItem
                         onClick={() => openAssignModal(null, true)}
                         className="cursor-pointer"
@@ -1874,7 +1857,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
             {/* Modal body */}
             <div className="p-5 space-y-4 overflow-y-auto min-h-0 custom-scrollbar">
-              {/* Course assignment (optional) */}
+              {/* Course assignment (optional) - only for teachers/admins */}
+              {(profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') && (
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">
                   اسناد لمقررات (اختياري)
@@ -1908,6 +1892,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   </div>
                 )}
               </div>
+              )}
 
               {/* File picker */}
               <div>

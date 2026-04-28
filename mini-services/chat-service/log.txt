@@ -1,1 +1,3 @@
+[Chat] VAPID keys not configured — push notifications disabled
+[Chat] Supabase not configured — push subscriptions unavailable
 [Chat] AttenDo Chat Service running on port 3003

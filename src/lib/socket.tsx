@@ -73,13 +73,16 @@ function getSocketUrl(): string {
   const customUrl = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL;
   if (customUrl) return customUrl;
 
-  // Default: use /socket.io path which is proxied by Next.js rewrites locally
-  return '/socket.io';
+  // Default: empty string = same origin.
+  // The Caddy gateway routes requests to the chat service (port 3003)
+  // via the XTransformPort query parameter.
+  return '';
 }
 
 const SOCKET_URL = getSocketUrl();
 
 const SOCKET_OPTIONS: Parameters<typeof io>[1] = {
+  path: '/socket.io',         // Path on the server where Socket.IO is served
   transports: ['websocket', 'polling'],
   forceNew: false,            // KEY: reuse existing connection, don't create new
   reconnection: true,
@@ -88,6 +91,7 @@ const SOCKET_OPTIONS: Parameters<typeof io>[1] = {
   reconnectionDelayMax: 5000,
   timeout: 10000,
   autoConnect: false,         // We connect manually after setup
+  query: { XTransformPort: '3003' },  // Caddy gateway uses this to route to chat service
 };
 
 // =====================================================
@@ -297,13 +301,13 @@ export function SocketProvider({ children }: SocketProviderProps): JSX.Element {
       // but keep the socket alive for direct getSocket() consumers
       if (providerCount <= 0) {
         providerCount = 0;
-        if (socketInstance && providerListenersAttached) {
-          if (providerConnectHandler) socketInstance.off('connect', providerConnectHandler);
-          if (providerDisconnectHandler) socketInstance.off('disconnect', providerDisconnectHandler);
-          if (providerReconnectAttemptHandler) socketInstance.off('reconnect_attempt', providerReconnectAttemptHandler);
+        if (socket && providerListenersAttached) {
+          if (providerConnectHandler) socket.off('connect', providerConnectHandler);
+          if (providerDisconnectHandler) socket.off('disconnect', providerDisconnectHandler);
+          if (providerReconnectAttemptHandler) socket.off('reconnect_attempt', providerReconnectAttemptHandler);
           if (providerIoReconnectAttemptHandler) {
-            socketInstance.io.off('reconnect_attempt', providerIoReconnectAttemptHandler);
-            socketInstance.io.off('reconnect', providerConnectHandler);
+            socket.io.off('reconnect_attempt', providerIoReconnectAttemptHandler);
+            socket.io.off('reconnect', providerConnectHandler);
           }
           providerConnectHandler = null;
           providerDisconnectHandler = null;
@@ -316,13 +320,21 @@ export function SocketProvider({ children }: SocketProviderProps): JSX.Element {
   }, []);
 
   // ─── Memoize context value to prevent unnecessary re-renders ───
+  // Use state instead of ref to avoid accessing ref during render
+  const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
+
+  // Sync ref to state when socket changes (in effects, not during render)
+  useEffect(() => {
+    setSocketInstance(socketRef.current);
+  }, [status]);
+
   const contextValue = useMemo<SocketContextValue>(
     () => ({
-      socket: socketRef.current,
+      socket: socketInstance,
       status,
       isConnected: status === 'connected',
     }),
-    [status],
+    [socketInstance, status],
   );
 
   return (
