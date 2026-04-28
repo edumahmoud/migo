@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
     if (isVercel) return [];
     return [
       {
+        source: '/socket.io',
+        destination: 'http://localhost:3003/socket.io',
+      },
+      {
         source: '/socket.io/:path*',
         destination: 'http://localhost:3003/socket.io/:path*',
       },

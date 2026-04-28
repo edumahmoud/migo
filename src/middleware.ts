@@ -8,11 +8,12 @@ const protectedApiRoutes = ['/api/gemini', '/api/admin', '/api/files'];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip static files, Next.js internals, and auth callback
+  // Skip static files, Next.js internals, auth callback, and socket.io
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/static') ||
     pathname.startsWith('/auth/callback') ||
+    pathname.startsWith('/socket.io') ||  // Socket.IO — proxied by Next.js rewrites, no auth needed
     pathname.includes('.') // static files
   ) {
     return NextResponse.next();

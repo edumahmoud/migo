@@ -83,10 +83,10 @@ const SOCKET_URL = getSocketUrl();
 
 const SOCKET_OPTIONS: Parameters<typeof io>[1] = {
   path: '/socket.io',         // Path on the server where Socket.IO is served
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'],  // Try polling first — works through Next.js rewrites & Caddy proxy
   forceNew: false,            // KEY: reuse existing connection, don't create new
   reconnection: true,
-  reconnectionAttempts: Infinity,
+  reconnectionAttempts: 10,   // Stop retrying after 10 attempts to avoid infinite "connecting"
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   timeout: 10000,
@@ -286,6 +286,8 @@ export function SocketProvider({ children }: SocketProviderProps): JSX.Element {
       socket.io.on('reconnect_attempt', providerIoReconnectAttemptHandler);
       // Also listen for io-level reconnect success as a safety net
       socket.io.on('reconnect', providerConnectHandler);
+      // When reconnection fails permanently (after all attempts), set to disconnected
+      socket.io.on('reconnect_failed', () => setStatus('disconnected'));
     }
 
     // Ensure the socket is connected

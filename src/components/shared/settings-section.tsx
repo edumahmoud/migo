@@ -163,7 +163,7 @@ export default function SettingsSection({
   const { refreshProfile } = useAuthStore();
 
   // ─── Shared socket ───
-  const { isConnected, emitStatusChange } = useSharedSocket();
+  const { isConnected, status: socketStatus, emitStatusChange } = useSharedSocket();
 
   // ─── Status store ───
   const { myStatus, setMyStatus, init: initStatusStore } = useStatusStore();
@@ -916,11 +916,25 @@ export default function SettingsSection({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-foreground">{currentStatusInfo.label}</p>
-                    {/* Connection indicator - small, non-intrusive */}
-                    <div className="flex items-center gap-1" title={isConnected ? 'متصل بالخادم' : 'جاري الاتصال بالخادم...'}>
-                      <div className={`h-1.5 w-1.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`} />
-                      <span className={`text-[10px] ${isConnected ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {isConnected ? 'متصل' : 'جاري الاتصال'}
+                    {/* Connection indicator - shows actual socket status */}
+                    <div className="flex items-center gap-1" title={
+                      isConnected ? 'متصل بالخادم' 
+                        : socketStatus === 'connecting' ? 'جاري الاتصال بالخادم...' 
+                        : 'غير متصل بالخادم'
+                    }>
+                      <div className={`h-1.5 w-1.5 rounded-full ${
+                        isConnected ? 'bg-emerald-500' 
+                          : socketStatus === 'connecting' ? 'bg-amber-400 animate-pulse' 
+                          : 'bg-red-400'
+                      }`} />
+                      <span className={`text-[10px] ${
+                        isConnected ? 'text-emerald-600' 
+                          : socketStatus === 'connecting' ? 'text-amber-600' 
+                          : 'text-red-500'
+                      }`}>
+                        {isConnected ? 'متصل' 
+                          : socketStatus === 'connecting' ? 'جاري الاتصال' 
+                          : 'غير متصل'}
                       </span>
                     </div>
                   </div>

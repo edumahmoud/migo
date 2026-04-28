@@ -419,7 +419,7 @@ io.on('connection', (socket) => {
 // Start Server
 // -------------------------------------------------------
 const PORT = 3003;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[Chat] AttenDo Chat Service running on port ${PORT}`);
 });
 
