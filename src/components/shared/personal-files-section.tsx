@@ -1437,6 +1437,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </div>
             </div>
 
+            {/* Quick preview button (visible for previewable files) */}
+            {(file.file_type.toLowerCase().includes('image') || file.file_type.toLowerCase().includes('pdf') || file.file_type.toLowerCase().includes('video') || file.file_type.toLowerCase().includes('audio')) && (
+              <button
+                onClick={(e) => { e.stopPropagation(); handlePreview(file); }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors touch-manipulation"
+                title="معاينة"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+            )}
+
             {/* Checkbox for multi-select */}
             <button
               onClick={() => toggleFileSelection(file.id)}
@@ -1584,7 +1595,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         </div>
         <button
           onClick={openUploadModal}
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 active:bg-emerald-800 touch-manipulation"
         >
           <Upload className="h-4 w-4" />
           رفع ملف

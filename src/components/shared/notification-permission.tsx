@@ -9,6 +9,24 @@ import { useAuthStore } from '@/stores/auth-store';
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
 
 /**
+ * Helper: wait for service worker to be ready with a timeout.
+ * Returns the registration or null if timed out / not available.
+ */
+async function waitForServiceWorker(timeoutMs = 4000): Promise<ServiceWorkerRegistration | null> {
+  if (!('serviceWorker' in navigator)) return null;
+
+  try {
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error('SW timeout')), timeoutMs)),
+    ]);
+    return registration as ServiceWorkerRegistration;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * NotificationPermission — shows a button to enable/disable push notifications.
  * Works in two modes:
  * 1. Full Web Push (PWA installed / standalone browser) — subscribes to push, notifications arrive outside app
@@ -17,7 +35,6 @@ const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1J
 export default function NotificationPermission() {
   const [permission, setPermission] = useState<NotificationPermissionState>('default');
   const [loading, setLoading] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
   const { user } = useAuthStore();
 
   useEffect(() => {
@@ -27,12 +44,6 @@ export default function NotificationPermission() {
     if ('Notification' in window) {
       setPermission(Notification.permission);
     }
-
-    // Detect if running as standalone PWA
-    const standalone = window.matchMedia('(display-mode: standalone)').matches
-      || (navigator as any).standalone === true
-      || document.referrer.includes('android-app://');
-    setIsStandalone(standalone);
   }, []);
 
   // Don't render if not logged in
@@ -57,48 +68,47 @@ export default function NotificationPermission() {
       }
 
       // Step 2: Try Web Push subscription (only works in standalone/secure context)
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
+      const registration = await waitForServiceWorker(4000);
+
+      if (registration?.pushManager) {
         try {
           // Ensure push_subscriptions table exists
           await fetch('/api/push/setup', { method: 'POST' }).catch(() => {});
 
-          // Wait for SW to be ready
-          const registration = await navigator.serviceWorker.ready;
+          // Subscribe to push
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          });
 
-          // Check if push is supported by the browser
-          if (registration.pushManager) {
-            // Subscribe to push
-            const subscription = await registration.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-            });
-
-            // Send subscription to server
-            const subJSON = subscription.toJSON();
-            const res = await fetch('/api/push/subscribe', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId: user.id,
-                subscription: {
-                  endpoint: subJSON.endpoint,
-                  keys: {
-                    p256dh: subJSON.keys?.p256dh,
-                    auth: subJSON.keys?.auth,
-                  },
+          // Send subscription to server
+          const subJSON = subscription.toJSON();
+          const res = await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: user.id,
+              subscription: {
+                endpoint: subJSON.endpoint,
+                keys: {
+                  p256dh: subJSON.keys?.p256dh,
+                  auth: subJSON.keys?.auth,
                 },
-              }),
-            });
+              },
+            }),
+          });
 
-            if (res.ok) {
-              toast.success('تم تفعيل الإشعارات الخارجية بنجاح! ستصلك حتى عند إغلاق المتصفح.');
-            }
+          if (res.ok) {
+            toast.success('تم تفعيل الإشعارات الخارجية بنجاح! ستصلك حتى عند إغلاق المتصفح.');
           }
         } catch (pushError) {
           // Push subscription failed (common in iframe/sandbox) — in-app notifications still work
           console.warn('[Push] Web Push subscription failed (in-app notifications still active):', pushError);
           toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA من المتصفح.');
         }
+      } else {
+        // Service Worker not available or timed out
+        toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.');
       }
     } catch (error) {
       console.error('Notification permission error:', error);
@@ -112,11 +122,10 @@ export default function NotificationPermission() {
     setLoading(true);
     try {
       // Try to unsubscribe from push
-      if ('serviceWorker' in navigator) {
+      const registration = await waitForServiceWorker(3000);
+      if (registration) {
         try {
-          const registration = await navigator.serviceWorker.ready;
           const subscription = await registration.pushManager.getSubscription();
-
           if (subscription) {
             await subscription.unsubscribe();
             await fetch('/api/push/unsubscribe', {
@@ -148,7 +157,7 @@ export default function NotificationPermission() {
         disabled={loading}
         className="relative flex h-9 w-9 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 transition-colors touch-manipulation"
         aria-label="الإشعارات مفعّلة - اضغط لإيقافها"
-        title={isStandalone ? 'الإشعارات الخارجية مفعّلة' : 'الإشعارات مفعّلة (داخل التطبيق)'}
+        title="الإشعارات مفعّلة"
       >
         {loading ? <span className="h-4 w-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /> : <BellRing className="h-5 w-5" />}
       </button>

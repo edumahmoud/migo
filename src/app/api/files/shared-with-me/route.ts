@@ -6,12 +6,14 @@ export async function GET(request: NextRequest) {
   try {
     let userId: string | null = null;
 
-    // Method 1: Try cookie-based auth (works on desktop browsers)
+    // Method 1: Try cookie-based auth using getSession() which handles token refresh
+    // (getUser() alone may fail if the access token in cookies is expired and
+    //  the internal refresh doesn't propagate back to the cookie store in API routes)
     try {
       const serverClient = await getSupabaseServerClient();
-      const { data: { user }, error: authError } = await serverClient.auth.getUser();
-      if (!authError && user) {
-        userId = user.id;
+      const { data: { session }, error: sessionError } = await serverClient.auth.getSession();
+      if (!sessionError && session?.user) {
+        userId = session.user.id;
       }
     } catch {
       // Cookie-based auth failed, try token-based
@@ -38,6 +40,16 @@ export async function GET(request: NextRequest) {
         } catch {
           // Token-based auth also failed
         }
+      }
+    }
+
+    // Method 3: Use x-user-id header set by middleware (already authenticated)
+    // The middleware validates the user before the request reaches this API route,
+    // so x-user-id is a reliable fallback when cookie/header auth fails in the route handler.
+    if (!userId) {
+      const middlewareUserId = request.headers.get('x-user-id');
+      if (middlewareUserId) {
+        userId = middlewareUserId;
       }
     }
 

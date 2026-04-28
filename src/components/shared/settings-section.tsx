@@ -547,25 +547,41 @@ export default function SettingsSection({
   // ─── Current status info ───
   const currentStatusInfo = STATUS_OPTIONS.find(s => s.value === userStatus) || STATUS_OPTIONS[0];
 
+  // ─── Helper: wait for SW with timeout ───
+  const waitForServiceWorker = async (timeoutMs = 4000): Promise<ServiceWorkerRegistration | null> => {
+    if (!('serviceWorker' in navigator)) return null;
+    try {
+      const registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('SW timeout')), timeoutMs)),
+      ]);
+      return registration as ServiceWorkerRegistration;
+    } catch {
+      return null;
+    }
+  };
+
   // ─── Toggle push notifications ───
   const handleTogglePush = async () => {
     setIsTogglingPush(true);
     try {
       if (pushPermission === 'granted') {
         // Disable push — unsubscribe
-        try {
-          const registration = await navigator.serviceWorker.ready;
-          const subscription = await registration.pushManager.getSubscription();
-          if (subscription) {
-            await subscription.unsubscribe();
-            await fetch('/api/push/unsubscribe', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ endpoint: subscription.endpoint }),
-            });
+        const registration = await waitForServiceWorker(3000);
+        if (registration) {
+          try {
+            const subscription = await registration.pushManager.getSubscription();
+            if (subscription) {
+              await subscription.unsubscribe();
+              await fetch('/api/push/unsubscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ endpoint: subscription.endpoint }),
+              });
+            }
+          } catch {
+            // Push not available, just update UI
           }
-        } catch {
-          // Push not available, just update UI
         }
         setPushPermission('default');
         toast.success('تم إيقاف الإشعارات الخارجية');
@@ -586,12 +602,12 @@ export default function SettingsSection({
         toast.success('تم تفعيل الإشعارات!');
 
         // Try Web Push subscription (only works in standalone/secure context)
-        if ('serviceWorker' in navigator && 'PushManager' in window) {
+        const registration = await waitForServiceWorker(4000);
+        if (registration?.pushManager) {
           try {
             // Ensure push_subscriptions table exists
             await fetch('/api/push/setup', { method: 'POST' }).catch(() => {});
 
-            const registration = await navigator.serviceWorker.ready;
             const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
             const padding = '='.repeat((4 - (vapidKey.length % 4)) % 4);
             const base64 = (vapidKey + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -617,6 +633,9 @@ export default function SettingsSection({
             console.warn('[Push] Web Push subscription failed:', pushError);
             toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.');
           }
+        } else {
+          // SW not available or timed out
+          toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.');
         }
       }
     } catch (error) {
@@ -624,6 +643,47 @@ export default function SettingsSection({
       toast.error('حدث خطأ في تغيير إعدادات الإشعارات');
     } finally {
       setIsTogglingPush(false);
+    }
+  };
+
+  // ─── Test push notification ───
+  const handleTestNotification = async () => {
+    try {
+      if (pushPermission !== 'granted') {
+        toast.error('يرجى تفعيل الإشعارات أولاً');
+        return;
+      }
+
+      // Try to send a test push notification via the server
+      const res = await fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: profile.id,
+          title: 'إشعار تجريبي 🔔',
+          message: 'تم تفعيل الإشعارات الخارجية بنجاح! ستصلك الإشعارات حتى عند إغلاق المتصفح.',
+          type: 'system',
+        }),
+      });
+
+      const data = await res.json();
+      if (data.sent > 0) {
+        toast.success('تم إرسال إشعار تجريبي! تحقق من إشعارات المتصفح.');
+      } else {
+        // Fallback: show an in-app notification instead
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('إشعار تجريبي 🔔', {
+            body: 'الإشعارات تعمل داخل المتصفح. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.',
+            icon: '/icons/icon-192x192.png',
+            dir: 'rtl',
+          });
+          toast.info('تم إرسال إشعار محلي. الإشعارات الخارجية تحتاج تثبيت التطبيق كـ PWA.');
+        } else {
+          toast.info('لا توجد اشتراكات إشعارات خارجية. الإشعارات تعمل داخل التطبيق فقط.');
+        }
+      }
+    } catch {
+      toast.error('فشل في إرسال الإشعار التجريبي');
     }
   };
 
@@ -1091,6 +1151,17 @@ export default function SettingsSection({
                   </div>
                 </button>
               </div>
+
+              {/* Test notification button (visible when granted) */}
+              {pushPermission === 'granted' && (
+                <button
+                  onClick={handleTestNotification}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/50 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-100/60 active:bg-emerald-100 transition-colors"
+                >
+                  <BellRing className="h-3.5 w-3.5" />
+                  إرسال إشعار تجريبي
+                </button>
+              )}
 
               {/* Divider */}
               <div className="border-t" />

@@ -221,8 +221,14 @@ export default function ServiceWorkerRegistration() {
       if (!userId) return;
 
       try {
-        const registration = await navigator.serviceWorker.ready;
-        await subscribeToPush(registration, userId);
+        // Wait for SW with timeout to avoid hanging
+        const registration = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<null>((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 4000)),
+        ]);
+        if (registration) {
+          await subscribeToPush(registration as ServiceWorkerRegistration, userId);
+        }
       } catch (error) {
         console.error('[Push] Manual subscription failed:', error);
       }
