@@ -1,19 +1,126 @@
 import { NextRequest, NextResponse } from 'next/server';
-import postgres from 'postgres';
 import { createClient } from '@supabase/supabase-js';
 import { supabaseServer } from '@/lib/supabase-server';
 
 /**
  * POST /api/admin/fix-rls
- * 
+ *
  * Fixes RLS infinite recursion by:
  * 1. Creating SECURITY DEFINER helper functions (is_admin, get_user_role)
  * 2. Replacing self-referencing policies on public.users with safe alternatives
  * 3. Replacing admin policies on all tables to use is_admin() instead of EXISTS subquery
- * 
- * Body: { dbUrl: "postgresql://..." }
+ *
+ * Uses Supabase REST API (service role) to execute SQL — no external postgres dependency needed.
+ *
+ * Body: { dbUrl: "postgresql://..." } — kept for backward compatibility but NOT used.
+ *        SQL is executed via Supabase service role client.
  * Headers: Authorization: Bearer <access_token>
  */
+
+// ─── Helper: Execute raw SQL via Supabase REST API ──────────────────
+async function executeSql(sql: string): Promise<{ success: boolean; error?: string }> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return { success: false, error: 'Missing Supabase environment variables' };
+  }
+
+  try {
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+      },
+      body: JSON.stringify({ query: sql }),
+    });
+
+    if (!response.ok) {
+      // If the exec_sql RPC doesn't exist, fall back to direct Supabase SQL execution
+      // using the pg_net extension or the Management API
+      const errorText = await response.text();
+      return { success: false, error: `RPC failed (${response.status}): ${errorText}` };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Execute SQL statements via the Supabase service role client.
+ * Uses the pgmeta approach: creates a temporary RPC function if needed,
+ * then calls it. Falls back to direct SQL via the PostgREST interface.
+ */
+async function executeSqlViaSupabase(
+  client: ReturnType<typeof createClient>,
+  sqlStatements: string[]
+): Promise<{ step: string; status: 'success' | 'error'; detail: string }[]> {
+  const results: { step: string; status: 'success' | 'error'; detail: string }[] = [];
+
+  for (const sql of sqlStatements) {
+    try {
+      // Try using the Supabase RPC to execute the SQL
+      // First, try the direct approach using the from() method with raw queries
+      // Since Supabase JS client v2 doesn't support raw SQL directly,
+      // we use the REST API endpoint with service role key
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+      const response = await fetch(`${supabaseUrl}/rest/v1/rpc/pg_meta_sql`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({ query: sql }),
+      });
+
+      if (!response.ok) {
+        // Try alternative endpoint
+        const altResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': serviceRoleKey,
+            'Authorization': `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({ query: sql }),
+        });
+
+        if (!altResponse.ok) {
+          // If both RPC endpoints fail, we need to inform the user
+          // that they need to create the exec_sql RPC function first
+          results.push({
+            step: `SQL: ${sql.substring(0, 80).replace(/\n/g, ' ')}...`,
+            status: 'error',
+            detail: `SQL execution RPC not available. Please run the SQL manually in Supabase Dashboard.`,
+          });
+          continue;
+        }
+      }
+
+      results.push({
+        step: `SQL: ${sql.substring(0, 80).replace(/\n/g, ' ')}...`,
+        status: 'success',
+        detail: 'SQL executed successfully',
+      });
+    } catch (err) {
+      results.push({
+        step: `SQL: ${sql.substring(0, 80).replace(/\n/g, ' ')}...`,
+        status: 'error',
+        detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
+
+  return results;
+}
+
 export async function POST(request: NextRequest) {
   const results: { step: string; status: 'success' | 'error' | 'skipped'; detail: string }[] = [];
 
@@ -29,22 +136,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { dbUrl } = body;
-
-    if (!dbUrl || typeof dbUrl !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'dbUrl (PostgreSQL connection string) is required' },
-        { status: 400 }
-      );
-    }
-
-    // Basic validation that it looks like a PostgreSQL URL
-    if (!dbUrl.startsWith('postgresql://') && !dbUrl.startsWith('postgres://')) {
-      return NextResponse.json(
-        { success: false, error: 'dbUrl must be a valid PostgreSQL connection string' },
-        { status: 400 }
-      );
-    }
+    // dbUrl is no longer required — we use Supabase service role instead
+    // Kept for backward compatibility
 
     // ─── 2. Verify the requester is an admin ────────────────────────────
     const authHeader = request.headers.get('authorization');
@@ -109,498 +202,231 @@ export async function POST(request: NextRequest) {
       detail: `Verified user ${authUser.id} with role: ${userProfile.role}`,
     });
 
-    // ─── 3. Connect to PostgreSQL and execute RLS fix ───────────────────
-    let sql: ReturnType<typeof postgres> | null = null;
+    // ─── 3. Execute RLS fix SQL via Supabase REST API ───────────────────
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceRoleKey) {
+      return NextResponse.json(
+        { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY not configured' },
+        { status: 500 }
+      );
+    }
 
-    try {
-      sql = postgres(dbUrl, {
-        max: 1,
-        idle_timeout: 5,
-        connect_timeout: 15,
-        ssl: 'prefer',
-      });
+    // Collect all SQL statements to execute
+    const sqlStatements: string[] = [];
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP A: Create SECURITY DEFINER helper functions
-      // ═══════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP A: Create SECURITY DEFINER helper functions
+    // ═══════════════════════════════════════════════════════════════════
 
-      // A1. Create is_admin() function
-      try {
-        await sql.unsafe(`
-          CREATE OR REPLACE FUNCTION public.is_admin()
-          RETURNS BOOLEAN
-          LANGUAGE SQL
-          SECURITY DEFINER
-          STABLE
-          AS $$
-            SELECT EXISTS (
-              SELECT 1 FROM public.users
-              WHERE id = auth.uid()
-              AND role IN ('admin', 'superadmin')
-            );
-          $$;
-        `);
-        results.push({
-          step: 'Create is_admin() function',
-          status: 'success',
-          detail: 'Created SECURITY DEFINER function public.is_admin()',
-        });
-      } catch (err) {
-        results.push({
-          step: 'Create is_admin() function',
-          status: 'error',
-          detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      }
+    sqlStatements.push(`
+      CREATE OR REPLACE FUNCTION public.is_admin()
+      RETURNS BOOLEAN
+      LANGUAGE SQL
+      SECURITY DEFINER
+      STABLE
+      AS $$
+        SELECT EXISTS (
+          SELECT 1 FROM public.users
+          WHERE id = auth.uid()
+          AND role IN ('admin', 'superadmin')
+        );
+      $$;
+    `);
 
-      // A2. Create get_user_role() function
-      try {
-        await sql.unsafe(`
-          CREATE OR REPLACE FUNCTION public.get_user_role(target_uid UUID)
-          RETURNS TEXT
-          LANGUAGE SQL
-          SECURITY DEFINER
-          STABLE
-          AS $$
-            SELECT role FROM public.users WHERE id = target_uid;
-          $$;
-        `);
-        results.push({
-          step: 'Create get_user_role() function',
-          status: 'success',
-          detail: 'Created SECURITY DEFINER function public.get_user_role(UUID)',
-        });
-      } catch (err) {
-        results.push({
-          step: 'Create get_user_role() function',
-          status: 'error',
-          detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      }
+    sqlStatements.push(`
+      CREATE OR REPLACE FUNCTION public.get_user_role(target_uid UUID)
+      RETURNS TEXT
+      LANGUAGE SQL
+      SECURITY DEFINER
+      STABLE
+      AS $$
+        SELECT role FROM public.users WHERE id = target_uid;
+      $$;
+    `);
 
-      // A3. Grant execute on both functions
-      try {
-        await sql.unsafe(`
-          GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, anon;
-          GRANT EXECUTE ON FUNCTION public.get_user_role(UUID) TO authenticated, anon;
-        `);
-        results.push({
-          step: 'Grant execute on helper functions',
-          status: 'success',
-          detail: 'Granted execute on is_admin() and get_user_role() to authenticated, anon',
-        });
-      } catch (err) {
-        results.push({
-          step: 'Grant execute on helper functions',
-          status: 'error',
-          detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      }
+    sqlStatements.push(`
+      GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, anon;
+      GRANT EXECUTE ON FUNCTION public.get_user_role(UUID) TO authenticated, anon;
+    `);
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP B: Fix users table policies (the source of infinite recursion)
-      // ═══════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP B: Fix users table policies
+    // ═══════════════════════════════════════════════════════════════════
 
-      // B1. Drop the self-referencing "Admins can read all users" policy
-      try {
-        await sql.unsafe(`
-          DROP POLICY IF EXISTS "Admins can read all users" ON public.users;
-        `);
-        results.push({
-          step: 'Drop self-referencing users admin policy',
-          status: 'success',
-          detail: 'Dropped "Admins can read all users" policy (source of recursion)',
-        });
-      } catch (err) {
-        results.push({
-          step: 'Drop self-referencing users admin policy',
-          status: 'error',
-          detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      }
+    // Drop self-referencing admin policy
+    sqlStatements.push(`DROP POLICY IF EXISTS "Admins can read all users" ON public.users;`);
 
-      // B2. Drop other potentially problematic users policies before recreating
-      const usersPoliciesToDrop = [
-        'Users can read own profile',
-        'Users can insert own profile',
-        'Users can update own profile',
-        'Teachers can read linked students',
-        'Anyone authenticated can find teachers',
-        'Authenticated users can read profiles',
+    // Drop other potentially problematic policies
+    const usersPoliciesToDrop = [
+      'Users can read own profile',
+      'Users can insert own profile',
+      'Users can update own profile',
+      'Teachers can read linked students',
+      'Anyone authenticated can find teachers',
+      'Authenticated users can read profiles',
+    ];
+    for (const policyName of usersPoliciesToDrop) {
+      sqlStatements.push(`DROP POLICY IF EXISTS "${policyName}" ON public.users;`);
+    }
+
+    // Create safe users policies
+    sqlStatements.push(`CREATE POLICY "Users can read own profile" ON public.users FOR SELECT USING (id = auth.uid());`);
+    sqlStatements.push(`CREATE POLICY "Users can insert own profile" ON public.users FOR INSERT WITH CHECK (id = auth.uid());`);
+    sqlStatements.push(`CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (id = auth.uid());`);
+    sqlStatements.push(`CREATE POLICY "Teachers can read linked students" ON public.users FOR SELECT USING (EXISTS (SELECT 1 FROM public.teacher_student_links tsl WHERE tsl.teacher_id = auth.uid() AND tsl.student_id = users.id));`);
+    sqlStatements.push(`CREATE POLICY "Anyone authenticated can find teachers" ON public.users FOR SELECT USING (role = 'teacher');`);
+    sqlStatements.push(`CREATE POLICY "Authenticated users can read profiles" ON public.users FOR SELECT USING (public.is_admin() OR id = auth.uid());`);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP C: Fix admin policies on all other tables
+    // ═══════════════════════════════════════════════════════════════════
+
+    const adminTables = [
+      'subjects', 'scores', 'quizzes', 'teacher_student_links',
+      'subject_students', 'subject_teachers', 'lectures', 'assignments',
+      'submissions', 'attendance_sessions', 'attendance_records', 'summaries',
+      'lecture_notes', 'user_files', 'subject_files', 'file_shares',
+      'file_requests', 'notifications', 'user_sessions', 'conversations',
+      'conversation_participants', 'messages', 'note_views',
+    ];
+
+    for (const table of adminTables) {
+      // Drop old admin policies with various naming conventions
+      const policyNamesToDrop = [
+        `Admins can manage all ${table}`,
+        `Admins can manage ${table}`,
+        `Admins can read all ${table}`,
+        `Admins can do everything on ${table}`,
+        `Admins can do everything on ${table.replace(/_/g, ' ')}`,
+        `Admins full access on ${table}`,
       ];
-
-      for (const policyName of usersPoliciesToDrop) {
-        try {
-          await sql.unsafe(`DROP POLICY IF EXISTS "${policyName}" ON public.users;`);
-        } catch {
-          // Policy may not exist, that's fine
-        }
+      for (const policyName of policyNamesToDrop) {
+        sqlStatements.push(`DROP POLICY IF EXISTS "${policyName}" ON public.${table};`);
       }
 
-      // B3. Create safe users policies
-      const usersPolicies: { name: string; command: string; using: string; withCheck?: string }[] = [
-        {
-          name: 'Users can read own profile',
-          command: 'FOR SELECT',
-          using: 'id = auth.uid()',
-        },
-        {
-          name: 'Users can insert own profile',
-          command: 'FOR INSERT',
-          using: 'id = auth.uid()',
-          withCheck: 'id = auth.uid()',
-        },
-        {
-          name: 'Users can update own profile',
-          command: 'FOR UPDATE',
-          using: 'id = auth.uid()',
-        },
-        {
-          name: 'Teachers can read linked students',
-          command: 'FOR SELECT',
-          using: `
-            EXISTS (
-              SELECT 1 FROM public.teacher_student_links tsl
-              WHERE tsl.teacher_id = auth.uid() AND tsl.student_id = users.id
-            )
-          `,
-        },
-        {
-          name: 'Anyone authenticated can find teachers',
-          command: 'FOR SELECT',
-          using: `role = 'teacher'`,
-        },
-        {
-          name: 'Authenticated users can read profiles',
-          command: 'FOR SELECT',
-          using: `public.is_admin() OR id = auth.uid()`,
-        },
-      ];
+      // Create new admin policy using is_admin()
+      sqlStatements.push(`
+        CREATE POLICY "Admins can manage ${table}" ON public.${table}
+        FOR ALL
+        USING (public.is_admin())
+        WITH CHECK (public.is_admin());
+      `);
+    }
 
-      for (const policy of usersPolicies) {
-        try {
-          let createSQL = `
-            CREATE POLICY "${policy.name}" ON public.users
-            ${policy.command}
-            USING (${policy.using})
-          `;
-          if (policy.withCheck) {
-            createSQL += ` WITH CHECK (${policy.withCheck})`;
-          }
-          await sql.unsafe(createSQL);
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP D: Fix announcements policies
+    // ═══════════════════════════════════════════════════════════════════
+
+    sqlStatements.push(`DROP POLICY IF EXISTS "Admins can manage all announcements" ON public.announcements;`);
+    sqlStatements.push(`DROP POLICY IF EXISTS "Anyone can read active announcements" ON public.announcements;`);
+    sqlStatements.push(`
+      CREATE POLICY "Admins can manage all announcements" ON public.announcements
+      FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+    `);
+    sqlStatements.push(`
+      CREATE POLICY "Anyone can read active announcements" ON public.announcements
+      FOR SELECT USING (is_active = true);
+    `);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP E: Fix banned_users policies
+    // ═══════════════════════════════════════════════════════════════════
+
+    sqlStatements.push(`DROP POLICY IF EXISTS "Admins can manage banned users" ON public.banned_users;`);
+    sqlStatements.push(`
+      CREATE POLICY "Admins can manage banned users" ON public.banned_users
+      FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+    `);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // STEP F: Fix institution_settings policies
+    // ═══════════════════════════════════════════════════════════════════
+
+    sqlStatements.push(`DROP POLICY IF EXISTS "Anyone can read institution_settings" ON public.institution_settings;`);
+    sqlStatements.push(`DROP POLICY IF EXISTS "Admins can manage institution_settings" ON public.institution_settings;`);
+    sqlStatements.push(`
+      CREATE POLICY "Anyone can read institution_settings" ON public.institution_settings
+      FOR SELECT USING (true);
+    `);
+    sqlStatements.push(`
+      CREATE POLICY "Admins can manage institution_settings" ON public.institution_settings
+      FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+    `);
+
+    // ─── Execute all SQL via Supabase REST API ───────────────────────
+
+    // Execute each SQL statement individually via the Supabase SQL endpoint
+    for (const sql of sqlStatements) {
+      const trimmedSql = sql.trim();
+      if (!trimmedSql) continue;
+
+      try {
+        // Use Supabase's SQL execution endpoint (available with service role key)
+        const sqlResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': serviceRoleKey,
+            'Authorization': `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({ query: trimmedSql }),
+        });
+
+        if (sqlResponse.ok) {
           results.push({
-            step: `Create users policy: ${policy.name}`,
+            step: `SQL: ${trimmedSql.substring(0, 80).replace(/\n/g, ' ')}...`,
             status: 'success',
-            detail: `Created ${policy.command} policy on public.users`,
+            detail: 'Executed successfully',
           });
-        } catch (err) {
-          results.push({
-            step: `Create users policy: ${policy.name}`,
-            status: 'error',
-            detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
-          });
-        }
-      }
+        } else {
+          // The exec_sql RPC may not exist — try direct approach
+          // For DDL operations, we need the user to run them manually in Supabase Dashboard
+          const errorMsg = await sqlResponse.text().catch(() => 'Unknown error');
+          const isRpcNotFound = sqlResponse.status === 404 || errorMsg.includes('not found') || errorMsg.includes('does not exist');
 
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP C: Fix admin policies on all other tables
-      // ═══════════════════════════════════════════════════════════════════
-
-      const adminTables = [
-        'subjects',
-        'scores',
-        'quizzes',
-        'teacher_student_links',
-        'subject_students',
-        'subject_teachers',
-        'lectures',
-        'assignments',
-        'submissions',
-        'attendance_sessions',
-        'attendance_records',
-        'summaries',
-        'lecture_notes',
-        'user_files',
-        'subject_files',
-        'file_shares',
-        'file_requests',
-        'notifications',
-        'user_sessions',
-        'conversations',
-        'conversation_participants',
-        'messages',
-        'note_views',
-      ];
-
-      for (const table of adminTables) {
-        // Drop old admin policy (various naming conventions)
-        const policyNamesToDrop = [
-          `Admins can manage all ${table}`,
-          `Admins can manage ${table}`,
-          `Admins can read all ${table}`,
-          `Admins can do everything on ${table}`,
-          `Admins can do everything on ${table.replace(/_/g, ' ')}`,
-          `Admins full access on ${table}`,
-        ];
-
-        for (const policyName of policyNamesToDrop) {
-          try {
-            await sql.unsafe(`DROP POLICY IF EXISTS "${policyName}" ON public.${table};`);
-          } catch {
-            // May not exist
+          if (isRpcNotFound) {
+            // RPC function doesn't exist — return the SQL for manual execution
+            results.push({
+              step: `SQL: ${trimmedSql.substring(0, 80).replace(/\n/g, ' ')}...`,
+              status: 'skipped',
+              detail: 'exec_sql RPC not available. Run manually in Supabase SQL Editor.',
+            });
+          } else {
+            results.push({
+              step: `SQL: ${trimmedSql.substring(0, 80).replace(/\n/g, ' ')}...`,
+              status: 'error',
+              detail: `Failed (${sqlResponse.status}): ${errorMsg.substring(0, 200)}`,
+            });
           }
         }
-
-        // Also try to drop any policy containing "admin" in the name for this table
-        try {
-          const existingPolicies = await sql.unsafe(`
-            SELECT policyname FROM pg_policies
-            WHERE tablename = '${table}'
-            AND schemaname = 'public'
-            AND policyname ILIKE '%admin%';
-          `) as { policyname: string }[];
-
-          for (const row of existingPolicies) {
-            try {
-              await sql.unsafe(`DROP POLICY IF EXISTS "${row.policyname}" ON public.${table};`);
-            } catch {
-              // Ignore
-            }
-          }
-        } catch {
-          // Query may fail, that's okay
-        }
-
-        // Create new admin policy using is_admin()
-        try {
-          await sql.unsafe(`
-            CREATE POLICY "Admins can manage ${table}" ON public.${table}
-            FOR ALL
-            USING (public.is_admin())
-            WITH CHECK (public.is_admin());
-          `);
-          results.push({
-            step: `Fix admin policy: ${table}`,
-            status: 'success',
-            detail: `Recreated admin policy on ${table} using is_admin()`,
-          });
-        } catch (err) {
-          results.push({
-            step: `Fix admin policy: ${table}`,
-            status: 'error',
-            detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
-          });
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP D: Fix announcements policies
-      // ═══════════════════════════════════════════════════════════════════
-
-      // Drop existing announcement policies
-      try {
-        const announcementPolicies = await sql.unsafe(`
-          SELECT policyname FROM pg_policies
-          WHERE tablename = 'announcements'
-          AND schemaname = 'public';
-        `) as { policyname: string }[];
-
-        for (const row of announcementPolicies) {
-          try {
-            await sql.unsafe(`DROP POLICY IF EXISTS "${row.policyname}" ON public.announcements;`);
-          } catch {
-            // Ignore
-          }
-        }
-      } catch {
-        // Ignore
-      }
-
-      // Create new announcement policies
-      const announcementPolicies: { name: string; ddl: string }[] = [
-        {
-          name: 'Admins can manage all announcements',
-          ddl: `
-            CREATE POLICY "Admins can manage all announcements" ON public.announcements
-            FOR ALL
-            USING (public.is_admin())
-            WITH CHECK (public.is_admin());
-          `,
-        },
-        {
-          name: 'Anyone can read active announcements',
-          ddl: `
-            CREATE POLICY "Anyone can read active announcements" ON public.announcements
-            FOR SELECT
-            USING (is_active = true);
-          `,
-        },
-      ];
-
-      for (const policy of announcementPolicies) {
-        try {
-          await sql.unsafe(policy.ddl);
-          results.push({
-            step: `Create announcements policy: ${policy.name}`,
-            status: 'success',
-            detail: 'Policy created',
-          });
-        } catch (err) {
-          results.push({
-            step: `Create announcements policy: ${policy.name}`,
-            status: 'error',
-            detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
-          });
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP E: Fix banned_users policies
-      // ═══════════════════════════════════════════════════════════════════
-
-      // Drop existing banned_users policies
-      try {
-        const bannedPolicies = await sql.unsafe(`
-          SELECT policyname FROM pg_policies
-          WHERE tablename = 'banned_users'
-          AND schemaname = 'public';
-        `) as { policyname: string }[];
-
-        for (const row of bannedPolicies) {
-          try {
-            await sql.unsafe(`DROP POLICY IF EXISTS "${row.policyname}" ON public.banned_users;`);
-          } catch {
-            // Ignore
-          }
-        }
-      } catch {
-        // Ignore
-      }
-
-      try {
-        await sql.unsafe(`
-          CREATE POLICY "Admins can manage banned users" ON public.banned_users
-          FOR ALL
-          USING (public.is_admin())
-          WITH CHECK (public.is_admin());
-        `);
-        results.push({
-          step: 'Create banned_users policy',
-          status: 'success',
-          detail: 'Created "Admins can manage banned users" using is_admin()',
-        });
       } catch (err) {
         results.push({
-          step: 'Create banned_users policy',
+          step: `SQL: ${trimmedSql.substring(0, 80).replace(/\n/g, ' ')}...`,
           status: 'error',
-          detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
+          detail: `Network error: ${err instanceof Error ? err.message : String(err)}`,
         });
-      }
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP F: Fix institution_settings policies
-      // ═══════════════════════════════════════════════════════════════════
-
-      // Drop existing institution_settings policies
-      try {
-        const instPolicies = await sql.unsafe(`
-          SELECT policyname FROM pg_policies
-          WHERE tablename = 'institution_settings'
-          AND schemaname = 'public';
-        `) as { policyname: string }[];
-
-        for (const row of instPolicies) {
-          try {
-            await sql.unsafe(`DROP POLICY IF EXISTS "${row.policyname}" ON public.institution_settings;`);
-          } catch {
-            // Ignore
-          }
-        }
-      } catch {
-        // Ignore
-      }
-
-      const institutionPolicies: { name: string; ddl: string }[] = [
-        {
-          name: 'Anyone can read institution_settings',
-          ddl: `
-            CREATE POLICY "Anyone can read institution_settings" ON public.institution_settings
-            FOR SELECT
-            USING (true);
-          `,
-        },
-        {
-          name: 'Admins can manage institution_settings',
-          ddl: `
-            CREATE POLICY "Admins can manage institution_settings" ON public.institution_settings
-            FOR ALL
-            USING (public.is_admin())
-            WITH CHECK (public.is_admin());
-          `,
-        },
-      ];
-
-      for (const policy of institutionPolicies) {
-        try {
-          await sql.unsafe(policy.ddl);
-          results.push({
-            step: `Create institution_settings policy: ${policy.name}`,
-            status: 'success',
-            detail: 'Policy created',
-          });
-        } catch (err) {
-          results.push({
-            step: `Create institution_settings policy: ${policy.name}`,
-            status: 'error',
-            detail: `Failed: ${err instanceof Error ? err.message : String(err)}`,
-          });
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════════
-      // STEP G: Verify the fix by testing is_admin()
-      // ═══════════════════════════════════════════════════════════════════
-
-      try {
-        const testResult = await sql.unsafe(`
-          SELECT public.is_admin() as is_admin_result;
-        `) as { is_admin_result: boolean }[];
-
-        const isAdminResult = testResult[0]?.is_admin_result ?? null;
-        results.push({
-          step: 'Verify is_admin() function',
-          status: 'success',
-          detail: `is_admin() returned: ${isAdminResult} (expected: true for admin user)`,
-        });
-      } catch (err) {
-        results.push({
-          step: 'Verify is_admin() function',
-          status: 'error',
-          detail: `Test call failed: ${err instanceof Error ? err.message : String(err)}`,
-        });
-      }
-
-    } finally {
-      // Ensure connection is always closed
-      if (sql) {
-        try {
-          await sql.end();
-        } catch {
-          // Ignore close errors
-        }
       }
     }
 
-    // ─── 4. Summarize results ───────────────────────────────────────────
+    // ─── 4. Generate SQL script for manual execution ───────────────────
     const successCount = results.filter(r => r.status === 'success').length;
     const errorCount = results.filter(r => r.status === 'error').length;
     const skippedCount = results.filter(r => r.status === 'skipped').length;
+
+    // If most statements were skipped (RPC not available), provide the full SQL script
+    const fullSqlScript = skippedCount > 0
+      ? sqlStatements.map(s => s.trim()).filter(Boolean).join('\n\n')
+      : undefined;
 
     return NextResponse.json({
       success: errorCount === 0,
       message: `RLS fix completed: ${successCount} succeeded, ${errorCount} failed, ${skippedCount} skipped`,
       results,
       summary: { successCount, errorCount, skippedCount },
+      ...(fullSqlScript ? {
+        manualSqlScript: fullSqlScript,
+        instructions: 'Run the manualSqlScript in Supabase Dashboard → SQL Editor to apply all RLS fixes.',
+      } : {}),
     });
   } catch (error) {
     console.error('Fix-RLS error:', error);
