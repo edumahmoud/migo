@@ -1,24 +1,53 @@
 import webpush from 'web-push';
 
 /**
- * Initialize web-push with VAPID keys.
- * This must be called before any push notification sending.
+ * Web Push — Lazy Initialization
+ *
+ * VAPID keys are validated and setVapidDetails() is called lazily
+ * on first use (not at module load time). This prevents build failures
+ * when keys are missing or invalid (e.g. wrong length) during
+ * Vercel's static page generation step.
  */
 
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+let vapidInitialized = false;
+let vapidInitError: string | null = null;
 
-if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-  console.warn(
-    '⚠️ VAPID keys not configured. Push notifications will not work. ' +
-    'Set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in .env'
-  );
-} else {
-  webpush.setVapidDetails(
-    'mailto:support@attendo.app',
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY
-  );
+/**
+ * Lazily initialize web-push with VAPID keys.
+ * Returns true if initialization succeeded, false otherwise.
+ */
+function ensureVapidInitialized(): boolean {
+  if (vapidInitialized) return !vapidInitError;
+  if (vapidInitError) return false;
+
+  const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    vapidInitError = 'VAPID keys not configured';
+    console.warn(
+      '⚠️ [Push] VAPID keys not configured. Push notifications will not work. ' +
+      'Set NEXT_PUBLIC_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in .env'
+    );
+    return false;
+  }
+
+  try {
+    webpush.setVapidDetails(
+      'mailto:support@attendo.app',
+      VAPID_PUBLIC_KEY,
+      VAPID_PRIVATE_KEY
+    );
+    vapidInitialized = true;
+    return true;
+  } catch (err) {
+    vapidInitError = (err instanceof Error ? err.message : String(err));
+    console.warn(
+      '⚠️ [Push] VAPID key validation failed:', vapidInitError,
+      '— Push notifications will not work until valid keys are provided.'
+    );
+    return false;
+  }
 }
 
 export { webpush };
@@ -45,8 +74,8 @@ export async function sendPushNotification(
     actions?: Array<{ action: string; title: string; icon?: string }>;
   }
 ): Promise<PushSendResult> {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.warn('[Push] VAPID keys not configured — skipping push send');
+  if (!ensureVapidInitialized()) {
+    console.warn('[Push] VAPID not configured — skipping push send');
     return { success: false, expired: false };
   }
 
@@ -79,6 +108,11 @@ export async function sendPushNotificationBulk(
     actions?: Array<{ action: string; title: string; icon?: string }>;
   }
 ): Promise<{ sent: number; failed: number; expiredSubscriptions: number[] }> {
+  if (!ensureVapidInitialized()) {
+    console.warn('[Push] VAPID not configured — skipping bulk push send');
+    return { sent: 0, failed: subscriptions.length, expiredSubscriptions: [] };
+  }
+
   let sent = 0;
   let failed = 0;
   const expiredSubscriptions: number[] = [];
