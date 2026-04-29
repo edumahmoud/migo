@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 // Routes that require authentication
 const protectedApiRoutes = ['/api/gemini', '/api/admin', '/api/files'];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip static files, Next.js internals, auth callback, and socket.io
@@ -24,7 +24,7 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Middleware: Missing Supabase env vars');
+    console.error('Proxy: Missing Supabase env vars');
     return NextResponse.next();
   }
 

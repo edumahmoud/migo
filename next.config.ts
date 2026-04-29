@@ -7,9 +7,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true, // Pre-existing TS errors in admin-dashboard, chat route etc.
   },
-  eslint: {
-    ignoreDuringBuilds: true, // Don't block deployment for lint warnings
-  },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
   allowedDevOrigins: [
