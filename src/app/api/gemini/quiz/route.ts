@@ -40,7 +40,7 @@ async function getAuthenticatedUserId(request: NextRequest): Promise<string | nu
 export async function POST(request: NextRequest) {
   try {
     // Content-Type and size validation
-    const validationError = validateRequest(request);
+    const validationError = validateRequest(request, { largeBody: true });
     if (validationError) return validationError;
 
     // Rate limiting

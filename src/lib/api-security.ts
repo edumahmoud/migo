@@ -63,10 +63,13 @@ export function getRateLimitHeaders(remaining: number, retryAfterMs: number): Re
 
 // --- Request Validation ---
 
-const MAX_CONTENT_LENGTH = 1_000_000; // 1MB max request body
+const MAX_CONTENT_LENGTH = 1_000_000; // 1MB max request body (default)
+const MAX_CONTENT_LENGTH_LARGE = 5_000_000; // 5MB for endpoints that handle large text (summaries, quizzes)
 
 /** Validate request: content-type, body size. Returns error response or null if valid */
-export function validateRequest(request: NextRequest): NextResponse | null {
+export function validateRequest(request: NextRequest, options?: { largeBody?: boolean }): NextResponse | null {
+  const maxLen = options?.largeBody ? MAX_CONTENT_LENGTH_LARGE : MAX_CONTENT_LENGTH;
+
   // Content-Type validation
   const contentType = request.headers.get('content-type');
   if (!contentType || (!contentType.includes('application/json') && !contentType.includes('multipart/form-data'))) {
@@ -78,7 +81,7 @@ export function validateRequest(request: NextRequest): NextResponse | null {
 
   // Content-Length validation
   const contentLength = request.headers.get('content-length');
-  if (contentLength && parseInt(contentLength, 10) > MAX_CONTENT_LENGTH) {
+  if (contentLength && parseInt(contentLength, 10) > maxLen) {
     return NextResponse.json(
       { success: false, error: 'حجم الطلب كبير جداً' },
       { status: 413 }

@@ -79,7 +79,7 @@ const TABS: TabConfig[] = [
   { id: 'assignments', label: 'المهام', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'chat', label: 'المحادثة', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'students', label: 'الطلاب', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
-  { id: 'teams', label: 'الفرق', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
+  { id: 'teams', label: 'المجموعات', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
 ];
 
 // -------------------------------------------------------
@@ -170,6 +170,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
   const [editColor, setEditColor] = useState(SUBJECT_COLORS[0]);
+  const [editLevel, setEditLevel] = useState('');
+  const [editSubLevel, setEditSubLevel] = useState('');
   const [savingSubject, setSavingSubject] = useState(false);
 
   // ─── Delete subject state ───
@@ -300,6 +302,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
     setEditName(subject.name);
     setEditDesc(subject.description || '');
     setEditColor(subject.color || SUBJECT_COLORS[0]);
+    setEditLevel(subject.level || '');
+    setEditSubLevel(subject.sub_level || '');
     setEditModalOpen(true);
   };
 
@@ -320,6 +324,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
           name,
           description: editDesc.trim() || null,
           color: editColor,
+          level: editLevel || null,
+          sub_level: editSubLevel || null,
         })
         .eq('id', subject!.id);
 
@@ -328,7 +334,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         toast.error('حدث خطأ أثناء تحديث المقرر');
       } else {
         toast.success('تم تحديث المقرر بنجاح');
-        setSubject((prev) => prev ? { ...prev, name, description: editDesc.trim() || undefined, color: editColor } : prev);
+        setSubject((prev) => prev ? { ...prev, name, description: editDesc.trim() || undefined, color: editColor, level: editLevel || undefined, sub_level: editSubLevel || undefined } : prev);
         setEditModalOpen(false);
       }
     } catch (err) {
@@ -766,6 +772,45 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     dir="rtl"
                     disabled={savingSubject}
                   />
+                </div>
+
+                {/* Level (الفرقة) & Sub-level (المستوى) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      الفرقة
+                    </label>
+                    <select
+                      value={editLevel}
+                      onChange={(e) => setEditLevel(e.target.value)}
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                      dir="rtl"
+                      disabled={savingSubject}
+                    >
+                      <option value="">بدون فرقة</option>
+                      <option value="الفرقة الأولى">الفرقة الأولى</option>
+                      <option value="الفرقة الثانية">الفرقة الثانية</option>
+                      <option value="الفرقة الثالثة">الفرقة الثالثة</option>
+                      <option value="الفرقة الرابعة">الفرقة الرابعة</option>
+                      <option value="الفرقة الخامسة">الفرقة الخامسة</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      المستوى
+                    </label>
+                    <select
+                      value={editSubLevel}
+                      onChange={(e) => setEditSubLevel(e.target.value)}
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                      dir="rtl"
+                      disabled={savingSubject}
+                    >
+                      <option value="">بدون مستوى</option>
+                      <option value="مستوى أول">مستوى أول</option>
+                      <option value="مستوى ثاني">مستوى ثاني</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Color picker */}

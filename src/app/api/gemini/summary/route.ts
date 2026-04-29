@@ -40,7 +40,7 @@ async function getAuthenticatedUserId(request: NextRequest): Promise<string | nu
 export async function POST(request: NextRequest) {
   try {
     // Content-Type and size validation
-    const validationError = validateRequest(request);
+    const validationError = validateRequest(request, { largeBody: true });
     if (validationError) return validationError;
 
     // Rate limiting
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Sanitize and limit content length
-    const sanitizedContent = sanitizeString(rawContent, 50000);
+    const sanitizedContent = sanitizeString(rawContent, 200000); // 200K chars for large PDFs
     if (sanitizedContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى غير صالح بعد التنظيف' },

@@ -176,7 +176,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   // -------------------------------------------------------
   const handleCreateTeam = async () => {
     if (!formName.trim()) {
-      toast.error('اسم الفريق مطلوب');
+      toast.error('اسم المجموعة مطلوب');
       return;
     }
     setSaving(true);
@@ -196,17 +196,17 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.team) {
-        toast.success('تم إنشاء الفريق بنجاح');
+        toast.success('تم إنشاء المجموعة بنجاح');
         setCreateOpen(false);
         setFormName('');
         setFormLevel('');
         setFormColor('#6366f1');
         fetchTeams().then(() => fetchUnassigned());
       } else {
-        toast.error(data.error || 'فشل إنشاء الفريق');
+        toast.error(data.error || 'فشل إنشاء المجموعة');
       }
     } catch {
-      toast.error('حدث خطأ أثناء إنشاء الفريق');
+      toast.error('حدث خطأ أثناء إنشاء المجموعة');
     } finally {
       setSaving(false);
     }
@@ -214,7 +214,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
 
   const handleUpdateTeam = async () => {
     if (!editTeam || !formName.trim()) {
-      toast.error('اسم الفريق مطلوب');
+      toast.error('اسم المجموعة مطلوب');
       return;
     }
     setSaving(true);
@@ -234,24 +234,24 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.team) {
-        toast.success('تم تحديث الفريق بنجاح');
+        toast.success('تم تحديث المجموعة بنجاح');
         setEditTeam(null);
         setFormName('');
         setFormLevel('');
         setFormColor('#6366f1');
         fetchTeams();
       } else {
-        toast.error(data.error || 'فشل تحديث الفريق');
+        toast.error(data.error || 'فشل تحديث المجموعة');
       }
     } catch {
-      toast.error('حدث خطأ أثناء تحديث الفريق');
+      toast.error('حدث خطأ أثناء تحديث المجموعة');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteTeam = async (teamId: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا الفريق؟ سيتم إزالة جميع الأعضاء.')) return;
+    if (!confirm('هل أنت متأكد من حذف هذه المجموعة؟ سيتم إزالة جميع الأعضاء.')) return;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
@@ -262,13 +262,13 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('تم حذف الفريق');
+        toast.success('تم حذف المجموعة');
         fetchTeams().then(() => fetchUnassigned());
       } else {
-        toast.error(data.error || 'فشل حذف الفريق');
+        toast.error(data.error || 'فشل حذف المجموعة');
       }
     } catch {
-      toast.error('حدث خطأ أثناء حذف الفريق');
+      toast.error('حدث خطأ أثناء حذف المجموعة');
     }
   };
 
@@ -328,7 +328,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`تم توزيع ${data.assignedCount} طالب على ${data.teamCount} فريق`);
+        toast.success(`تم توزيع ${data.assignedCount} طالب على ${data.teamCount} مجموعة`);
         setAutoAssignOpen(false);
         fetchTeams().then(() => fetchUnassigned());
       } else {
@@ -355,7 +355,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-        <span className="mr-3 text-muted-foreground">جاري تحميل الفرق...</span>
+        <span className="mr-3 text-muted-foreground">جاري تحميل المجموعات...</span>
       </div>
     );
   }
@@ -372,12 +372,12 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       }}>
         <DialogContent className="sm:max-w-md" dir="rtl">
           <DialogHeader>
-            <DialogTitle>{isEdit ? 'تعديل الفريق' : 'إنشاء فريق جديد'}</DialogTitle>
+            <DialogTitle>{isEdit ? 'تعديل المجموعة' : 'إنشاء مجموعة جديدة'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label>اسم الفريق *</Label>
-              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="مثال: فريق أ" className="mt-1" />
+              <Label>اسم المجموعة *</Label>
+              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="مثال: مجموعة أ" className="mt-1" />
             </div>
             <div>
               <Label>المستوى (اختياري)</Label>
@@ -421,15 +421,15 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     <Dialog open={autoAssignOpen} onOpenChange={setAutoAssignOpen}>
       <DialogContent className="sm:max-w-sm" dir="rtl">
         <DialogHeader>
-          <DialogTitle>توزيع تلقائي على الفرق</DialogTitle>
+          <DialogTitle>توزيع تلقائي على المجموعات</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            سيتم توزيع جميع الطلاب المسجلين بالتساوي على الفرق.
-            {teams.length > 0 ? ` يوجد حالياً ${teams.length} فريق.` : ' سيتم إنشاء فرق جديدة.'}
+            سيتم توزيع جميع الطلاب المسجلين بالتساوي على المجموعات.
+            {teams.length > 0 ? ` يوجد حالياً ${teams.length} مجموعة.` : ' سيتم إنشاء مجموعات جديدة.'}
           </p>
           <div>
-            <Label>عدد الفرق</Label>
+            <Label>عدد المجموعات</Label>
             <Input
               type="number"
               min={1}
@@ -458,13 +458,13 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     <Dialog open={!!addMemberTeamId} onOpenChange={(open) => { if (!open) setAddMemberTeamId(null); }}>
       <DialogContent className="sm:max-w-md max-h-[80vh]" dir="rtl">
         <DialogHeader>
-          <DialogTitle>إضافة عضو للفريق</DialogTitle>
+          <DialogTitle>إضافة عضو للمجموعة</DialogTitle>
         </DialogHeader>
         <div className="overflow-y-auto max-h-96 space-y-2 py-2">
           {unassigned.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
               <Users className="h-8 w-8" />
-              <p className="text-sm">لا يوجد طلاب غير مخصصين لفريق</p>
+              <p className="text-sm">لا يوجد طلاب غير مخصصين لمجموعة</p>
             </div>
           ) : (
             unassigned.map(student => (
@@ -562,7 +562,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             >
               <div className="px-4 pb-4 space-y-2 border-t pt-3">
                 {teamMembers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">لا يوجد أعضاء في هذا الفريق</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">لا يوجد أعضاء في هذه المجموعة</p>
                 ) : (
                   teamMembers.map((member) => (
                     <div key={member.id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
@@ -599,10 +599,10 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Users className="h-5 w-5 text-emerald-600" />
-            الفرق والمستويات
+            المجموعات والمستويات
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            قسّم طلاب المقرر إلى فرق ومستويات
+            قسّم طلاب المقرر إلى مجموعات ومستويات
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -626,7 +626,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             className="bg-emerald-600 hover:bg-emerald-700 gap-2"
           >
             <Plus className="h-4 w-4" />
-            فريق جديد
+            مجموعة جديدة
           </Button>
         </div>
       </div>
@@ -661,7 +661,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               className="bg-emerald-600 hover:bg-emerald-700 gap-2"
             >
               <Plus className="h-4 w-4" />
-              إنشاء فريق
+              إنشاء مجموعة
             </Button>
           </div>
         </motion.div>
@@ -681,7 +681,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         <div className="rounded-xl border border-dashed p-4">
           <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-500" />
-            طلاب غير مخصصين لفريق ({unassigned.length})
+            طلاب غير مخصصين لمجموعة ({unassigned.length})
           </h3>
           <div className="flex flex-wrap gap-2">
             {unassigned.map(student => (

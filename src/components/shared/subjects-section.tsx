@@ -150,6 +150,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newSubjectDesc, setNewSubjectDesc] = useState('');
   const [newSubjectColor, setNewSubjectColor] = useState(SUBJECT_COLORS[0]);
+  const [newSubjectLevel, setNewSubjectLevel] = useState('');
+  const [newSubjectSubLevel, setNewSubjectSubLevel] = useState('');
   const [creatingSubject, setCreatingSubject] = useState(false);
 
   // ─── Join by code modal (student only) ───
@@ -364,6 +366,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           description: newSubjectDesc.trim() || null,
           color: newSubjectColor,
           join_code: joinCode,
+          level: newSubjectLevel || null,
+          sub_level: newSubjectSubLevel || null,
         })
         .select()
         .single();
@@ -381,6 +385,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               description: newSubjectDesc.trim() || null,
               color: newSubjectColor,
               join_code: joinCode,
+              level: newSubjectLevel || null,
+              sub_level: newSubjectSubLevel || null,
             })
             .select()
             .single();
@@ -404,6 +410,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         setNewSubjectName('');
         setNewSubjectDesc('');
         setNewSubjectColor(SUBJECT_COLORS[0]);
+        setNewSubjectLevel('');
+        setNewSubjectSubLevel('');
 
         // Optimistic update — real-time subscription will sync if needed
         if (data) {
@@ -1051,6 +1059,45 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     dir="rtl"
                     disabled={creatingSubject}
                   />
+                </div>
+
+                {/* Level (الفرقة) & Sub-level (المستوى) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      الفرقة
+                    </label>
+                    <select
+                      value={newSubjectLevel}
+                      onChange={(e) => setNewSubjectLevel(e.target.value)}
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                      dir="rtl"
+                      disabled={creatingSubject}
+                    >
+                      <option value="">بدون فرقة</option>
+                      <option value="الفرقة الأولى">الفرقة الأولى</option>
+                      <option value="الفرقة الثانية">الفرقة الثانية</option>
+                      <option value="الفرقة الثالثة">الفرقة الثالثة</option>
+                      <option value="الفرقة الرابعة">الفرقة الرابعة</option>
+                      <option value="الفرقة الخامسة">الفرقة الخامسة</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      المستوى
+                    </label>
+                    <select
+                      value={newSubjectSubLevel}
+                      onChange={(e) => setNewSubjectSubLevel(e.target.value)}
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                      dir="rtl"
+                      disabled={creatingSubject}
+                    >
+                      <option value="">بدون مستوى</option>
+                      <option value="مستوى أول">مستوى أول</option>
+                      <option value="مستوى ثاني">مستوى ثاني</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Color picker — visual swatches */}

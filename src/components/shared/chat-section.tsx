@@ -299,22 +299,18 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (backupPollingRef.current) clearInterval(backupPollingRef.current);
 
-    if (!isConnected) {
-      // Poll every 3 seconds when socket is disconnected (faster than before)
-      pollingRef.current = setInterval(pollMessages, 3000);
-
-      // Subscribe to Supabase Realtime as fallback for Vercel (no persistent server)
-      try {
-        if (!realtimeChannelRef.current) {
-          const channel = supabase
-            .channel('chat-messages-realtime')
-            .on(
-              'postgres_changes',
-              {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-              },
+    // Always set up Supabase Realtime as a reliable fallback (works on Vercel too)
+    try {
+      if (!realtimeChannelRef.current) {
+        const channel = supabase
+          .channel('chat-messages-realtime')
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'messages',
+            },
               (payload) => {
                 const newMsg = payload.new as Record<string, unknown>;
                 const convId = (newMsg.conversation_id as string) || null;
@@ -393,20 +389,18 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       } catch (err) {
         console.error('[Chat Realtime] setup error:', err);
       }
-    } else {
-      // Socket is connected — unsubscribe from Realtime and restore normal polling
-      if (realtimeChannelRef.current) {
-        try {
-          supabase.removeChannel(realtimeChannelRef.current);
-        } catch {
-          // Ignore cleanup errors
-        }
-        realtimeChannelRef.current = null;
-      }
-    }
 
-    // Always poll every 15 seconds as backup
-    backupPollingRef.current = setInterval(pollMessages, 15000);
+    // Polling: faster when socket is disconnected, slower when connected
+    if (!isConnected) {
+      // Poll every 3 seconds when socket is disconnected
+      pollingRef.current = setInterval(pollMessages, 3000);
+      // Also refresh conversation list every 5 seconds to catch new conversations
+      const convPollRef = setInterval(fetchConversations, 5000);
+      backupPollingRef.current = convPollRef;
+    } else {
+      // Poll every 15 seconds as backup when socket is connected
+      backupPollingRef.current = setInterval(pollMessages, 15000);
+    }
 
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);

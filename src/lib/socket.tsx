@@ -87,10 +87,10 @@ const SOCKET_OPTIONS: Parameters<typeof io>[1] = {
   transports: ['polling', 'websocket'],  // Try polling first — works through Next.js rewrites & Caddy proxy
   forceNew: false,                       // KEY: reuse existing connection, don't create new
   reconnection: true,
-  reconnectionAttempts: Infinity,        // Keep trying forever (with backoff)
+  reconnectionAttempts: 10,              // Give up after 10 attempts (then fall back to Realtime)
   reconnectionDelay: 1000,
-  reconnectionDelayMax: 30000,           // Max 30s between retries
-  timeout: 20000,                        // Increase timeout for slower networks
+  reconnectionDelayMax: 15000,           // Max 15s between retries
+  timeout: 10000,                        // 10s timeout for initial connection
   autoConnect: true,                     // Auto-connect on creation — avoids race conditions
   withCredentials: false,                // Don't send cookies — avoids CORS issues when chat service runs on different port
   query: { XTransformPort: '3003' },     // Caddy gateway uses this to route to chat service
@@ -122,6 +122,9 @@ let providerListenersAttached = false;
 /** Reconnection attempt counter for logging */
 let reconnectAttempts = 0;
 
+/** Whether socket has permanently given up reconnecting */
+let socketGivenUp = false;
+
 /**
  * Get or create the singleton Socket.IO instance.
  *
@@ -147,7 +150,14 @@ export function getSocket(): Socket {
 
     // ─── Log connection errors for debugging ───
     socketInstance.on('connect_error', (err) => {
-      console.warn('[Socket] connect_error:', err.message);
+      reconnectAttempts++;
+      console.warn(`[Socket] connect_error (attempt ${reconnectAttempts}):`, err.message);
+      // If we've failed many times, mark as permanently disconnected
+      // so the UI stops showing "connecting" and falls back to Realtime/polling
+      if (reconnectAttempts >= 5 && !socketGivenUp) {
+        socketGivenUp = true;
+        console.warn('[Socket] Giving up on Socket.IO — falling back to Realtime/polling');
+      }
     });
 
     // ─── Handle disconnect with reason ───
@@ -191,6 +201,15 @@ export function destroySocket(): void {
   authCredentials = null;
   providerListenersAttached = false;
   reconnectAttempts = 0;
+  socketGivenUp = false;
+}
+
+/**
+ * Check if the socket has permanently given up reconnecting.
+ * When true, the app should rely on Supabase Realtime + polling instead.
+ */
+export function isSocketGivenUp(): boolean {
+  return socketGivenUp;
 }
 
 // =====================================================
@@ -325,7 +344,10 @@ export function SocketProvider({ children }: SocketProviderProps): ReactElement 
       // Also listen for io-level reconnect success as a safety net
       socket.io.on('reconnect', providerConnectHandler);
       // When reconnection fails permanently (after all attempts), set to disconnected
-      providerIoReconnectFailedHandler = () => setStatus('disconnected');
+      providerIoReconnectFailedHandler = () => {
+        socketGivenUp = true;
+        setStatus('disconnected');
+      };
       socket.io.on('reconnect_failed', providerIoReconnectFailedHandler);
       // Handle manager errors
       providerIoErrorHandler = (err: Error) => {
