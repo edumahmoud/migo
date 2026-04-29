@@ -119,6 +119,14 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     // since the last init() call. Removing old listeners first prevents duplicates.
     const socket = getSocket();
 
+    // If no socket is available (Realtime-only mode / no Socket.IO server),
+    // mark as initialized and skip Socket.IO event listeners entirely.
+    // Status tracking will still work via Supabase Realtime in chat components.
+    if (!socket) {
+      set({ initialized: true });
+      return;
+    }
+
     // Remove any previously attached listeners (safe even if none exist)
     socket.off('connect', handleConnect);
     socket.off('online-users', handleOnlineUsers);
@@ -225,9 +233,9 @@ export const useStatusStore = create<StatusState>((set, get) => ({
       // Ignore
     }
 
-    // Emit to socket
+    // Emit to socket (only if available)
     const socket = getSocket();
-    if (socket.connected) {
+    if (socket?.connected) {
       socket.emit('status-change', { userId, status });
     }
 
@@ -245,7 +253,7 @@ export const useStatusStore = create<StatusState>((set, get) => ({
 
   fetchUserStatuses: (userIds: string[]) => {
     const socket = getSocket();
-    if (socket.connected && userIds.length > 0) {
+    if (socket?.connected && userIds.length > 0) {
       socket.emit('get-user-status', { userIds });
     }
   },
