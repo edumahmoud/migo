@@ -94,7 +94,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   const [messageMenuId, setMessageMenuId] = useState<string | null>(null);
 
   // Shared socket — replaces local socket creation
-  const { socket, status, isConnected, joinRoom } = useSharedSocket();
+  const { socket, status, isConnected, isRealtimeMode, joinRoom } = useSharedSocket();
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -856,12 +856,12 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             <WifiOff className="h-3 w-3 text-rose-400" />
           )}
           <div className={`h-2 w-2 rounded-full ${
-            status === 'connected' ? 'bg-emerald-500'
+            status === 'connected' || status === 'realtime' ? 'bg-emerald-500'
               : status === 'connecting' ? 'bg-amber-400 animate-pulse'
               : 'bg-rose-400'
           }`} />
           <span className="text-[10px] text-muted-foreground">
-            {status === 'connected' ? 'متصل'
+            {status === 'connected' || status === 'realtime' ? 'متصل'
               : status === 'connecting' ? 'جاري الاتصال...'
               : 'غير متصل'}
           </span>

@@ -1,20 +1,15 @@
 'use client';
 
 // =====================================================
-// AttenDo - Shared Singleton Socket.IO Utility
+// AttenDo - Chat Connection Provider
 // =====================================================
-// Solves the problem of multiple components (chat-section,
-// chat-tab, settings-section) each creating their own
-// separate socket connections, which caused:
-//   - "Not connected to server" status issues
-//   - Duplicate connections
-//   - Race conditions
-//   - Real-time messages not being delivered properly
+// Strategy:
+//   - PRIMARY: Supabase Realtime (works everywhere, including Vercel)
+//   - BONUS: Socket.IO (typing indicators, presence) — only when available
 //
-// Usage:
-//   1. Wrap your app with <SocketProvider> (in layout.tsx)
-//   2. Use `useSharedSocket()` hook in components
-//   3. Or use `getSocket()` for non-React code
+// On Vercel without NEXT_PUBLIC_CHAT_SERVICE_URL, Socket.IO is
+// skipped entirely and Realtime handles all message delivery.
+// The UI shows "متصل" (connected) once Realtime subscribes.
 // =====================================================
 
 import {
@@ -35,17 +30,19 @@ import type { UserStatus } from '@/lib/types';
 // Types
 // =====================================================
 
-/** Connection status of the singleton socket */
-export type SocketConnectionStatus = 'connected' | 'disconnected' | 'connecting';
+/** Connection status of the chat system */
+export type SocketConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'realtime';
 
 /** Value provided by the SocketContext */
 export interface SocketContextValue {
-  /** The singleton Socket.IO instance (null before first init) */
+  /** The Socket.IO instance (null if skipped or not yet created) */
   socket: Socket | null;
   /** Current connection status */
   status: SocketConnectionStatus;
-  /** Whether the socket is connected and ready */
+  /** Whether the chat system is connected (Socket.IO or Realtime) */
   isConnected: boolean;
+  /** Whether we're using Realtime mode (no Socket.IO server) */
+  isRealtimeMode: boolean;
 }
 
 /** Return type of the useSharedSocket hook */
@@ -61,55 +58,31 @@ export interface UseSharedSocketReturn extends SocketContextValue {
 }
 
 // =====================================================
-// Constants
+// Detect if Socket.IO server is available
 // =====================================================
 
-// Socket.IO client connects to the chat service on port 3003.
-// Next.js rewrites /socket.io/* → http://localhost:3003/socket.io/* (local only)
-// On Vercel, the chat service URL should be set via NEXT_PUBLIC_CHAT_SERVICE_URL env var.
-// If not set, Socket.IO will attempt connection but fail gracefully.
-
-function getSocketUrl(): string {
-  // If a custom chat service URL is provided (e.g. for Vercel deployment), use it
-  const customUrl = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL;
-  if (customUrl) return customUrl;
-
-  // Default: empty string = same origin.
-  // The Caddy gateway routes requests to the chat service (port 3003)
-  // via the XTransformPort query parameter.
-  return '';
+function hasChatServiceUrl(): boolean {
+  return !!process.env.NEXT_PUBLIC_CHAT_SERVICE_URL;
 }
 
-const SOCKET_URL = getSocketUrl();
-
-const SOCKET_OPTIONS: Parameters<typeof io>[1] = {
-  path: '/socket.io',                    // Path on the server where Socket.IO is served
-  transports: ['polling', 'websocket'],  // Try polling first — works through Next.js rewrites & Caddy proxy
-  forceNew: false,                       // KEY: reuse existing connection, don't create new
-  reconnection: true,
-  reconnectionAttempts: 10,              // Give up after 10 attempts (then fall back to Realtime)
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 15000,           // Max 15s between retries
-  timeout: 10000,                        // 10s timeout for initial connection
-  autoConnect: true,                     // Auto-connect on creation — avoids race conditions
-  withCredentials: false,                // Don't send cookies — avoids CORS issues when chat service runs on different port
-  query: { XTransformPort: '3003' },     // Caddy gateway uses this to route to chat service
-};
+function getSocketUrl(): string {
+  const customUrl = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL;
+  if (customUrl) return customUrl;
+  return '';
+}
 
 // =====================================================
 // Singleton Socket Management
 // =====================================================
 
-/** The singleton socket instance — created once, reused everywhere */
 let socketInstance: Socket | null = null;
-
-/** Stored credentials for auto re-auth on reconnect */
 let authCredentials: { userId: string; userName: string } | null = null;
-
-/** Reference count of active SocketProviders — controls lifecycle */
 let providerCount = 0;
+let providerListenersAttached = false;
+let reconnectAttempts = 0;
+let socketGivenUp = false;
 
-/** Provider-level status listeners (named so we can remove ONLY these, not auto-auth) */
+// Provider-level status listeners
 let providerConnectHandler: (() => void) | null = null;
 let providerDisconnectHandler: ((reason: string) => void) | null = null;
 let providerReconnectAttemptHandler: ((attempt: number) => void) | null = null;
@@ -117,27 +90,34 @@ let providerIoReconnectAttemptHandler: (() => void) | null = null;
 let providerConnectErrorHandler: ((err: Error) => void) | null = null;
 let providerIoReconnectFailedHandler: (() => void) | null = null;
 let providerIoErrorHandler: ((err: Error) => void) | null = null;
-let providerListenersAttached = false;
-
-/** Reconnection attempt counter for logging */
-let reconnectAttempts = 0;
-
-/** Whether socket has permanently given up reconnecting */
-let socketGivenUp = false;
 
 /**
  * Get or create the singleton Socket.IO instance.
- *
- * - First call creates the socket and stores it.
- * - Subsequent calls return the same instance.
- * - Auto-authenticates with stored credentials on connect.
- * - Auto-re-authenticates on reconnect.
+ * If no chat service URL is configured, returns null (Realtime-only mode).
  */
-export function getSocket(): Socket {
-  if (!socketInstance) {
-    socketInstance = io(SOCKET_URL, SOCKET_OPTIONS);
+export function getSocket(): Socket | null {
+  // If no chat service URL is configured, don't even try Socket.IO
+  if (!hasChatServiceUrl() && !socketInstance) {
+    return null;
+  }
 
-    // ─── Auto-authenticate on every (re)connect ───
+  if (!socketInstance) {
+    const SOCKET_OPTIONS: Parameters<typeof io>[1] = {
+      path: '/socket.io',
+      transports: ['polling', 'websocket'],
+      forceNew: false,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      timeout: 5000,
+      autoConnect: true,
+      withCredentials: false,
+      query: { XTransformPort: '3003' },
+    };
+
+    socketInstance = io(getSocketUrl(), SOCKET_OPTIONS);
+
     socketInstance.on('connect', () => {
       reconnectAttempts = 0;
       if (authCredentials) {
@@ -148,22 +128,17 @@ export function getSocket(): Socket {
       }
     });
 
-    // ─── Log connection errors for debugging ───
     socketInstance.on('connect_error', (err) => {
       reconnectAttempts++;
       console.warn(`[Socket] connect_error (attempt ${reconnectAttempts}):`, err.message);
-      // If we've failed many times, mark as permanently disconnected
-      // so the UI stops showing "connecting" and falls back to Realtime/polling
-      if (reconnectAttempts >= 5 && !socketGivenUp) {
+      if (reconnectAttempts >= 3 && !socketGivenUp) {
         socketGivenUp = true;
-        console.warn('[Socket] Giving up on Socket.IO — falling back to Realtime/polling');
+        console.warn('[Socket] Giving up on Socket.IO — falling back to Realtime');
       }
     });
 
-    // ─── Handle disconnect with reason ───
     socketInstance.on('disconnect', (reason) => {
       console.warn('[Socket] disconnected:', reason);
-      // If the server disconnected us, try to reconnect
       if (reason === 'io server disconnect') {
         socketInstance?.connect();
       }
@@ -173,25 +148,14 @@ export function getSocket(): Socket {
   return socketInstance;
 }
 
-/**
- * Set the authentication credentials used for auto-auth on
- * connect and reconnect. Call this once the user is known
- * (e.g. after login or profile load).
- */
 export function setSocketAuth(userId: string, userName: string): void {
   authCredentials = { userId, userName };
-
-  // If socket is already connected, re-auth immediately
   const socket = getSocket();
-  if (socket.connected) {
+  if (socket?.connected) {
     socket.emit('auth', { userId, userName });
   }
 }
 
-/**
- * Disconnect and destroy the singleton socket.
- * Call this on logout or when the app unmounts entirely.
- */
 export function destroySocket(): void {
   if (socketInstance) {
     socketInstance.removeAllListeners();
@@ -204,56 +168,50 @@ export function destroySocket(): void {
   socketGivenUp = false;
 }
 
-/**
- * Check if the socket has permanently given up reconnecting.
- * When true, the app should rely on Supabase Realtime + polling instead.
- */
 export function isSocketGivenUp(): boolean {
-  return socketGivenUp;
+  return socketGivenUp || !hasChatServiceUrl();
 }
 
 // =====================================================
 // Helper Functions
 // =====================================================
 
-/** Join a specific conversation room */
 export function joinRoom(conversationId: string): void {
   const socket = getSocket();
+  if (!socket) return;
   if (socket.connected) {
     socket.emit('join-conversation', { conversationId });
   } else {
-    // Queue the join for when we reconnect
     socket.once('connect', () => {
       socket.emit('join-conversation', { conversationId });
     });
   }
 }
 
-/** Leave a specific conversation room */
 export function leaveRoom(conversationId: string): void {
   const socket = getSocket();
+  if (!socket) return;
   if (socket.connected) {
     socket.emit('leave-conversation', { conversationId });
   }
 }
 
-/** Join multiple conversation rooms at once */
 export function joinAllRooms(conversationIds: string[]): void {
   if (conversationIds.length === 0) return;
   const socket = getSocket();
+  if (!socket) return;
   if (socket.connected) {
     socket.emit('join-all-conversations', { conversationIds });
   } else {
-    // Queue the join for when we reconnect
     socket.once('connect', () => {
       socket.emit('join-all-conversations', { conversationIds });
     });
   }
 }
 
-/** Emit a status change event (online/away/busy/offline/invisible) */
 export function emitStatusChange(userId: string, status: UserStatus): void {
   const socket = getSocket();
+  if (!socket) return;
   if (socket.connected) {
     socket.emit('status-change', { userId, status });
   }
@@ -267,6 +225,7 @@ const SocketContext = createContext<SocketContextValue>({
   socket: null,
   status: 'disconnected',
   isConnected: false,
+  isRealtimeMode: false,
 });
 
 SocketContext.displayName = 'SocketContext';
@@ -279,40 +238,43 @@ export interface SocketProviderProps {
   children: ReactNode;
 }
 
-/**
- * Provider that manages the singleton socket lifecycle and
- * exposes it via React context.
- *
- * - Mounts: initializes the socket, attaches status listeners,
- *   increments reference count.
- * - Unmounts: decrements reference count; when it reaches 0,
- *   cleans up status listeners (but does NOT destroy the socket
- *   so other consumers can still use `getSocket()` directly).
- */
 export function SocketProvider({ children }: SocketProviderProps): ReactElement {
-  const [status, setStatus] = useState<SocketConnectionStatus>('disconnected');
+  const isRealtimeMode = !hasChatServiceUrl();
+  const [status, setStatus] = useState<SocketConnectionStatus>(() => {
+    if (isRealtimeMode) return 'realtime'; // Immediately connected via Realtime
+    return 'connecting';
+  });
   const socketRef = useRef<Socket | null>(null);
 
-  // ─── Initialize socket on mount ───
   useEffect(() => {
     providerCount++;
 
+    if (isRealtimeMode) {
+      // No Socket.IO server — Realtime mode from the start
+      setStatus('realtime');
+      socketRef.current = null;
+      return () => {
+        providerCount--;
+      };
+    }
+
+    // Socket.IO mode — try to connect
     const socket = getSocket();
     socketRef.current = socket;
 
-    // Set initial status
+    if (!socket) {
+      setStatus('realtime');
+      return () => { providerCount--; };
+    }
+
     if (socket.connected) {
       setStatus('connected');
     } else if (socket.io.opts.autoConnect) {
-      // Socket is actively trying to connect — show connecting, not disconnected
       setStatus('connecting');
     } else {
       setStatus('disconnected');
     }
 
-    // Only attach provider-level status listeners once
-    // (not per provider instance — they share the same socket)
-    // Use named handlers so we can remove ONLY these (not the auto-auth listener)
     if (!providerListenersAttached) {
       providerListenersAttached = true;
 
@@ -333,7 +295,12 @@ export function SocketProvider({ children }: SocketProviderProps): ReactElement 
       };
       providerConnectErrorHandler = (err: Error) => {
         console.warn('[SocketProvider] connect_error:', err.message);
-        setStatus('disconnected');
+        // If we've failed multiple times, switch to Realtime mode
+        if (reconnectAttempts >= 3) {
+          setStatus('realtime');
+        } else {
+          setStatus('disconnected');
+        }
       };
 
       socket.on('connect', providerConnectHandler);
@@ -341,27 +308,34 @@ export function SocketProvider({ children }: SocketProviderProps): ReactElement 
       socket.on('reconnect_attempt', providerReconnectAttemptHandler);
       socket.on('connect_error', providerConnectErrorHandler);
       socket.io.on('reconnect_attempt', providerIoReconnectAttemptHandler);
-      // Also listen for io-level reconnect success as a safety net
       socket.io.on('reconnect', providerConnectHandler);
-      // When reconnection fails permanently (after all attempts), set to disconnected
+
       providerIoReconnectFailedHandler = () => {
         socketGivenUp = true;
-        setStatus('disconnected');
+        setStatus('realtime');
       };
       socket.io.on('reconnect_failed', providerIoReconnectFailedHandler);
-      // Handle manager errors
+
       providerIoErrorHandler = (err: Error) => {
         console.error('[SocketProvider] manager error:', err.message);
       };
       socket.io.on('error', providerIoErrorHandler);
     }
 
+    // Auto-fallback: if socket doesn't connect within 8 seconds, switch to Realtime
+    const fallbackTimer = setTimeout(() => {
+      if (socket && !socket.connected) {
+        console.warn('[SocketProvider] Socket.IO timed out — switching to Realtime mode');
+        socketGivenUp = true;
+        setStatus('realtime');
+      }
+    }, 8000);
+
     return () => {
       providerCount--;
       socketRef.current = null;
+      clearTimeout(fallbackTimer);
 
-      // When no providers are left, detach the provider-level listeners
-      // but keep the socket alive for direct getSocket() consumers
       if (providerCount <= 0) {
         providerCount = 0;
         if (socket && providerListenersAttached) {
@@ -369,18 +343,10 @@ export function SocketProvider({ children }: SocketProviderProps): ReactElement 
           if (providerDisconnectHandler) socket.off('disconnect', providerDisconnectHandler);
           if (providerReconnectAttemptHandler) socket.off('reconnect_attempt', providerReconnectAttemptHandler as (attempt: number) => void);
           if (providerConnectErrorHandler) socket.off('connect_error', providerConnectErrorHandler);
-          if (providerIoReconnectAttemptHandler) {
-            socket.io.off('reconnect_attempt', providerIoReconnectAttemptHandler);
-          }
-          if (providerConnectHandler) {
-            socket.io.off('reconnect', providerConnectHandler);
-          }
-          if (providerIoReconnectFailedHandler) {
-            socket.io.off('reconnect_failed', providerIoReconnectFailedHandler);
-          }
-          if (providerIoErrorHandler) {
-            socket.io.off('error', providerIoErrorHandler);
-          }
+          if (providerIoReconnectAttemptHandler) socket.io.off('reconnect_attempt', providerIoReconnectAttemptHandler);
+          if (providerConnectHandler) socket.io.off('reconnect', providerConnectHandler);
+          if (providerIoReconnectFailedHandler) socket.io.off('reconnect_failed', providerIoReconnectFailedHandler);
+          if (providerIoErrorHandler) socket.io.off('error', providerIoErrorHandler);
           providerConnectHandler = null;
           providerDisconnectHandler = null;
           providerReconnectAttemptHandler = null;
@@ -392,13 +358,10 @@ export function SocketProvider({ children }: SocketProviderProps): ReactElement 
         }
       }
     };
-  }, []);
+  }, [isRealtimeMode]);
 
-  // ─── Memoize context value to prevent unnecessary re-renders ───
-  // Use state instead of ref to avoid accessing ref during render
   const [socketInstanceState, setSocketInstanceState] = useState<Socket | null>(null);
 
-  // Sync ref to state when socket changes (in effects, not during render)
   useEffect(() => {
     setSocketInstanceState(socketRef.current);
   }, [status]);
@@ -407,7 +370,8 @@ export function SocketProvider({ children }: SocketProviderProps): ReactElement 
     () => ({
       socket: socketInstanceState,
       status,
-      isConnected: status === 'connected',
+      isConnected: status === 'connected' || status === 'realtime',
+      isRealtimeMode: status === 'realtime',
     }),
     [socketInstanceState, status],
   );
@@ -423,18 +387,8 @@ export function SocketProvider({ children }: SocketProviderProps): ReactElement 
 // useSharedSocket Hook
 // =====================================================
 
-/**
- * React hook that provides the shared singleton socket,
- * connection status, and helper functions.
- *
- * Must be used within a <SocketProvider>.
- */
 export function useSharedSocket(): UseSharedSocketReturn {
   const ctx = useContext(SocketContext);
-
-  if (!ctx) {
-    throw new Error('useSharedSocket must be used within a <SocketProvider>');
-  }
 
   const joinRoomFn = useCallback((conversationId: string) => {
     joinRoom(conversationId);
@@ -457,6 +411,7 @@ export function useSharedSocket(): UseSharedSocketReturn {
       socket: ctx.socket,
       status: ctx.status,
       isConnected: ctx.isConnected,
+      isRealtimeMode: ctx.isRealtimeMode,
       joinRoom: joinRoomFn,
       leaveRoom: leaveRoomFn,
       joinAllRooms: joinAllRoomsFn,
@@ -466,6 +421,7 @@ export function useSharedSocket(): UseSharedSocketReturn {
       ctx.socket,
       ctx.status,
       ctx.isConnected,
+      ctx.isRealtimeMode,
       joinRoomFn,
       leaveRoomFn,
       joinAllRoomsFn,
@@ -475,29 +431,22 @@ export function useSharedSocket(): UseSharedSocketReturn {
 }
 
 // =====================================================
-// useSocketEvent Hook (bonus utility)
+// useSocketEvent Hook
 // =====================================================
 
-/**
- * Convenience hook to subscribe to a socket event with
- * automatic cleanup.
- *
- * Works even if the SocketProvider hasn't mounted yet —
- * it uses `getSocket()` internally.
- */
 export function useSocketEvent<T = unknown>(
   event: string,
   handler: (data: T) => void,
 ): void {
   const handlerRef = useRef(handler);
 
-  // Update the ref inside an effect to comply with React's rules
   useEffect(() => {
     handlerRef.current = handler;
   });
 
   useEffect(() => {
     const socket = getSocket();
+    if (!socket) return; // Realtime mode — no socket events
 
     const listener = (data: T) => {
       handlerRef.current(data);
@@ -510,4 +459,3 @@ export function useSocketEvent<T = unknown>(
     };
   }, [event]);
 }
-

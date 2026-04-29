@@ -135,7 +135,7 @@ function TypingIndicator({ names }: { names: string[] }) {
 // =====================================================
 export default function ChatSection({ profile, role }: ChatSectionProps) {
   // ─── Shared socket ───
-  const { socket, status, isConnected, joinRoom, leaveRoom, joinAllRooms } = useSharedSocket();
+  const { socket, status, isConnected, isRealtimeMode, joinRoom, leaveRoom, joinAllRooms } = useSharedSocket();
   const { openProfile } = useAppStore();
   const { setChatUnreadCount } = useAppStore();
 
@@ -293,13 +293,13 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     }
   }, []);
 
-  // Setup polling intervals + Supabase Realtime fallback for Vercel
+  // Setup Supabase Realtime (PRIMARY) + polling (backup)
   useEffect(() => {
     // Clear existing intervals
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (backupPollingRef.current) clearInterval(backupPollingRef.current);
 
-    // Always set up Supabase Realtime as a reliable fallback (works on Vercel too)
+    // ─── Supabase Realtime: PRIMARY real-time delivery (works on Vercel) ───
     try {
       if (!realtimeChannelRef.current) {
         const channel = supabase
@@ -323,7 +323,6 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   .then(r => r.json())
                   .then(data => {
                     const serverMessages: ChatMessage[] = data.messages || [];
-                    // Find the new message by ID
                     const fullMsg = serverMessages.find(
                       (m: ChatMessage) => m.id === newMsg.id
                     );
@@ -360,7 +359,6 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         body: JSON.stringify({ action: 'mark-read', conversationId: convId, userId: profile.id }),
                       }).catch(() => {});
                     } else {
-                      // Show toast for message in other conversation
                       const senderName = fullMsg.sender?.name || 'مستخدم';
                       toast(`رسالة جديدة من ${senderName}`, {
                         description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
@@ -375,37 +373,62 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     }
                     fetchConversations();
                   })
-                  .catch(() => {
-                    // Silently ignore fetch errors in Realtime handler
-                  });
+                  .catch(() => {});
               }
-            )
-            .subscribe((status) => {
-              console.log('[Chat Realtime] subscription status:', status);
-            });
+          )
+          // ─── Also listen for message updates (edits/deletes) ───
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'messages',
+            },
+            (payload) => {
+              const updated = payload.new as Record<string, unknown>;
+              const msgId = updated.id as string;
+              if (!msgId) return;
 
-          realtimeChannelRef.current = channel;
-        }
-      } catch (err) {
-        console.error('[Chat Realtime] setup error:', err);
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== msgId) return m;
+                  return {
+                    ...m,
+                    content: (updated.content as string) || m.content,
+                    is_edited: (updated.is_edited as boolean) ?? m.is_edited,
+                    is_deleted: (updated.is_deleted as boolean) ?? m.is_deleted,
+                    edited_at: (updated.edited_at as string) || m.edited_at,
+                  };
+                })
+              );
+            }
+          )
+          .subscribe((subStatus) => {
+            console.log('[Chat Realtime] subscription status:', subStatus);
+          });
+
+        realtimeChannelRef.current = channel;
       }
+    } catch (err) {
+      console.error('[Chat Realtime] setup error:', err);
+    }
 
-    // Polling: faster when socket is disconnected, slower when connected
+    // ─── Polling: lightweight backup for reliability ───
+    // In Realtime mode: poll every 10 seconds as backup
+    // In Socket.IO mode: poll every 15 seconds as backup
+    // When disconnected: poll every 5 seconds
     if (!isConnected) {
-      // Poll every 3 seconds when socket is disconnected
-      pollingRef.current = setInterval(pollMessages, 3000);
-      // Also refresh conversation list every 5 seconds to catch new conversations
-      const convPollRef = setInterval(fetchConversations, 5000);
-      backupPollingRef.current = convPollRef;
+      pollingRef.current = setInterval(pollMessages, 5000);
+      backupPollingRef.current = setInterval(fetchConversations, 8000);
+    } else if (isRealtimeMode) {
+      backupPollingRef.current = setInterval(pollMessages, 10000);
     } else {
-      // Poll every 15 seconds as backup when socket is connected
       backupPollingRef.current = setInterval(pollMessages, 15000);
     }
 
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
       if (backupPollingRef.current) clearInterval(backupPollingRef.current);
-      // Cleanup Realtime on unmount
       if (realtimeChannelRef.current) {
         try {
           supabase.removeChannel(realtimeChannelRef.current);
@@ -415,7 +438,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         realtimeChannelRef.current = null;
       }
     };
-  }, [isConnected, pollMessages, profile.id, fetchConversations]);
+  }, [isConnected, isRealtimeMode, pollMessages, profile.id, fetchConversations]);
 
   // =====================================================
   // Initialize status store on mount
@@ -1501,13 +1524,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 <h2 className="text-base font-bold text-foreground">المحادثات</h2>
               </div>
               <div className="flex items-center gap-2">
-                {/* Socket connection indicator */}
+                {/* Connection indicator */}
                 <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted/50" title={
-                  status === 'connected' ? 'متصل بالسيرفر'
-                    : status === 'connecting' ? 'جاري الاتصال بالسيرفر...'
-                    : 'غير متصل - يتم التحديث تلقائياً'
+                  status === 'connected' ? 'متصل عبر Socket.IO'
+                    : status === 'realtime' ? 'متصل عبر Realtime'
+                    : status === 'connecting' ? 'جاري الاتصال...'
+                    : 'غير متصل'
                 }>
-                  {status === 'connected' ? (
+                  {status === 'connected' || status === 'realtime' ? (
                     <Wifi className="h-3 w-3 text-emerald-500" />
                   ) : status === 'connecting' ? (
                     <RefreshCw className="h-3 w-3 text-amber-500 animate-spin" />
@@ -1515,7 +1539,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     <WifiOff className="h-3 w-3 text-rose-400" />
                   )}
                   <span className="text-[10px] text-muted-foreground">
-                    {status === 'connected' ? 'متصل'
+                    {status === 'connected' || status === 'realtime' ? 'متصل'
                       : status === 'connecting' ? 'جاري الاتصال...'
                       : 'غير متصل'}
                   </span>
@@ -1951,12 +1975,12 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
                 {/* Connection status in header */}
                 <div className="flex items-center gap-1">
-                  {status === 'connected' ? (
+                  {status === 'connected' || status === 'realtime' ? (
                     <Wifi className="h-3.5 w-3.5 text-emerald-500" />
                   ) : status === 'connecting' ? (
                     <RefreshCw className="h-3.5 w-3.5 text-amber-500 animate-spin" />
                   ) : (
-                    <div className="flex items-center gap-1" title="يتم التحديث كل 5 ثوانٍ">
+                    <div className="flex items-center gap-1" title="يتم التحديث تلقائياً">
                       <WifiOff className="h-3.5 w-3.5 text-rose-400" />
                       <span className="text-[9px] text-rose-400 hidden sm:inline">تحديث تلقائي</span>
                     </div>
