@@ -1,61 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
 
 export async function GET(request: NextRequest) {
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
-    let userId: string | null = null;
-
-    // Method 1: Try cookie-based auth using getSession() which handles token refresh
-    // (getUser() alone may fail if the access token in cookies is expired and
-    //  the internal refresh doesn't propagate back to the cookie store in API routes)
-    try {
-      const serverClient = await getSupabaseServerClient();
-      const { data: { session }, error: sessionError } = await serverClient.auth.getSession();
-      if (!sessionError && session?.user) {
-        userId = session.user.id;
-      }
-    } catch {
-      // Cookie-based auth failed, try token-based
+    // Verify x-user-id header matches the authenticated user (if present)
+    const headerUserId = request.headers.get('x-user-id');
+    if (headerUserId) {
+      const ownershipError = verifyOwnership(authResult.user.id, headerUserId);
+      if (ownershipError) return authErrorResponse(ownershipError);
     }
 
-    // Method 2: Try Authorization header token (works on mobile browsers)
-    if (!userId) {
-      const authHeader = request.headers.get('Authorization');
-      if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.slice(7);
-        try {
-          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-          const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-          if (supabaseUrl && supabaseAnonKey) {
-            const tokenClient = createClient(supabaseUrl, supabaseAnonKey, {
-              auth: { autoRefreshToken: false, persistSession: false },
-              global: { headers: { Authorization: `Bearer ${token}` } },
-            });
-            const { data: { user }, error } = await tokenClient.auth.getUser(token);
-            if (!error && user) {
-              userId = user.id;
-            }
-          }
-        } catch {
-          // Token-based auth also failed
-        }
-      }
-    }
-
-    // Method 3: Use x-user-id header set by middleware (already authenticated)
-    // The middleware validates the user before the request reaches this API route,
-    // so x-user-id is a reliable fallback when cookie/header auth fails in the route handler.
-    if (!userId) {
-      const middlewareUserId = request.headers.get('x-user-id');
-      if (middlewareUserId) {
-        userId = middlewareUserId;
-      }
-    }
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const userId = authResult.user.id;
 
     // Use service role client to bypass RLS on file_shares
     const { data: shares, error } = await supabaseServer

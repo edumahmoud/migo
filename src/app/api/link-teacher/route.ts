@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { notifyUser } from '@/lib/notifications-service';
 
 /**
  * POST /api/link-teacher
@@ -167,19 +168,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Send notification to the teacher about the new link request
-    try {
-      await supabaseServer.from('notifications').insert({
-        user_id: teacher.id,
-        type: 'system',
-        title: 'طلب ارتباط جديد',
-        message: `أرسل الطالب ${profile.name} طلب ارتباط بك. اذهب لقسم الطلاب لقبول أو رفض الطلب.`,
-        link: 'students',
-      });
-    } catch (notifErr) {
-      console.error('[link-teacher] Error sending notification to teacher:', notifErr);
-      // Don't fail the request — the link was created successfully
-    }
+    // 4. Send notification to the teacher about the new link request (DB + push)
+    await notifyUser(
+      teacher.id,
+      'system',
+      'طلب ارتباط جديد',
+      `أرسل الطالب ${profile.name} طلب ارتباط بك. اذهب لقسم الطلاب لقبول أو رفض الطلب.`,
+      'students',
+    );
 
     return NextResponse.json({
       success: true,

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;

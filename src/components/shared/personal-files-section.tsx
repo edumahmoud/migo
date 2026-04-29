@@ -531,10 +531,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       prev.map((p) => (p.progress === -1 ? { ...p, progress: 0, uploading: false } : p))
     );
 
-    // Small delay to let state update before filtering
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    const toUpload = pendingUploads.filter((p) => !p.done && !p.uploading);
+    // Use functional state update to read the LATEST state (avoids stale closure on mobile)
+    let toUpload: typeof pendingUploads = [];
+    setPendingUploads((current) => {
+      toUpload = current.filter((p) => !p.done && !p.uploading);
+      return current; // Don't mutate, just read
+    });
     if (toUpload.length === 0) return;
 
     // Get auth token
@@ -1441,7 +1443,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {(file.file_type.toLowerCase().includes('image') || file.file_type.toLowerCase().includes('pdf') || file.file_type.toLowerCase().includes('video') || file.file_type.toLowerCase().includes('audio')) && (
               <button
                 onClick={(e) => { e.stopPropagation(); handlePreview(file); }}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors touch-manipulation"
+                className="touch-target shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors touch-manipulation"
                 title="معاينة"
               >
                 <Eye className="h-4 w-4" />
@@ -1451,7 +1453,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Checkbox for multi-select */}
             <button
               onClick={() => toggleFileSelection(file.id)}
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
+              className={`touch-target shrink-0 flex items-center justify-center rounded-md transition-colors ${
                 selectedFileIds.has(file.id)
                   ? 'text-emerald-600'
                   : 'text-muted-foreground hover:text-foreground'
@@ -1464,7 +1466,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <DropdownMenu dir="rtl">
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                  className="touch-target shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <MoreVertical className="h-4 w-4" />
@@ -1713,7 +1715,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
+            exit={{ opacity: 0, y: 20, pointerEvents: 'none' as const }}
             className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
             dir="rtl"
           >
@@ -1963,7 +1965,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => {
             if (!pendingUploads.some((p) => p.uploading)) {
@@ -1975,7 +1977,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-lg rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
@@ -1994,7 +1996,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     setPendingUploads([]);
                   }
                 }}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2090,7 +2092,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         {!item.uploading && !item.done && (
                           <button
                             onClick={() => removePendingUpload(item.id)}
-                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-rose-50 hover:text-rose-500"
+                            className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 hover:text-rose-500"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -2159,7 +2161,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     <button
                       type="button"
                       onClick={handleUploadAll}
-                      className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 transition-colors touch-manipulation"
+                      className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 transition-colors touch-manipulation min-h-[44px]"
                     >
                       <Upload className="h-4 w-4" />
                       {pendingUploads.some((p) => p.progress === -1) ? 'إعادة المحاولة' : 'رفع الكل'}
@@ -2183,14 +2185,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => setDetailsFile(null)}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
@@ -2203,7 +2205,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </h3>
               <button
                 onClick={() => setDetailsFile(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2331,14 +2333,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={closeShareModal}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
@@ -2352,7 +2354,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </h3>
               <button
                 onClick={closeShareModal}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2502,7 +2504,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         <button
                           onClick={() => handleRemoveShare(share.id)}
                           disabled={removingShareId === share.id}
-                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-rose-50 hover:text-rose-500 disabled:opacity-60"
+                          className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 hover:text-rose-500 disabled:opacity-60"
                           title="إزالة المشاركة"
                         >
                           {removingShareId === share.id ? (
@@ -2532,14 +2534,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => { if (!assigning) setAssignModalOpen(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-sm rounded-2xl border bg-background shadow-xl"
@@ -2552,7 +2554,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </h3>
               <button
                 onClick={() => { if (!assigning) setAssignModalOpen(false); }}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2648,14 +2650,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => setPreviewFile(null)}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
+            exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-4xl max-h-[90vh] rounded-2xl border bg-background shadow-xl overflow-hidden flex flex-col"
             dir="rtl"
@@ -2682,14 +2684,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => handleDownload(previewFile)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                  className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
                   title="تحميل"
                 >
                   <Download className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => setPreviewFile(null)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                  className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -2764,14 +2766,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => { if (!bulkShareLoading) setBulkShareModalOpen(false); }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
@@ -2785,7 +2787,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </h3>
               <button
                 onClick={() => { if (!bulkShareLoading) setBulkShareModalOpen(false); }}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -2923,14 +2925,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => setShowRecipientsFile(null)}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
@@ -2944,7 +2946,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </h3>
               <button
                 onClick={() => setShowRecipientsFile(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>

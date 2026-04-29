@@ -379,14 +379,39 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* Remove hover effects on touch devices */
+    /* Prevent sticky hover states on touch devices */
+    /* Instead of overriding background-color (which breaks Tailwind utilities),
+       we use a subtle opacity reduction that works with any background color */
     button:hover, a:hover, [role="button"]:hover {
-      background-color: inherit;
+      opacity: 0.85;
     }
 
-    /* Use active states instead */
+    /* Active states for tactile feedback */
     button:active, a:active, [role="button"]:active {
       opacity: 0.7;
+      transform: scale(0.98);
     }
+
+    /* Disable backdrop-filter on touch devices to prevent iOS Safari hit-testing bug */
+    /* See: https://bugs.webkit.org/show_bug.cgi?id=230815 */
+    .backdrop-blur-sm, .backdrop-blur-md, .backdrop-blur-lg, .backdrop-blur-xl {
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+
+    /* Ensure modal exit animations don't leave ghost overlays that block taps */
+    /* Framer Motion AnimatePresence exit animations keep elements in DOM briefly;
+       this ensures they don't intercept pointer events during exit */
+    [data-exiting="true"] {
+      pointer-events: none !important;
+    }
+  }
+}
+
+/* ─── Minimum Touch Target (44px) for Mobile Accessibility ─── */
+@layer utilities {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
   }
 }

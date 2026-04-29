@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 // ─── Schema detection cache ───
 let _hasEnhancedSchema: boolean | null = null;
@@ -22,6 +23,9 @@ async function hasEnhancedBanSchema(): Promise<boolean> {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const body = await request.json();
     const { email, banId } = body;

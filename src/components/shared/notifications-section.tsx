@@ -50,6 +50,8 @@ function getNotifIcon(type: string, title?: string) {
     case 'file_request': return <FileText className="h-5 w-5 text-orange-600" />;
     case 'file': return <FileText className="h-5 w-5 text-blue-600" />;
     case 'attendance': return <UserCheck className="h-5 w-5 text-violet-600" />;
+    case 'lecture': return <BookOpen className="h-5 w-5 text-teal-600" />;
+    case 'chat': return <Bell className="h-5 w-5 text-sky-600" />;
     default: return <Info className="h-5 w-5 text-purple-600" />;
   }
 }
@@ -104,16 +106,44 @@ export default function NotificationsSection() {
       return;
     }
 
+    // Handle chat:CONVERSATION_ID links — navigate to the main chat section
+    // This must be checked BEFORE the courseLinkPrefix logic because 'chat' is also
+    // a valid CourseTab, but chat:CONVERSATION_ID means "open the main chat section",
+    // not "open a course's chat tab"
+    if (notif.link?.startsWith('chat:')) {
+      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
+      if (user?.role === 'student') {
+        setStudentSection('chat');
+        setCurrentPage('student-dashboard');
+      } else if (user?.role === 'teacher') {
+        setTeacherSection('chat');
+        setCurrentPage('teacher-dashboard');
+      } else if (user?.role === 'admin' || user?.role === 'superadmin') {
+        setAdminSection('chat');
+        setCurrentPage('admin-dashboard');
+      }
+      return;
+    }
+
     // Map of link prefixes to course tabs — matches notification-bell.tsx
+    // Includes BOTH singular and plural keys because the API generates
+    // 3-part links like "subject:ID:assignments" (plural) while the prefix
+    // is "subject" (singular). Both must resolve to the correct CourseTab.
     const linkToTab: Record<string, CourseTab> = {
       enrollment: 'overview',
       subject: 'overview',
+      overview: 'overview',
       assignment: 'assignments',
+      assignments: 'assignments',
       lecture: 'lectures',
-      exam: 'exams',
+      lectures: 'lectures',
       note: 'notes',
+      notes: 'notes',
+      exam: 'exams',
+      exams: 'exams',
       file: 'files',
-      chat: 'chat',
+      files: 'files',
+      students: 'students',
     };
 
     // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID or subject:SUBJECT_ID:tab)
@@ -123,6 +153,21 @@ export default function NotificationsSection() {
       const subjectId = parts[1] || null;
       // Support 3-part links like "subject:SUBJECT_ID:assignments" where the 3rd part overrides the tab
       const explicitTab = parts[2] || null;
+
+      // Special case: "assignment:ASSIGNMENT_ID" (2-part, no subject context)
+      // should navigate to the Assignments section, NOT treat the assignment ID as a subject ID
+      if (courseLinkPrefix === 'assignment' && !explicitTab) {
+        const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore.getState();
+        if (user?.role === 'student') {
+          setStudentSection('assignments');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher') {
+          setTeacherSection('assignments');
+          setCurrentPage('teacher-dashboard');
+        }
+        return;
+      }
+
       if (subjectId) {
         const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
         setSelectedSubjectId(subjectId);
@@ -395,7 +440,7 @@ export default function NotificationsSection() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-4"
             onClick={() => !processingAction && setLinkRequestModal(null)}
           >
@@ -403,7 +448,7 @@ export default function NotificationsSection() {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
               dir="rtl"

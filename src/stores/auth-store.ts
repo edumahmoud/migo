@@ -209,10 +209,14 @@ interface AuthState {
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: string | null }>;
   refreshProfile: () => Promise<void>;
   checkBanStatus: () => Promise<void>;
+  cleanup: () => void;
 }
 
 // Cleanup function for session validation interval
 let sessionCheckCleanup: (() => void) | null = null;
+
+// Auth state change subscription (must be unsubscribed to prevent memory leaks)
+let authSubscription: { data: { subscription: { unsubscribe: () => void } } } | null = null;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -306,8 +310,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: null, loading: false, initialized: true, banInfo: null });
     }
     
+    // Unsubscribe previous listener before creating a new one
+    if (authSubscription) {
+      authSubscription.data.subscription.unsubscribe();
+      authSubscription = null;
+    }
+
     // Listen for auth changes
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    authSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         // ─── Use server-side API to fetch profile (bypasses RLS) ───
         try {
@@ -605,11 +615,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Immediately clear user state for instant UI feedback
     set({ user: null, loading: false, sessionKickedMessage: null, banInfo: null });
 
-    // Clean up session validation interval
-    if (sessionCheckCleanup) {
-      sessionCheckCleanup();
-      sessionCheckCleanup = null;
-    }
+    // Clean up subscriptions and intervals
+    get().cleanup();
 
     // End session tracking in the background (don't block UI)
     endSession().catch(() => {});
@@ -734,6 +741,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch {
       // Silently fail - keep current banInfo state
+    }
+  },
+  
+  cleanup: () => {
+    // Clean up session validation interval
+    if (sessionCheckCleanup) {
+      sessionCheckCleanup();
+      sessionCheckCleanup = null;
+    }
+
+    // Unsubscribe auth state listener to prevent memory leaks
+    if (authSubscription) {
+      authSubscription.data.subscription.unsubscribe();
+      authSubscription = null;
     }
   },
 }));

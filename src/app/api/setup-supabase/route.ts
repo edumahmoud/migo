@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { requireSuperAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 export async function POST(request: NextRequest) {
+  // Only superadmins can write to the server's .env file
+  const authResult = await requireSuperAdmin(request);
+  if (!authResult.success) {
+    return authErrorResponse(authResult);
+  }
+
   try {
     const body = await request.json();
     const { supabaseUrl, supabaseAnonKey, supabaseServiceKey } = body;

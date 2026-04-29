@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
+// recharts is imported at top level for now — consider lazy-loading the analytics tab component
 import {
   LayoutDashboard,
   Users,
@@ -899,6 +899,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // -------------------------------------------------------
   const handleExportReport = async () => {
     try {
+      const XLSX = await import('xlsx');
       toast.info('جاري تحضير التقرير...');
       const wb = XLSX.utils.book_new();
 
@@ -1418,7 +1419,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => {
               if (!deletingUserId) setUserDetailOpen(false);
@@ -1427,7 +1428,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
@@ -1668,14 +1669,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => { if (!banningUserId) setBanDialogOpen(false); }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
@@ -1934,7 +1935,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => {
               if (!deletingSubjectId) setSubjectDetailOpen(false);
@@ -1943,7 +1944,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
@@ -2350,14 +2351,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={{ opacity: 0, pointerEvents: 'none' as const }}
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
               onClick={() => { if (!creatingAnnouncement) setCreateAnnouncementOpen(false); }}
             >
               <motion.div
                 initial={{ scale: 0.95, opacity: 0, y: 10 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 onClick={(e) => e.stopPropagation()}
                 className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"

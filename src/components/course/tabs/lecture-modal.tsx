@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
+// xlsx is dynamically imported in handleExportExcel to reduce initial bundle size
 import {
   BookOpen,
   Clock,
@@ -124,6 +124,8 @@ function uploadFileWithProgress(
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
+    // Timeout for slow mobile connections (5 minutes for large files)
+    xhr.timeout = 5 * 60 * 1000;
 
     Object.entries(headers).forEach(([key, value]) => {
       xhr.setRequestHeader(key, value);
@@ -147,6 +149,10 @@ function uploadFileWithProgress(
 
     xhr.onerror = () => {
       resolve({ success: false, error: 'حدث خطأ في الاتصال' });
+    };
+
+    xhr.ontimeout = () => {
+      resolve({ success: false, error: 'انتهت مهلة الرفع' });
     };
 
     xhr.send(formData);
@@ -187,10 +193,10 @@ interface PendingFile {
 // -------------------------------------------------------
 // Animation variants
 // -------------------------------------------------------
-const modalVariants = {
+const modalVariants: Record<string, Record<string, unknown>> = {
   hidden: { opacity: 0, scale: 0.95, y: 10 },
   visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] } },
-  exit: { opacity: 0, scale: 0.95, y: 10, transition: { duration: 0.15 } },
+  exit: { opacity: 0, scale: 0.95, y: 10, pointerEvents: 'none' as const, transition: { duration: 0.15 } },
 };
 
 // -------------------------------------------------------
@@ -567,6 +573,7 @@ export default function LectureModal({
     if (attendanceRecords.length === 0) { toast.error('لا توجد بيانات حضور للتصدير'); return; }
     setExporting(true);
     try {
+      const XLSX = await import('xlsx');
       const wb = XLSX.utils.book_new();
       const data = attendanceRecords.map((r) => ({
         'اسم الطالب': r.student_name || 'طالب',
@@ -608,13 +615,13 @@ export default function LectureModal({
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             onClick={onClose}
           >
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
             <motion.div
-              variants={modalVariants}
+              variants={modalVariants as any}
               initial="hidden"
               animate="visible"
               exit="exit"
@@ -1099,14 +1106,14 @@ export default function LectureModal({
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => setManualDialogOpen(false)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[80vh] rounded-2xl border bg-background shadow-xl overflow-hidden"
@@ -1220,14 +1227,14 @@ export default function LectureModal({
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
             onClick={() => setPreviewFile(null)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden"

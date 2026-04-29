@@ -5,7 +5,7 @@
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
-const SESSION_STORAGE_KEY = 'examy_session_id';
+const SESSION_STORAGE_KEY = 'attendo_session_id';
 const SESSION_CHECK_INTERVAL_MS = 60_000; // 60 seconds
 
 /**

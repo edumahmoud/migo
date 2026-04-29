@@ -93,7 +93,7 @@ function ConfirmDialog({
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
         >
           <motion.div
@@ -103,7 +103,7 @@ function ConfirmDialog({
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
+            exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', duration: 0.4 }}
             className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
             dir="rtl"
@@ -683,7 +683,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 </h4>
                 <button
                   onClick={() => { setShowAddSearch(false); setAddSearchQuery(''); setAddSearchResults([]); }}
-                  className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                  className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -844,14 +844,14 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                       setPerformanceStudentId(student.id);
                       fetchStudentPerformance(student.id);
                     }}
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                    className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
                     title="أداء الطالب"
                   >
                     <BarChart3 className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => handleOpenProfile(student.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                     title="الملف الشخصي"
                   >
                     <Users className="h-3.5 w-3.5" />
@@ -859,7 +859,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                   <button
                     onClick={() => setRemoveConfirmId(student.id)}
                     disabled={removingId === student.id}
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                    className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
                     title="إزالة"
                   >
                     {removingId === student.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserMinus className="h-3.5 w-3.5" />}
@@ -885,7 +885,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
           <motion.div
             initial={{ y: 80, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
+            exit={{ y: 80, opacity: 0, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background/95 backdrop-blur-md shadow-2xl px-5 py-3"
             dir="rtl"
@@ -917,7 +917,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             </button>
             <button
               onClick={() => setSelectedStudentIds(new Set())}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+              className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -979,7 +979,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             onClick={() => { setPerformanceStudentId(null); setPerformanceData(null); }}
           >
@@ -987,7 +987,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl max-h-[80vh] overflow-y-auto"
@@ -1001,7 +1001,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 </div>
                 <button
                   onClick={() => { setPerformanceStudentId(null); setPerformanceData(null); }}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                  className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1115,7 +1115,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
             className="fixed inset-0 z-40 flex items-center justify-center p-4"
           >
@@ -1123,7 +1123,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={{ opacity: 0, pointerEvents: 'none' as const }}
               transition={{ duration: 0.4 }}
               className="absolute inset-0 bg-black/15 backdrop-blur-[3px]"
               onClick={() => setPendingPanelOpen(false)}
@@ -1132,7 +1132,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             <motion.div
               initial={{ scale: 0.92, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.92, opacity: 0, y: 20 }}
+              exit={{ scale: 0.92, opacity: 0, y: 20, pointerEvents: 'none' as const }}
               transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl border border-border/50 bg-background shadow-2xl shadow-black/8 overflow-hidden"
               dir="rtl"

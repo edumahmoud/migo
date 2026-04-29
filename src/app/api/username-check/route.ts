@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // Authenticate the request
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
+    }
+
     const { username, currentUserId } = await request.json();
 
     if (!username || typeof username !== 'string') {
@@ -15,7 +23,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ available: false, error: 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل' });
     }
     if (clean.length > 30) {
-      return NextResponse.json({ available: false, error: 'اسم المستخدم يجب أن يكون 30 حرف على الأقل' });
+      return NextResponse.json({ available: false, error: 'اسم المستخدم يجب أن يكون 30 حرف على الأكثر' });
     }
 
     const { data, error } = await supabaseServer

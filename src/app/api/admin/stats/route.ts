@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
+import { supabaseServer } from '@/lib/supabase-server';
 
 export async function GET(request: NextRequest) {
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
+  const supabase = supabaseServer;
 
   const [users, subjects, quizzes, scores] = await Promise.all([
     supabase.from('users').select('role', { count: 'exact' }),

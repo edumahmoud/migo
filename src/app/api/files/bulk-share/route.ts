@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
 
 /**
  * Bulk share multiple user files with multiple users.
  * Creates file_shares records for all combinations.
  */
 export async function POST(request: NextRequest) {
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const body = await request.json();
     const { fileIds, userIds, permission, sharedBy } = body as {
@@ -21,6 +25,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Verify that the authenticated user matches the sharedBy user
+    const ownershipError = verifyOwnership(authResult.user.id, sharedBy);
+    if (ownershipError) return authErrorResponse(ownershipError);
 
     const perm = permission || 'view';
 

@@ -1042,7 +1042,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     <div className="absolute top-3 left-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); openEditModal(assignment); }}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600"
+                        className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600"
                         title="تعديل"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1050,7 +1050,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                       <button
                         onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(assignment.id); }}
                         disabled={deletingId === assignment.id}
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
+                        className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
                         title="حذف"
                       >
                         {deletingId === assignment.id ? (
@@ -1123,14 +1123,14 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => setDeleteConfirmId(null)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center"
               dir="rtl"
@@ -1714,14 +1714,14 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => { if (!isProcessing) setIsOpen(false); }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
@@ -1732,7 +1732,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   <ClipboardList className="h-5 w-5 text-emerald-600" />
                   {mode === 'create' ? 'إنشاء مهمة جديدة' : 'تعديل المهمة'}
                 </h3>
-                <button onClick={() => { if (!isProcessing) setIsOpen(false); }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
+                <button onClick={() => { if (!isProcessing) setIsOpen(false); }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
                   <X className="h-4 w-4" />
                 </button>
               </div>

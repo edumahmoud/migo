@@ -205,6 +205,8 @@ function uploadFileWithProgress(
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
+    // Timeout for slow mobile connections (5 minutes for large files)
+    xhr.timeout = 5 * 60 * 1000;
     Object.entries(headers).forEach(([key, value]) => { xhr.setRequestHeader(key, value); });
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
@@ -216,6 +218,7 @@ function uploadFileWithProgress(
       catch { resolve({ success: false, error: 'حدث خطأ غير متوقع' }); }
     };
     xhr.onerror = () => { resolve({ success: false, error: 'حدث خطأ في الاتصال' }); };
+    xhr.ontimeout = () => { resolve({ success: false, error: 'انتهت مهلة الرفع' }); };
     xhr.send(formData);
   });
 }
@@ -627,23 +630,22 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
       toast.success('تم إنشاء المحاضرة بنجاح');
 
-      // Notify all enrolled students about the new lecture
-      try {
-        await fetch('/api/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'lecture_created',
-            subjectId,
-            lectureTitle: title,
-            teacherName: profile.name,
-            lectureDate: newDate || null,
-            lectureTime: newTime || null,
-          }),
-        });
-      } catch {
+      // Notify all enrolled students about the new lecture (non-blocking)
+      // Fire-and-forget: don't block the UI while push notifications are being sent
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'lecture_created',
+          subjectId,
+          lectureTitle: title,
+          teacherName: profile.name,
+          lectureDate: newDate || null,
+          lectureTime: newTime || null,
+        }),
+      }).catch(() => {
         // Non-critical: don't block lecture creation if notification fails
-      }
+      });
 
       setCreateOpen(false);
       setNewTitle('');
@@ -1264,7 +1266,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             {isActive && (
                               <button
                                 onClick={(e) => handleOpenQrModal(lecture, e)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                className="touch-target flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
                                 title="عرض رمز QR"
                               >
                                 <QrCode className="h-4 w-4" />
@@ -1273,7 +1275,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             {/* Edit button */}
                             <button
                               onClick={(e) => handleOpenEdit(lecture, e)}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                              className="touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                               title="تعديل المحاضرة"
                             >
                               <Pencil className="h-4 w-4" />
@@ -1283,7 +1285,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <button
                                 onClick={(e) => handleDeleteClick(lecture, e)}
                                 disabled={deletingId === lecture.id}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                                className="touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
                                 title="حذف المحاضرة"
                               >
                                 {deletingId === lecture.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -1480,7 +1482,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                         </button>
                                         <button
                                           onClick={(e) => { e.stopPropagation(); downloadWithCustomName(fileRef.url, fileRef.name); }}
-                                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                          className="touch-target shrink-0 flex items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-100 transition-colors"
                                           title="تحميل"
                                         >
                                           <Download className="h-3.5 w-3.5" />
@@ -1518,14 +1520,29 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => { if (!creating) setCreateOpen(false); }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
+            transition={{ duration: 0.1 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => {
+              if (creating) {
+                if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
+                  setCreating(false);
+                  setCreateOpen(false);
+                  setNewTitle('');
+                  setNewDesc('');
+                  setNewDate('');
+                  setNewTime('');
+                  setNewPendingFiles([]);
+                }
+              } else {
+                setCreateOpen(false);
+              }
+            }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
@@ -1536,7 +1553,21 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   <BookOpen className="h-5 w-5 text-emerald-600" />
                   محاضرة جديدة
                 </h3>
-                <button onClick={() => { if (!creating) setCreateOpen(false); }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
+                <button onClick={() => {
+                  if (creating) {
+                    if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
+                      setCreating(false);
+                      setCreateOpen(false);
+                      setNewTitle('');
+                      setNewDesc('');
+                      setNewDate('');
+                      setNewTime('');
+                      setNewPendingFiles([]);
+                    }
+                  } else {
+                    setCreateOpen(false);
+                  }
+                }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -1666,7 +1697,21 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   إنشاء المحاضرة
                 </button>
-                <button onClick={() => { if (!creating) setCreateOpen(false); }} disabled={creating} className="rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60">إلغاء</button>
+                <button onClick={() => {
+                  if (creating) {
+                    if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
+                      setCreating(false);
+                      setCreateOpen(false);
+                      setNewTitle('');
+                      setNewDesc('');
+                      setNewDate('');
+                      setNewTime('');
+                      setNewPendingFiles([]);
+                    }
+                  } else {
+                    setCreateOpen(false);
+                  }
+                }} className="rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">إلغاء</button>
               </div>
             </motion.div>
           </motion.div>
@@ -1679,14 +1724,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => { if (!savingEdit) setEditOpen(false); }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
@@ -1697,7 +1742,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   <Pencil className="h-5 w-5 text-emerald-600" />
                   تعديل المحاضرة
                 </h3>
-                <button onClick={() => { if (!savingEdit) setEditOpen(false); }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
+                <button onClick={() => { if (!savingEdit) setEditOpen(false); }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -1739,14 +1784,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
             onClick={() => { setQrModalOpen(false); setQrLecture(null); setQrDataUrl(''); }}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-lg rounded-3xl bg-background shadow-2xl p-8 text-center"
@@ -1821,14 +1866,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => { setDeleteConfirmOpen(false); setDeleteTargetLecture(null); }}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 10 }}
+              exit={{ scale: 0.9, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center"
@@ -1873,14 +1918,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
             onClick={handleStopScan}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 10 }}
+              exit={{ scale: 0.9, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl overflow-hidden"
@@ -1899,7 +1944,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 </div>
                 <button
                   onClick={handleStopScan}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                  className="touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1933,14 +1978,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
             onClick={() => setStudentPreviewFile(null)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden"
@@ -1964,7 +2009,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   </button>
                   <button
                     onClick={() => setStudentPreviewFile(null)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                    className="touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
                   >
                     <X className="h-4 w-4" />
                   </button>

@@ -5,9 +5,9 @@ const isVercel = process.env.VERCEL === '1';
 
 const nextConfig: NextConfig = {
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
-  reactStrictMode: false,
+  reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
   allowedDevOrigins: [
     '.space.z.ai',

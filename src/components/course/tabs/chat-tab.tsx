@@ -724,7 +724,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                     <motion.div
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
+                      exit={{ opacity: 0, scale: 0.9, pointerEvents: 'none' as const }}
                       transition={{ duration: 0.15 }}
                       className={`absolute ${isOwn ? 'left-0' : 'right-0'} top-7 z-20 bg-card border rounded-xl shadow-lg py-1 min-w-[120px]`}
                     >
@@ -897,7 +897,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             <motion.div
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
+              exit={{ opacity: 0, y: 4, pointerEvents: 'none' as const }}
               className="flex items-center gap-2 text-xs text-muted-foreground"
             >
               <div className="flex gap-1">

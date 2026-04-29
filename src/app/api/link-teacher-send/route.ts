@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { notifyUser } from '@/lib/notifications-service';
 
 /**
  * POST /api/link-teacher-send
@@ -128,18 +129,14 @@ export async function POST(request: Request) {
           );
         }
 
-        // Send notification to student about approval
-        try {
-          await supabaseServer.from('notifications').insert({
-            user_id: student.id,
-            type: 'system',
-            title: 'تم قبول طلب الارتباط',
-            message: `قبل المعلم ${profile.name} طلب الارتباط بك. يمكنك الآن الوصول إلى مقرراته.`,
-            link: 'teachers',
-          });
-        } catch (notifErr) {
-          console.error('[link-teacher-send] Error sending approval notification:', notifErr);
-        }
+        // Send notification to student about approval (DB + push)
+        await notifyUser(
+          student.id,
+          'system',
+          'تم قبول طلب الارتباط',
+          `قبل المعلم ${profile.name} طلب الارتباط بك. يمكنك الآن الوصول إلى مقرراته.`,
+          'teachers',
+        );
 
         return NextResponse.json({
           success: true,
@@ -185,23 +182,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // LINK MODE (default): Send a link_request notification to the student
-    // We use the notification system so no schema changes are needed
-    try {
-      await supabaseServer.from('notifications').insert({
-        user_id: student.id,
-        type: 'link_request',
-        title: 'طلب ارتباط من معلم',
-        message: `أرسل المعلم ${profile.name} طلب ارتباط بك. يمكنك قبول أو رفض الطلب من قسم المعلمين.`,
-        link: `link_request:${profile.id}`,
-      });
-    } catch (notifErr) {
-      console.error('[link-teacher-send] Error sending notification to student:', notifErr);
-      return NextResponse.json(
-        { error: 'حدث خطأ أثناء إرسال طلب الارتباط' },
-        { status: 500 }
-      );
-    }
+    // LINK MODE (default): Send a link_request notification to the student (DB + push)
+    await notifyUser(
+      student.id,
+      'link_request',
+      'طلب ارتباط من معلم',
+      `أرسل المعلم ${profile.name} طلب ارتباط بك. يمكنك قبول أو رفض الطلب من قسم المعلمين.`,
+      `link_request:${profile.id}`,
+    );
 
     return NextResponse.json({
       success: true,

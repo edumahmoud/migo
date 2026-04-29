@@ -1,37 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
-
-/** Helper: send notification using service role (bypasses RLS) */
-async function notifyUser(userId: string, type: string, title: string, message: string, link?: string) {
-  try {
-    await supabaseServer.from('notifications').insert({
-      user_id: userId,
-      type,
-      title,
-      message,
-      link: link || null,
-    });
-  } catch (err) {
-    console.error('[join-subject] Failed to send notification:', err);
-  }
-}
-
-/** Helper: send notification to multiple users */
-async function notifyUsers(userIds: string[], type: string, title: string, message: string, link?: string) {
-  if (userIds.length === 0) return;
-  try {
-    const rows = userIds.map((userId) => ({
-      user_id: userId,
-      type,
-      title,
-      message,
-      link: link || null,
-    }));
-    await supabaseServer.from('notifications').insert(rows);
-  } catch (err) {
-    console.error('[join-subject] Failed to send bulk notifications:', err);
-  }
-}
+import { notifyUser, notifyUsers } from '@/lib/notifications-service';
 
 /**
  * POST /api/join-subject
@@ -216,7 +185,7 @@ export async function POST(request: Request) {
         'enrollment',
         'طلب انضمام جديد',
         `طلب الطالب ${profile.name || 'طالب'} الانضمام إلى مقرر "${subject.name}"`,
-        `enrollment:${subject.id}:overview`
+        `enrollment:${subject.id}:students`
       );
     }
 
@@ -233,7 +202,7 @@ export async function POST(request: Request) {
           'enrollment',
           'طلب انضمام جديد',
           `طلب الطالب ${profile.name || 'طالب'} الانضمام إلى مقرر "${subject.name}"`,
-          `enrollment:${subject.id}:overview`
+          `enrollment:${subject.id}:students`
         );
       }
     } catch {

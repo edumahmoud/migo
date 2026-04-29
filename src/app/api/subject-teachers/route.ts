@@ -1,20 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
-
-/** Helper: send notification using service role (bypasses RLS) */
-async function notifyUser(userId: string, type: string, title: string, message: string, link?: string) {
-  try {
-    await supabaseServer.from('notifications').insert({
-      user_id: userId,
-      type,
-      title,
-      message,
-      link: link || null,
-    });
-  } catch (err) {
-    console.error('[subject-teachers] Failed to send notification:', err);
-  }
-}
+import { notifyUser } from '@/lib/notifications-service';
 
 /**
  * GET /api/subject-teachers?subjectId=xxx
@@ -215,7 +201,7 @@ export async function POST(request: Request) {
       'enrollment',
       'تمت إضافتك كمعلم مشارك',
       `تمت إضافتك كمعلم مشارك في مقرر "${subject.name}" بواسطة ${profile.name}`,
-      `subject:${subjectId}`
+      `subject:${subjectId}:students`
     );
 
     return NextResponse.json({
@@ -349,7 +335,7 @@ export async function DELETE(request: Request) {
         'enrollment',
         'تمت إزالتك من مقرر',
         `تمت إزالتك كمعلم مشارك من مقرر "${subject.name}" بواسطة ${profile.name}`,
-        `subject:${subjectId}`
+        `subject:${subjectId}:students`
       );
     }
 

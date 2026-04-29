@@ -523,7 +523,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               {role === 'teacher' && note.visibility === 'public' && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleFetchViewers(note.id); }}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   title="عرض المشاهدات"
                 >
                   <Eye className="h-3.5 w-3.5" />
@@ -533,7 +533,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                 <>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleEditNote(note); }}
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                     title="تعديل"
                   >
                     <Edit3 className="h-3.5 w-3.5" />
@@ -541,7 +541,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   <button
                     onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id); }}
                     disabled={deletingNoteId === note.id}
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                    className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
                     title="حذف"
                   >
                     {deletingNoteId === note.id ? (
@@ -614,7 +614,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                 </h4>
                 <button
                   onClick={handleCancelForm}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                  className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -758,14 +758,14 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => setViewersModalOpen(false)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
+              exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl p-5"
               dir="rtl"
@@ -777,7 +777,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                 </h4>
                 <button
                   onClick={() => setViewersModalOpen(false)}
-                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                  className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>

@@ -1,15 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
 
 // ─── POST: Remove a student's attendance records from active sessions ───
 // When a student logs out during an active attendance session, their check-in
 // record is deleted so they are considered absent.
 export async function POST(request: NextRequest) {
   try {
+    // Authenticate the request
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
+    }
+
     const { studentId } = await request.json();
 
     if (!studentId) {
       return NextResponse.json({ error: 'studentId is required' }, { status: 400 });
+    }
+
+    // Verify the authenticated user matches the studentId
+    const ownershipError = verifyOwnership(authResult.user.id, studentId);
+    if (ownershipError) {
+      return authErrorResponse(ownershipError);
     }
 
     // Find all active attendance sessions

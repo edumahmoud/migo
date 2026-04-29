@@ -1,166 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabase-server';
-import { sendPushNotification, type PushSubscriptionLike } from '@/lib/web-push';
-
-// ─── Notification helpers using service role (bypasses RLS) ───
-
-/**
- * Send a push notification to a specific user.
- * Fetches their push subscriptions from DB and sends to all of them.
- */
-async function pushToUser(userId: string, title: string, message: string, url?: string, type?: string) {
-  try {
-    const { data: subs } = await supabaseServer
-      .from('push_subscriptions')
-      .select('endpoint, p256dh, auth_key')
-      .eq('user_id', userId);
-
-    if (!subs || subs.length === 0) return;
-
-    const payload = { title, message, url: url || '/', type };
-    const expiredEndpoints: string[] = [];
-
-    for (const sub of subs) {
-      const subscription: PushSubscriptionLike = {
-        endpoint: sub.endpoint,
-        keys: { p256dh: sub.p256dh, auth: sub.auth_key },
-      };
-
-      const success = await sendPushNotification(subscription, payload);
-      if (!success) {
-        // Mark for removal (410 Gone or 404 Not Found)
-        expiredEndpoints.push(sub.endpoint);
-      }
-    }
-
-    // Clean up expired subscriptions
-    if (expiredEndpoints.length > 0) {
-      for (const endpoint of expiredEndpoints) {
-        await supabaseServer
-          .from('push_subscriptions')
-          .delete()
-          .eq('endpoint', endpoint);
-      }
-      console.log(`[push] Cleaned up ${expiredEndpoints.length} expired subscription(s) for user ${userId}`);
-    }
-  } catch (err) {
-    console.error('[push] Failed to send push notification:', err);
-  }
-}
-
-/**
- * Send push notifications to multiple users.
- */
-async function pushToUsers(userIds: string[], title: string, message: string, url?: string, type?: string) {
-  if (userIds.length === 0) return;
-
-  try {
-    // Fetch all push subscriptions for these users
-    const { data: subs } = await supabaseServer
-      .from('push_subscriptions')
-      .select('user_id, endpoint, p256dh, auth_key')
-      .in('user_id', userIds);
-
-    if (!subs || subs.length === 0) return;
-
-    const payload = { title, message, url: url || '/', type };
-    const expiredEndpoints: string[] = [];
-
-    for (const sub of subs) {
-      const subscription: PushSubscriptionLike = {
-        endpoint: sub.endpoint,
-        keys: { p256dh: sub.p256dh, auth: sub.auth_key },
-      };
-
-      const success = await sendPushNotification(subscription, payload);
-      if (!success) {
-        expiredEndpoints.push(sub.endpoint);
-      }
-    }
-
-    // Clean up expired subscriptions
-    if (expiredEndpoints.length > 0) {
-      for (const endpoint of expiredEndpoints) {
-        await supabaseServer
-          .from('push_subscriptions')
-          .delete()
-          .eq('endpoint', endpoint);
-      }
-      console.log(`[push] Cleaned up ${expiredEndpoints.length} expired subscription(s)`);
-    }
-  } catch (err) {
-    console.error('[push] Failed to send bulk push notifications:', err);
-  }
-}
-
-async function notifyUser(userId: string, type: string, title: string, message: string, link?: string) {
-  try {
-    const { error } = await supabaseServer.from('notifications').insert({
-      user_id: userId,
-      type,
-      title,
-      message,
-      link: link || null,
-    });
-    if (error) {
-      console.error('[notify] Failed to send notification:', error.message, error.details);
-    } else {
-      // Also send push notification (non-blocking)
-      pushToUser(userId, title, message, link, type).catch(() => {});
-    }
-  } catch (err) {
-    console.error('[notify] Failed to send notification (exception):', err);
-  }
-}
-
-async function notifyUsers(userIds: string[], type: string, title: string, message: string, link?: string) {
-  if (userIds.length === 0) return;
-  try {
-    const rows = userIds.map((userId) => ({
-      user_id: userId,
-      type,
-      title,
-      message,
-      link: link || null,
-    }));
-    const { error } = await supabaseServer.from('notifications').insert(rows);
-    if (error) {
-      console.error('[notify] Failed to send bulk notifications:', error.message, error.details);
-      // Fallback: try inserting one by one (in case one bad row blocks the whole batch)
-      for (const row of rows) {
-        const { error: singleError } = await supabaseServer.from('notifications').insert(row);
-        if (singleError) {
-          console.error('[notify] Also failed for user', row.user_id, ':', singleError.message);
-        }
-      }
-    } else {
-      // Also send push notifications (non-blocking)
-      pushToUsers(userIds, title, message, link, type).catch(() => {});
-    }
-  } catch (err) {
-    console.error('[notify] Failed to send bulk notifications (exception):', err);
-  }
-}
-
-async function getStudentIds(subjectId: string): Promise<string[]> {
-  const { data, error } = await supabaseServer
-    .from('subject_students')
-    .select('student_id')
-    .eq('subject_id', subjectId)
-    .eq('status', 'approved');
-
-  if (error) {
-    console.error('[notify] Failed to fetch student IDs:', error.message);
-    // Fallback: try without status filter (in case status column doesn't exist)
-    const { data: fallbackData } = await supabaseServer
-      .from('subject_students')
-      .select('student_id')
-      .eq('subject_id', subjectId);
-    return (fallbackData || []).map((e: { student_id: string }) => e.student_id);
-  }
-
-  return (data || []).map((e: { student_id: string }) => e.student_id);
-}
+import { authenticateRequest, requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
+import { notifyUser, notifyUsers, getStudentIds } from '@/lib/notifications-service';
 
 // ─── POST handler ───
 
@@ -168,6 +8,20 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { action } = body;
+
+    // Determine which actions require teacher role
+    const teacherOnlyActions = ['assignment_created', 'attendance_started', 'public_note_created', 'lecture_created', 'assignment_graded'];
+
+    // Authenticate based on action type
+    let authResult;
+    if (teacherOnlyActions.includes(action)) {
+      authResult = await requireTeacher(request);
+    } else {
+      authResult = await authenticateRequest(request);
+    }
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
+    }
 
     switch (action) {
       // ─── 1) Teacher creates a new assignment → notify all students ───
@@ -310,40 +164,17 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        let usedType = 'lecture';
         const notifTitle = 'محاضرة جديدة';
         const notifMessage = `أنشأ المعلم ${teacherName || 'المعلم'} محاضرة${titleText}${dateTimeText}`;
         const notifLink = `subject:${subjectId}:lectures`;
 
-        let lectureTypeSupported = true;
-        if (studentIds.length > 0) {
-          const { error: testError } = await supabaseServer.from('notifications').insert({
-            user_id: studentIds[0],
-            type: 'lecture',
-            title: notifTitle,
-            message: notifMessage,
-            link: notifLink,
-          });
-          if (testError) {
-            lectureTypeSupported = false;
-            usedType = 'system';
-          }
-        }
+        await notifyUsers(studentIds, 'lecture', notifTitle, notifMessage, notifLink);
 
-        if (lectureTypeSupported) {
-          const remainingIds = studentIds.slice(1);
-          if (remainingIds.length > 0) {
-            await notifyUsers(remainingIds, 'lecture', notifTitle, notifMessage, notifLink);
-          }
-        } else {
-          await notifyUsers(studentIds, 'system', notifTitle, notifMessage, notifLink);
-        }
-
-        console.log(`[notify] lecture_created: notified ${studentIds.length} students for subject ${subjectId} (type: ${usedType})`);
-        return NextResponse.json({ success: true, notified: studentIds.length, type: usedType });
+        console.log(`[notify] lecture_created: notified ${studentIds.length} students for subject ${subjectId}`);
+        return NextResponse.json({ success: true, notified: studentIds.length });
       }
 
-      // ─── 7) Chat message push notification ───
+      // ─── 7) Chat message notification ───
       case 'chat_message': {
         const { recipientId, senderName, messagePreview, conversationId } = body;
         if (!recipientId) {

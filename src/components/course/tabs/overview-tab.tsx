@@ -528,7 +528,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
         >
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -537,7 +537,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10, pointerEvents: 'none' as const }}
             className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
             dir="rtl"
           >
@@ -591,7 +591,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
         >
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -600,7 +600,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10, pointerEvents: 'none' as const }}
             className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden"
             dir="rtl"
           >

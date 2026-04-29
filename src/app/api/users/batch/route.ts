@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/users/batch
@@ -8,6 +9,12 @@ import { supabaseServer } from '@/lib/supabase-server';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Authenticate the request
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
+    }
+
     const body = await request.json();
     const { userIds } = body;
 

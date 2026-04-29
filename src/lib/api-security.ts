@@ -69,7 +69,7 @@ const MAX_CONTENT_LENGTH = 1_000_000; // 1MB max request body
 export function validateRequest(request: NextRequest): NextResponse | null {
   // Content-Type validation
   const contentType = request.headers.get('content-type');
-  if (!contentType || !contentType.includes('application/json')) {
+  if (!contentType || (!contentType.includes('application/json') && !contentType.includes('multipart/form-data'))) {
     return NextResponse.json(
       { success: false, error: 'يجب أن يكون نوع المحتوى application/json' },
       { status: 415 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
 
 /**
  * POST /api/push/subscribe
@@ -12,8 +13,20 @@ import { supabaseServer } from '@/lib/supabase-server';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Authenticate the request
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
+    }
+
     const body = await request.json();
     const { userId, subscription } = body;
+
+    // Verify the authenticated user matches the requested userId
+    const ownershipError = verifyOwnership(authResult.user.id, userId);
+    if (ownershipError) {
+      return authErrorResponse(ownershipError);
+    }
 
     if (!userId || !subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
       return NextResponse.json(

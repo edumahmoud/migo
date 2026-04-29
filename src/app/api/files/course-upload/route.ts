@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -21,6 +22,9 @@ const ALLOWED_MIME_TYPES = [
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export async function POST(request: NextRequest) {
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -38,6 +42,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Verify that the authenticated user matches the uploadedBy user
+    const ownershipError = verifyOwnership(authResult.user.id, uploadedBy);
+    if (ownershipError) return authErrorResponse(ownershipError);
 
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(

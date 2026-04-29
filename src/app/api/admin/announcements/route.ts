@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdmin, authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 
 // GET /api/admin/announcements - list all announcements
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const { data, error } = await supabaseServer
       .from('announcements')
@@ -24,6 +28,9 @@ export async function GET() {
 
 // POST /api/admin/announcements - create announcement
 export async function POST(request: NextRequest) {
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const body = await request.json();
     const { title, content, priority, created_by } = body;
@@ -67,6 +74,9 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/admin/announcements - update announcement
 export async function PATCH(request: NextRequest) {
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const body = await request.json();
     const { id, title, content, priority, is_active } = body;
@@ -109,6 +119,9 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/admin/announcements - delete announcement
 export async function DELETE(request: NextRequest) {
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const body = await request.json();
     const { id } = body;

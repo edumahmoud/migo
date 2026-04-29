@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
 
 // Allowed fields that can be updated
 const ALLOWED_FIELDS = ['name', 'gender', 'title_id', 'avatar_url', 'username'] as const;
@@ -20,11 +21,23 @@ const VALID_TITLES = ['teacher', 'dr', 'prof', 'assoc_prof', 'assist_prof', 'lec
 
 export async function POST(request: NextRequest) {
   try {
+    // Authenticate the request
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
+    }
+
     const body = await request.json();
     const { userId, updates } = body as { userId?: string; updates?: Record<string, unknown> };
 
     if (!userId) {
-      return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 401 });
+      return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 400 });
+    }
+
+    // Verify the authenticated user matches the requested userId
+    const ownershipError = verifyOwnership(authResult.user.id, userId);
+    if (ownershipError) {
+      return authErrorResponse(ownershipError);
     }
 
     if (!updates || typeof updates !== 'object') {

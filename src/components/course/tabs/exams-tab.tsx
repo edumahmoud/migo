@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
+// xlsx is dynamically imported in handleExportQuizResults to reduce initial bundle size
 import {
   ClipboardList,
   Loader2,
@@ -545,8 +545,9 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   // -------------------------------------------------------
   // Export quiz results (Excel)
   // -------------------------------------------------------
-  const handleExportQuizResults = (quiz: Quiz) => {
+  const handleExportQuizResults = async (quiz: Quiz) => {
     try {
+      const XLSX = await import('xlsx');
       const qScores = scores.filter((s) => s.quiz_id === quiz.id);
       if (qScores.length === 0) {
         toast.error('لا توجد نتائج للتصدير');
@@ -886,14 +887,14 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => { if (!savingQuiz) { setQuizModalOpen(false); resetQuizForm(); } }}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-2xl rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"
@@ -1011,14 +1012,14 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => setShareModalOpen(false)}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-sm rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"

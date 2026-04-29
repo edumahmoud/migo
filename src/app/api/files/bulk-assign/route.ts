@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
 
 /**
  * Bulk assign user files to courses (subjects) without re-uploading.
  * Creates subject_files records by referencing existing user_file data.
  */
 export async function POST(request: NextRequest) {
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const body = await request.json();
     const { fileIds, subjectIds, userId } = body as {
@@ -20,6 +24,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Verify that the authenticated user matches the requested userId
+    const ownershipError = verifyOwnership(authResult.user.id, userId);
+    if (ownershipError) return authErrorResponse(ownershipError);
 
     // Fetch all user_files by IDs
     const { data: userFiles, error: fetchError } = await supabaseServer

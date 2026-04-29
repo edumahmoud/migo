@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { getAllUserSettings, setArchived, setHidden } from './conversation-store';
+import { authenticateRequest, requireAdmin, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
 
 /**
  * Chat API Route
@@ -31,11 +32,23 @@ export async function GET(request: NextRequest) {
   const action = searchParams.get('action');
 
   try {
+    // Authenticate all GET requests
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
+    }
+
     switch (action) {
       case 'conversations': {
         const userId = searchParams.get('userId');
         const includeArchived = searchParams.get('includeArchived') === 'true';
         if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
+
+        // Verify the authenticated user matches the requested userId
+        const ownershipError = verifyOwnership(authResult.user.id, userId);
+        if (ownershipError) {
+          return authErrorResponse(ownershipError);
+        }
 
         // Step 1: Get all conversation IDs the user is part of (not hidden)
         // Try selecting is_hidden and is_archived columns; fall back gracefully if they don't exist
@@ -392,11 +405,33 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action } = body;
 
+    // 'migrate-chat-columns' requires admin; all other actions require authentication
+    let authUserId: string;
+    if (action === 'migrate-chat-columns') {
+      const adminResult = await requireAdmin(request);
+      if (!adminResult.success) {
+        return authErrorResponse(adminResult);
+      }
+      authUserId = adminResult.user.id;
+    } else {
+      const authResult = await authenticateRequest(request);
+      if (!authResult.success) {
+        return authErrorResponse(authResult);
+      }
+      authUserId = authResult.user.id;
+    }
+
     switch (action) {
       case 'send-message': {
         const { conversationId, senderId, content } = body;
         if (!conversationId || !senderId || !content) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Verify the authenticated user is the sender
+        const senderOwnershipError = verifyOwnership(authUserId, senderId);
+        if (senderOwnershipError) {
+          return authErrorResponse(senderOwnershipError);
         }
 
         // Insert message
@@ -435,6 +470,12 @@ export async function POST(request: NextRequest) {
         const { userId1, userId2, subjectId } = body;
         if (!userId1 || !userId2) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Verify the authenticated user is userId1
+        const createOwnershipError = verifyOwnership(authUserId, userId1);
+        if (createOwnershipError) {
+          return authErrorResponse(createOwnershipError);
         }
 
         // Check if conversation already exists between these two users
@@ -502,6 +543,12 @@ export async function POST(request: NextRequest) {
         const { conversationId, userId } = body;
         if (!conversationId || !userId) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Verify the authenticated user matches userId
+        const markReadOwnershipError = verifyOwnership(authUserId, userId);
+        if (markReadOwnershipError) {
+          return authErrorResponse(markReadOwnershipError);
         }
 
         await supabaseServer
@@ -588,6 +635,12 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
+        // Verify the authenticated user matches userId
+        const deleteMsgOwnershipError = verifyOwnership(authUserId, userId);
+        if (deleteMsgOwnershipError) {
+          return authErrorResponse(deleteMsgOwnershipError);
+        }
+
         // Verify the user is the sender
         const { data: msg } = await supabaseServer
           .from('messages')
@@ -627,6 +680,12 @@ export async function POST(request: NextRequest) {
         const { messageId, userId, content } = body;
         if (!messageId || !userId || !content?.trim()) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Verify the authenticated user matches userId
+        const editMsgOwnershipError = verifyOwnership(authUserId, userId);
+        if (editMsgOwnershipError) {
+          return authErrorResponse(editMsgOwnershipError);
         }
 
         // Verify the user is the sender
@@ -686,6 +745,12 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
+        // Verify the authenticated user matches userId
+        const deleteConvOwnershipError = verifyOwnership(authUserId, userId);
+        if (deleteConvOwnershipError) {
+          return authErrorResponse(deleteConvOwnershipError);
+        }
+
         // Verify the user is a participant
         const { data: participation } = await supabaseServer
           .from('conversation_participants')
@@ -727,6 +792,12 @@ export async function POST(request: NextRequest) {
         const { userId } = body;
         if (!userId) {
           return NextResponse.json({ error: 'userId required' }, { status: 400 });
+        }
+
+        // Verify the authenticated user matches userId
+        const deleteAllOwnershipError = verifyOwnership(authUserId, userId);
+        if (deleteAllOwnershipError) {
+          return authErrorResponse(deleteAllOwnershipError);
         }
 
         // Get all conversations for this user
@@ -785,6 +856,12 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
+        // Verify the authenticated user matches userId
+        const archiveOwnershipError = verifyOwnership(authUserId, userId);
+        if (archiveOwnershipError) {
+          return authErrorResponse(archiveOwnershipError);
+        }
+
         // Try database column first, fall back to file-based store
         const { error: archiveError } = await supabaseServer
           .from('conversation_participants')
@@ -810,6 +887,12 @@ export async function POST(request: NextRequest) {
         const { conversationId, userId } = body;
         if (!conversationId || !userId) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Verify the authenticated user matches userId
+        const unarchiveOwnershipError = verifyOwnership(authUserId, userId);
+        if (unarchiveOwnershipError) {
+          return authErrorResponse(unarchiveOwnershipError);
         }
 
         // Try database column first, fall back to file-based store

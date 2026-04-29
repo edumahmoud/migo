@@ -15,6 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 DROP VIEW IF EXISTS public.teacher_student_performance CASCADE;
 
+DROP TABLE IF EXISTS public.push_subscriptions CASCADE;
 DROP TABLE IF EXISTS public.messages CASCADE;
 DROP TABLE IF EXISTS public.conversation_participants CASCADE;
 DROP TABLE IF EXISTS public.conversations CASCADE;
@@ -87,6 +88,7 @@ CREATE TABLE public.teacher_student_links (
   teacher_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   student_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'approved' CHECK (status IN ('pending', 'approved', 'rejected')),
+  initiated_by TEXT CHECK (initiated_by IN ('teacher', 'student')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(teacher_id, student_id)
 );
@@ -262,7 +264,7 @@ CREATE TABLE public.assignments (
   teacher_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
-  due_date DATE,
+  due_date TIMESTAMPTZ,
   max_score INTEGER DEFAULT 100,
   allow_file_submission BOOLEAN DEFAULT true,
   show_grade BOOLEAN DEFAULT true,
@@ -430,7 +432,7 @@ CREATE INDEX idx_attendance_records_student_id ON public.attendance_records(stud
 CREATE TABLE public.notifications (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('assignment', 'grade', 'enrollment', 'file', 'file_request', 'system', 'attendance', 'link_request', 'lecture')),
+  type TEXT NOT NULL CHECK (type IN ('assignment', 'grade', 'enrollment', 'file', 'file_request', 'system', 'attendance', 'link_request', 'lecture', 'chat')),
   title TEXT NOT NULL,
   message TEXT NOT NULL,
   read BOOLEAN NOT NULL DEFAULT false,
@@ -482,17 +484,22 @@ CREATE INDEX idx_announcements_active ON public.announcements(is_active);
 CREATE INDEX idx_announcements_created_at ON public.announcements(created_at DESC);
 
 -- =====================================================
--- PART 22: BANNED_USERS (لا يعتمد على أي جدول)
+-- PART 22: BANNED_USERS (يعتمد على: users)
 -- =====================================================
 
 CREATE TABLE public.banned_users (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
   email TEXT NOT NULL UNIQUE,
+  ban_until TIMESTAMPTZ,
+  banned_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  is_active BOOLEAN DEFAULT TRUE,
   banned_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   reason TEXT
 );
 
 CREATE INDEX idx_banned_users_email ON public.banned_users(email);
+CREATE INDEX idx_banned_users_user_id ON public.banned_users(user_id);
 
 -- =====================================================
 -- PART 23: INSTITUTION_SETTINGS (إعدادات المؤسسة)
@@ -512,6 +519,7 @@ CREATE TABLE public.institution_settings (
   website TEXT,
   academic_year TEXT,
   description TEXT,
+  tagline TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -542,6 +550,8 @@ CREATE TABLE public.conversation_participants (
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   joined_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   last_read_at TIMESTAMP WITH TIME ZONE,
+  is_hidden BOOLEAN DEFAULT FALSE,
+  is_archived BOOLEAN DEFAULT FALSE,
   UNIQUE(conversation_id, user_id)
 );
 
@@ -568,7 +578,127 @@ CREATE INDEX idx_messages_created ON public.messages(created_at);
 CREATE INDEX idx_messages_sender ON public.messages(sender_id);
 
 -- =====================================================
--- PART 27: تفعيل ROW LEVEL SECURITY (كل الجداول)
+-- PART 27: PUSH_SUBSCRIPTIONS (إشعارات الدفع)
+-- =====================================================
+
+CREATE TABLE public.push_subscriptions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth_key TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+-- Auto-update updated_at trigger
+CREATE OR REPLACE FUNCTION public.update_push_subscriptions_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_push_subscriptions_updated_at ON public.push_subscriptions;
+CREATE TRIGGER trg_push_subscriptions_updated_at
+  BEFORE UPDATE ON public.push_subscriptions
+  FOR EACH ROW EXECUTE FUNCTION public.update_push_subscriptions_updated_at();
+
+CREATE INDEX idx_push_subscriptions_user_id ON public.push_subscriptions(user_id);
+CREATE UNIQUE INDEX idx_push_subscriptions_endpoint ON public.push_subscriptions(endpoint);
+
+-- =====================================================
+-- SECURITY DEFINER FUNCTIONS (bypasses RLS to avoid infinite recursion)
+-- =====================================================
+
+-- Check if current user is admin or superadmin
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.users 
+    WHERE id = auth.uid() AND role IN ('admin', 'superadmin')
+  );
+$$;
+
+-- Get the role of a specific user
+CREATE OR REPLACE FUNCTION public.get_user_role(check_user_id UUID)
+RETURNS TEXT
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM public.users WHERE id = check_user_id;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_user_role(UUID) TO authenticated, anon;
+
+-- Helper functions for subject access (if they don't exist)
+CREATE OR REPLACE FUNCTION public.get_student_subject_ids(student_id UUID)
+RETURNS SETOF UUID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT subject_id FROM public.subject_students WHERE student_id = get_student_subject_ids.student_id AND status = 'approved';
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_teacher_subject_ids(teacher_id UUID)
+RETURNS SETOF UUID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT id FROM public.subjects WHERE teacher_id = get_teacher_subject_ids.teacher_id
+  UNION
+  SELECT subject_id FROM public.subject_teachers WHERE teacher_id = get_teacher_subject_ids.teacher_id;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_student_subject_ids(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_teacher_subject_ids(UUID) TO authenticated;
+
+-- Check if user is the teacher of a lecture
+CREATE OR REPLACE FUNCTION public.is_lecture_teacher(lecture_id UUID, check_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.lectures l
+    JOIN public.subjects s ON l.subject_id = s.id
+    WHERE l.id = is_lecture_teacher.lecture_id
+    AND (s.teacher_id = is_lecture_teacher.check_user_id
+         OR EXISTS (SELECT 1 FROM public.subject_teachers st WHERE st.subject_id = s.id AND st.teacher_id = is_lecture_teacher.check_user_id))
+  );
+$$;
+
+-- Check if user is a student enrolled in a lecture's subject
+CREATE OR REPLACE FUNCTION public.is_lecture_student(lecture_id UUID, check_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.lectures l
+    JOIN public.subject_students ss ON l.subject_id = ss.subject_id
+    WHERE l.id = is_lecture_student.lecture_id
+    AND ss.student_id = is_lecture_student.check_user_id
+    AND ss.status = 'approved'
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_lecture_teacher(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_lecture_student(UUID, UUID) TO authenticated;
+
+-- =====================================================
+-- PART 28: تفعيل ROW LEVEL SECURITY (كل الجداول)
 -- =====================================================
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -598,9 +728,10 @@ ALTER TABLE public.institution_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
--- PART 28: سياسات RLS
+-- PART 29: سياسات RLS
 -- =====================================================
 
 -- ===== USERS =====
@@ -616,11 +747,10 @@ CREATE POLICY "Teachers can read linked students" ON public.users
   );
 CREATE POLICY "Anyone authenticated can find teachers" ON public.users
   FOR SELECT USING (role = 'teacher' AND teacher_code IS NOT NULL);
--- Admin can read all users
-CREATE POLICY "Admins can read all users" ON public.users
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role IN ('admin', 'superadmin'))
-  );
+-- NOTE: Do NOT create "Admins can read all users" policy here.
+-- The "Authenticated users can read profiles" policy already covers admin access.
+-- Using EXISTS on users table for admin check causes infinite RLS recursion (error 42P17).
+-- Admin checks are done via the is_admin() SECURITY DEFINER function instead.
 -- Any authenticated user can read basic profile info of other users
 CREATE POLICY "Authenticated users can read profiles" ON public.users
   FOR SELECT USING (auth.uid() IS NOT NULL);
@@ -944,20 +1074,18 @@ CREATE POLICY "Users can delete own sessions" ON public.user_sessions
 -- ===== ANNOUNCEMENTS =====
 CREATE POLICY "Anyone can read active announcements" ON public.announcements
   FOR SELECT USING (true);
-CREATE POLICY "Admins can manage announcements" ON public.announcements
-  FOR ALL USING (true);
+CREATE POLICY "Admins can manage all announcements" ON public.announcements
+  FOR ALL USING (public.is_admin());
 
 -- ===== BANNED_USERS =====
 CREATE POLICY "Admins can manage banned users" ON public.banned_users
-  FOR ALL USING (true);
+  FOR ALL USING (public.is_admin());
 
 -- ===== INSTITUTION_SETTINGS =====
 CREATE POLICY "Anyone can read institution_settings" ON public.institution_settings
   FOR SELECT USING (true);
-CREATE POLICY "Service can insert institution_settings" ON public.institution_settings
-  FOR INSERT WITH CHECK (true);
-CREATE POLICY "Service can update institution_settings" ON public.institution_settings
-  FOR UPDATE USING (true);
+CREATE POLICY "Admins can manage institution_settings" ON public.institution_settings
+  FOR ALL USING (public.is_admin());
 
 -- ===== CONVERSATIONS =====
 CREATE POLICY "Users can view their conversations" ON public.conversations
@@ -993,8 +1121,42 @@ CREATE POLICY "Participants can send messages" ON public.messages
 CREATE POLICY "Users can update their own messages" ON public.messages
   FOR UPDATE USING (sender_id = auth.uid());
 
+-- ===== ADMIN POLICIES (using is_admin() SECURITY DEFINER to avoid recursion) =====
+CREATE POLICY "Admins can read all subjects" ON public.subjects FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can manage all subjects" ON public.subjects FOR ALL USING (public.is_admin());
+CREATE POLICY "Admins can read all scores" ON public.scores FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all quizzes" ON public.quizzes FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all teacher_student_links" ON public.teacher_student_links FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all subject_students" ON public.subject_students FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all subject_teachers" ON public.subject_teachers FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all lectures" ON public.lectures FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all assignments" ON public.assignments FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all submissions" ON public.submissions FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all attendance_sessions" ON public.attendance_sessions FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all attendance_records" ON public.attendance_records FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all summaries" ON public.summaries FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all lecture_notes" ON public.lecture_notes FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all user_files" ON public.user_files FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all subject_files" ON public.subject_files FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all file_shares" ON public.file_shares FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all file_requests" ON public.file_requests FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all notifications" ON public.notifications FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all user_sessions" ON public.user_sessions FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all conversations" ON public.conversations FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all conversation_participants" ON public.conversation_participants FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all messages" ON public.messages FOR SELECT USING (public.is_admin());
+CREATE POLICY "Admins can read all note_views" ON public.note_views FOR SELECT USING (public.is_admin());
+
+-- ===== PUSH_SUBSCRIPTIONS RLS =====
+CREATE POLICY "Users can view own push subscriptions" ON public.push_subscriptions
+  FOR SELECT USING (user_id = auth.uid());
+CREATE POLICY "Users can create own push subscriptions" ON public.push_subscriptions
+  FOR INSERT WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Users can delete own push subscriptions" ON public.push_subscriptions
+  FOR DELETE USING (user_id = auth.uid());
+
 -- =====================================================
--- PART 29: صلاحيات الوصول
+-- PART 30: صلاحيات الوصول
 -- =====================================================
 
 GRANT USAGE ON SCHEMA public TO anon;
@@ -1322,6 +1484,7 @@ DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.subject_teacher
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.teacher_student_links; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.messages; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.push_subscriptions; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- =====================================================
 -- PART 35: Supabase Storage
@@ -1384,5 +1547,5 @@ CREATE POLICY "Students can read subject files" ON storage.objects
 
 -- =====================================================
 -- ✅ تم! كل الجداول والسياسات والتريجرز والدوال جاهزة
--- إجمالي الجداول: 27 جدول
+-- إجمالي الجداول: 28 جدول
 -- =====================================================

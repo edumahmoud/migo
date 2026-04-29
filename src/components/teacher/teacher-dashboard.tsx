@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
+// recharts is imported at top level for now — consider lazy-loading the analytics tab component
 import {
   BarChart,
   Bar,
@@ -430,6 +430,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // -------------------------------------------------------
   const handleExportSummaries = async () => {
     try {
+      const XLSX = await import('xlsx');
       toast.info('جاري تحضير البيانات...');
 
       const studentIds = students.map((s) => s.id);
@@ -493,8 +494,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // -------------------------------------------------------
   // Excel export: all analytics data
   // -------------------------------------------------------
-  const handleExportAllData = () => {
+  const handleExportAllData = async () => {
     try {
+      const XLSX = await import('xlsx');
       const wb = XLSX.utils.book_new();
 
       // Sheet 1: Per-quiz stats
@@ -559,8 +561,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // -------------------------------------------------------
   // Per-quiz Excel download
   // -------------------------------------------------------
-  const handleExportQuizData = (quiz: Quiz) => {
+  const handleExportQuizData = async (quiz: Quiz) => {
     try {
+      const XLSX = await import('xlsx');
       const qScores = scores.filter((s) => s.quiz_id === quiz.id);
       const wb = XLSX.utils.book_new();
 
@@ -1188,7 +1191,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
             className="fixed inset-0 z-40 flex items-center justify-center p-4"
           >
@@ -1196,7 +1199,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={{ opacity: 0, pointerEvents: 'none' as const }}
               transition={{ duration: 0.4 }}
               className="absolute inset-0 bg-black/15 backdrop-blur-[3px]"
               onClick={() => setPendingPanelOpen(false)}
@@ -1205,7 +1208,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             <motion.div
               initial={{ scale: 0.92, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.92, opacity: 0, y: 20 }}
+              exit={{ scale: 0.92, opacity: 0, y: 20, pointerEvents: 'none' as const }}
               transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl border border-border/50 bg-background shadow-2xl shadow-black/8 overflow-hidden"
               dir="rtl"
@@ -1331,13 +1334,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
               dir="rtl"
@@ -1378,13 +1381,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
               dir="rtl"
@@ -1427,7 +1430,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
             onClick={() => {
               if (!sendingRequest) {
@@ -1440,7 +1443,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
               dir="rtl"
@@ -1928,14 +1931,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => { if (!resettingStudent) setStudentDetailOpen(false); }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"

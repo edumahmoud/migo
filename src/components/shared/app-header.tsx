@@ -88,7 +88,7 @@ export default function AppHeader({
 
   // Close dropdown on outside click
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent | TouchEvent) => {
       if (
         dropdownOpen &&
         dropdownRef.current &&
@@ -99,8 +99,13 @@ export default function AppHeader({
         setDropdownOpen(false);
       }
     };
+    // Listen to both mousedown (desktop) and touchstart (mobile) for immediate close
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('touchstart', handleClick as EventListener, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('touchstart', handleClick as EventListener);
+    };
   }, [dropdownOpen]);
 
   return (
@@ -111,7 +116,7 @@ export default function AppHeader({
           {/* Sidebar toggle */}
           <button
             onClick={onToggleSidebar}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
+            className="touch-target shrink-0 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
             aria-label={sidebarCollapsed ? 'فتح القائمة' : 'إغلاق القائمة'}
           >
             <svg
@@ -182,8 +187,8 @@ export default function AppHeader({
                   ref={dropdownRef}
                   initial={{ opacity: 0, y: -8, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
+                  exit={{ opacity: 0, pointerEvents: 'none' as const }}
+                  transition={{ duration: 0.1 }}
                   className="absolute left-0 top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50"
                   dir="rtl"
                 >

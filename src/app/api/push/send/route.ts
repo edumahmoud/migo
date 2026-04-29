@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { sendPushNotification, type PushSubscriptionLike } from '@/lib/web-push';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/push/send
@@ -13,6 +14,12 @@ import { sendPushNotification, type PushSubscriptionLike } from '@/lib/web-push'
  */
 export async function POST(request: NextRequest) {
   try {
+    // Only admins can trigger push notifications programmatically
+    const authResult = await requireAdmin(request);
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
+    }
+
     const body = await request.json();
     const { userId, title, message, url, type } = body;
 

@@ -89,7 +89,7 @@ export default function InstallPrompt() {
         <motion.div
           initial={{ opacity: 0, y: 80 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 80 }}
+          exit={{ opacity: 0, y: 80, pointerEvents: 'none' as const }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md sm:bottom-6 sm:left-auto sm:right-6"
           dir="rtl"

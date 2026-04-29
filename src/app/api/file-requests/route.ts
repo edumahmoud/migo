@@ -1,31 +1,18 @@
 import { NextResponse } from 'next/server';
-import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
-import { sendPushNotification, type PushSubscriptionLike } from '@/lib/web-push';
-
-// Auth helper
-async function getAuthUser(request: Request) {
-  let authUser = null;
-  const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-    if (!error && user) authUser = user;
-  }
-  if (!authUser) {
-    const serverClient = await getSupabaseServerClient();
-    const { data: { user }, error } = await serverClient.auth.getUser();
-    if (!error && user) authUser = user;
-  }
-  return authUser;
-}
+import { NextRequest } from 'next/server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { notifyUser } from '@/lib/notifications-service';
 
 // POST: Create a file request OR handle approve/reject
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const authUser = await getAuthUser(request);
-    if (!authUser) {
-      return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً' }, { status: 401 });
+    // Authenticate the request using shared auth helper
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) {
+      return authErrorResponse(authResult);
     }
+    const authUser = { id: authResult.user.id };
 
     const body = await request.json();
     const { action, fileId, ownerId, description, requestId } = body;
@@ -81,38 +68,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'حدث خطأ أثناء إرسال الطلب' }, { status: 500 });
       }
 
-      // Send notification to file owner (in-app + push)
-      try {
-        await supabaseServer.from('notifications').insert({
-          user_id: ownerId,
-          type: 'file',
-          title: 'طلب ملف جديد',
-          message: `طلب ${requesterProfile?.name || 'مستخدم'} ملف "${fileData?.file_name || 'ملف'}" الخاص بك.`,
-          link: `file_request:${authUser.id}`,
-        });
-
-        // Also send external push notification
-        const { data: ownerSubs } = await supabaseServer
-          .from('push_subscriptions')
-          .select('endpoint, p256dh, auth_key')
-          .eq('user_id', ownerId);
-        if (ownerSubs && ownerSubs.length > 0) {
-          const pushPayload = {
-            title: 'طلب ملف جديد',
-            message: `طلب ${requesterProfile?.name || 'مستخدم'} ملف "${fileData?.file_name || 'ملف'}" الخاص بك.`,
-            url: 'files',
-            type: 'file',
-          };
-          for (const sub of ownerSubs) {
-            sendPushNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
-              pushPayload
-            ).catch(() => {});
-          }
-        }
-      } catch (notifErr) {
-        console.error('[file-requests] Error sending notification:', notifErr);
-      }
+      // Send notification to file owner (DB + push)
+      await notifyUser(
+        ownerId,
+        'file_request',
+        'طلب ملف جديد',
+        `طلب ${requesterProfile?.name || 'مستخدم'} ملف "${fileData?.file_name || 'ملف'}" الخاص بك.`,
+        `file_request:${authUser.id}`,
+      );
 
       return NextResponse.json({ success: true, message: 'تم إرسال طلب الملف بنجاح' });
     }
@@ -160,30 +123,14 @@ export async function POST(request: Request) {
         }
       } catch {}
 
-      // Notify requester (in-app + push)
-      try {
-        await supabaseServer.from('notifications').insert({
-          user_id: req.requester_id,
-          type: 'file',
-          title: 'تمت الموافقة على طلب الملف',
-          message: 'تمت الموافقة على طلب الملف الخاص بك. يمكنك الآن تحميله.',
-          link: `profile:${authUser.id}`,
-        });
-
-        // Also send external push notification
-        const { data: requesterSubs } = await supabaseServer
-          .from('push_subscriptions')
-          .select('endpoint, p256dh, auth_key')
-          .eq('user_id', req.requester_id);
-        if (requesterSubs && requesterSubs.length > 0) {
-          for (const sub of requesterSubs) {
-            sendPushNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
-              { title: 'تمت الموافقة على طلب الملف', message: 'تمت الموافقة على طلب الملف الخاص بك. يمكنك الآن تحميله.', url: 'files', type: 'file' }
-            ).catch(() => {});
-          }
-        }
-      } catch {}
+      // Notify requester (DB + push)
+      await notifyUser(
+        req.requester_id,
+        'file_request',
+        'تمت الموافقة على طلب الملف',
+        'تمت الموافقة على طلب الملف الخاص بك. يمكنك الآن تحميله.',
+        `profile:${authUser.id}`,
+      );
 
       return NextResponse.json({ success: true, message: 'تمت الموافقة على الطلب' });
     }
@@ -213,30 +160,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'حدث خطأ أثناء رفض الطلب' }, { status: 500 });
       }
 
-      // Notify requester (in-app + push)
-      try {
-        await supabaseServer.from('notifications').insert({
-          user_id: req.requester_id,
-          type: 'file',
-          title: 'تم رفض طلب الملف',
-          message: 'تم رفض طلب الملف الخاص بك.',
-          link: `profile:${authUser.id}`,
-        });
-
-        // Also send external push notification
-        const { data: requesterSubs } = await supabaseServer
-          .from('push_subscriptions')
-          .select('endpoint, p256dh, auth_key')
-          .eq('user_id', req.requester_id);
-        if (requesterSubs && requesterSubs.length > 0) {
-          for (const sub of requesterSubs) {
-            sendPushNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
-              { title: 'تم رفض طلب الملف', message: 'تم رفض طلب الملف الخاص بك.', url: 'files', type: 'file' }
-            ).catch(() => {});
-          }
-        }
-      } catch {}
+      // Notify requester (DB + push)
+      await notifyUser(
+        req.requester_id,
+        'file_request',
+        'تم رفض طلب الملف',
+        'تم رفض طلب الملف الخاص بك.',
+        `profile:${authUser.id}`,
+      );
 
       return NextResponse.json({ success: true, message: 'تم رفض الطلب' });
     }

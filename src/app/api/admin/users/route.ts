@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
+import { supabaseServer } from '@/lib/supabase-server';
 
 // This API route handles admin user management
 // It uses the Supabase service role key to bypass RLS
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   // Fetch all users using service role
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const supabase = supabaseServer;
 
   const { data, error } = await supabase
     .from('users')
@@ -21,12 +22,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   const { userId } = await request.json();
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  const supabase = supabaseServer;
 
   const { error } = await supabase.from('users').delete().eq('id', userId);
   if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });

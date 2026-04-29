@@ -1274,7 +1274,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         <motion.div
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.9 }}
+                          exit={{ opacity: 0, scale: 0.9, pointerEvents: 'none' as const }}
                           transition={{ duration: 0.12 }}
                           className="absolute start-0 top-7 z-20 bg-card border rounded-xl shadow-lg py-1 min-w-[120px]"
                         >
@@ -1621,7 +1621,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                                   <motion.div
                                     initial={{ opacity: 0, scale: 0.9 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.9 }}
+                                    exit={{ opacity: 0, scale: 0.9, pointerEvents: 'none' as const }}
                                     transition={{ duration: 0.1 }}
                                     className="absolute end-0 top-6 z-30 bg-card border rounded-xl shadow-lg py-1 min-w-[130px]"
                                     onClick={(e) => e.stopPropagation()}
@@ -1849,7 +1849,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
+                        exit={{ opacity: 0, scale: 0.9, pointerEvents: 'none' as const }}
                         transition={{ duration: 0.12 }}
                         className="absolute end-0 top-9 z-30 bg-card border rounded-xl shadow-lg py-1 min-w-[140px]"
                       >
@@ -1977,14 +1977,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             onClick={() => { setShowNewDM(false); setSearchQuery(''); setSearchResults([]); }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10, pointerEvents: 'none' as const }}
               transition={{ duration: 0.15 }}
               className="w-full max-w-md bg-card rounded-2xl shadow-2xl border overflow-hidden"
               onClick={(e) => e.stopPropagation()}

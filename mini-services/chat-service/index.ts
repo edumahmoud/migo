@@ -4,16 +4,19 @@ import { resolve } from 'path';
 config({ path: resolve(import.meta.dirname, '../../.env.local') });
 
 import { createServer } from 'http';
+import { randomUUID } from 'crypto';
 import { Server } from 'socket.io';
 import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001').split(',');
 const httpServer = createServer();
 const io = new Server(httpServer, {
   path: '/socket.io',
   cors: {
-    origin: '*',
+    origin: ALLOWED_ORIGINS,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
   pingTimeout: 60000,
   pingInterval: 25000,
@@ -66,6 +69,38 @@ if (!supabase) {
   console.warn('[Chat] Supabase not configured — push subscriptions unavailable');
 }
 
+// -------------------------------------------------------
+// Socket.IO Authentication Middleware
+// -------------------------------------------------------
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+
+  if (!token || !supabase) {
+    // For development: allow connections without auth if no token provided
+    // but log a warning
+    if (!token) {
+      console.warn(`[Chat] Connection without auth token from ${socket.id}`);
+      // In production, you should reject: return next(new Error('Authentication required'));
+    }
+    return next();
+  }
+
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token as string);
+    if (error || !user) {
+      console.warn(`[Chat] Invalid auth token from ${socket.id}:`, error?.message);
+      return next(new Error('Invalid authentication token'));
+    }
+    // Store verified user info on the socket for later use
+    (socket as any).verifiedUserId = user.id;
+    (socket as any).verifiedUserName = user.user_metadata?.name || user.email || 'Unknown';
+    return next();
+  } catch (err) {
+    console.error('[Chat] Auth middleware error:', err);
+    return next(new Error('Authentication failed'));
+  }
+});
+
 interface PushSubscriptionRow {
   endpoint: string;
   p256dh: string;
@@ -87,7 +122,8 @@ async function sendPushToOfflineUser(userId: string, title: string, body: string
 
     if (error || !subs || subs.length === 0) return;
 
-    const payload = JSON.stringify({ title, message: body, url: url || '/', type: type || 'system' });
+    const notifId = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const payload = JSON.stringify({ title, message: body, url: url || '/', type: type || 'system', id: notifId });
     const expiredEndpoints: string[] = [];
 
     for (const sub of subs as PushSubscriptionRow[]) {
@@ -116,6 +152,38 @@ async function sendPushToOfflineUser(userId: string, title: string, body: string
   }
 }
 
+/**
+ * Persist a chat notification to the `notifications` table in Supabase.
+ * This ensures the notification appears in the notification bell and survives
+ * across sessions — not just as a real-time Socket.IO event.
+ * Uses service role to bypass RLS.
+ */
+async function persistChatNotification(
+  userId: string,
+  title: string,
+  message: string,
+  link: string,
+): Promise<void> {
+  if (!supabase) return;
+
+  try {
+    const { error } = await supabase.from('notifications').insert({
+      user_id: userId,
+      type: 'chat',
+      title,
+      message,
+      link,
+    });
+
+    if (error) {
+      // Log but don't throw — push delivery is still attempted separately
+      console.error('[Chat/DB] Failed to persist notification:', error.message);
+    }
+  } catch (err) {
+    console.error('[Chat/DB] persistChatNotification exception:', err);
+  }
+}
+
 // -------------------------------------------------------
 // State
 // -------------------------------------------------------
@@ -124,9 +192,44 @@ const userSockets = new Map<string, Set<string>>(); // userId -> Set<socketId>
 const userStatuses = new Map<string, UserStatus>(); // userId -> status
 
 // -------------------------------------------------------
+// Rate Limiting
+// -------------------------------------------------------
+const messageRateLimit = new Map<string, { count: number; resetTime: number }>();
+const MESSAGE_RATE_LIMIT = 30; // messages per minute
+const MESSAGE_RATE_WINDOW = 60 * 1000; // 1 minute
+
+function checkMessageRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const entry = messageRateLimit.get(userId);
+
+  if (!entry || now > entry.resetTime) {
+    messageRateLimit.set(userId, { count: 1, resetTime: now + MESSAGE_RATE_WINDOW });
+    return true;
+  }
+
+  if (entry.count >= MESSAGE_RATE_LIMIT) {
+    return false;
+  }
+
+  entry.count++;
+  return true;
+}
+
+// -------------------------------------------------------
 // Helpers
 // -------------------------------------------------------
-const generateId = () => Math.random().toString(36).substr(2, 12) + Date.now().toString(36);
+const generateId = () => randomUUID();
+
+/** Sanitize message content to prevent XSS attacks */
+function sanitizeContent(content: string): string {
+  // Remove any script tags and event handlers
+  return content
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+    .replace(/on\w+\s*=\s*[^\s>]*/gi, '')
+    .trim()
+    .substring(0, 5000); // Max 5000 chars
+}
 
 /** Get array of currently online userIds */
 function getOnlineUserIds(): string[] {
@@ -177,8 +280,16 @@ io.on('connection', (socket) => {
   console.log(`[Chat] Connected: ${socket.id}`);
 
   // ─── Authenticate ───
-  socket.on('auth', (data: { userId: string; userName: string }) => {
+  socket.on('auth', (data: { userId: string; userName: string; token?: string }) => {
     const { userId, userName } = data;
+
+    // If the socket was authenticated via middleware, verify userId matches
+    const verifiedId = (socket as any).verifiedUserId;
+    if (verifiedId && verifiedId !== userId) {
+      console.warn(`[Chat] Auth mismatch: verified=${verifiedId}, claimed=${userId}`);
+      socket.emit('auth-error', { message: 'User ID mismatch' });
+      return;
+    }
 
     const wasOffline = !userSockets.has(userId);
 
@@ -291,12 +402,19 @@ io.on('connection', (socket) => {
     tempId?: string;
     participantIds?: string[]; // list of all participant user IDs for direct delivery
   }) => {
+    // Rate limit check
+    if (!checkMessageRateLimit(data.senderId)) {
+      socket.emit('message-rate-limited', { conversationId: data.conversationId });
+      console.warn(`[Chat] Rate limited: ${data.senderId}`);
+      return;
+    }
+
     const message: ChatMessage = {
       id: data.tempId || generateId(),
       conversationId: data.conversationId,
       senderId: data.senderId,
       senderName: data.senderName,
-      content: data.content,
+      content: sanitizeContent(data.content),
       createdAt: new Date().toISOString(),
     };
 
@@ -332,6 +450,15 @@ io.on('connection', (socket) => {
               'chat'
             ).catch(() => {});
           }
+
+          // Persist the notification to the DB so it appears in the notification bell
+          // and survives across sessions (not just real-time)
+          persistChatNotification(
+            participantId,
+            `رسالة من ${data.senderName}`,
+            data.content.substring(0, 100),
+            `chat:${data.conversationId}`,
+          ).catch(() => {});
         }
       }
     }

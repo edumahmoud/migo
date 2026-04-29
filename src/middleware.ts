@@ -91,7 +91,7 @@ export async function middleware(request: NextRequest) {
           // For admin routes, verify the user is an admin
           if (pathname.startsWith('/api/admin')) {
             // Check 1: Fast path - check role from JWT claims
-            const jwtRole = headerUser.app_metadata?.role || headerUser.user_metadata?.role;
+            const jwtRole = headerUser.app_metadata?.role;
             if (jwtRole === 'admin' || jwtRole === 'superadmin') {
               // Role confirmed from JWT - no DB query needed
             } else {
@@ -132,7 +132,7 @@ export async function middleware(request: NextRequest) {
 
           // For admin routes, verify the user is an admin
           if (pathname.startsWith('/api/admin')) {
-            const jwtRole = headerUser.app_metadata?.role || headerUser.user_metadata?.role;
+            const jwtRole = headerUser.app_metadata?.role;
             if (jwtRole !== 'admin' && jwtRole !== 'superadmin') {
               return NextResponse.json(
                 { success: false, error: 'غير مصرح بالوصول' },
@@ -157,8 +157,8 @@ export async function middleware(request: NextRequest) {
 
     // For admin routes, verify the user is an admin
     if (pathname.startsWith('/api/admin')) {
-      // Check 1: Fast path - check role from JWT claims (app_metadata synced by /api/auth/me)
-      const jwtRole = user.app_metadata?.role || user.user_metadata?.role;
+      // Check 1: Fast path - check role from app_metadata only (never trust user_metadata - users can modify it)
+      const jwtRole = user.app_metadata?.role;
       if (jwtRole === 'admin' || jwtRole === 'superadmin') {
         // Role confirmed from JWT - no DB query needed
       } else {

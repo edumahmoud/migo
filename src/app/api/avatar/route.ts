@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
 
 const MAX_AVATAR_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 
 export async function POST(request: NextRequest) {
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -17,6 +21,10 @@ export async function POST(request: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 401 });
     }
+
+    // Verify that the authenticated user matches the requested userId
+    const ownershipError = verifyOwnership(authResult.user.id, userId);
+    if (ownershipError) return authErrorResponse(ownershipError);
 
     // Validate file type
     if (!ALLOWED_TYPES.includes(file.type)) {

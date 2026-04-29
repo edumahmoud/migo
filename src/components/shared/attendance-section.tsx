@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
+// xlsx is dynamically imported in handleExportExcel to reduce initial bundle size
 import {
   ClipboardCheck,
   Play,
@@ -784,8 +784,9 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
   // -------------------------------------------------------
   // Teacher: Export attendance to Excel
   // -------------------------------------------------------
-  const handleExportExcel = (session: SessionWithDetails, records: AttendanceRecordWithStudent[]) => {
+  const handleExportExcel = async (session: SessionWithDetails, records: AttendanceRecordWithStudent[]) => {
     try {
+      const XLSX = await import('xlsx');
       const wb = XLSX.utils.book_new();
 
       // Get enrolled students for this subject from the session

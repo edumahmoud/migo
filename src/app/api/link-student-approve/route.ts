@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { notifyUser } from '@/lib/notifications-service';
 
 /**
  * POST /api/link-student-approve
@@ -110,18 +111,14 @@ export async function POST(request: Request) {
         }
       }
 
-      // Send notification to teacher about acceptance
-      try {
-        await supabaseServer.from('notifications').insert({
-          user_id: tid,
-          type: 'system',
-          title: 'تم قبول طلب الارتباط',
-          message: `قبل الطالب ${profile.name} طلب الارتباط بك.`,
-          link: 'students',
-        });
-      } catch (notifErr) {
-        console.error('[link-student-approve] Error sending notification:', notifErr);
-      }
+      // Send notification to teacher about acceptance (DB + push)
+      await notifyUser(
+        tid,
+        'system',
+        'تم قبول طلب الارتباط',
+        `قبل الطالب ${profile.name} طلب الارتباط بك.`,
+        'students',
+      );
 
       return { success: true, message: 'تم قبول المعلم بنجاح' };
     }
@@ -144,18 +141,14 @@ export async function POST(request: Request) {
           .eq('id', existingLink.id);
       }
 
-      // Send notification to teacher about rejection
-      try {
-        await supabaseServer.from('notifications').insert({
-          user_id: tid,
-          type: 'system',
-          title: 'تم رفض طلب الارتباط',
-          message: `رفض الطالب ${profile.name} طلب الارتباط بك.`,
-          link: 'students',
-        });
-      } catch (notifErr) {
-        console.error('[link-student-approve] Error sending rejection notification:', notifErr);
-      }
+      // Send notification to teacher about rejection (DB + push)
+      await notifyUser(
+        tid,
+        'system',
+        'تم رفض طلب الارتباط',
+        `رفض الطالب ${profile.name} طلب الارتباط بك.`,
+        'students',
+      );
 
       return { success: true, message: 'تم رفض الطلب' };
     }

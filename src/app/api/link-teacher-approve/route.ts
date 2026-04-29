@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { notifyUser, notifyUsers } from '@/lib/notifications-service';
 
 /**
  * POST /api/link-teacher-approve
@@ -93,18 +94,14 @@ export async function POST(request: Request) {
         );
       }
 
-      // Send notification to the student about approval
-      try {
-        await supabaseServer.from('notifications').insert({
-          user_id: studentId,
-          type: 'system',
-          title: 'تم قبول طلب الارتباط',
-          message: `قبل المعلم طلب الارتباط بك. يمكنك الآن الوصول إلى مقرراته.`,
-          link: 'teachers',
-        });
-      } catch (notifErr) {
-        console.error('[link-teacher-approve] Error sending approval notification:', notifErr);
-      }
+      // Send notification to the student about approval (DB + push)
+      await notifyUser(
+        studentId,
+        'system',
+        'تم قبول طلب الارتباط',
+        `قبل المعلم طلب الارتباط بك. يمكنك الآن الوصول إلى مقرراته.`,
+        'teachers',
+      );
 
       return NextResponse.json({ success: true, message: 'تم قبول الطالب بنجاح' });
 
@@ -131,18 +128,14 @@ export async function POST(request: Request) {
         );
       }
 
-      // Send notification to the student about rejection
-      try {
-        await supabaseServer.from('notifications').insert({
-          user_id: studentId,
-          type: 'system',
-          title: 'تم رفض طلب الارتباط',
-          message: `رفض المعلم طلب الارتباط بك.`,
-          link: 'teachers',
-        });
-      } catch (notifErr) {
-        console.error('[link-teacher-approve] Error sending rejection notification:', notifErr);
-      }
+      // Send notification to the student about rejection (DB + push)
+      await notifyUser(
+        studentId,
+        'system',
+        'تم رفض طلب الارتباط',
+        `رفض المعلم طلب الارتباط بك.`,
+        'teachers',
+      );
 
       return NextResponse.json({ success: true, message: 'تم رفض الطلب' });
 
@@ -174,20 +167,15 @@ export async function POST(request: Request) {
         );
       }
 
-      // Send notifications to all approved students
-      try {
-        const approvedStudentIds = pendingLinks.map((l: { student_id: string }) => l.student_id);
-        const notifs = approvedStudentIds.map((sid: string) => ({
-          user_id: sid,
-          type: 'system',
-          title: 'تم قبول طلب الارتباط',
-          message: 'قبل المعلم طلب الارتباط بك. يمكنك الآن الوصول إلى مقرراته.',
-          link: 'teachers',
-        }));
-        await supabaseServer.from('notifications').insert(notifs);
-      } catch (notifErr) {
-        console.error('[link-teacher-approve] Error sending approval notifications:', notifErr);
-      }
+      // Send notifications to all approved students (DB + push)
+      const approvedStudentIds = pendingLinks.map((l: { student_id: string }) => l.student_id);
+      await notifyUsers(
+        approvedStudentIds,
+        'system',
+        'تم قبول طلب الارتباط',
+        'قبل المعلم طلب الارتباط بك. يمكنك الآن الوصول إلى مقرراته.',
+        'teachers',
+      );
 
       return NextResponse.json({
         success: true,
@@ -219,20 +207,15 @@ export async function POST(request: Request) {
         );
       }
 
-      // Send notifications to all rejected students
-      try {
-        const rejectedStudentIds = pendingLinks.map((l: { student_id: string }) => l.student_id);
-        const notifs = rejectedStudentIds.map((sid: string) => ({
-          user_id: sid,
-          type: 'system',
-          title: 'تم رفض طلب الارتباط',
-          message: 'رفض المعلم طلب الارتباط بك.',
-          link: 'teachers',
-        }));
-        await supabaseServer.from('notifications').insert(notifs);
-      } catch (notifErr) {
-        console.error('[link-teacher-approve] Error sending rejection notifications:', notifErr);
-      }
+      // Send notifications to all rejected students (DB + push)
+      const rejectedStudentIds = pendingLinks.map((l: { student_id: string }) => l.student_id);
+      await notifyUsers(
+        rejectedStudentIds,
+        'system',
+        'تم رفض طلب الارتباط',
+        'رفض المعلم طلب الارتباط بك.',
+        'teachers',
+      );
 
       return NextResponse.json({
         success: true,

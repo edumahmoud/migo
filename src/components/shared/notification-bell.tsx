@@ -39,6 +39,7 @@ function getNotifIcon(type: string, title?: string) {
     case 'file': return <FileText className="h-4 w-4 text-blue-600" />;
     case 'attendance': return <UserCheck className="h-4 w-4 text-violet-600" />;
     case 'lecture': return <BookOpen className="h-4 w-4 text-teal-600" />;
+    case 'chat': return <Bell className="h-4 w-4 text-sky-600" />;
     default: return <Info className="h-4 w-4 text-purple-600" />;
   }
 }
@@ -89,7 +90,7 @@ export default function NotificationBell() {
         top: `${top}px`,
         right: `${right}px`,
         width: `${maxW}px`,
-        zIndex: 9999,
+        zIndex: 50, // Match other dropdowns (z-50) instead of 9999 to avoid ghost overlay blocking taps
         maxHeight: isMobile ? 'calc(100vh - 80px)' : undefined,
       });
     }
@@ -246,16 +247,45 @@ export default function NotificationBell() {
       return;
     }
 
+    // Handle chat:CONVERSATION_ID links — navigate to the main chat section
+    // This must be checked BEFORE the courseLinkPrefix logic because 'chat' is also
+    // a valid CourseTab, but chat:CONVERSATION_ID means "open the main chat section",
+    // not "open a course's chat tab"
+    if (notif.link?.startsWith('chat:')) {
+      setIsOpen(false);
+      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
+      if (user?.role === 'student') {
+        setStudentSection('chat');
+        setCurrentPage('student-dashboard');
+      } else if (user?.role === 'teacher') {
+        setTeacherSection('chat');
+        setCurrentPage('teacher-dashboard');
+      } else if (user?.role === 'admin' || user?.role === 'superadmin') {
+        setAdminSection('chat');
+        setCurrentPage('admin-dashboard');
+      }
+      return;
+    }
+
     // Map of link prefixes to course tabs
+    // Includes BOTH singular and plural keys because the API generates
+    // 3-part links like "subject:ID:assignments" (plural) while the prefix
+    // is "subject" (singular). Both must resolve to the correct CourseTab.
     const linkToTab: Record<string, CourseTab> = {
-      enrollment: 'overview',
+      enrollment: 'students',
       subject: 'overview',
+      overview: 'overview',
       assignment: 'assignments',
+      assignments: 'assignments',
       lecture: 'lectures',
-      exam: 'exams',
+      lectures: 'lectures',
       note: 'notes',
+      notes: 'notes',
+      exam: 'exams',
+      exams: 'exams',
       file: 'files',
-      chat: 'chat',
+      files: 'files',
+      students: 'students',
     };
 
     // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID or subject:SUBJECT_ID:tab)
@@ -265,6 +295,22 @@ export default function NotificationBell() {
       const subjectId = parts[1] || null;
       // Support 3-part links like "subject:SUBJECT_ID:assignments" where the 3rd part overrides the tab
       const explicitTab = parts[2] || null;
+
+      // Special case: "assignment:ASSIGNMENT_ID" (2-part, no subject context)
+      // should navigate to the Assignments section, NOT treat the assignment ID as a subject ID
+      if (courseLinkPrefix === 'assignment' && !explicitTab) {
+        setIsOpen(false);
+        const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore.getState();
+        if (user?.role === 'student') {
+          setStudentSection('assignments');
+          setCurrentPage('student-dashboard');
+        } else if (user?.role === 'teacher') {
+          setTeacherSection('assignments');
+          setCurrentPage('teacher-dashboard');
+        }
+        return;
+      }
+
       if (subjectId) {
         setIsOpen(false);
         const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
@@ -345,7 +391,7 @@ export default function NotificationBell() {
           // Refresh notifications from DB when bell is opened
           if (!isOpen) refetchNotifications();
         }}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
+        className="relative touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
         aria-label="الإشعارات"
       >
         <Bell className="h-5 w-5" />
@@ -370,8 +416,8 @@ export default function NotificationBell() {
             ref={dropdownRef}
             initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
+            transition={{ duration: 0.1 }}
             style={dropdownStyle}
             className="rounded-xl border bg-background shadow-lg overflow-hidden"
             dir="rtl"
@@ -447,7 +493,7 @@ export default function NotificationBell() {
                             e.stopPropagation();
                             clearNotification(notif.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-rose-500 transition-all"
+                          className="touch-target opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-md text-muted-foreground hover:text-rose-500 transition-all"
                           aria-label="حذف الإشعار"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -479,7 +525,7 @@ export default function NotificationBell() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
             onClick={() => !processingAction && setLinkRequestModal(null)}
           >
@@ -487,7 +533,7 @@ export default function NotificationBell() {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
               dir="rtl"

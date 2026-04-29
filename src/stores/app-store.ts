@@ -79,8 +79,14 @@ export const useAppStore = create<AppState>()(
       setStudentSection: (section) => set({ studentSection: section }),
       setTeacherSection: (section) => set({ teacherSection: section }),
       setAdminSection: (section) => set({ adminSection: section }),
-      setViewingQuizId: (id) => set({ viewingQuizId: id, currentPage: id ? 'quiz' : 'student-dashboard' }),
-      setViewingSummaryId: (id) => set({ viewingSummaryId: id, currentPage: id ? 'summary' : 'student-dashboard' }),
+      setViewingQuizId: (id) => set((state) => ({
+        viewingQuizId: id,
+        currentPage: id ? 'quiz' : (state.currentPage === 'quiz' ? 'student-dashboard' : state.currentPage),
+      })),
+      setViewingSummaryId: (id) => set((state) => ({
+        viewingSummaryId: id,
+        currentPage: id ? 'summary' : (state.currentPage === 'summary' ? 'student-dashboard' : state.currentPage),
+      })),
       setSelectedSubjectId: (id) => set({ selectedSubjectId: id }),
       setCourseTab: (tab) => set({ courseTab: tab }),
       setSelectedStudentId: (id) => set({ selectedStudentId: id }),

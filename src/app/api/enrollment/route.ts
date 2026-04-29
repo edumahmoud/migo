@@ -1,37 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
-
-/** Helper: send notification using service role (bypasses RLS) */
-async function notifyUser(userId: string, type: string, title: string, message: string, link?: string) {
-  try {
-    await supabaseServer.from('notifications').insert({
-      user_id: userId,
-      type,
-      title,
-      message,
-      link: link || null,
-    });
-  } catch (err) {
-    console.error('[enrollment] Failed to send notification:', err);
-  }
-}
-
-/** Helper: send notification to multiple users */
-async function notifyUsers(userIds: string[], type: string, title: string, message: string, link?: string) {
-  if (userIds.length === 0) return;
-  try {
-    const rows = userIds.map((userId) => ({
-      user_id: userId,
-      type,
-      title,
-      message,
-      link: link || null,
-    }));
-    await supabaseServer.from('notifications').insert(rows);
-  } catch (err) {
-    console.error('[enrollment] Failed to send bulk notifications:', err);
-  }
-}
+import { notifyUser, notifyUsers } from '@/lib/notifications-service';
 
 /**
  * POST /api/enrollment
@@ -149,7 +118,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم قبول طلب الانضمام',
         `تم قبول طلب انضمامك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}:overview`
+        `subject:${subjectId}:students`
       );
 
       return NextResponse.json({ success: true, message: 'تم قبول الطالب بنجاح' });
@@ -177,7 +146,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم رفض طلب الانضمام',
         `تم رفض طلب انضمامك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}:overview`
+        `subject:${subjectId}:students`
       );
 
       return NextResponse.json({ success: true, message: 'تم رفض الطلب' });
@@ -214,7 +183,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم قبول طلب الانضمام',
         `تم قبول طلب انضمامك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}:overview`
+        `subject:${subjectId}:students`
       );
 
       return NextResponse.json({
@@ -255,7 +224,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم رفض طلب الانضمام',
         `تم رفض طلب انضمامك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}:overview`
+        `subject:${subjectId}:students`
       );
 
       return NextResponse.json({
@@ -289,7 +258,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم إضافتك إلى مقرر',
         `تم إضافتك إلى مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}:overview`
+        `subject:${subjectId}:students`
       );
 
       return NextResponse.json({ success: true, message: 'تم إضافة الطالب بنجاح' });
@@ -316,7 +285,7 @@ export async function POST(request: Request) {
         'enrollment',
         'تم إزالتك من المقرر',
         `تم إزالتك من مقرر "${subjectName}" بواسطة ${teacherName}`,
-        `subject:${subjectId}:overview`
+        `subject:${subjectId}:students`
       );
 
       return NextResponse.json({ success: true, message: 'تم إزالة الطالب من المقرر' });

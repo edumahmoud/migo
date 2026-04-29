@@ -234,12 +234,17 @@ self.addEventListener('push', (event) => {
         type: data.type || 'system',
       },
       actions: data.actions || [],
-      tag: data.type ? `attendo-${data.type}` : 'attendo-default',
+      tag: data.id ? `attendo-${data.id}` : `attendo-${data.type || 'default'}-${Date.now()}`,
       renotify: true,
       timestamp: Date.now(),
     };
 
-    if (data.type === 'chat' || data.type === 'system') {
+    if (data.type === 'chat') {
+      options.actions = [
+        { action: 'open', title: 'فتح المحادثة' },
+        { action: 'dismiss', title: 'تجاهل' },
+      ];
+    } else if (data.type === 'system') {
       options.actions = [
         { action: 'open', title: 'فتح' },
         { action: 'dismiss', title: 'تجاهل' },
@@ -268,6 +273,21 @@ self.addEventListener('push', (event) => {
       options.actions = [
         { action: 'open', title: 'عرض' },
         { action: 'dismiss', title: 'تجاهل' },
+      ];
+    } else if (data.type === 'lecture') {
+      options.actions = [
+        { action: 'open', title: 'عرض المحاضرة' },
+        { action: 'dismiss', title: 'لاحقاً' },
+      ];
+    } else if (data.type === 'link_request') {
+      options.actions = [
+        { action: 'open', title: 'عرض الطلب' },
+        { action: 'dismiss', title: 'لاحقاً' },
+      ];
+    } else if (data.type === 'file_request') {
+      options.actions = [
+        { action: 'open', title: 'عرض الطلب' },
+        { action: 'dismiss', title: 'لاحقاً' },
       ];
     }
 
