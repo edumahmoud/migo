@@ -8,6 +8,8 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 import { setSocketAuth, destroySocket } from '@/lib/socket';
+import { isSupabaseConfigured } from '@/lib/supabase';
+import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
 import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
@@ -201,6 +203,12 @@ function HomeContent() {
       destroySocket();
     }
   }, [user]);
+
+  // ─── Supabase Configuration Check ───
+  // If Supabase is not configured, show a clear error page
+  if (!isSupabaseConfigured) {
+    return <SupabaseConfigError />;
+  }
 
   // Loading state
   if (loading || !initialized || !setupCheckDone) {

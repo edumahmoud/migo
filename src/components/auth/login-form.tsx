@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
-import { isSupabaseConfigured } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 interface LoginFormProps {
@@ -97,13 +96,6 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
 
   return (
     <div dir="rtl" className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
-      {/* Configuration Warning */}
-      {!isSupabaseConfigured && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          <p className="font-bold mb-1">⚠️ إعدادات Supabase غير مكتملة</p>
-          <p>يرجى إضافة NEXT_PUBLIC_SUPABASE_URL و NEXT_PUBLIC_SUPABASE_ANON_KEY في متغيرات البيئة.</p>
-        </div>
-      )}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

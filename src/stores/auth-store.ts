@@ -232,6 +232,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       // If Supabase is not configured, skip initialization and show auth page
       if (!isSupabaseConfigured) {
+        console.warn(
+          '[Auth] Supabase is not configured. Missing environment variables: NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY. The app will show a configuration error page.'
+        );
         set({ user: null, loading: false, initialized: true });
         return;
       }
