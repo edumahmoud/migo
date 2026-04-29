@@ -820,25 +820,63 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'لست مشاركاً في هذه المحادثة' }, { status: 403 });
         }
 
-        // Soft delete: set is_hidden = true for this user (don't delete the participant record)
-        // This way the other user is not affected
-        const { error: hideError } = await supabaseServer
+        // Check how many participants are left
+        const { data: allParticipants } = await supabaseServer
           .from('conversation_participants')
-          .update({ is_hidden: true })
-          .eq('conversation_id', conversationId)
-          .eq('user_id', userId);
+          .select('user_id')
+          .eq('conversation_id', conversationId);
 
-        if (hideError) {
-          // If is_hidden column doesn't exist, fall back to removing participant
-          console.warn('[Chat API] is_hidden column missing, falling back to participant removal');
-          const { error: deleteError } = await supabaseServer
+        const otherParticipants = (allParticipants || []).filter(
+          (p: { user_id: string }) => p.user_id !== userId
+        );
+
+        // For individual conversations: delete messages and the entire conversation
+        // This ensures a fresh start if the same two users chat again
+        const { data: convInfo } = await supabaseServer
+          .from('conversations')
+          .select('type')
+          .eq('id', conversationId)
+          .single();
+
+        if (convInfo?.type === 'individual') {
+          // Delete all messages in the conversation
+          await supabaseServer
+            .from('messages')
+            .delete()
+            .eq('conversation_id', conversationId);
+
+          // Delete all participant records
+          await supabaseServer
             .from('conversation_participants')
             .delete()
+            .eq('conversation_id', conversationId);
+
+          // Delete the conversation itself
+          await supabaseServer
+            .from('conversations')
+            .delete()
+            .eq('id', conversationId);
+        } else {
+          // For group conversations: use soft-delete (hide for this user only)
+          // Other participants should still see the group chat
+          const { error: hideError } = await supabaseServer
+            .from('conversation_participants')
+            .update({ is_hidden: true })
             .eq('conversation_id', conversationId)
             .eq('user_id', userId);
-          if (deleteError) {
-            console.error('[Chat API] Delete conversation error:', deleteError);
-            return NextResponse.json({ error: 'فشل حذف المحادثة' }, { status: 500 });
+
+          if (hideError) {
+            // If is_hidden column doesn't exist, fall back to removing participant
+            console.warn('[Chat API] is_hidden column missing, falling back to participant removal');
+            const { error: deleteError } = await supabaseServer
+              .from('conversation_participants')
+              .delete()
+              .eq('conversation_id', conversationId)
+              .eq('user_id', userId);
+            if (deleteError) {
+              console.error('[Chat API] Delete conversation error:', deleteError);
+              return NextResponse.json({ error: 'فشل حذف المحادثة' }, { status: 500 });
+            }
           }
         }
 
@@ -869,39 +907,56 @@ export async function POST(request: NextRequest) {
 
         const convIds = participations.map((p: { conversation_id: string }) => p.conversation_id);
 
-        // Soft delete: set is_hidden = true for all user's conversations
-        const { error: hideError } = await supabaseServer
-          .from('conversation_participants')
-          .update({ is_hidden: true })
-          .eq('user_id', userId)
-          .in('conversation_id', convIds);
+        // Separate individual vs group conversations
+        const { data: convsData } = await supabaseServer
+          .from('conversations')
+          .select('id, type')
+          .in('id', convIds);
 
-        if (hideError) {
-          // Fallback: try deleting individual conversations only
-          const { data: individualConvs } = await supabaseServer
-            .from('conversations')
-            .select('id')
-            .in('id', convIds)
-            .eq('type', 'individual');
+        const individualConvIds = (convsData || [])
+          .filter((c: { type: string }) => c.type === 'individual')
+          .map((c: { id: string }) => c.id);
+        const groupConvIds = (convsData || [])
+          .filter((c: { type: string }) => c.type !== 'individual')
+          .map((c: { id: string }) => c.id);
 
-          if (!individualConvs || individualConvs.length === 0) {
-            return NextResponse.json({ success: true, deletedCount: 0 });
-          }
-
-          const individualConvIds = individualConvs.map((c: { id: string }) => c.id);
-
-          const { error: deleteError } = await supabaseServer
-            .from('conversation_participants')
+        // For individual conversations: hard-delete messages, participants, and conversation
+        if (individualConvIds.length > 0) {
+          // Delete messages
+          await supabaseServer
+            .from('messages')
             .delete()
-            .eq('user_id', userId)
             .in('conversation_id', individualConvIds);
 
-          if (deleteError) {
-            console.error('[Chat API] Delete all conversations error:', deleteError);
-            return NextResponse.json({ error: 'فشل حذف المحادثات' }, { status: 500 });
-          }
+          // Delete all participant records
+          await supabaseServer
+            .from('conversation_participants')
+            .delete()
+            .in('conversation_id', individualConvIds);
 
-          return NextResponse.json({ success: true, deletedCount: individualConvIds.length });
+          // Delete the conversations
+          await supabaseServer
+            .from('conversations')
+            .delete()
+            .in('id', individualConvIds);
+        }
+
+        // For group conversations: soft-delete (hide for this user only)
+        if (groupConvIds.length > 0) {
+          const { error: hideError } = await supabaseServer
+            .from('conversation_participants')
+            .update({ is_hidden: true })
+            .eq('user_id', userId)
+            .in('conversation_id', groupConvIds);
+
+          if (hideError) {
+            // Fallback: remove participant record
+            await supabaseServer
+              .from('conversation_participants')
+              .delete()
+              .eq('user_id', userId)
+              .in('conversation_id', groupConvIds);
+          }
         }
 
         return NextResponse.json({ success: true, deletedCount: convIds.length });

@@ -20,6 +20,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { RealtimeChannel } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, ChatMessage } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -101,6 +102,8 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   const typingTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const messageMenuRef = useRef<HTMLDivElement>(null);
   const conversationIdRef = useRef<string | null>(null);
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Keep ref in sync
   useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
@@ -111,6 +114,107 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       joinRoom(conversationId);
     }
   }, [isConnected, conversationId, joinRoom]);
+
+  // ─── Supabase Realtime: PRIMARY real-time delivery for chat-tab ───
+  // This is critical on Vercel where Socket.IO is unavailable
+  useEffect(() => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+
+    try {
+      if (!realtimeChannelRef.current) {
+        const channel = supabase
+          .channel('chat-tab-realtime')
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'messages' },
+            (payload) => {
+              const newMsg = payload.new as Record<string, unknown>;
+              const convId = (newMsg.conversation_id as string) || null;
+              if (!convId || convId !== conversationIdRef.current) return;
+
+              // Skip own messages (already added optimistically)
+              if (newMsg.sender_id === profile.id) return;
+
+              // Fetch the full message with sender info via API
+              fetch(`/api/chat?action=messages&conversationId=${convId}&limit=1`)
+                .then(r => r.json())
+                .then(data => {
+                  const serverMessages: ChatMessage[] = data.messages || [];
+                  const fullMsg = serverMessages.find(
+                    (m: ChatMessage) => m.id === newMsg.id
+                  );
+                  if (!fullMsg) return;
+
+                  setMessages((prev) => {
+                    if (prev.some((m) => m.id === fullMsg.id)) return prev;
+                    const isContentDuplicate = prev.some((m) =>
+                      m.sender_id === fullMsg.sender_id &&
+                      m.content === fullMsg.content &&
+                      Math.abs(new Date(m.created_at).getTime() - new Date(fullMsg.created_at).getTime()) < 10000
+                    );
+                    if (isContentDuplicate) return prev;
+                    return [...prev, fullMsg];
+                  });
+                })
+                .catch(() => {});
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: 'UPDATE', schema: 'public', table: 'messages' },
+            (payload) => {
+              const updated = payload.new as Record<string, unknown>;
+              const msgId = updated.id as string;
+              if (!msgId) return;
+
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== msgId) return m;
+                  return {
+                    ...m,
+                    content: (updated.content as string) || m.content,
+                    is_edited: (updated.is_edited as boolean) ?? m.is_edited,
+                    is_deleted: (updated.is_deleted as boolean) ?? m.is_deleted,
+                    edited_at: (updated.edited_at as string) || m.edited_at,
+                  };
+                })
+              );
+            }
+          )
+          .subscribe((subStatus) => {
+            console.log('[Chat Tab Realtime] subscription status:', subStatus);
+          });
+
+        realtimeChannelRef.current = channel;
+      }
+    } catch (err) {
+      console.error('[Chat Tab Realtime] setup error:', err);
+    }
+
+    // Polling backup
+    if (!isConnected) {
+      pollingRef.current = setInterval(() => {
+        if (conversationIdRef.current) {
+          fetch(`/api/chat?action=messages&conversationId=${conversationIdRef.current}&limit=50`)
+            .then(r => r.json())
+            .then(data => {
+              if (data.messages) setMessages(data.messages);
+            })
+            .catch(() => {});
+        }
+      }, 8000);
+    }
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (realtimeChannelRef.current) {
+        try {
+          supabase.removeChannel(realtimeChannelRef.current);
+        } catch { /* Ignore */ }
+        realtimeChannelRef.current = null;
+      }
+    };
+  }, [isConnected, profile.id]);
 
   // -------------------------------------------------------
   // Initialize conversation

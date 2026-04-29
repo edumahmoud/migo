@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, Megaphone, Ban, TrendingUp, MessageCircle, Building2, FileText, FolderOpen, FileSpreadsheet, Bell } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import { useStatusStore } from '@/stores/status-store';
 import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 import { setSocketAuth, destroySocket } from '@/lib/socket';
 import { isSupabaseConfigured } from '@/lib/supabase';
@@ -67,6 +68,7 @@ const studentNavItems = [
 function HomeContent() {
   const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo } = useAuthStore();
   const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection } = useAppStore();
+  const { cleanup: cleanupStatusStore } = useStatusStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
 
@@ -201,6 +203,7 @@ function HomeContent() {
       setSocketAuth(user.id, user.name);
     } else {
       destroySocket();
+      cleanupStatusStore();
     }
   }, [user]);
 
@@ -391,6 +394,7 @@ function HomeContent() {
           avatarUrl={user.avatar_url}
           onSignOut={() => {
             destroySocket();
+            cleanupStatusStore();
             resetAppStore();
             setCurrentPage('auth');
             signOut();
@@ -444,6 +448,7 @@ function HomeContent() {
           profile={user}
           onSignOut={() => {
             destroySocket();
+            cleanupStatusStore();
             resetAppStore();
             setCurrentPage('auth');
             signOut();
@@ -459,6 +464,7 @@ function HomeContent() {
           profile={user}
           onSignOut={() => {
             destroySocket();
+            cleanupStatusStore();
             resetAppStore();
             setCurrentPage('auth');
             signOut();
@@ -474,6 +480,7 @@ function HomeContent() {
         profile={user}
         onSignOut={() => {
           destroySocket();
+          cleanupStatusStore();
           resetAppStore();
           setCurrentPage('auth');
           signOut();
