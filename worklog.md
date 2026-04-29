@@ -340,3 +340,25 @@ Stage Summary:
 - 3 critical mobile bugs fixed: infinity loading, unresponsive upload button, ghost overlay blocking
 - iOS Safari touch hit-testing bug resolved via CSS fallback
 - All changes are backward-compatible with desktop browsers
+
+---
+Task ID: 17
+Agent: Main Agent
+Task: Fix "Internet connection error" when running the app - add graceful Supabase config error handling
+
+Work Log:
+- Diagnosed root cause: `.env.local` was missing Supabase environment variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY)
+- Created `SupabaseConfigError` component: full-screen Arabic RTL error page with AttenDo branding
+- Shows "خطأ في الاتصال بقاعدة البيانات" with clear description and missing env vars list
+- Has "إعادة المحاولة" (Retry) and "الخروج" (Exit) buttons
+- Added config check at top of page.tsx HomeContent - shows SupabaseConfigError if Supabase not configured
+- Redesigned error.tsx, global-error.tsx, offline/page.tsx with AttenDo branding + "الخروج من التطبيق" button
+- Removed redundant Supabase warning from login-form.tsx
+- Fixed lint error in install-prompt.tsx (setState in effect → lazy initializer)
+- Added console.warn in auth-store.ts when Supabase not configured
+- Pushed to GitHub (commit fedfd9a)
+
+Stage Summary:
+- App now shows a clear, helpful error page when Supabase is not configured instead of confusing errors
+- All error pages now have "الخروج من التطبيق" (Exit app) button matching the user's screenshot
+- Commit: fedfd9a pushed to main branch
