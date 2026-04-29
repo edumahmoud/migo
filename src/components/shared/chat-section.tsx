@@ -947,8 +947,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
   // =====================================================
   // Search users for new DM
-  // - Search by name within enrolled courses (coursemates)
-  // - Search by email globally (any user on the platform)
+  // - Teacher/Admin: search globally by name + email (no restrictions)
+  // - Student: search by name within enrolled courses (coursemates)
+  //            + search globally by email (any user on the platform)
   // =====================================================
   const handleSearchUsers = useCallback(async (query: string) => {
     setSearchQuery(query);
@@ -961,44 +962,49 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     try {
       const allResults: UserProfile[] = [];
 
-      // 1. Search by name within enrolled courses (coursemates)
-      let subjectIds: string[] = [];
-      if (role === 'teacher') {
-        const { data } = await supabase
-          .from('subjects')
-          .select('id')
-          .eq('teacher_id', profile.id);
-        subjectIds = (data || []).map((s: { id: string }) => s.id);
-      } else if (role === 'student') {
-        const { data } = await supabase
-          .from('subject_students')
-          .select('subject_id')
-          .eq('student_id', profile.id)
-          .eq('status', 'approved');
-        subjectIds = (data || []).map((s: { subject_id: string }) => s.subject_id);
-      }
-
-      if (subjectIds.length > 0) {
-        const searchPromises = subjectIds.map(sid =>
-          fetch(`/api/chat?action=search-users&subjectId=${sid}&query=${encodeURIComponent(query)}&userId=${profile.id}`)
-            .then(r => r.json())
-            .then(d => d.users || [])
-        );
-
-        const courseResults = await Promise.all(searchPromises);
-        courseResults.flat().forEach((u: UserProfile) => allResults.push(u));
-      }
-
-      // 2. If query contains '@', also search globally by email
-      if (query.includes('@')) {
+      if (role === 'teacher' || role === 'admin') {
+        // ─── Teacher / Admin: global search by name + email ───
         try {
-          const res = await fetch(`/api/chat?action=search-users-global&query=${encodeURIComponent(query)}&userId=${profile.id}`);
+          const res = await fetch(`/api/chat?action=search-users-global&query=${encodeURIComponent(query)}&userId=${profile.id}&mode=all`);
           const data = await res.json();
           if (data.users) {
             (data.users as UserProfile[]).forEach((u: UserProfile) => allResults.push(u));
           }
         } catch (err) {
           console.error('Global search error:', err);
+        }
+      } else {
+        // ─── Student: search by name within courses + global email search ───
+
+        // 1. Search by name within enrolled courses (coursemates)
+        let subjectIds: string[] = [];
+        const { data: enrollmentData } = await supabase
+          .from('subject_students')
+          .select('subject_id')
+          .eq('student_id', profile.id)
+          .eq('status', 'approved');
+        subjectIds = (enrollmentData || []).map((s: { subject_id: string }) => s.subject_id);
+
+        if (subjectIds.length > 0) {
+          const searchPromises = subjectIds.map(sid =>
+            fetch(`/api/chat?action=search-users&subjectId=${sid}&query=${encodeURIComponent(query)}&userId=${profile.id}`)
+              .then(r => r.json())
+              .then(d => d.users || [])
+          );
+
+          const courseResults = await Promise.all(searchPromises);
+          courseResults.flat().forEach((u: UserProfile) => allResults.push(u));
+        }
+
+        // 2. Always search globally by email (students can find anyone by email)
+        try {
+          const res = await fetch(`/api/chat?action=search-users-global&query=${encodeURIComponent(query)}&userId=${profile.id}&mode=email`);
+          const data = await res.json();
+          if (data.users) {
+            (data.users as UserProfile[]).forEach((u: UserProfile) => allResults.push(u));
+          }
+        } catch (err) {
+          console.error('Global email search error:', err);
         }
       }
 
@@ -2136,7 +2142,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     type="text"
                     value={searchQuery}
                     onChange={(e) => handleSearchUsers(e.target.value)}
-                    placeholder="ابحث بالاسم أو البريد الإلكتروني..."
+                    placeholder={
+                      role === 'student'
+                        ? 'ابحث بالاسم (زملاء المقرر) أو البريد الإلكتروني (الجميع)...'
+                        : 'ابحث بالاسم أو البريد الإلكتروني...'
+                    }
                     className="w-full rounded-lg border bg-muted/30 ps-10 pe-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
                     autoFocus
                   />
@@ -2144,6 +2154,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     <Loader2 className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                   )}
                 </div>
+                {role === 'student' && (
+                  <p className="mt-1.5 text-[10px] text-muted-foreground leading-relaxed">
+                    🔍 البحث بالاسم: زملاء مقرراتك فقط · البحث بالبريد: جميع المستخدمين
+                  </p>
+                )}
               </div>
 
               {/* Search results */}

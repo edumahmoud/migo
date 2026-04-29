@@ -399,23 +399,53 @@ export async function GET(request: NextRequest) {
       case 'search-users-global': {
         const query = searchParams.get('query');
         const userId = searchParams.get('userId');
+        const searchMode = searchParams.get('mode') || 'all'; // 'all' | 'email' | 'name'
 
         if (!query) return NextResponse.json({ error: 'query required' }, { status: 400 });
 
-        // Search all users by email (partial match)
-        const { data: users, error } = await supabaseServer
-          .from('users')
-          .select('id, name, email, avatar_url, title_id, gender, role')
-          .ilike('email', `%${query}%`)
-          .neq('id', userId || '')
-          .limit(20);
+        // Sanitize query for SQL LIKE (escape % and _)
+        const sanitizedQuery = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
 
-        if (error) {
-          console.error('[Chat API] Global search error:', error);
-          return NextResponse.json({ error: error.message }, { status: 500 });
+        // Search all users by name and/or email (partial match)
+        // mode='all' (default for teacher/admin): search both name and email
+        // mode='email' (for students): search email only
+        // mode='name': search name only
+        let emailResults: Record<string, unknown>[] = [];
+        let nameResults: Record<string, unknown>[] = [];
+
+        if (searchMode === 'all' || searchMode === 'email') {
+          const { data, error: emailError } = await supabaseServer
+            .from('users')
+            .select('id, name, email, avatar_url, title_id, gender, role')
+            .ilike('email', `%${sanitizedQuery}%`)
+            .neq('id', userId || '')
+            .limit(20);
+          if (emailError) {
+            console.error('[Chat API] Global search (email) error:', emailError);
+          } else {
+            emailResults = (data || []) as Record<string, unknown>[];
+          }
         }
 
-        return NextResponse.json({ users: users || [] });
+        if (searchMode === 'all' || searchMode === 'name') {
+          const { data, error: nameError } = await supabaseServer
+            .from('users')
+            .select('id, name, email, avatar_url, title_id, gender, role')
+            .ilike('name', `%${sanitizedQuery}%`)
+            .neq('id', userId || '')
+            .limit(20);
+          if (nameError) {
+            console.error('[Chat API] Global search (name) error:', nameError);
+          } else {
+            nameResults = (data || []) as Record<string, unknown>[];
+          }
+        }
+
+        // Merge and deduplicate by user ID
+        const merged = [...emailResults, ...nameResults];
+        const unique = Array.from(new Map(merged.map((u: Record<string, unknown>) => [u.id, u])).values());
+
+        return NextResponse.json({ users: unique });
       }
 
       default:
