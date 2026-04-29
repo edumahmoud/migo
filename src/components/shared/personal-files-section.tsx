@@ -241,6 +241,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // ─── Upload state ───
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  const pendingUploadsRef = useRef<PendingUpload[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
 
@@ -285,6 +286,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const [assigning, setAssigning] = useState(false);
   const [assignSubjects, setAssignSubjects] = useState<Subject[]>([]);
   const [bulkAssignMode, setBulkAssignMode] = useState(false);
+
+  // ─── Share by email state ───
+  const [shareByEmail, setShareByEmail] = useState('');
+  const [shareByEmailPermission, setShareByEmailPermission] = useState<'view' | 'edit' | 'download'>('view');
+  const [shareByEmailLoading, setShareByEmailLoading] = useState(false);
+
+  // ─── Bulk share by email state ───
+  const [bulkShareByEmail, setBulkShareByEmail] = useState('');
+  const [bulkShareByEmailPermission, setBulkShareByEmailPermission] = useState<'view' | 'edit' | 'download'>('view');
+  const [bulkShareByEmailLoading, setBulkShareByEmailLoading] = useState(false);
 
   // ─── Bulk share modal state ───
   const [bulkShareModalOpen, setBulkShareModalOpen] = useState(false);
@@ -343,6 +354,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
+      // Also send user ID as extra auth fallback (middleware may set this)
+      if (profile.id) {
+        headers['x-user-id'] = profile.id;
+      }
 
       const res = await fetch('/api/files/shared-with-me', { headers });
 
@@ -364,7 +379,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     } finally {
       setLoadingShared(false);
     }
-  }, []);
+  }, [profile.id]);
 
   // -------------------------------------------------------
   // Fetch file shares (for share modal)
@@ -453,6 +468,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     fetchSharedFiles();
   }, [fetchFiles, fetchSharedFiles]);
 
+  // Keep pendingUploads ref in sync for reliable reads in async handlers
+  useEffect(() => {
+    pendingUploadsRef.current = pendingUploads;
+  }, [pendingUploads]);
+
   useEffect(() => {
     if (activeTab === 'shared') {
       fetchSharedFiles();
@@ -531,17 +551,23 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       prev.map((p) => (p.progress === -1 ? { ...p, progress: 0, uploading: false } : p))
     );
 
-    // Use functional state update to read the LATEST state (avoids stale closure on mobile)
-    let toUpload: typeof pendingUploads = [];
-    setPendingUploads((current) => {
-      toUpload = current.filter((p) => !p.done && !p.uploading);
-      return current; // Don't mutate, just read
-    });
-    if (toUpload.length === 0) return;
+    // Wait a tick for the state update to be processed (important on mobile)
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Read the LATEST state from the ref (avoids stale closure on mobile)
+    const toUpload = pendingUploadsRef.current.filter((p) => !p.done && !p.uploading);
+    if (toUpload.length === 0) {
+      toast.info('لا يوجد ملفات للرفع');
+      return;
+    }
 
     // Get auth token
     const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
+    if (!session?.access_token) {
+      toast.error('يرجى تسجيل الدخول أولاً');
+      return;
+    }
+    const token = session.access_token;
 
     // Throttled progress updater - only update state when progress changes significantly or enough time has passed
     const progressTimers = new Map<string, { lastPct: number; lastTime: number }>();
@@ -814,7 +840,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   };
 
   // -------------------------------------------------------
-  // Share files with selected users
+  // Share files with selected users (using server API to bypass RLS issues)
   // -------------------------------------------------------
   const handleShareWithSelected = async () => {
     if (!sharingFileId || selectedShareUsers.length === 0) return;
@@ -823,19 +849,42 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       const alreadySharedIds = new Set(fileShares.map((s) => s.shared_with));
       const newUsers = selectedShareUsers.filter((u) => !alreadySharedIds.has(u.id));
 
-      for (const user of newUsers) {
-        const { error } = await supabase.from('file_shares').insert({
-          file_id: sharingFileId,
-          shared_by: profile.id,
-          shared_with: user.id,
-          permission: selectedPermission,
-        });
-        if (error && error.code !== '23505') {
-          console.error('Share error:', error);
-        }
+      if (newUsers.length === 0) {
+        toast.info('تمت المشاركة مع هؤلاء المستخدمين مسبقاً');
+        setSelectedShareUsers([]);
+        setShareSearchQuery('');
+        setShareSearchResults([]);
+        return;
       }
 
-      toast.success(`تمت المشاركة مع ${newUsers.length} مستخدم`);
+      // Use server-side API to create shares (bypasses RLS)
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/files/bulk-share', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          fileIds: [sharingFileId],
+          userIds: newUsers.map((u) => u.id),
+          permission: selectedPermission,
+          sharedBy: profile.id,
+        }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        const { created, skipped } = result.data;
+        let msg = `تمت المشاركة بنجاح`;
+        if (created > 0) msg += ` (${created} مشاركة جديدة)`;
+        if (skipped > 0) msg += ` - تم تخطي ${skipped} مشاركة موجودة`;
+        toast.success(msg);
+      } else {
+        toast.error(result.error || 'حدث خطأ أثناء المشاركة');
+      }
+
       setSelectedShareUsers([]);
       setShareSearchQuery('');
       setShareSearchResults([]);
@@ -844,6 +893,107 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       toast.error('حدث خطأ أثناء المشاركة');
     } finally {
       setSharingUsers(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Share file by email (uses server API, works for any owned file)
+  // -------------------------------------------------------
+  const handleShareByEmail = async () => {
+    if (!sharingFileId || !shareByEmail.trim()) return;
+    setShareByEmailLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/files/share-by-email', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          fileId: sharingFileId,
+          email: shareByEmail.trim(),
+          permission: shareByEmailPermission,
+          sharedBy: profile.id,
+        }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        const { created, updated, user } = result.data;
+        if (created > 0) {
+          toast.success(`تمت المشاركة مع ${user.name || user.email} بنجاح`);
+        } else if (updated > 0) {
+          toast.success(`تم تحديث صلاحية المشاركة مع ${user.name || user.email}`);
+        } else {
+          toast.info('المشاركة موجودة مسبقاً');
+        }
+        setShareByEmail('');
+        setShareByEmailPermission('view');
+        if (sharingFileId) fetchFileShares(sharingFileId);
+      } else {
+        toast.error(result.error || 'حدث خطأ أثناء المشاركة');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setShareByEmailLoading(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Bulk share files by email
+  // -------------------------------------------------------
+  const handleBulkShareByEmail = async () => {
+    if (selectedFileIds.size === 0 || !bulkShareByEmail.trim()) return;
+    setBulkShareByEmailLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const fileIds = Array.from(selectedFileIds);
+      let totalCreated = 0;
+      let totalUpdated = 0;
+      let lastError = '';
+
+      for (const fileId of fileIds) {
+        const res = await fetch('/api/files/share-by-email', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            fileId,
+            email: bulkShareByEmail.trim(),
+            permission: bulkShareByEmailPermission,
+            sharedBy: profile.id,
+          }),
+        });
+
+        const result = await res.json();
+        if (result.success) {
+          totalCreated += result.data.created;
+          totalUpdated += result.data.updated;
+        } else {
+          lastError = result.error;
+        }
+      }
+
+      if (totalCreated > 0) {
+        toast.success(`تمت المشاركة بنجاح (${totalCreated} مشاركة جديدة)`);
+      } else if (totalUpdated > 0) {
+        toast.success(`تم تحديث ${totalUpdated} صلاحية مشاركة`);
+      } else if (lastError) {
+        toast.error(lastError);
+      }
+
+      setBulkShareByEmail('');
+      setBulkShareByEmailPermission('view');
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setBulkShareByEmailLoading(false);
     }
   };
 
@@ -939,15 +1089,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   const openShareModal = (fileId: string) => {
     const file = files.find((f) => f.id === fileId);
-    if (!file || file.visibility !== 'public') {
-      toast.error('فقط الملفات العامة يمكن مشاركتها مع المستخدمين');
-      return;
-    }
+    if (!file) return;
     setSharingFileId(fileId);
     setShareSearchQuery('');
     setShareSearchResults([]);
     setSelectedShareUsers([]);
     setSelectedPermission('view');
+    setShareByEmail('');
+    setShareByEmailPermission('view');
     setShareModalOpen(true);
     fetchFileShares(fileId);
   };
@@ -962,6 +1111,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     setShareSearchResults([]);
     setSelectedShareUsers([]);
     setFileShares([]);
+    setShareByEmail('');
+    setShareByEmailPermission('view');
   };
 
   // -------------------------------------------------------
@@ -1120,6 +1271,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     setBulkShareSearchResults([]);
     setBulkShareSelectedUsers([]);
     setBulkSharePermission('view');
+    setBulkShareByEmail('');
+    setBulkShareByEmailPermission('view');
   };
 
   // -------------------------------------------------------
@@ -1190,18 +1343,21 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     if (selectedFileIds.size === 0 || bulkShareSelectedUsers.length === 0) return;
     setBulkShareLoading(true);
     try {
-      const publicSelectedIds = Array.from(selectedFileIds).filter(
-        (id) => files.find((f) => f.id === id)?.visibility === 'public'
-      );
-      if (publicSelectedIds.length === 0) {
-        toast.error('فقط الملفات العامة يمكن مشاركتها');
+      const fileIdsToShare = Array.from(selectedFileIds);
+      if (fileIdsToShare.length === 0) {
+        toast.error('لا توجد ملفات للمشاركة');
         return;
       }
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch('/api/files/bulk-share', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          fileIds: publicSelectedIds,
+          fileIds: fileIdsToShare,
           userIds: bulkShareSelectedUsers.map((u) => u.id),
           permission: bulkSharePermission,
           sharedBy: profile.id,
@@ -2442,6 +2598,71 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 )}
               </div>
 
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">أو شارك بالبريد الإلكتروني</span>
+                </div>
+              </div>
+
+              {/* Share by email */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">البريد الإلكتروني</label>
+                  <div className="relative">
+                    <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="email"
+                      value={shareByEmail}
+                      onChange={(e) => setShareByEmail(e.target.value)}
+                      placeholder="أدخل البريد الإلكتروني للمستخدم..."
+                      className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                      dir="ltr"
+                      disabled={shareByEmailLoading}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && shareByEmail.trim()) {
+                          handleShareByEmail();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">صلاحية المشاركة بالبريد</label>
+                  <div className="flex items-center gap-2">
+                    {(['view', 'edit', 'download'] as const).map((perm) => (
+                      <button
+                        key={perm}
+                        onClick={() => setShareByEmailPermission(perm)}
+                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                          shareByEmailPermission === perm
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {getPermissionIcon(perm)}
+                        {getPermissionLabel(perm)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={handleShareByEmail}
+                  disabled={shareByEmailLoading || !shareByEmail.trim()}
+                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                >
+                  {shareByEmailLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="h-4 w-4" />
+                  )}
+                  مشاركة بالبريد الإلكتروني
+                </button>
+              </div>
+
               {/* Selected users badges */}
               {selectedShareUsers.length > 0 && (
                 <div>
@@ -2805,7 +3026,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     {selectedFileIds.size} ملف محدد
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {Array.from(selectedFileIds).filter(id => files.find(f => f.id === id)?.visibility === 'public').length} ملف عام قابل للمشاركة
+                    {selectedFileIds.size} ملف قابل للمشاركة
                   </p>
                 </div>
               </div>
@@ -2896,7 +3117,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 </div>
               )}
 
-              {/* Submit button */}
+              {/* Submit button for search-based sharing */}
               <button
                 onClick={handleBulkShare}
                 disabled={bulkShareLoading || bulkShareSelectedUsers.length === 0}
@@ -2909,6 +3130,71 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 )}
                 مشاركة {selectedFileIds.size} ملف مع {bulkShareSelectedUsers.length} مستخدم
               </button>
+
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">أو شارك بالبريد الإلكتروني</span>
+                </div>
+              </div>
+
+              {/* Bulk share by email */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">البريد الإلكتروني</label>
+                  <div className="relative">
+                    <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="email"
+                      value={bulkShareByEmail}
+                      onChange={(e) => setBulkShareByEmail(e.target.value)}
+                      placeholder="أدخل البريد الإلكتروني للمستخدم..."
+                      className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                      dir="ltr"
+                      disabled={bulkShareByEmailLoading}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && bulkShareByEmail.trim()) {
+                          handleBulkShareByEmail();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">صلاحية المشاركة بالبريد</label>
+                  <div className="flex items-center gap-2">
+                    {(['view', 'edit', 'download'] as const).map((perm) => (
+                      <button
+                        key={perm}
+                        onClick={() => setBulkShareByEmailPermission(perm)}
+                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                          bulkShareByEmailPermission === perm
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {getPermissionIcon(perm)}
+                        {getPermissionLabel(perm)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={handleBulkShareByEmail}
+                  disabled={bulkShareByEmailLoading || !bulkShareByEmail.trim()}
+                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                >
+                  {bulkShareByEmailLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="h-4 w-4" />
+                  )}
+                  مشاركة {selectedFileIds.size} ملف بالبريد الإلكتروني
+                </button>
+              </div>
             </div>
           </motion.div>
         </motion.div>

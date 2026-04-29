@@ -15,6 +15,7 @@ import {
   Loader2,
   Hash,
   Copy,
+  UserCircle2,
   Check,
   User,
   Pencil,
@@ -40,6 +41,7 @@ const ExamsTab = lazy(() => import('@/components/course/tabs/exams-tab'));
 const AssignmentsTab = lazy(() => import('@/components/course/tabs/assignments-tab'));
 const ChatTab = lazy(() => import('@/components/course/tabs/chat-tab'));
 const StudentsTab = lazy(() => import('@/components/course/tabs/students-tab'));
+const TeamsTab = lazy(() => import('@/components/course/tabs/teams-tab'));
 
 // Tab loading fallback
 function TabLoader() {
@@ -77,6 +79,7 @@ const TABS: TabConfig[] = [
   { id: 'assignments', label: 'المهام', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'chat', label: 'المحادثة', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'students', label: 'الطلاب', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
+  { id: 'teams', label: 'الفرق', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
 ];
 
 // -------------------------------------------------------
@@ -447,6 +450,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         {courseTab === 'assignments' && <AssignmentsTab {...commonProps} />}
         {courseTab === 'chat' && <ChatTab {...commonProps} />}
         {courseTab === 'students' && role === 'teacher' && <StudentsTab {...commonProps} />}
+        {courseTab === 'teams' && role === 'teacher' && <TeamsTab subjectId={subject.id} profile={profile} />}
       </Suspense>
     );
   };

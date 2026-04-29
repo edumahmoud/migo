@@ -185,18 +185,33 @@ export default function ServiceWorkerRegistration() {
     };
 
     // Handle deeplink from ?deeplink= query param on initial page load
+    // Also reads ¬ifType= to pass the notification type through
+    // Stores the deeplink on window.__attendoDeeplinkQueue as a fallback
+    // in case notification-bell.tsx hasn't loaded yet when the event fires.
     const handleInitialDeeplink = () => {
       try {
         const params = new URLSearchParams(window.location.search);
         const deeplink = params.get('deeplink');
+        const notifType = params.get('notifType') || 'system';
         if (deeplink) {
           const url = decodeURIComponent(deeplink);
+          const entry = { url, notifType };
+
+          // Store on window global as a fallback (survives module load order)
+          if (!Array.isArray((window as any).__attendoDeeplinkQueue)) {
+            (window as any).__attendoDeeplinkQueue = [];
+          }
+          (window as any).__attendoDeeplinkQueue.push(entry);
+
+          // Also dispatch the custom event (for when notification-bell is already loaded)
           window.dispatchEvent(new CustomEvent('notification-deeplink', {
-            detail: { url, notifType: 'system' },
+            detail: entry,
           }));
+
           // Clean up the URL without reloading
           const cleanUrl = new URL(window.location.href);
           cleanUrl.searchParams.delete('deeplink');
+          cleanUrl.searchParams.delete('notifType');
           window.history.replaceState({}, '', cleanUrl.pathname);
         }
       } catch {
@@ -219,8 +234,17 @@ export default function ServiceWorkerRegistration() {
     const handleSWMessage = (event: MessageEvent) => {
       if (event.data?.type === 'NOTIFICATION_CLICK') {
         const { url, notifType } = event.data;
+        const entry = { url, notifType };
+
+        // Store on window global as a fallback
+        if (!Array.isArray((window as any).__attendoDeeplinkQueue)) {
+          (window as any).__attendoDeeplinkQueue = [];
+        }
+        (window as any).__attendoDeeplinkQueue.push(entry);
+
+        // Also dispatch the custom event (for when notification-bell is already loaded)
         window.dispatchEvent(new CustomEvent('notification-deeplink', {
-          detail: { url, notifType },
+          detail: entry,
         }));
       }
     };

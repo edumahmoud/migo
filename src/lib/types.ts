@@ -366,7 +366,7 @@ export interface EvaluateAnswerResponse {
 // =====================================================
 
 // Course page tab types
-export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'exams' | 'assignments' | 'chat' | 'students';
+export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'exams' | 'assignments' | 'chat' | 'students' | 'teams';
 
 // Extended lecture type with attendance info
 export interface LectureWithAttendance extends Lecture {

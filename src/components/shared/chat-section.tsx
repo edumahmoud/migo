@@ -28,6 +28,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { RealtimeChannel } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import type { UserProfile, Conversation, ChatMessage, UserStatus } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -212,6 +213,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const backupPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastPollTimeRef = useRef<number>(0);
+  const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
 
   // ─── Keep refs in sync ───
   useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
@@ -291,15 +293,116 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     }
   }, []);
 
-  // Setup polling intervals
+  // Setup polling intervals + Supabase Realtime fallback for Vercel
   useEffect(() => {
     // Clear existing intervals
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (backupPollingRef.current) clearInterval(backupPollingRef.current);
 
     if (!isConnected) {
-      // Poll every 5 seconds when socket is disconnected
-      pollingRef.current = setInterval(pollMessages, 5000);
+      // Poll every 3 seconds when socket is disconnected (faster than before)
+      pollingRef.current = setInterval(pollMessages, 3000);
+
+      // Subscribe to Supabase Realtime as fallback for Vercel (no persistent server)
+      try {
+        if (!realtimeChannelRef.current) {
+          const channel = supabase
+            .channel('chat-messages-realtime')
+            .on(
+              'postgres_changes',
+              {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'messages',
+              },
+              (payload) => {
+                const newMsg = payload.new as Record<string, unknown>;
+                const convId = (newMsg.conversation_id as string) || null;
+                if (!convId) return;
+
+                const currentActiveId = activeConvIdRef.current;
+
+                // Fetch the full message with sender info via API
+                fetch(`/api/chat?action=messages&conversationId=${convId}&limit=1`)
+                  .then(r => r.json())
+                  .then(data => {
+                    const serverMessages: ChatMessage[] = data.messages || [];
+                    // Find the new message by ID
+                    const fullMsg = serverMessages.find(
+                      (m: ChatMessage) => m.id === newMsg.id
+                    );
+                    if (!fullMsg) return;
+
+                    if (convId === currentActiveId) {
+                      setMessages((prev) => {
+                        if (prev.some((m) => m.id === fullMsg.id)) return prev;
+                        const isDuplicate = prev.some((m) =>
+                          m.id.startsWith('temp-') &&
+                          m.sender_id === fullMsg.sender_id &&
+                          m.content === fullMsg.content &&
+                          Date.now() - new Date(m.created_at).getTime() < 10000
+                        );
+                        if (isDuplicate) {
+                          return prev.map((m) =>
+                            m.id.startsWith('temp-') && m.sender_id === fullMsg.sender_id && m.content === fullMsg.content
+                              ? fullMsg
+                              : m
+                          );
+                        }
+                        const isContentDuplicate = prev.some((m) =>
+                          m.id !== fullMsg.id &&
+                          m.sender_id === fullMsg.sender_id &&
+                          m.content === fullMsg.content &&
+                          Math.abs(new Date(m.created_at).getTime() - new Date(fullMsg.created_at).getTime()) < 10000
+                        );
+                        if (isContentDuplicate) return prev;
+                        return [...prev, fullMsg];
+                      });
+                      fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'mark-read', conversationId: convId, userId: profile.id }),
+                      }).catch(() => {});
+                    } else {
+                      // Show toast for message in other conversation
+                      const senderName = fullMsg.sender?.name || 'مستخدم';
+                      toast(`رسالة جديدة من ${senderName}`, {
+                        description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
+                        icon: <Bell className="h-4 w-4 text-emerald-600" />,
+                        duration: 5000,
+                      });
+                      setLocalUnread((prev) => {
+                        const next = new Map(prev);
+                        next.set(convId, (next.get(convId) || 0) + 1);
+                        return next;
+                      });
+                    }
+                    fetchConversations();
+                  })
+                  .catch(() => {
+                    // Silently ignore fetch errors in Realtime handler
+                  });
+              }
+            )
+            .subscribe((status) => {
+              console.log('[Chat Realtime] subscription status:', status);
+            });
+
+          realtimeChannelRef.current = channel;
+        }
+      } catch (err) {
+        console.error('[Chat Realtime] setup error:', err);
+      }
+    } else {
+      // Socket is connected — unsubscribe from Realtime and restore normal polling
+      if (realtimeChannelRef.current) {
+        try {
+          supabase.removeChannel(realtimeChannelRef.current);
+        } catch {
+          // Ignore cleanup errors
+        }
+        realtimeChannelRef.current = null;
+      }
     }
 
     // Always poll every 15 seconds as backup
@@ -308,8 +411,17 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
       if (backupPollingRef.current) clearInterval(backupPollingRef.current);
+      // Cleanup Realtime on unmount
+      if (realtimeChannelRef.current) {
+        try {
+          supabase.removeChannel(realtimeChannelRef.current);
+        } catch {
+          // Ignore cleanup errors
+        }
+        realtimeChannelRef.current = null;
+      }
     };
-  }, [isConnected, pollMessages]);
+  }, [isConnected, pollMessages, profile.id, fetchConversations]);
 
   // =====================================================
   // Initialize status store on mount
@@ -835,6 +947,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
   // =====================================================
   // Search users for new DM
+  // - Search by name within enrolled courses (coursemates)
+  // - Search by email globally (any user on the platform)
   // =====================================================
   const handleSearchUsers = useCallback(async (query: string) => {
     setSearchQuery(query);
@@ -845,15 +959,17 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
     setSearching(true);
     try {
-      let subjectIds: string[] = [];
+      const allResults: UserProfile[] = [];
 
+      // 1. Search by name within enrolled courses (coursemates)
+      let subjectIds: string[] = [];
       if (role === 'teacher') {
         const { data } = await supabase
           .from('subjects')
           .select('id')
           .eq('teacher_id', profile.id);
         subjectIds = (data || []).map((s: { id: string }) => s.id);
-      } else {
+      } else if (role === 'student') {
         const { data } = await supabase
           .from('subject_students')
           .select('subject_id')
@@ -862,21 +978,32 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         subjectIds = (data || []).map((s: { subject_id: string }) => s.subject_id);
       }
 
-      if (subjectIds.length === 0) {
-        setSearchResults([]);
-        setSearching(false);
-        return;
+      if (subjectIds.length > 0) {
+        const searchPromises = subjectIds.map(sid =>
+          fetch(`/api/chat?action=search-users&subjectId=${sid}&query=${encodeURIComponent(query)}&userId=${profile.id}`)
+            .then(r => r.json())
+            .then(d => d.users || [])
+        );
+
+        const courseResults = await Promise.all(searchPromises);
+        courseResults.flat().forEach((u: UserProfile) => allResults.push(u));
       }
 
-      const searchPromises = subjectIds.map(sid =>
-        fetch(`/api/chat?action=search-users&subjectId=${sid}&query=${encodeURIComponent(query)}&userId=${profile.id}`)
-          .then(r => r.json())
-          .then(d => d.users || [])
-      );
+      // 2. If query contains '@', also search globally by email
+      if (query.includes('@')) {
+        try {
+          const res = await fetch(`/api/chat?action=search-users-global&query=${encodeURIComponent(query)}&userId=${profile.id}`);
+          const data = await res.json();
+          if (data.users) {
+            (data.users as UserProfile[]).forEach((u: UserProfile) => allResults.push(u));
+          }
+        } catch (err) {
+          console.error('Global search error:', err);
+        }
+      }
 
-      const results = await Promise.all(searchPromises);
-      const allUsers = results.flat();
-      const unique = Array.from(new Map(allUsers.map((u: UserProfile) => [u.id, u])).values());
+      // Deduplicate by user ID
+      const unique = Array.from(new Map(allResults.map((u: UserProfile) => [u.id, u])).values());
       setSearchResults(unique);
     } catch (err) {
       console.error('Search users error:', err);

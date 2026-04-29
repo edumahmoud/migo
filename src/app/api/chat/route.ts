@@ -338,57 +338,84 @@ export async function GET(request: NextRequest) {
         const query = searchParams.get('query');
         const userId = searchParams.get('userId');
 
-        if (!subjectId || !query) return NextResponse.json({ error: 'subjectId and query required' }, { status: 400 });
+        if (!query) return NextResponse.json({ error: 'query required' }, { status: 400 });
 
-        // Search users enrolled in the same subject
-        const { data: enrollments } = await supabaseServer
-          .from('subject_students')
-          .select('student_id')
-          .eq('subject_id', subjectId);
+        let allUsers: Record<string, unknown>[] = [];
 
-        // Get student details
-        const studentIds = (enrollments || []).map((e: { student_id: string }) => e.student_id);
-        let studentUsers: Record<string, unknown>[] = [];
-        if (studentIds.length > 0) {
-          const { data } = await supabaseServer
-            .from('users')
-            .select('id, name, email, avatar_url, title_id, gender, role')
-            .in('id', studentIds);
-          studentUsers = (data || []) as Record<string, unknown>[];
-        }
+        // If subjectId is provided, search within that course (name + email)
+        if (subjectId) {
+          // Search users enrolled in the same subject
+          const { data: enrollments } = await supabaseServer
+            .from('subject_students')
+            .select('student_id')
+            .eq('subject_id', subjectId);
 
-        // Also get the teacher
-        const { data: subjectData } = await supabaseServer
-          .from('subjects')
-          .select('teacher_id')
-          .eq('id', subjectId)
-          .single();
+          // Get student details
+          const studentIds = (enrollments || []).map((e: { student_id: string }) => e.student_id);
+          let studentUsers: Record<string, unknown>[] = [];
+          if (studentIds.length > 0) {
+            const { data } = await supabaseServer
+              .from('users')
+              .select('id, name, email, avatar_url, title_id, gender, role')
+              .in('id', studentIds);
+            studentUsers = (data || []) as Record<string, unknown>[];
+          }
 
-        let teacherUser: Record<string, unknown> | null = null;
-        if (subjectData?.teacher_id) {
-          const { data } = await supabaseServer
-            .from('users')
-            .select('id, name, email, avatar_url, title_id, gender, role')
-            .eq('id', subjectData.teacher_id)
+          // Also get the teacher
+          const { data: subjectData } = await supabaseServer
+            .from('subjects')
+            .select('teacher_id')
+            .eq('id', subjectId)
             .single();
-          teacherUser = data as Record<string, unknown> || null;
-        }
 
-        const allUsers = [
-          ...studentUsers,
-          teacherUser,
-        ]
-          .filter(Boolean)
-          .filter((u: Record<string, unknown>) => u.id !== userId)
-          .filter((u: Record<string, unknown>) =>
-            (u.name as string || '').toLowerCase().includes(query.toLowerCase()) ||
-            (u.email as string || '').toLowerCase().includes(query.toLowerCase())
-          );
+          let teacherUser: Record<string, unknown> | null = null;
+          if (subjectData?.teacher_id) {
+            const { data } = await supabaseServer
+              .from('users')
+              .select('id, name, email, avatar_url, title_id, gender, role')
+              .eq('id', subjectData.teacher_id)
+              .single();
+            teacherUser = data as Record<string, unknown> || null;
+          }
+
+          allUsers = [
+            ...studentUsers,
+            teacherUser,
+          ]
+            .filter(Boolean)
+            .filter((u: Record<string, unknown>) => u.id !== userId)
+            .filter((u: Record<string, unknown>) =>
+              (u.name as string || '').toLowerCase().includes(query.toLowerCase()) ||
+              (u.email as string || '').toLowerCase().includes(query.toLowerCase())
+            );
+        }
 
         // Remove duplicates
         const unique = Array.from(new Map(allUsers.map((u: Record<string, unknown>) => [u.id, u])).values());
 
         return NextResponse.json({ users: unique });
+      }
+
+      case 'search-users-global': {
+        const query = searchParams.get('query');
+        const userId = searchParams.get('userId');
+
+        if (!query) return NextResponse.json({ error: 'query required' }, { status: 400 });
+
+        // Search all users by email (partial match)
+        const { data: users, error } = await supabaseServer
+          .from('users')
+          .select('id, name, email, avatar_url, title_id, gender, role')
+          .ilike('email', `%${query}%`)
+          .neq('id', userId || '')
+          .limit(20);
+
+        if (error) {
+          console.error('[Chat API] Global search error:', error);
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ users: users || [] });
       }
 
       default:

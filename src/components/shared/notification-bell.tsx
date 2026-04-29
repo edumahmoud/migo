@@ -6,10 +6,67 @@ import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, Ch
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
-import type { CourseTab } from '@/lib/types';
+import type { CourseTab, NotificationType } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
+
+// ─── Deeplink queue (global, survives before component mount) ───
+// When the SW or sw-registration dispatches a `notification-deeplink` event
+// before this component has mounted, the event is lost. This queue captures
+// those early events so they can be processed after mount.
+interface DeeplinkEntry {
+  url: string;
+  notifType: string;
+}
+
+const deeplinkQueue: DeeplinkEntry[] = [];
+let deeplinkHandlerAttached = false;
+
+/**
+ * Process a single deeplink entry through the notification click handler.
+ * Called both from the live event listener and from the queued entries.
+ */
+function processDeeplinkEntry(entry: DeeplinkEntry, handler: (notif: { id: string; type: string; title?: string; read: boolean; link?: string | null; message?: string }) => void) {
+  handler({
+    id: `deeplink-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    type: entry.notifType || 'system',
+    read: false,
+    link: entry.url,
+  });
+}
+
+/**
+ * Ensure the global `notification-deeplink` listener is attached as early as
+ * possible (module-level), so events arriving before React renders are queued.
+ */
+if (typeof window !== 'undefined' && !deeplinkHandlerAttached) {
+  deeplinkHandlerAttached = true;
+  window.addEventListener('notification-deeplink', (event: Event) => {
+    const { url, notifType } = (event as CustomEvent).detail || {};
+    if (url) {
+      deeplinkQueue.push({ url, notifType: notifType || 'system' });
+    }
+  });
+}
+
+// ─── Notification type → default CourseTab mapping ───
+// Used when the link format doesn't explicitly encode the tab (e.g. `subject:SUBJECT_ID`
+// without a 3rd part). This ensures every notification type lands on the correct tab.
+const notifTypeToTab: Record<string, CourseTab> = {
+  assignment: 'assignments',
+  grade: 'assignments',
+  enrollment: 'students',
+  file: 'files',
+  file_request: 'files',
+  system: 'overview',
+  attendance: 'lectures',
+  link_request: 'overview',
+  lecture: 'lectures',
+  chat: 'overview',
+  note: 'notes',
+  public_note_created: 'notes',
+};
 
 function timeAgo(dateStr: string): string {
   const now = new Date();
@@ -286,6 +343,8 @@ export default function NotificationBell() {
       file: 'files',
       files: 'files',
       students: 'students',
+      teams: 'teams',
+      team: 'teams',
     };
 
     // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID or subject:SUBJECT_ID:tab)
@@ -298,7 +357,12 @@ export default function NotificationBell() {
 
       // Special case: "assignment:ASSIGNMENT_ID" (2-part, no subject context)
       // should navigate to the Assignments section, NOT treat the assignment ID as a subject ID
-      if (courseLinkPrefix === 'assignment' && !explicitTab) {
+      // But only if the assignment ID doesn't look like a subject ID (heuristic: assignment IDs
+      // are typically UUIDs just like subject IDs, so we rely on the notification type).
+      // If the notification type is 'assignment' and there's no 3rd part, treat as section nav.
+      // However, if the notification type suggests a course context (e.g. grade, attendance),
+      // treat the 2-part link as prefix:SUBJECT_ID and navigate to the course.
+      if (courseLinkPrefix === 'assignment' && !explicitTab && notif.type === 'assignment') {
         setIsOpen(false);
         const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore.getState();
         if (user?.role === 'student') {
@@ -315,9 +379,24 @@ export default function NotificationBell() {
         setIsOpen(false);
         const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
         setSelectedSubjectId(subjectId);
-        // Use explicit tab if provided (3rd part), otherwise use prefix-based mapping
-        const tab = explicitTab && linkToTab[explicitTab] ? linkToTab[explicitTab] : linkToTab[courseLinkPrefix];
+
+        // Determine the correct tab using a priority chain:
+        // 1. Explicit tab from 3-part link (e.g. "subject:ID:notes" → 'notes')
+        // 2. Notification type mapping (e.g. type='note' → 'notes')
+        // 3. Link prefix mapping (e.g. prefix='lecture' → 'lectures')
+        let tab: CourseTab;
+        if (explicitTab && linkToTab[explicitTab]) {
+          // Priority 1: explicit tab from 3-part link
+          tab = linkToTab[explicitTab];
+        } else if (notifTypeToTab[notif.type]) {
+          // Priority 2: derive tab from notification type
+          tab = notifTypeToTab[notif.type];
+        } else {
+          // Priority 3: fall back to link prefix mapping
+          tab = linkToTab[courseLinkPrefix];
+        }
         setCourseTab(tab);
+
         // Navigate to the correct dashboard section
         if (user?.role === 'student') {
           setStudentSection('subjects');
@@ -352,6 +431,14 @@ export default function NotificationBell() {
       return;
     }
 
+    // Handle grade notifications that might have a plain link without prefix
+    // Navigate to the assignments section of the course if possible
+    if (notif.type === 'grade' && notif.link && !notif.link.includes(':')) {
+      setIsOpen(false);
+      navigateToLink(notif.link);
+      return;
+    }
+
     if (notif.link && notif.link !== 'settings') {
       setIsOpen(false);
       navigateToLink(notif.link);
@@ -365,20 +452,52 @@ export default function NotificationBell() {
   });
 
   // Listen for deeplink events from SW (notification clicks and initial page load deeplinks)
+  // AND process any queued deeplinks that arrived before mount
   useEffect(() => {
     const handleDeeplink = (event: Event) => {
       const { url, notifType } = (event as CustomEvent).detail || {};
       if (url && handleNotificationClickRef.current) {
-        handleNotificationClickRef.current({
-          id: `deeplink-${Date.now()}`,
-          type: notifType || 'system',
-          read: false,
-          link: url,
-        });
+        processDeeplinkEntry({ url, notifType: notifType || 'system' }, handleNotificationClickRef.current);
       }
     };
 
     window.addEventListener('notification-deeplink', handleDeeplink);
+
+    // Process any deeplinks that were queued before this component mounted
+    // Check both the module-level queue AND the window global queue (set by sw-registration.tsx)
+    const allQueued: DeeplinkEntry[] = [];
+
+    // Module-level queue (events captured by the listener registered at module load)
+    if (deeplinkQueue.length > 0) {
+      allQueued.push(...deeplinkQueue.splice(0));
+    }
+
+    // Window global queue (set by sw-registration.tsx before this module loaded)
+    const windowQueue = (window as any).__attendoDeeplinkQueue as DeeplinkEntry[] | undefined;
+    if (Array.isArray(windowQueue) && windowQueue.length > 0) {
+      const windowEntries = windowQueue.splice(0);
+      // Deduplicate: only add entries not already in allQueued (by url+notifType)
+      const seen = new Set(allQueued.map(e => `${e.url}::${e.notifType}`));
+      for (const entry of windowEntries) {
+        const key = `${entry.url}::${entry.notifType}`;
+        if (!seen.has(key)) {
+          allQueued.push(entry);
+          seen.add(key);
+        }
+      }
+    }
+
+    if (allQueued.length > 0 && handleNotificationClickRef.current) {
+      // Dequeue and process with a small delay to ensure the app is fully ready
+      requestAnimationFrame(() => {
+        for (const entry of allQueued) {
+          if (handleNotificationClickRef.current) {
+            processDeeplinkEntry(entry, handleNotificationClickRef.current);
+          }
+        }
+      });
+    }
+
     return () => window.removeEventListener('notification-deeplink', handleDeeplink);
   }, []);
 

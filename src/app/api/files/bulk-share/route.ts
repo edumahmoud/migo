@@ -5,6 +5,7 @@ import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/a
 /**
  * Bulk share multiple user files with multiple users.
  * Creates file_shares records for all combinations.
+ * Owners can share any file they own (not restricted to public-only).
  */
 export async function POST(request: NextRequest) {
   const authResult = await authenticateRequest(request);
@@ -32,10 +33,10 @@ export async function POST(request: NextRequest) {
 
     const perm = permission || 'view';
 
-    // Verify all files are public
+    // Verify files exist and belong to the user (owner can share any file they own)
     const { data: userFiles, error: fetchError } = await supabaseServer
       .from('user_files')
-      .select('id, visibility')
+      .select('id, user_id')
       .in('id', fileIds);
 
     if (fetchError || !userFiles?.length) {
@@ -45,14 +46,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const publicFileIds = userFiles
-      .filter((f: Record<string, unknown>) => f.visibility === 'public')
+    // Only share files owned by the authenticated user
+    const ownedFileIds = userFiles
+      .filter((f: Record<string, unknown>) => f.user_id === sharedBy)
       .map((f: Record<string, unknown>) => f.id);
 
-    if (publicFileIds.length === 0) {
+    if (ownedFileIds.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'فقط الملفات العامة يمكن مشاركتها' },
-        { status: 400 }
+        { success: false, error: 'يمكنك مشاركة الملفات التي تملكها فقط' },
+        { status: 403 }
       );
     }
 
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
     const { data: existingShares } = await supabaseServer
       .from('file_shares')
       .select('file_id, shared_with')
-      .in('file_id', publicFileIds)
+      .in('file_id', ownedFileIds)
       .in('shared_with', userIds);
 
     const existingSet = new Set(
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     const inserts: Record<string, unknown>[] = [];
 
-    for (const fileId of publicFileIds) {
+    for (const fileId of ownedFileIds) {
       for (const userId of userIds) {
         // Don't share with yourself
         if (userId === sharedBy) {

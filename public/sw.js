@@ -332,7 +332,7 @@ self.addEventListener('notificationclick', (event) => {
             return client.focus();
           }
         }
-        const deeplinkUrl = '/?deeplink=' + encodeURIComponent(url);
+        const deeplinkUrl = '/?deeplink=' + encodeURIComponent(url) + '&notifType=' + encodeURIComponent(notifType);
         return self.clients.openWindow(deeplinkUrl);
       })
   );
