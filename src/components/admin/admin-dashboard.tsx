@@ -69,6 +69,7 @@ import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
+import SectionTransition from '@/components/shared/section-transition';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
@@ -3260,49 +3261,49 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <SectionErrorBoundary sectionName={activeSection}>
             <div className="relative">
               {isSectionMounted('dashboard') && (
-                <div className={activeSection === 'dashboard' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'dashboard'}>
+                <SectionTransition isActive={activeSection === 'dashboard'}>
                   {!dataLoaded ? renderLoading() : renderDashboard()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('users') && (
-                <div className={activeSection === 'users' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'users'}>
+                <SectionTransition isActive={activeSection === 'users'}>
                   {renderUsers()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('subjects') && (
-                <div className={activeSection === 'subjects' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'subjects'}>
+                <SectionTransition isActive={activeSection === 'subjects'}>
                   {renderSubjects()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('announcements') && (
-                <div className={activeSection === 'announcements' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'announcements'}>
+                <SectionTransition isActive={activeSection === 'announcements'}>
                   {renderAnnouncements()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('banned') && (
-                <div className={activeSection === 'banned' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'banned'}>
+                <SectionTransition isActive={activeSection === 'banned'}>
                   {renderBannedUsers()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('reports') && (
-                <div className={activeSection === 'reports' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'reports'}>
+                <SectionTransition isActive={activeSection === 'reports'}>
                   {renderReports()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('chat') && (
-                <div className={activeSection === 'chat' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'chat'}>
+                <SectionTransition isActive={activeSection === 'chat'}>
                   <ChatSection profile={profile} role="admin" />
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('settings') && (
-                <div className={activeSection === 'settings' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'settings'}>
+                <SectionTransition isActive={activeSection === 'settings'}>
                   <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('institution') && (
-                <div className={activeSection === 'institution' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'institution'}>
+                <SectionTransition isActive={activeSection === 'institution'}>
                   <InstitutionSection profile={profile} />
-                </div>
+                </SectionTransition>
               )}
             </div>
           </SectionErrorBoundary>

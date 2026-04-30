@@ -476,3 +476,22 @@ body[style*="pointer-events: none"] [role="navigation"] {
     min-width: 44px;
   }
 }
+
+/* ─── Section Transition Animations ─── */
+/* Smooth fade-in + slide-up animation when navigating between dashboard sections.
+   Used by the SectionTransition component. The animation plays each time a
+   section becomes active (re-triggered via React state). */
+@keyframes sectionFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-section-enter {
+  animation: sectionFadeIn 0.3s ease-out both;
+}

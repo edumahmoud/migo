@@ -55,6 +55,7 @@ import { SectionErrorBoundary } from '@/components/shared/section-error-boundary
 import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
 import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 import AttendanceSection from '@/components/shared/attendance-section';
+import SectionTransition from '@/components/shared/section-transition';
 
 // -------------------------------------------------------
 // PDF.js worker setup - lazy loaded to avoid server-side DOMMatrix error
@@ -2403,68 +2404,68 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {/* Keep-alive: All mounted sections stay in DOM, only active one is visible */}
               {/* This prevents the expensive unmount/remount cycle that caused navigation freezes */}
               {isSectionMounted('dashboard') && (
-                <div className={activeSection === 'dashboard' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'dashboard'}>
+                <SectionTransition isActive={activeSection === 'dashboard'}>
                   {activeSection === 'dashboard' && !dataLoaded ? (
                     <div className="flex flex-col items-center justify-center py-20">
                       <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-4" />
                       <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
                     </div>
                   ) : renderDashboard()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('subjects') && (
-                <div className={activeSection === 'subjects' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'subjects'}>
+                <SectionTransition isActive={activeSection === 'subjects'}>
                   {selectedSubjectId ? (
                     <CoursePage profile={profile} role="student" />
                   ) : (
                     <SubjectsSection profile={profile} role="student" />
                   )}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('summaries') && (
-                <div className={activeSection === 'summaries' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'summaries'}>
+                <SectionTransition isActive={activeSection === 'summaries'}>
                   {renderSummaries()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('assignments') && (
-                <div className={activeSection === 'assignments' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'assignments'}>
+                <SectionTransition isActive={activeSection === 'assignments'}>
                   <AssignmentsSection profile={profile} role="student" />
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('files') && (
-                <div className={activeSection === 'files' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'files'}>
+                <SectionTransition isActive={activeSection === 'files'}>
                   <PersonalFilesSection profile={profile} role="student" />
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('teachers') && (
-                <div className={activeSection === 'teachers' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'teachers'}>
+                <SectionTransition isActive={activeSection === 'teachers'}>
                   {renderTeachers()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('chat') && (
-                <div className={activeSection === 'chat' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'chat'}>
+                <SectionTransition isActive={activeSection === 'chat'}>
                   <ChatSection profile={profile} role="student" />
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('settings') && (
-                <div className={activeSection === 'settings' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'settings'}>
+                <SectionTransition isActive={activeSection === 'settings'}>
                   <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('notifications') && (
-                <div className={activeSection === 'notifications' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'notifications'}>
+                <SectionTransition isActive={activeSection === 'notifications'}>
                   <NotificationsSection />
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('quizzes') && (
-                <div className={activeSection === 'quizzes' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'quizzes'}>
+                <SectionTransition isActive={activeSection === 'quizzes'}>
                   {renderQuizzes()}
-                </div>
+                </SectionTransition>
               )}
               {isSectionMounted('attendance') && (
-                <div className={activeSection === 'attendance' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'attendance'}>
+                <SectionTransition isActive={activeSection === 'attendance'}>
                   <AttendanceSection profile={profile} role="student" />
-                </div>
+                </SectionTransition>
               )}
             </div>
           </SectionErrorBoundary>
