@@ -7,53 +7,24 @@ import { XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
- * Inert cleanup hook — removes stale `inert` attributes from the page.
- * Same as in dialog.tsx — duplicated here to avoid circular imports.
+ * Inert cleanup hook — lightweight version.
+ * The module-level inert-guard (imported in layout.tsx) handles the heavy lifting.
+ * This hook just does an immediate cleanup on mount as an extra safety net.
  */
 function useInertCleanup() {
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
-
-    function removeAllInert() {
-      document.documentElement.removeAttribute('inert');
-      document.body.removeAttribute('inert');
-      document.querySelectorAll('[inert]').forEach((el) => {
-        if (!el.closest('[data-radix-portal]')) {
-          el.removeAttribute('inert');
-        }
-      });
-      if (document.body.style.pointerEvents === 'none') {
-        document.body.style.pointerEvents = '';
+    document.documentElement.removeAttribute('inert');
+    document.body.removeAttribute('inert');
+    document.querySelectorAll('[inert]').forEach((el) => {
+      const isInOpenDialog = el.closest('[data-state="open"][role="dialog"]');
+      if (!isInOpenDialog) {
+        el.removeAttribute('inert');
       }
+    });
+    if (document.body.style.pointerEvents === 'none') {
+      document.body.style.pointerEvents = '';
     }
-
-    removeAllInert();
-
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'inert') {
-          const target = mutation.target;
-          if (target instanceof HTMLElement && target.hasAttribute('inert')) {
-            if (!target.closest('[data-radix-portal]')) {
-              queueMicrotask(() => { target.removeAttribute('inert'); });
-            }
-          }
-        }
-      }
-    });
-
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['inert'],
-      subtree: true,
-    });
-
-    const interval = setInterval(removeAllInert, 300);
-
-    return () => {
-      observer.disconnect();
-      clearInterval(interval);
-    };
   }, []);
 }
 
