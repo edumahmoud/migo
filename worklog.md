@@ -48,3 +48,28 @@ Stage Summary:
 - Missing sidebar nav items: FIXED (quizzes, attendance for students; assignments, attendance for teachers)
 - Chat auth reliability: FIXED (Bearer token now passed)
 - Type safety: FIXED (superadmin included in AppSidebar role prop)
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix navigation desync — URL changes but UI doesn't update (State Lock bug)
+
+Work Log:
+- Deep-audited entire navigation pipeline: AppSidebar → handleNav → Zustand store → activeSection → CSS hidden/block toggle
+- Identified ROOT CAUSE: `const activeSection = pathnameSection || storeSection` — the `||` operator treats 'dashboard' as truthy, so during the transition window after a sidebar click (store='chat', pathname still 'dashboard'), the stale pathname value ALWAYS won
+- Created new `useNavigationSync` hook in use-mounted-sections.ts
+- The hook makes the Zustand store the SOLE source of truth for activeSection
+- Pathname is synced to store ONLY when store didn't change (browser back/forward, page refresh)
+- Detection: if storeSection changed → sidebar click → don't overwrite; if storeSection didn't change but pathname differs → browser nav → sync
+- Updated all 3 dashboard components (student, teacher, admin) to use useNavigationSync
+- Fixed student dashboard: moved dataLoaded useState to proper location (was declared mid-render)
+- Removed the old broken pathname→store sync useEffect from all dashboards
+- All lint checks pass cleanly
+- Pushed to GitHub: commit 2fbc743
+
+Stage Summary:
+- Navigation desync: FIXED — store is now sole source of truth, CSS toggle is instant
+- The `pathnameSection || storeSection` anti-pattern: ELIMINATED
+- Browser back/forward: WORKS — pathname syncs to store when store didn't change
+- Page refresh: WORKS — mount sync handles deep URLs
+- Files changed: use-mounted-sections.ts, student-dashboard.tsx, teacher-dashboard.tsx, admin-dashboard.tsx
