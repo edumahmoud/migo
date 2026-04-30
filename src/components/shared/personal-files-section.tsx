@@ -510,9 +510,23 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   // Handle file selection for upload
   // -------------------------------------------------------
+  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
   const handleFileSelect = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
-    const newUploads: PendingUpload[] = Array.from(fileList).map((file) => ({
+    const validFiles: File[] = [];
+    const oversized: string[] = [];
+    for (const file of Array.from(fileList)) {
+      if (file.size > MAX_FILE_SIZE) {
+        oversized.push(file.name);
+      } else {
+        validFiles.push(file);
+      }
+    }
+    if (oversized.length > 0) {
+      toast.error(`الملفات التالية تتجاوز 50 ميجابايت: ${oversized.join('، ')}`);
+    }
+    if (validFiles.length === 0) return;
+    const newUploads: PendingUpload[] = validFiles.map((file) => ({
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       file,
       customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
@@ -542,8 +556,26 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   };
 
   // -------------------------------------------------------
-  // Upload all pending files using XHR for real progress
-  // Optimized for mobile: throttled progress updates, yielding to event loop, timeouts
+  // Determine file type category (mirrors server-side logic)
+  // -------------------------------------------------------
+  const getFileTypeCategory = (mimeType: string): string => {
+    const lower = mimeType.toLowerCase();
+    if (lower.startsWith('image/')) return 'image';
+    if (lower.startsWith('video/')) return 'video';
+    if (lower.startsWith('audio/')) return 'audio';
+    if (lower === 'application/pdf') return 'pdf';
+    if (lower.includes('word') || lower.includes('document')) return 'document';
+    if (lower.includes('sheet') || lower.includes('excel')) return 'spreadsheet';
+    if (lower.includes('presentation') || lower.includes('powerpoint')) return 'presentation';
+    if (lower === 'text/plain' || lower === 'text/csv') return 'text';
+    if (lower.includes('zip') || lower.includes('rar') || lower.includes('compressed')) return 'archive';
+    return 'other';
+  };
+
+  // -------------------------------------------------------
+  // Upload all pending files — DIRECT to Supabase Storage
+  // Bypasses Vercel's 4.5MB body size limit for reliable mobile uploads
+  // Strategy: Try XHR direct upload first (real progress), fallback to SDK upload
   // -------------------------------------------------------
   const handleUploadAll = async () => {
     // Reset failed uploads first so they can be retried
@@ -569,10 +601,18 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     }
     const token = session.access_token;
 
+    // Supabase Storage direct-upload configuration
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    if (!supabaseUrl || !supabaseAnonKey) {
+      toast.error('إعدادات التخزين غير مكتملة');
+      return;
+    }
+
     // Throttled progress updater - only update state when progress changes significantly or enough time has passed
     const progressTimers = new Map<string, { lastPct: number; lastTime: number }>();
-    const PROGRESS_THROTTLE_MS = 200; // Minimum ms between progress state updates
-    const PROGRESS_THROTTLE_PCT = 5;  // Minimum % change to force an update
+    const PROGRESS_THROTTLE_MS = 200;
+    const PROGRESS_THROTTLE_PCT = 5;
 
     const throttledProgressUpdate = (id: string, pct: number) => {
       const now = Date.now();
@@ -585,7 +625,21 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
     };
 
-    // Phase 1: Upload all personal files and collect IDs
+    // Simulated progress tracker for SDK uploads (no native progress)
+    const startSimulatedProgress = (id: string, fileSize: number) => {
+      const startTime = Date.now();
+      // Estimate 2MB/s for mobile, 10MB/s for desktop — conservative
+      const estimatedMs = Math.max(3000, (fileSize / (2 * 1024 * 1024)) * 1000);
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const ratio = Math.min(elapsed / estimatedMs, 0.85); // Cap at 85%
+        const pct = Math.round(10 + ratio * 75); // 10%–85% range
+        throttledProgressUpdate(id, pct);
+      }, 500);
+      return interval;
+    };
+
+    // Phase 1: Upload all personal files DIRECTLY to Supabase Storage + create DB records
     const uploadedFileIds: string[] = [];
 
     for (let i = 0; i < toUpload.length; i++) {
@@ -595,66 +649,135 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       setPendingUploads((prev) =>
         prev.map((p) => (p.id === item.id ? { ...p, uploading: true, progress: 0 } : p))
       );
+      throttledProgressUpdate(item.id, 5);
 
       // Yield to the event loop between uploads so the UI can update (critical on mobile)
-      // Use longer delay on mobile for smoother UX
       if (i > 0) {
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         await new Promise((resolve) => setTimeout(resolve, isMobile ? 150 : 50));
       }
 
       try {
-        const userFileId = await new Promise<string>((resolve, reject) => {
-          const formData = new FormData();
-          formData.append('file', item.file);
-          formData.append('userId', profile.id);
-          if (item.customName.trim()) {
-            formData.append('customName', item.customName.trim());
-          }
+        // Build the storage path (same format as the API route)
+        const originalExt = item.file.name.includes('.') ? '.' + item.file.name.split('.').pop() : '';
+        const displayName = item.customName.trim() ? item.customName.trim() + originalExt : item.file.name;
+        const safeStorageName = `${Date.now()}_${item.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const storagePath = `${profile.id}/${safeStorageName}`;
+        const fileType = getFileTypeCategory(item.file.type || 'other');
 
-          const xhr = new XMLHttpRequest();
+        let storageUploadSuccess = false;
 
-          // Timeout for slow mobile connections (5 minutes for large files)
-          xhr.timeout = 5 * 60 * 1000;
+        // ── Step 1a: Try XHR direct upload to Supabase Storage (real progress) ──
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.timeout = 5 * 60 * 1000; // 5 min for large files on mobile
 
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const pct = Math.round((e.loaded / e.total) * 100);
-              throttledProgressUpdate(item.id, pct);
-            }
-          });
-
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const result = JSON.parse(xhr.responseText);
-                if (result.success) {
-                  setPendingUploads((prev) =>
-                    prev.map((p) => (p.id === item.id ? { ...p, progress: 100, done: true, uploading: false } : p))
-                  );
-                  resolve(result.data?.id || '');
-                } else {
-                  reject(new Error(result.error || 'Upload failed'));
-                }
-              } catch {
-                reject(new Error('Invalid response'));
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) {
+                // Storage upload is ~90% of total work
+                const pct = Math.round((e.loaded / e.total) * 90);
+                throttledProgressUpdate(item.id, pct);
               }
-            } else {
-              reject(new Error(`HTTP ${xhr.status}`));
-            }
+            });
+
+            xhr.addEventListener('load', () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+              } else {
+                reject(new Error(`HTTP ${xhr.status}`));
+              }
+            });
+
+            xhr.addEventListener('error', () => reject(new Error('Network error')));
+            xhr.addEventListener('abort', () => reject(new Error('Aborted')));
+            xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+
+            const storageUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
+            xhr.open('POST', storageUrl);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.setRequestHeader('apikey', supabaseAnonKey);
+            xhr.setRequestHeader('x-upsert', 'false');
+
+            const formData = new FormData();
+            formData.append('cacheControl', '3600');
+            formData.append('', item.file);
+            xhr.send(formData);
           });
 
-          xhr.addEventListener('error', () => reject(new Error('Network error')));
-          xhr.addEventListener('abort', () => reject(new Error('Aborted')));
-          xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+          storageUploadSuccess = true;
+        } catch (xhrErr) {
+          // XHR direct upload failed (likely CORS/RLS) — fallback to Supabase SDK
+          console.warn(`XHR upload failed for ${item.customName}, falling back to SDK:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
+        }
 
-          xhr.open('POST', '/api/files/upload');
-          xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-          xhr.send(formData);
-        });
+        // ── Step 1b: Fallback — Upload via Supabase client SDK ──
+        if (!storageUploadSuccess) {
+          const progressInterval = startSimulatedProgress(item.id, item.file.size);
+          throttledProgressUpdate(item.id, 10);
 
-        if (userFileId) {
-          uploadedFileIds.push(userFileId);
+          try {
+            const { error: uploadError } = await supabase.storage
+              .from('user-files')
+              .upload(storagePath, item.file, {
+                cacheControl: '3600',
+                contentType: item.file.type || 'application/octet-stream',
+                upsert: false,
+              });
+
+            clearInterval(progressInterval);
+
+            if (uploadError) {
+              throw uploadError;
+            }
+          } catch (sdkErr) {
+            clearInterval(progressInterval);
+            throw sdkErr;
+          }
+        }
+
+        throttledProgressUpdate(item.id, 92);
+
+        // ── Step 2: Create DB record via lightweight API (metadata only, no file body) ──
+        const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        try {
+          const res = await fetch('/api/files/create-record', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userId: profile.id,
+              fileName: displayName,
+              fileType,
+              fileSize: item.file.size,
+              fileUrl,
+              storagePath,
+            }),
+            signal: controller.signal,
+          });
+
+          const result = await res.json();
+          clearTimeout(timeoutId);
+
+          if (result.success && result.data?.id) {
+            uploadedFileIds.push(result.data.id);
+            setPendingUploads((prev) =>
+              prev.map((p) => (p.id === item.id ? { ...p, progress: 100, done: true, uploading: false } : p))
+            );
+          } else {
+            // DB record creation failed — try to clean up the orphaned storage file
+            console.error('Create record error:', result.error);
+            await supabase.storage.from('user-files').remove([storagePath]);
+            throw new Error(result.error || 'فشل حفظ بيانات الملف');
+          }
+        } finally {
+          clearTimeout(timeoutId);
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Upload failed';
@@ -676,7 +799,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
         // Then use bulk-assign API to link files to courses in a single request
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min manual timeout (iOS < 16 compatible)
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
 
         try {
           const res = await fetch('/api/files/bulk-assign', {
@@ -705,11 +828,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         }
       } catch (assignErr) {
         console.error('Bulk assign failed:', assignErr);
-        // Don't fail the whole upload if course assignment fails
       }
     }
 
-    // Check actual upload results instead of showing success unconditionally
+    // Check actual upload results
     setPendingUploads((current) => {
       const successful = current.filter((p) => p.done);
       const failed = current.filter((p) => p.progress === -1);
@@ -2203,16 +2325,19 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   ref={fileInputRef}
                   type="file"
                   multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.svg,.mp4,.webm,.mov,.mp3,.wav,.ogg,.txt,.csv,.zip,.rar"
                   onChange={(e) => handleFileSelect(e.target.files)}
                   className="hidden"
                 />
                 <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-6 transition-colors hover:border-emerald-400 hover:bg-emerald-50/50"
+                  className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-6 transition-colors hover:border-emerald-400 hover:bg-emerald-50/50 active:bg-emerald-50/70 touch-manipulation"
                 >
                   <Upload className="h-8 w-8 text-emerald-400" />
-                  <span className="text-sm text-muted-foreground">اضغط لاختيار ملفات</span>
+                  <span className="text-sm font-medium text-muted-foreground">اضغط لاختيار ملفات</span>
                   <span className="text-xs text-muted-foreground">يمكنك اختيار أكثر من ملف</span>
+                  <span className="text-[10px] text-muted-foreground/70">الحد الأقصى 50 ميجابايت لكل ملف</span>
                 </button>
               </div>
 
