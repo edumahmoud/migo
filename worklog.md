@@ -19,3 +19,24 @@ Stage Summary:
 - SectionTransition: simplified to use only `hidden` class (no aria-hidden or role attributes)
 - globals.css: removed tabpanel/aria-hidden CSS rules that could interfere with interaction
 - All code passes lint check
+
+---
+Task ID: 1
+Agent: Main
+Task: Fix navigation race condition bug — URL changes but content doesn't update until refresh
+
+Work Log:
+- Analyzed the full navigation architecture (catch-all routes, Zustand store, useNavigationSync hook)
+- Identified the root cause: useNavigationSync had `storeSection` in the dependency array of useLayoutEffect/useEffect
+- When sidebar clicks set the store, the effect fires and sees pathnameSection (old) !== storeSection (new), resetting the store back to the old pathname value
+- Since usePathname() doesn't re-render reliably for catch-all routes in Next.js 16, the store stays wrong forever
+- Fix: Removed storeSection from dependency arrays, only sync when pathnameSection changes
+- Used a ref (lastSyncedPathname) to track which pathname was last synced, avoiding redundant syncs
+- This ensures sidebar clicks update the store immediately without the effect undoing them
+
+Stage Summary:
+- Fixed the race condition in /home/z/my-project/src/hooks/use-mounted-sections.ts
+- Changed dependency arrays from [pathnameSection, storeSection, setStoreSection] to [pathnameSection, setStoreSection]
+- Added lastSyncedPathname ref to track synced state without stale closures
+- All three dashboards (student, teacher, admin) use the same hook, so fix applies to all
+- Lint passes cleanly
