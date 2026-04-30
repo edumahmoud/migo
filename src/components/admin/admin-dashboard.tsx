@@ -568,6 +568,28 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     }
   }, [usagePeriod, activeSection, fetchUsageStats]);
 
+  // -------------------------------------------------------
+  // Fetch announcements (declared early to avoid TDZ — used in useEffect below)
+  // -------------------------------------------------------
+  const fetchAnnouncements = useCallback(async () => {
+    setLoadingAnnouncements(true);
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+      const res = await fetchWithTimeout('/api/admin/announcements', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const result = await res.json();
+      if (result.success && result.data) {
+        setAnnouncements(result.data as Announcement[]);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingAnnouncements(false);
+    }
+  }, [fetchWithTimeout, getAuthToken]);
+
   // Fetch section-specific data when section changes
   useEffect(() => {
     if (activeSection === 'banned' || activeSection === 'users') fetchBannedUsers();
@@ -785,28 +807,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       setBanningUserId(null);
     }
   };
-
-  // -------------------------------------------------------
-  // Fetch announcements
-  // -------------------------------------------------------
-  const fetchAnnouncements = useCallback(async () => {
-    setLoadingAnnouncements(true);
-    try {
-      const token = await getAuthToken();
-      if (!token) return;
-      const res = await fetchWithTimeout('/api/admin/announcements', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const result = await res.json();
-      if (result.success && result.data) {
-        setAnnouncements(result.data as Announcement[]);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoadingAnnouncements(false);
-    }
-  }, [fetchWithTimeout, getAuthToken]);
 
   const handleCreateAnnouncement = async () => {
     if (!newAnnTitle.trim() || !newAnnContent.trim()) {
@@ -1396,7 +1396,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <UserAvatar name={user.name} avatarUrl={user.avatar_url} size="sm" />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-foreground truncate block">
-                        {formatNameWithTitle(user.name, user.role, user.gender, user.title_id)}
+                        {formatNameWithTitle(user.name, user.role, user.title_id, user.gender)}
                       </span>
                       <span className="text-xs text-muted-foreground truncate block mt-0.5">{user.email}</span>
                     </div>
@@ -1482,7 +1482,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <UserAvatar name={selectedUser.name} avatarUrl={selectedUser.avatar_url} size="lg" />
                   <div>
                     <span className="text-base font-semibold text-foreground block">
-                      {formatNameWithTitle(selectedUser.name, selectedUser.role, selectedUser.gender, selectedUser.title_id)}
+                      {formatNameWithTitle(selectedUser.name, selectedUser.role, selectedUser.title_id, selectedUser.gender)}
                     </span>
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border ${getRoleBadgeClass(selectedUser.role)}`}>
                       {getRoleLabel(selectedUser.role)}

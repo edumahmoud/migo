@@ -48,6 +48,47 @@ export function cleanupBodyLocks() {
   // Force body to be interactive
   body.style.pointerEvents = '';
   body.style.overflow = '';
+
+  // Remove the Radix UI "inert" attribute from body (added by Dialog when open)
+  // When a Dialog opens, Radix adds `inert` to body to prevent background interaction
+  body.removeAttribute('inert');
+}
+
+/**
+ * Remove `inert` and `aria-hidden` from main page content elements.
+ *
+ * When a Radix UI Dialog opens, it sets `inert` and `aria-hidden="true"` on
+ * siblings of the dialog portal to implement the "inert" pattern. If the
+ * dialog is closed via navigation (keep-alive hidden) instead of normal close,
+ * these attributes can remain, making the page unclickable.
+ */
+function cleanupInertAttributes() {
+  if (typeof document === 'undefined') return;
+
+  // Remove inert from the main content wrapper (#main-content or similar)
+  const mainContent = document.querySelector('[data-radix-scroll-area]') ||
+                      document.querySelector('main') ||
+                      document.querySelector('[role="main"]');
+  if (mainContent) {
+    mainContent.removeAttribute('inert');
+    // Don't remove aria-hidden from main content — that's set by our keep-alive
+  }
+
+  // Remove inert from body children that shouldn't have it
+  // (but NOT from tabpanel children — those legitimately have aria-hidden)
+  const bodyChildren = document.body.children;
+  for (let i = 0; i < bodyChildren.length; i++) {
+    const child = bodyChildren[i];
+    // Skip Radix portals — they manage their own inert state
+    if (child.hasAttribute('data-radix-portal')) continue;
+    // Skip script/style elements
+    if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE') continue;
+
+    // If this element has inert but is NOT a tabpanel, it was likely set by Radix Dialog
+    if (child.hasAttribute('inert') && child.getAttribute('role') !== 'tabpanel') {
+      child.removeAttribute('inert');
+    }
+  }
 }
 
 /**
@@ -76,11 +117,28 @@ export function markStaleOverlays() {
   });
 
   // 3. Mark stale overlays/backdrops (aria-hidden=true inside portals)
+  //    But only if the portal doesn't contain any open content
   const staleOverlays = document.querySelectorAll(
     '[data-radix-portal] [aria-hidden="true"]'
   );
   staleOverlays.forEach((el) => {
-    (el as HTMLElement).style.pointerEvents = 'none';
+    // Check if the parent portal has any open content
+    const portal = el.closest('[data-radix-portal]');
+    if (portal && !portal.querySelector('[data-state="open"]')) {
+      (el as HTMLElement).style.pointerEvents = 'none';
+    }
+  });
+
+  // 4. Handle Radix UI Dialog overlays specifically
+  //    These have class "fixed inset-0" and can block the entire viewport
+  const radixOverlays = document.querySelectorAll(
+    '[data-radix-overlay]'
+  );
+  radixOverlays.forEach((overlay) => {
+    const state = overlay.getAttribute('data-state');
+    if (state !== 'open') {
+      (overlay as HTMLElement).style.pointerEvents = 'none';
+    }
   });
 }
 
@@ -90,14 +148,18 @@ export function markStaleOverlays() {
  *
  * Strategy:
  * 1. Clean up body locks (most critical — pointer-events on body)
- * 2. Mark stale overlays as non-interactive (CSS-based, no DOM removal)
- * 3. Double-check after microtask and rAF for delayed React updates
+ * 2. Clean up inert attributes (Radix UI "inert" pattern)
+ * 3. Mark stale overlays as non-interactive (CSS-based, no DOM removal)
+ * 4. Double-check after microtask and rAF for delayed React updates
  */
 export function cleanupAfterNavigation() {
   if (typeof document === 'undefined') return;
 
   // Clean up body locks first (most critical)
   cleanupBodyLocks();
+
+  // Clean up inert attributes (Radix UI "inert" pattern on page content)
+  cleanupInertAttributes();
 
   // Then mark stale overlays as non-interactive (NO DOM removal)
   markStaleOverlays();
@@ -106,20 +168,19 @@ export function cleanupAfterNavigation() {
   // This catches cases where React updates happen after our cleanup
   queueMicrotask(() => {
     cleanupBodyLocks();
+    cleanupInertAttributes();
   });
 
   // And again after a requestAnimationFrame (for React 18 concurrent mode)
   requestAnimationFrame(() => {
     cleanupBodyLocks();
+    cleanupInertAttributes();
     markStaleOverlays();
   });
-}
 
-// ─── Removed: MutationObserver and DOM removal ───
-// The MutationObserver for Framer Motion exit animations was too expensive
-// and caused performance crashes. The CSS rule [data-exiting="true"] in
-// globals.css handles this more efficiently.
-//
-// The forceCleanupOverlays() function that removed DOM nodes (portal.remove())
-// was causing React to crash on subsequent renders. We now use CSS-only
-// approaches (pointer-events: none) instead.
+  // Final safety net after 500ms (catches delayed animations/transitions)
+  setTimeout(() => {
+    cleanupBodyLocks();
+    cleanupInertAttributes();
+  }, 500);
+}
