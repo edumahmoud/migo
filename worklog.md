@@ -73,3 +73,25 @@ Stage Summary:
 - Browser back/forward: WORKS — pathname syncs to store when store didn't change
 - Page refresh: WORKS — mount sync handles deep URLs
 - Files changed: use-mounted-sections.ts, student-dashboard.tsx, teacher-dashboard.tsx, admin-dashboard.tsx
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix navigation overlay blocking and make UI strictly pathname-reactive
+
+Work Log:
+- Analyzed all navigation-related files: role-guard.tsx, layout.tsx, app-sidebar.tsx, use-mounted-sections.ts, dashboard pages
+- Identified root causes: (1) Full-screen loading divs without pointer-events-none that could block clicks, (2) Double RoleGuard wrapping creating extra overlay opportunities, (3) Zustand vs Router race condition in useNavigationSync
+- Added pointer-events-none to ALL full-screen loading/transition overlay divs across 6 files
+- Removed duplicate RoleGuard from student/teacher/admin page components (layout already has one)
+- Simplified useNavigationSync to always return pathnameSection (URL = sole source of truth)
+- Removed Zustand store updates from sidebar handleNav() - now only uses router.push()
+- Simplified useMountedSections hook - kept original API, removed complex sync logic
+- All changes pass lint, dev server running cleanly
+- Pushed to GitHub: 11 files changed, commit 684fd38
+
+Stage Summary:
+- Navigation desync + overlay blocking bug fixed with 3-pronged approach
+- pointer-events-none on all loading divs = safety net against any overlay blocking clicks
+- Removed duplicate RoleGuard = fewer opportunities for loading screen flashes
+- pathname = sole source of truth = eliminates all Zustand vs Router race conditions
+- Net code reduction: 75 insertions, 121 deletions (simpler is better)
