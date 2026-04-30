@@ -405,7 +405,12 @@
 /* ─── GLOBAL OVERLAY DEADLOCK PREVENTION ─── */
 /* These rules MUST be global (not inside @media) because overlay blocking
    happens on ALL devices, not just touch devices. When a user navigates while
-   a modal is open, stale overlays can block all pointer events. */
+   a modal is open, stale overlays can block all pointer events.
+   
+   IMPORTANT: We use pointer-events: none only (NOT visibility: hidden)
+   because Radix UI adds aria-hidden="true" to page content when a dialog
+   opens (the "inert" pattern). Using visibility: hidden would hide the
+   sidebar, header, and other fixed elements when any dialog is open. */
 
 /* Framer Motion AnimatePresence exit animations keep elements in DOM briefly;
    this ensures they don't intercept pointer events during exit */
@@ -413,29 +418,23 @@
   pointer-events: none !important;
 }
 
-/* When a user navigates to a different section while a modal is open,
-   the section gets `hidden` (display: none) but fixed-position modal
-   backdrops can still intercept pointer events in some edge cases.
-   This rule ensures fixed elements inside hidden sections can't block clicks. */
-[aria-hidden="true"] .fixed,
-[aria-hidden="true"] [class*="fixed"] {
-  pointer-events: none !important;
-  visibility: hidden !important;
-}
-
-/* Hidden keep-alive sections (tabpanel with aria-hidden) must never intercept pointer events */
+/* Hidden keep-alive sections (tabpanel with aria-hidden) must never intercept pointer events.
+   This is the PRIMARY fix for the overlay blocking bug — when a section is hidden via
+   CSS display:none + aria-hidden, any fixed-position overlays inside it must not block clicks. */
 [role="tabpanel"][aria-hidden="true"] {
   pointer-events: none !important;
 }
 
-/* Any closed Radix portal must not block clicks (belt-and-suspenders with JS cleanup) */
-[data-radix-portal] [data-state="closed"] {
+/* Fixed-position elements inside hidden tabpanels must not block clicks.
+   This is MORE SPECIFIC than the old [aria-hidden="true"] .fixed rule,
+   which accidentally hid the sidebar/header when Radix UI dialogs opened. */
+[role="tabpanel"][aria-hidden="true"] .fixed,
+[role="tabpanel"][aria-hidden="true"] [class*="fixed"] {
   pointer-events: none !important;
 }
 
-/* Any element with opacity: 0 that covers the screen must not block clicks */
-[data-radix-overlay][aria-hidden="true"],
-[data-radix-portal][aria-hidden="true"] {
+/* Any closed Radix portal must not block clicks */
+[data-radix-portal] [data-state="closed"] {
   pointer-events: none !important;
 }
 

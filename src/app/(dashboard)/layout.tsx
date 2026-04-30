@@ -12,7 +12,7 @@ import { getDefaultPath } from '@/lib/navigation-config';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import RoleGuard from '@/components/shared/role-guard';
-import { cleanupAfterNavigation, initExitAnimationObserver, destroyExitAnimationObserver } from '@/lib/navigation-cleanup';
+import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 import type { UserRole } from '@/lib/types';
 
 // =====================================================
@@ -104,22 +104,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [initialized, user, loading, pathname, router]);
 
   // ─── GLOBAL OVERLAY CLEANUP ON NAVIGATION ───
-  // Whenever the pathname changes, clean up any stale overlays, body locks,
-  // and modal backdrops that may be blocking pointer events.
-  // This is the PRIMARY defense against the "transparent overlay" blocking bug.
+  // Whenever the pathname changes, clean up any stale body locks
+  // and mark stale overlays as non-interactive. This is the primary
+  // defense against the "transparent overlay" blocking bug.
+  // IMPORTANT: We only use CSS-based cleanup (no DOM removal) because
+  // removing React-managed portal nodes causes React to crash.
   useEffect(() => {
     cleanupAfterNavigation();
   }, [pathname]);
-
-  // ─── Initialize Framer Motion exit animation observer ───
-  // This MutationObserver watches for elements that Framer Motion is animating out
-  // and marks them with data-exiting="true" so CSS can apply pointer-events: none.
-  useEffect(() => {
-    initExitAnimationObserver();
-    return () => {
-      destroyExitAnimationObserver();
-    };
-  }, []);
 
   if (!isSupabaseConfigured) {
     return <SupabaseConfigError />;
