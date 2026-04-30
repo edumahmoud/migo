@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
@@ -48,7 +48,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject } from '@/lib/types';
-import { STUDENT_SECTION_PATHS, getStudentSectionFromSlug } from '@/lib/navigation-config';
+import { STUDENT_SECTION_PATHS, getStudentSectionFromPathname } from '@/lib/navigation-config';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 
@@ -130,8 +130,9 @@ export default function StudentDashboard({ profile, onSignOut, sectionSlug }: St
   // ─── Router for URL-based navigation ───
   const router = useRouter();
 
-  // ─── Active section derived from URL slug ───
-  const activeSection: StudentSection = getStudentSectionFromSlug(sectionSlug || []);
+  // ─── Active section derived from URL pathname (most reliable) ───
+  const pathname = usePathname();
+  const activeSection: StudentSection = getStudentSectionFromPathname(pathname);
 
   // Sync Zustand store section state with URL-derived activeSection
   // This ensures the header label and any store-dependent logic stays in sync
@@ -2348,13 +2349,12 @@ export default function StudentDashboard({ profile, onSignOut, sectionSlug }: St
       }`}>
         <div className="p-3 sm:p-6 lg:p-8 space-y-4">
           <AnnouncementsBanner userId={profile.id} />
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="popLayout">
             <motion.div
               key={activeSection}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.15 }}
             >
               {renderSection()}
             </motion.div>

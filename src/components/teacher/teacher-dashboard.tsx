@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { TEACHER_SECTION_PATHS, getTeacherSectionFromSlug } from '@/lib/navigation-config';
+import { useRouter, usePathname } from 'next/navigation';
+import { TEACHER_SECTION_PATHS, getTeacherSectionFromPathname } from '@/lib/navigation-config';
 import { motion, AnimatePresence } from 'framer-motion';
 // recharts is imported at top level for now — consider lazy-loading the analytics tab component
 import {
@@ -130,8 +130,9 @@ export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: Te
   const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setTeacherSection } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
-  // ─── Active section derived from URL ───
-  const activeSection: TeacherSection = getTeacherSectionFromSlug(sectionSlug || []);
+  // ─── Active section derived from URL pathname (most reliable) ───
+  const pathname = usePathname();
+  const activeSection: TeacherSection = getTeacherSectionFromPathname(pathname);
   const router = useRouter();
 
   // Sync Zustand store section state with URL-derived activeSection
@@ -1903,13 +1904,12 @@ export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: Te
               <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
             </div>
           ) : (
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="popLayout">
               <motion.div
                 key={activeSection}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.15 }}
               >
                 {activeSection === 'dashboard' && renderDashboard()}
                 {activeSection === 'subjects' && (selectedSubjectId

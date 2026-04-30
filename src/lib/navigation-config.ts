@@ -84,6 +84,31 @@ export function getAdminSectionFromSlug(slug: string[]): AdminSection {
   return ADMIN_PATH_SECTIONS[segment] || 'dashboard';
 }
 
+// -------------------------------------------------------
+// Pathname-based section derivation (most reliable)
+// Uses usePathname() which always updates on client navigation
+// -------------------------------------------------------
+export function getStudentSectionFromPathname(pathname: string): StudentSection {
+  const segment = pathname.replace('/student/', '').replace('/student', '');
+  if (!segment) return 'dashboard';
+  const firstSegment = segment.split('/')[0];
+  return STUDENT_PATH_SECTIONS[firstSegment] || 'dashboard';
+}
+
+export function getTeacherSectionFromPathname(pathname: string): TeacherSection {
+  const segment = pathname.replace('/teacher/', '').replace('/teacher', '');
+  if (!segment) return 'dashboard';
+  const firstSegment = segment.split('/')[0];
+  return TEACHER_PATH_SECTIONS[firstSegment] || 'dashboard';
+}
+
+export function getAdminSectionFromPathname(pathname: string): AdminSection {
+  const segment = pathname.replace('/admin/', '').replace('/admin', '');
+  if (!segment) return 'dashboard';
+  const firstSegment = segment.split('/')[0];
+  return ADMIN_PATH_SECTIONS[firstSegment] || 'dashboard';
+}
+
 // Helper: get the default dashboard path for a role
 export function getDefaultPath(role: 'student' | 'teacher' | 'admin' | 'superadmin'): string {
   if (role === 'student') return '/student';

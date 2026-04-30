@@ -120,12 +120,12 @@ function NavItems({
   const handleNav = (sectionId: string) => {
     // Close the mobile sheet FIRST to prevent overlay from blocking interactions
     onNavClick?.();
-    // Navigate after a micro-delay to let the Sheet close animation start
-    // This prevents the Radix Dialog overlay from staying and blocking the page
-    requestAnimationFrame(() => {
+    // Navigate after a short delay to let the Sheet close animation start
+    // and prevent the Radix Dialog overlay from staying and blocking the page
+    setTimeout(() => {
       const path = getSectionPath(role, sectionId);
       router.push(path);
-    });
+    }, 150);
   };
 
   return (

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 // recharts is imported at top level for now — consider lazy-loading the analytics tab component
 import {
@@ -72,7 +72,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
-import { ADMIN_SECTION_PATHS, getAdminSectionFromSlug } from '@/lib/navigation-config';
+import { ADMIN_SECTION_PATHS, getAdminSectionFromPathname } from '@/lib/navigation-config';
 
 // -------------------------------------------------------
 // Props
@@ -247,9 +247,10 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
   const { sidebarOpen, setSidebarOpen, setAdminSection } = useAppStore();
   const router = useRouter();
+  const pathname = usePathname();
 
-  // ─── Navigation ───
-  const activeSection: AdminSection = getAdminSectionFromSlug(sectionSlug || []);
+  // ─── Navigation (derived from URL pathname - most reliable) ───
+  const activeSection: AdminSection = getAdminSectionFromPathname(pathname);
 
   // Sync Zustand store section state with URL-derived activeSection
   useEffect(() => {
@@ -3221,52 +3222,23 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
       }`}>
         <div className="mx-auto max-w-6xl p-3 md:p-8">
           {loadingData ? renderLoading() : (
-            <AnimatePresence mode="wait">
-              {activeSection === 'dashboard' && (
-                <motion.div key="dashboard" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  {renderDashboard()}
-                </motion.div>
-              )}
-              {activeSection === 'users' && (
-                <motion.div key="users" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  {renderUsers()}
-                </motion.div>
-              )}
-              {activeSection === 'subjects' && (
-                <motion.div key="subjects" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  {renderSubjects()}
-                </motion.div>
-              )}
-              {activeSection === 'announcements' && (
-                <motion.div key="announcements" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  {renderAnnouncements()}
-                </motion.div>
-              )}
-              {activeSection === 'banned' && (
-                <motion.div key="banned" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  {renderBannedUsers()}
-                </motion.div>
-              )}
-              {activeSection === 'reports' && (
-                <motion.div key="reports" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  {renderReports()}
-                </motion.div>
-              )}
-              {activeSection === 'chat' && (
-                <motion.div key="chat" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  <ChatSection profile={profile} role="admin" />
-                </motion.div>
-              )}
-              {activeSection === 'settings' && (
-                <motion.div key="settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
-                </motion.div>
-              )}
-              {activeSection === 'institution' && (
-                <motion.div key="institution" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
-                  <InstitutionSection profile={profile} />
-                </motion.div>
-              )}
+            <AnimatePresence mode="popLayout">
+              <motion.div
+                key={activeSection}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.15 }}
+              >
+                {activeSection === 'dashboard' && renderDashboard()}
+                {activeSection === 'users' && renderUsers()}
+                {activeSection === 'subjects' && renderSubjects()}
+                {activeSection === 'announcements' && renderAnnouncements()}
+                {activeSection === 'banned' && renderBannedUsers()}
+                {activeSection === 'reports' && renderReports()}
+                {activeSection === 'chat' && <ChatSection profile={profile} role="admin" />}
+                {activeSection === 'settings' && <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />}
+                {activeSection === 'institution' && <InstitutionSection profile={profile} />}
+              </motion.div>
             </AnimatePresence>
           )}
         </div>
