@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap,
@@ -12,6 +13,7 @@ import {
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
+import { SECTION_LABELS } from '@/lib/navigation-config';
 import NotificationBell from '@/components/shared/notification-bell';
 import UserAvatar from '@/components/shared/user-avatar';
 
@@ -243,32 +245,45 @@ export default function AppHeader({
 }
 
 // -------------------------------------------------------
-// Active section label (shows current section name on mobile)
+// Active section label (derives section from URL pathname)
 // -------------------------------------------------------
 function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 'superadmin' }) {
-  const { studentSection, teacherSection, adminSection } = useAppStore();
+  const pathname = usePathname();
 
-  const sectionLabels: Record<string, string> = {
-    dashboard: 'لوحة التحكم',
-    subjects: 'المقررات',
-    summaries: 'الملخصات',
-    assignments: 'المهام',
-    files: 'ملفاتي',
-    teachers: 'المعلمون',
-    students: 'الطلاب',
-    analytics: 'التقارير',
-    settings: 'الإعدادات',
-    users: 'المستخدمون',
-    reports: 'التقارير',
-    announcements: 'الإعلانات',
-    banned: 'المحظورون',
-    institution: 'المؤسسة',
-    chat: 'المحادثات',
-    notifications: 'الإشعارات',
-  };
+  // Derive section from URL path
+  let sectionKey = 'dashboard';
+  if (role === 'student') {
+    const segment = pathname.replace('/student/', '').replace('/student', '');
+    const map: Record<string, string> = {
+      '': 'dashboard', subjects: 'subjects', summaries: 'summaries',
+      assignments: 'assignments', files: 'files', teachers: 'teachers',
+      chat: 'chat', settings: 'settings', notifications: 'notifications',
+      quizzes: 'quizzes', attendance: 'attendance',
+    };
+    const firstSegment = segment.split('/')[0];
+    sectionKey = map[firstSegment] || 'dashboard';
+  } else if (role === 'teacher') {
+    const segment = pathname.replace('/teacher/', '').replace('/teacher', '');
+    const map: Record<string, string> = {
+      '': 'dashboard', subjects: 'subjects', students: 'students',
+      files: 'files', assignments: 'assignments', attendance: 'attendance',
+      analytics: 'analytics', chat: 'chat', settings: 'settings',
+      notifications: 'notifications',
+    };
+    const firstSegment = segment.split('/')[0];
+    sectionKey = map[firstSegment] || 'dashboard';
+  } else {
+    const segment = pathname.replace('/admin/', '').replace('/admin', '');
+    const map: Record<string, string> = {
+      '': 'dashboard', users: 'users', subjects: 'subjects',
+      reports: 'reports', announcements: 'announcements', banned: 'banned',
+      institution: 'institution', chat: 'chat', settings: 'settings',
+    };
+    const firstSegment = segment.split('/')[0];
+    sectionKey = map[firstSegment] || 'dashboard';
+  }
 
-  const activeSection = role === 'student' ? studentSection : role === 'teacher' ? teacherSection : (role === 'admin' || role === 'superadmin') ? adminSection : 'dashboard';
-  const label = sectionLabels[activeSection] || '';
+  const label = SECTION_LABELS[sectionKey] || '';
 
   return (
     <>

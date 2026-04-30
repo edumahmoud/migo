@@ -118,9 +118,14 @@ function NavItems({
   const router = useRouter();
 
   const handleNav = (sectionId: string) => {
-    const path = getSectionPath(role, sectionId);
-    router.push(path);
+    // Close the mobile sheet FIRST to prevent overlay from blocking interactions
     onNavClick?.();
+    // Navigate after a micro-delay to let the Sheet close animation start
+    // This prevents the Radix Dialog overlay from staying and blocking the page
+    requestAnimationFrame(() => {
+      const path = getSectionPath(role, sectionId);
+      router.push(path);
+    });
   };
 
   return (

@@ -127,12 +127,17 @@ const PIE_COLORS = ['#10b981', '#14b8a6', '#f59e0b', '#ef4444'];
 // -------------------------------------------------------
 export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: TeacherDashboardProps) {
   // ─── Stores ───
-  const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setTeacherSection } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
   // ─── Active section derived from URL ───
   const activeSection: TeacherSection = getTeacherSectionFromSlug(sectionSlug || []);
   const router = useRouter();
+
+  // Sync Zustand store section state with URL-derived activeSection
+  useEffect(() => {
+    setTeacherSection(activeSection);
+  }, [activeSection, setTeacherSection]);
 
   // When navigating away from subjects, clear selectedSubjectId
   useEffect(() => {

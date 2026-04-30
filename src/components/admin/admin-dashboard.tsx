@@ -245,11 +245,16 @@ interface UserWithMeta extends UserProfile {
 export default function AdminDashboard({ profile, onSignOut, sectionSlug }: AdminDashboardProps) {
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
-  const { sidebarOpen, setSidebarOpen } = useAppStore();
+  const { sidebarOpen, setSidebarOpen, setAdminSection } = useAppStore();
   const router = useRouter();
 
   // ─── Navigation ───
   const activeSection: AdminSection = getAdminSectionFromSlug(sectionSlug || []);
+
+  // Sync Zustand store section state with URL-derived activeSection
+  useEffect(() => {
+    setAdminSection(activeSection);
+  }, [activeSection, setAdminSection]);
 
   // ─── Data state ───
   const [allUsers, setAllUsers] = useState<UserWithMeta[]>([]);

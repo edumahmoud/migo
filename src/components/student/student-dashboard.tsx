@@ -125,13 +125,19 @@ function scorePercentage(score: number, total: number): number {
 // -------------------------------------------------------
 export default function StudentDashboard({ profile, onSignOut, sectionSlug }: StudentDashboardProps) {
   // ─── App store ───
-  const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setStudentSection } = useAppStore();
 
   // ─── Router for URL-based navigation ───
   const router = useRouter();
 
   // ─── Active section derived from URL slug ───
   const activeSection: StudentSection = getStudentSectionFromSlug(sectionSlug || []);
+
+  // Sync Zustand store section state with URL-derived activeSection
+  // This ensures the header label and any store-dependent logic stays in sync
+  useEffect(() => {
+    setStudentSection(activeSection);
+  }, [activeSection, setStudentSection]);
 
   // When navigating away from subjects, clear selectedSubjectId
   useEffect(() => {
