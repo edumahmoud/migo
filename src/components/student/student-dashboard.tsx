@@ -130,13 +130,17 @@ export default function StudentDashboard({ profile, onSignOut, sectionSlug }: St
   // ─── Router for URL-based navigation ───
   const router = useRouter();
 
-  // ─── Active section: prefer sectionSlug (from URL params), fall back to pathname ───
+  // ─── Active section: pathname is the PRIMARY source (updates synchronously on router.push).
+  // sectionSlug (from use(params)) can lag behind on client-side navigation, causing stale renders.
   const pathname = usePathname();
   const activeSection: StudentSection = useMemo(() => {
-    // Primary: sectionSlug from URL catch-all params (updates immediately on router.push)
+    // Primary: pathname-based derivation — always up-to-date
+    const fromPath = getStudentSectionFromPathname(pathname);
+    if (fromPath !== 'dashboard') return fromPath;
+    // Only use sectionSlug when pathname gives 'dashboard' (i.e. /student with no segment)
+    // and sectionSlug is non-empty — this handles the initial mount before pathname updates
     if (sectionSlug && sectionSlug.length > 0) {
       const segment = sectionSlug[0];
-      if (segment === 'subjects' && sectionSlug.length > 1) return 'subjects';
       const map: Record<string, StudentSection> = {
         subjects: 'subjects', summaries: 'summaries', assignments: 'assignments',
         files: 'files', teachers: 'teachers', chat: 'chat', settings: 'settings',
@@ -144,9 +148,8 @@ export default function StudentDashboard({ profile, onSignOut, sectionSlug }: St
       };
       return map[segment] || 'dashboard';
     }
-    // Fallback: pathname-based derivation
-    return getStudentSectionFromPathname(pathname);
-  }, [sectionSlug, pathname]);
+    return 'dashboard';
+  }, [pathname, sectionSlug]);
 
   // Sync Zustand store section state with URL-derived activeSection
   // This ensures the header label and any store-dependent logic stays in sync

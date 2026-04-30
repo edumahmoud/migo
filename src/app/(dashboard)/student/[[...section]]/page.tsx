@@ -25,11 +25,7 @@ function StudentPageInner({ params }: { params: Promise<{ section?: string[] }> 
     window.location.href = '/';
   };
 
-  // key forces full remount when the top-level section changes,
-  // guaranteeing the correct section renders without needing a manual refresh
-  const sectionKey = section?.[0] || 'dashboard';
-
-  return <StudentDashboard key={sectionKey} profile={user} onSignOut={handleSignOut} sectionSlug={section} />;
+  return <StudentDashboard profile={user} onSignOut={handleSignOut} sectionSlug={section} />;
 }
 
 export default function StudentPage({ params }: { params: Promise<{ section?: string[] }> }) {

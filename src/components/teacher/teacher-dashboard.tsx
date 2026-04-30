@@ -130,13 +130,17 @@ export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: Te
   const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setTeacherSection } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
-  // ─── Active section: prefer sectionSlug (from URL params), fall back to pathname ───
+  // ─── Active section: pathname is the PRIMARY source (updates synchronously on router.push).
+  // sectionSlug (from use(params)) can lag behind on client-side navigation, causing stale renders.
   const pathname = usePathname();
   const activeSection: TeacherSection = useMemo(() => {
-    // Primary: sectionSlug from URL catch-all params (updates immediately on router.push)
+    // Primary: pathname-based derivation — always up-to-date
+    const fromPath = getTeacherSectionFromPathname(pathname);
+    if (fromPath !== 'dashboard') return fromPath;
+    // Only use sectionSlug when pathname gives 'dashboard' (i.e. /teacher with no segment)
+    // and sectionSlug is non-empty — this handles the initial mount before pathname updates
     if (sectionSlug && sectionSlug.length > 0) {
       const segment = sectionSlug[0];
-      if (segment === 'subjects' && sectionSlug.length > 1) return 'subjects';
       const map: Record<string, TeacherSection> = {
         subjects: 'subjects', students: 'students', files: 'files',
         assignments: 'assignments', attendance: 'attendance', analytics: 'analytics',
@@ -144,9 +148,8 @@ export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: Te
       };
       return map[segment] || 'dashboard';
     }
-    // Fallback: pathname-based derivation
-    return getTeacherSectionFromPathname(pathname);
-  }, [sectionSlug, pathname]);
+    return 'dashboard';
+  }, [pathname, sectionSlug]);
   const router = useRouter();
 
   // Sync Zustand store section state with URL-derived activeSection

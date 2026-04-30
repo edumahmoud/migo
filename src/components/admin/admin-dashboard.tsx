@@ -249,9 +249,14 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
   const router = useRouter();
   const pathname = usePathname();
 
-  // ─── Navigation: prefer sectionSlug (from URL params), fall back to pathname ───
+  // ─── Navigation: pathname is the PRIMARY source (updates synchronously on router.push).
+  // sectionSlug (from use(params)) can lag behind on client-side navigation, causing stale renders.
   const activeSection: AdminSection = useMemo(() => {
-    // Primary: sectionSlug from URL catch-all params (updates immediately on router.push)
+    // Primary: pathname-based derivation — always up-to-date
+    const fromPath = getAdminSectionFromPathname(pathname);
+    if (fromPath !== 'dashboard') return fromPath;
+    // Only use sectionSlug when pathname gives 'dashboard' (i.e. /admin with no segment)
+    // and sectionSlug is non-empty — this handles the initial mount before pathname updates
     if (sectionSlug && sectionSlug.length > 0) {
       const segment = sectionSlug[0];
       const map: Record<string, AdminSection> = {
@@ -261,9 +266,8 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
       };
       return map[segment] || 'dashboard';
     }
-    // Fallback: pathname-based derivation
-    return getAdminSectionFromPathname(pathname);
-  }, [sectionSlug, pathname]);
+    return 'dashboard';
+  }, [pathname, sectionSlug]);
 
   // Sync Zustand store section state with URL-derived activeSection
   useEffect(() => {
