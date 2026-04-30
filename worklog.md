@@ -1,23 +1,43 @@
 ---
 Task ID: 1
-Agent: Main Agent
-Task: Fix transparent overlay blocking all UI interactions after navigation
+Agent: main
+Task: Fix navigation blocking bug - hover works but clicks don't after first navigation
 
 Work Log:
-- Read and analyzed all key files: role-guard.tsx, layout.tsx, navigation-cleanup.ts, globals.css, use-mounted-sections.ts, app-sidebar.tsx, student-dashboard.tsx, teacher-dashboard.tsx, admin-dashboard.tsx, banned-user-overlay.tsx, auth-store.ts, page.tsx, offline/page.tsx, sw-registration.tsx, notification-bell.tsx, chat-section.tsx
-- Identified ROOT CAUSE: CSS overlay prevention rules were INSIDE `@media (hover: none) and (pointer: coarse)` block, meaning they ONLY worked on touch devices. Desktop browsers had ZERO protection against overlay blocking.
-- Fixed globals.css: Moved `[data-exiting="true"]`, `[aria-hidden="true"] .fixed`, and added new rules out of @media block to make them GLOBAL
-- Added new CSS rules: `[role="tabpanel"][aria-hidden="true"]` pointer-events none, `[data-radix-portal] [data-state="closed"]` pointer-events none, `[data-radix-overlay][aria-hidden="true"]` and `[data-radix-portal][aria-hidden="true"]` pointer-events none
-- Enhanced navigation-cleanup.ts: Added `initExitAnimationObserver()` MutationObserver that watches for Framer Motion exit animations and marks them with `data-exiting="true"`, added `destroyExitAnimationObserver()`, improved `forceCleanupOverlays()` to be more aggressive, added `cleanupAfterNavigation()` as main entry point with multi-stage cleanup (sync + microtask + requestAnimationFrame)
-- Updated dashboard layout: Added `cleanupAfterNavigation()` call on every pathname change, added `initExitAnimationObserver()` on mount
-- Updated all 3 dashboards (student, teacher, admin) to use `cleanupAfterNavigation()` instead of dynamic import
-- Updated app-sidebar.tsx to use `cleanupAfterNavigation()` instead of dynamic import
-- Refined CSS rules to be specific (not too broad): removed blanket `.hidden` rule, replaced with `[role="tabpanel"][aria-hidden="true"]`
-- Lint check passes, dev server running without errors
+- Analyzed the entire navigation flow: sidebar → router.push() → pathname change → section toggle
+- Identified root cause: Radix UI Dialog `inert` attribute on React root (#__next) blocks clicks but allows CSS :hover
+- In keep-alive pattern, dialog portals stay at body level with data-state="open" even after section is hidden
+- The `isAnyVisibleDialogOpen()` check was preventing cleanup because it saw the orphaned portal as "visible"
+- MutationObserver only watched body itself, not body children (missed inert on #__next)
+- Sub-components using Dialog/AlertDialog didn't listen for navigation:cleanup event
+
+Changes Made:
+1. **`src/lib/navigation-cleanup.ts`** - Complete rewrite:
+   - Made `cleanupInertAttributes()` UNCONDITIONAL (removed `isAnyVisibleDialogOpen()` guard)
+   - Added deep scanning for inert on ALL interactive containers (header, aside, nav, main)
+   - Added `#__next` and React root specific checks
+   - Added `subtreeObserver` that watches ALL body descendants for inert changes (not just body)
+   - Added `forceCloseOrphanedDialogs()` that dispatches Escape key to close stale dialogs
+   - Added periodic safety check every 2 seconds as belt-and-suspenders
+   - Replaced `isAnyVisibleDialogOpen()` with smarter `isAnyGenuinelyVisibleDialogOpen()` that checks overlay opacity and dialog visibility
+
+2. **`src/app/globals.css`** - Enhanced CSS rules:
+   - Added stale portal prevention rules for closed sheet/dialog overlays
+   - Added `[data-radix-portal]:not(:has([data-state="open"]))` rule to make empty portals non-interactive
+   - Added `body[style*="pointer-events: none"]` override for header/aside/nav to ensure they stay clickable even when body has pointer-events: none
+
+3. **`src/components/shared/app-sidebar.tsx`** - Enhanced handleNav:
+   - Now calls `cleanupAfterNavigation()` IMMEDIATELY (not just in rAF)
+   - Also still calls it in rAF as safety net
+
+4. **Sub-components** - Added `navigation:cleanup` event listeners:
+   - `chat-section.tsx` - closes confirmDialog, showNewDM, editingMessageId, messageMenuId, convMenuId, headerMenuOpen
+   - `personal-files-section.tsx` - closes all modal states (upload, delete, rename, share, assign, preview, etc.)
+   - `student-profile-modal.tsx` - calls onClose()
+   - `teams-tab.tsx` - closes create/edit/auto-assign/add-member dialogs
+   - `students-tab.tsx` - closes all confirm dialogs and modals
 
 Stage Summary:
-- Fixed the ROOT CAUSE of transparent overlay blocking: CSS prevention rules were only for touch devices, now global
-- Added MutationObserver to catch Framer Motion exit animations and mark them as non-interactive
-- Added multi-stage cleanup (sync + microtask + rAF) on every pathname change
-- All dashboards and sidebar now use centralized `cleanupAfterNavigation()`
-- The error in the user's screenshot ("خطأ في الاتصال بالإنترنت") is from the deployed Vercel version (lms-attendo.vercel.app), likely due to network issues on the user's device
+- Root cause: `inert` attribute on React root (#__next) added by Radix UI Dialog, not properly cleaned up when dialog's section becomes hidden in keep-alive pattern
+- `inert` blocks click events but allows CSS :hover, explaining the "hover works but click doesn't" symptom
+- Fix: aggressive unconditional cleanup + MutationObserver watching all descendants + periodic safety check + sub-component dialog close listeners

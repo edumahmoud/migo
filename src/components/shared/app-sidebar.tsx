@@ -135,6 +135,14 @@ function NavItems({
     // When navigating while a modal is open, the modal's backdrop overlay
     // can persist in the DOM and block all pointer events. This cleanup
     // ensures the body is always interactive after navigation.
+    //
+    // We run cleanup MULTIPLE times:
+    // 1. Immediately — to close dialogs and remove inert/pointer-events
+    // 2. After rAF — to catch React batched updates
+    // 3. After 300ms — to catch slow animations
+    // (The dashboard layout also runs cleanup on pathname change)
+    cleanupAfterNavigation();
+
     requestAnimationFrame(() => {
       cleanupAfterNavigation();
     });

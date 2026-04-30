@@ -479,6 +479,28 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     }
   }, [activeTab, fetchSharedFiles]);
 
+  // ─── Navigation cleanup: close all modals when navigating away ───
+  useEffect(() => {
+    const handleNavCleanup = () => {
+      setUploadModalOpen(false);
+      setConfirmDeleteId(null);
+      setRenamingFileId(null);
+      setDetailsFile(null);
+      setShareModalOpen(false);
+      setSharingFileId(null);
+      setAssignModalOpen(false);
+      setAssigningFileId(null);
+      setBulkShareModalOpen(false);
+      setConfirmBulkDelete(false);
+      setPreviewFile(null);
+      setShowRecipientsFile(null);
+    };
+    document.addEventListener('navigation:cleanup', handleNavCleanup);
+    return () => {
+      document.removeEventListener('navigation:cleanup', handleNavCleanup);
+    };
+  }, []);
+
   // -------------------------------------------------------
   // Filtered files by category and visibility
   // -------------------------------------------------------

@@ -9,46 +9,112 @@
  * navigates away while a dialog is open, the dialog's cleanup doesn't run properly
  * because the section is hidden (display: none) but still mounted.
  *
+ * KEY INSIGHT: Radix UI Dialog portals live at `<body>` level, NOT inside the
+ * hidden tabpanel. So even when a section is hidden via `display:none`, the
+ * portal with `data-state="open"` remains visible at body level, and Radix UI
+ * keeps `inert` on the page content (#__next / React root).
+ *
+ * The `inert` HTML attribute blocks ALL user interaction events (click, focus,
+ * keyboard) but does NOT block CSS `:hover` (which is applied by the browser's
+ * rendering engine based on pointer position, not JavaScript events). This is
+ * why users see hover effects but clicks don't work.
+ *
  * This utility provides:
- * 1. Immediate cleanup of body locks and inert attributes
- * 2. A MutationObserver guard that prevents React from re-adding inert/pointer-events
- *    when a dialog is in a HIDDEN section (keep-alive display:none)
+ * 1. Unconditional cleanup of body locks and inert attributes after navigation
+ * 2. A MutationObserver guard that prevents stale inert/pointer-events
  * 3. A custom event mechanism for sections to close their dialogs on navigation
+ * 4. Force-close of orphaned dialog portals
  */
 
 // ─── Guard state ───
 let guardActive = false;
-let guardObserver: MutationObserver | null = null;
+let bodyObserver: MutationObserver | null = null;
+let subtreeObserver: MutationObserver | null = null;
+let safetyInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
- * Check if any VISIBLE Radix UI Dialog is currently open.
- * A dialog is "visible" if its portal has content with data-state="open"
- * AND that content is NOT inside a hidden tabpanel.
+ * Check if any VISIBLE Radix UI Dialog is currently open AND its trigger
+ * is NOT inside a hidden tabpanel.
+ *
+ * IMPORTANT: A dialog portal at body level with `data-state="open"` is
+ * considered "visible" by Radix UI. But if the dialog's trigger/section
+ * is inside a hidden tabpanel (keep-alive display:none), the dialog
+ * shouldn't be treated as visible — it's an orphan from a hidden section.
  */
-function isAnyVisibleDialogOpen(): boolean {
+function isAnyGenuinelyVisibleDialogOpen(): boolean {
   if (typeof document === 'undefined') return false;
 
-  // Find all open Radix UI Dialog/Sheet/AlertDialog content
+  // Find all open Radix UI Dialog/Sheet/AlertDialog content at body level
   const openDialogs = document.querySelectorAll(
     '[data-state="open"][role="dialog"], [data-state="open"][role="alertdialog"]'
   );
 
   if (openDialogs.length === 0) return false;
 
-  // Check if any of these open dialogs are actually visible
-  // (not inside a hidden section/tabpanel)
   for (const dialog of openDialogs) {
-    // Check if the dialog or any ancestor has display:none or is hidden
-    const hiddenAncestor = dialog.closest(
-      '[style*="display: none"], [style*="display:none"], .hidden, [aria-hidden="true"][role="tabpanel"]'
-    );
-    if (!hiddenAncestor) {
-      // This dialog is visible — don't remove inert/pointer-events
-      return true;
+    // Check if the dialog content is inside a portal
+    const portal = dialog.closest('[data-radix-portal]') || dialog.closest('[data-slot="sheet-portal"]') || dialog.closest('[data-slot="dialog-portal"]');
+
+    if (!portal) {
+      // Not in a portal — check if it's inside a hidden section
+      const hiddenAncestor = dialog.closest(
+        '[style*="display: none"], [style*="display:none"], .hidden, [aria-hidden="true"][role="tabpanel"]'
+      );
+      if (!hiddenAncestor) {
+        // Dialog is visible and not inside a hidden section
+        return true;
+      }
+      continue;
+    }
+
+    // The dialog IS inside a portal at body level.
+    // We need to check if the dialog's TRIGGER is inside a hidden tabpanel.
+    // Strategy: look for any visible dialog trigger that's NOT in a hidden tabpanel.
+    // If we can't find one, the dialog is likely orphaned from a hidden section.
+
+    // Check if ANY element with aria-haspopup="dialog" or a dialog trigger
+    // is visible (not inside a hidden tabpanel)
+    const dialogTriggerSelector = '[aria-haspopup="dialog"], [data-state="open"][role="dialog"] + [data-radix-collection-item]';
+
+    // Alternative approach: check if the portal itself is visible
+    // (not inside a hidden element)
+    const portalParent = portal.parentElement;
+    if (portalParent === document.body) {
+      // Portal is a direct child of body — it's "visible" in the DOM sense.
+      // But we need to check if the dialog's SECTION is visible.
+      // Since we can't easily determine which section a dialog belongs to,
+      // we use a heuristic: if there are open dialogs AND the page content
+      // has inert, check if the user can actually see the dialog.
+
+      // Heuristic: if the dialog's overlay (backdrop) is visible (has opacity > 0),
+      // then the dialog is genuinely visible.
+      const overlay = portal.querySelector('[data-radix-overlay][data-state="open"], [data-slot="sheet-overlay"][data-state="open"], [data-slot="dialog-overlay"][data-state="open"]');
+      if (overlay) {
+        // Check the computed opacity of the overlay
+        const computedStyle = window.getComputedStyle(overlay);
+        const opacity = computedStyle.opacity;
+        if (opacity && parseFloat(opacity) > 0) {
+          // The overlay is visible — the dialog is genuinely visible
+          return true;
+        }
+      }
+
+      // Check the dialog content itself for visibility
+      const computedDialogStyle = window.getComputedStyle(dialog);
+      if (computedDialogStyle.display !== 'none' &&
+          computedDialogStyle.visibility !== 'hidden' &&
+          computedDialogStyle.opacity !== '0') {
+        // The dialog content appears visible
+        // But we need to check if it's actually meaningful (not just an empty shell)
+        // Check if the dialog has actual content (not just a skeleton)
+        if (dialog.children.length > 0) {
+          return true;
+        }
+      }
     }
   }
 
-  // All open dialogs are in hidden sections — safe to remove inert/pointer-events
+  // No genuinely visible dialog found
   return false;
 }
 
@@ -59,12 +125,13 @@ function isAnyVisibleDialogOpen(): boolean {
  *   - pointer-events: none
  *   - overflow: hidden
  *   - padding-right: <scrollbar-width>px
+ *
+ * UNCONDITIONAL: Always removes these styles, even if a dialog appears open.
+ * If a dialog is genuinely visible, Radix UI will re-add these in the same
+ * render cycle.
  */
 export function cleanupBodyLocks() {
   if (typeof document === 'undefined') return;
-
-  // Don't clean up if a visible dialog is open
-  if (isAnyVisibleDialogOpen()) return;
 
   const body = document.body;
 
@@ -90,26 +157,32 @@ export function cleanupBodyLocks() {
 /**
  * Remove `inert` attribute from page content elements.
  *
- * When a Radix UI Dialog opens, it adds `inert` to siblings of the portal
- * (the "inert" pattern). In keep-alive, if the dialog's section is hidden,
- * the inert stays because React re-adds it on each render.
+ * UNCONDITIONAL: Always removes inert, regardless of whether a dialog
+ * appears to be open. If a dialog IS genuinely visible, Radix UI will
+ * re-add inert in the same render cycle (via its useEffect).
  *
- * This function removes inert ONLY when no visible dialog is open.
+ * This is critical because in the keep-alive pattern:
+ * - A dialog in a hidden section (display:none) has its portal at body level
+ * - The portal has data-state="open", making it appear "visible"
+ * - Radix UI keeps inert on #__next because it sees the open portal
+ * - But the dialog SHOULDN'T be visible because its section is hidden
+ * - So we must forcefully remove inert, and let Radix UI re-add it only
+ *   if the dialog is genuinely visible
  */
 function cleanupInertAttributes() {
   if (typeof document === 'undefined') return;
 
-  // Don't remove inert if a visible dialog is open (it's intentional)
-  if (isAnyVisibleDialogOpen()) return;
-
-  // Remove inert from body
+  // Remove inert from body itself
   document.body.removeAttribute('inert');
 
-  // Remove inert from ALL body children (except portals and scripts)
+  // Remove inert from ALL body children (except portals, scripts, styles)
   const bodyChildren = document.body.children;
   for (let i = 0; i < bodyChildren.length; i++) {
     const child = bodyChildren[i];
+    // Skip portals — they manage their own inert state
     if (child.hasAttribute('data-radix-portal')) continue;
+    if (child.getAttribute('data-slot')?.includes('portal')) continue;
+    // Skip non-interactive elements
     if (child.tagName === 'SCRIPT' || child.tagName === 'STYLE') continue;
     if (child.tagName === 'LINK' || child.tagName === 'META') continue;
     if (child.hasAttribute('inert')) {
@@ -117,12 +190,29 @@ function cleanupInertAttributes() {
     }
   }
 
-  // Also remove inert from any #main-content or similar wrapper
-  const mainWrapper = document.querySelector('[data-radix-scroll-area]') ||
-                      document.querySelector('main') ||
-                      document.querySelector('[role="main"]');
-  if (mainWrapper?.hasAttribute('inert')) {
-    mainWrapper.removeAttribute('inert');
+  // Also scan deeper: remove inert from key interactive containers
+  // This catches cases where Radix UI adds inert to a nested container
+  const interactiveContainers = document.querySelectorAll(
+    'main, [role="main"], header, [role="banner"], aside, nav, [role="navigation"]'
+  );
+  interactiveContainers.forEach((el) => {
+    if (el.hasAttribute('inert')) {
+      el.removeAttribute('inert');
+    }
+  });
+
+  // Also check #__next (Next.js React root) specifically
+  const nextRoot = document.getElementById('__next');
+  if (nextRoot?.hasAttribute('inert')) {
+    nextRoot.removeAttribute('inert');
+  }
+
+  // Also check any React root container
+  const reactRoot = document.querySelector('[data-reactroot]') ||
+                    document.querySelector('[id="__next"]') ||
+                    document.querySelector('[id="root"]');
+  if (reactRoot?.hasAttribute('inert')) {
+    reactRoot.removeAttribute('inert');
   }
 }
 
@@ -152,30 +242,81 @@ export function markStaleOverlays() {
       portal.querySelectorAll('[data-radix-overlay]').forEach((overlay) => {
         (overlay as HTMLElement).style.pointerEvents = 'none';
       });
+      // Also mark the entire portal as non-interactive
+      (portal as HTMLElement).style.pointerEvents = 'none';
+    }
+  });
+
+  // 3. Also mark any orphaned sheet/dialog overlays
+  const allOverlays = document.querySelectorAll(
+    '[data-slot="sheet-overlay"], [data-slot="dialog-overlay"], [data-radix-overlay]'
+  );
+  allOverlays.forEach((overlay) => {
+    const state = overlay.getAttribute('data-state');
+    if (state !== 'open') {
+      (overlay as HTMLElement).style.pointerEvents = 'none';
     }
   });
 }
 
 /**
- * Initialize the MutationObserver guard that prevents React from re-adding
- * `inert` and `pointer-events: none` when a dialog is in a hidden section.
+ * Force-close any orphaned dialog portals.
+ *
+ * When a dialog in a hidden section (keep-alive) has its portal at body level
+ * with data-state="open", we need to close it. We do this by dispatching
+ * an Escape key event, which Radix UI Dialog listens for and handles.
+ */
+function forceCloseOrphanedDialogs() {
+  if (typeof document === 'undefined') return;
+
+  // Find all open dialog portals
+  const openDialogs = document.querySelectorAll(
+    '[data-radix-portal] [data-state="open"][role="dialog"], ' +
+    '[data-radix-portal] [data-state="open"][role="alertdialog"], ' +
+    '[data-slot="sheet-portal"] [data-state="open"], ' +
+    '[data-slot="dialog-portal"] [data-state="open"]'
+  );
+
+  if (openDialogs.length === 0) return;
+
+  // Check if the dialog's section is hidden
+  // Since we can't easily determine which section a dialog belongs to,
+  // we use the heuristic: if the page content has inert, and the dialog
+  // is in a portal, the dialog might be orphaned.
+
+  // Dispatch Escape key event to close dialogs
+  // This is the safest way to close Radix UI dialogs programmatically
+  const escapeEvent = new KeyboardEvent('keydown', {
+    key: 'Escape',
+    code: 'Escape',
+    keyCode: 27,
+    which: 27,
+    bubbles: true,
+    cancelable: true,
+  });
+
+  document.dispatchEvent(escapeEvent);
+}
+
+/**
+ * Initialize the MutationObserver guard that prevents stale `inert` and
+ * `pointer-events: none` from blocking page interactivity.
  *
  * This should be called once when the app mounts (in the dashboard layout).
- * It watches for attribute changes on body and body children, and immediately
- * removes `inert` and `pointer-events: none` if no visible dialog is open.
  */
 export function initNavigationGuard() {
   if (typeof document === 'undefined' || guardActive) return;
   guardActive = true;
 
-  guardObserver = new MutationObserver((mutations) => {
+  // ─── Observer 1: Watch body for attribute changes ───
+  bodyObserver = new MutationObserver((mutations) => {
     let needsCleanup = false;
 
     for (const mutation of mutations) {
       if (mutation.type === 'attributes') {
         const target = mutation.target;
         if (target instanceof HTMLElement) {
-          // Check if inert was added
+          // Check if inert was added to body or body children
           if (mutation.attributeName === 'inert' && target.hasAttribute('inert')) {
             needsCleanup = true;
           }
@@ -191,50 +332,99 @@ export function initNavigationGuard() {
     }
 
     if (needsCleanup) {
-      // Only clean up if no visible dialog is open
-      if (!isAnyVisibleDialogOpen()) {
-        cleanupBodyLocks();
-        cleanupInertAttributes();
-      }
+      // Use requestAnimationFrame to batch cleanup and avoid fighting React
+      requestAnimationFrame(() => {
+        if (!isAnyGenuinelyVisibleDialogOpen()) {
+          cleanupBodyLocks();
+          cleanupInertAttributes();
+        }
+      });
     }
   });
 
-  // Watch body for attribute changes
-  guardObserver.observe(document.body, {
+  // Watch body itself for attribute changes
+  bodyObserver.observe(document.body, {
     attributes: true,
     attributeFilter: ['inert', 'style'],
-    subtree: false, // Only watch body itself, children handled separately
+    subtree: false,
   });
 
-  // Also watch body children for inert attribute
-  // We need to re-observe when children are added/removed
-  const childrenObserver = new MutationObserver((mutations) => {
+  // ─── Observer 2: Watch body children for inert attribute ───
+  // This catches inert being added to #__next and other body children
+  subtreeObserver = new MutationObserver((mutations) => {
+    let needsCleanup = false;
+
     for (const mutation of mutations) {
-      if (mutation.type === 'childList') {
+      if (mutation.type === 'attributes') {
+        const target = mutation.target;
+        if (target instanceof HTMLElement) {
+          if (mutation.attributeName === 'inert' && target.hasAttribute('inert')) {
+            // Don't remove inert from portals — they manage their own state
+            if (!target.hasAttribute('data-radix-portal') &&
+                !target.getAttribute('data-slot')?.includes('portal')) {
+              needsCleanup = true;
+            }
+          }
+        }
+      } else if (mutation.type === 'childList') {
         // New children added — check if they have inert
         for (const node of mutation.addedNodes) {
           if (node instanceof HTMLElement && node.hasAttribute('inert')) {
-            if (!isAnyVisibleDialogOpen()) {
-              node.removeAttribute('inert');
+            if (!node.hasAttribute('data-radix-portal')) {
+              needsCleanup = true;
             }
           }
         }
       }
     }
+
+    if (needsCleanup) {
+      requestAnimationFrame(() => {
+        if (!isAnyGenuinelyVisibleDialogOpen()) {
+          cleanupInertAttributes();
+          cleanupBodyLocks();
+        }
+      });
+    }
   });
 
-  childrenObserver.observe(document.body, {
+  // Watch ALL body descendants for inert attribute changes
+  // This is crucial because Radix UI adds inert to #__next (React root),
+  // which is a child of body, not body itself.
+  subtreeObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['inert'],
     childList: true,
+    subtree: true,
   });
+
+  // ─── Periodic safety check ───
+  // Every 2 seconds, check if inert or pointer-events: none is blocking
+  // page interaction and clean it up. This is a belt-and-suspenders approach
+  // that catches any cases the MutationObserver misses.
+  safetyInterval = setInterval(() => {
+    if (!isAnyGenuinelyVisibleDialogOpen()) {
+      cleanupBodyLocks();
+      cleanupInertAttributes();
+    }
+  }, 2000);
 }
 
 /**
- * Destroy the navigation guard observer.
+ * Destroy the navigation guard observers and safety interval.
  */
 export function destroyNavigationGuard() {
-  if (guardObserver) {
-    guardObserver.disconnect();
-    guardObserver = null;
+  if (bodyObserver) {
+    bodyObserver.disconnect();
+    bodyObserver = null;
+  }
+  if (subtreeObserver) {
+    subtreeObserver.disconnect();
+    subtreeObserver = null;
+  }
+  if (safetyInterval) {
+    clearInterval(safetyInterval);
+    safetyInterval = null;
   }
   guardActive = false;
 }
@@ -251,27 +441,40 @@ export function cleanupAfterNavigation() {
   //    should listen for this event and close their dialogs.
   document.dispatchEvent(new CustomEvent('navigation:cleanup'));
 
-  // 2. Clean up body locks and inert attributes
+  // 2. Force-close any orphaned dialog portals
+  //    This handles dialogs that don't listen for navigation:cleanup
+  forceCloseOrphanedDialogs();
+
+  // 3. UNCONDITIONAL cleanup of body locks and inert attributes
+  //    This is critical: we MUST remove inert even if a dialog appears open,
+  //    because the dialog might be orphaned from a hidden section.
+  //    If the dialog is genuinely visible, Radix UI will re-add inert.
   cleanupBodyLocks();
   cleanupInertAttributes();
   markStaleOverlays();
 
-  // 3. Safety net: cleanup after microtask (catches React batched updates)
+  // 4. Safety net: cleanup after microtask (catches React batched updates)
   queueMicrotask(() => {
     cleanupBodyLocks();
     cleanupInertAttributes();
   });
 
-  // 4. Safety net: cleanup after rAF (catches React concurrent mode)
+  // 5. Safety net: cleanup after rAF (catches React concurrent mode)
   requestAnimationFrame(() => {
     cleanupBodyLocks();
     cleanupInertAttributes();
     markStaleOverlays();
   });
 
-  // 5. Final safety net after 500ms (catches delayed animations)
+  // 6. Final safety net after 300ms (catches delayed animations/transitions)
   setTimeout(() => {
     cleanupBodyLocks();
     cleanupInertAttributes();
-  }, 500);
+  }, 300);
+
+  // 7. Extra safety net after 1s (catches very slow animations)
+  setTimeout(() => {
+    cleanupBodyLocks();
+    cleanupInertAttributes();
+  }, 1000);
 }

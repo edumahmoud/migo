@@ -164,6 +164,20 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     fetchTeams().then(() => fetchUnassigned());
   }, [fetchTeams, fetchUnassigned]);
 
+  // ─── Navigation cleanup: close all Dialogs when navigating away ───
+  useEffect(() => {
+    const handleNavCleanup = () => {
+      setCreateOpen(false);
+      setEditTeam(null);
+      setAutoAssignOpen(false);
+      setAddMemberTeamId(null);
+    };
+    document.addEventListener('navigation:cleanup', handleNavCleanup);
+    return () => {
+      document.removeEventListener('navigation:cleanup', handleNavCleanup);
+    };
+  }, []);
+
   // -------------------------------------------------------
   // CRUD operations
   // -------------------------------------------------------

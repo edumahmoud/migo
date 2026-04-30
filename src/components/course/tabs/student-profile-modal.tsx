@@ -145,6 +145,17 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
     if (open) fetchPerformance();
   }, [open, fetchPerformance]);
 
+  // ─── Navigation cleanup: close Dialog when navigating away ───
+  useEffect(() => {
+    const handleNavCleanup = () => {
+      onClose();
+    };
+    document.addEventListener('navigation:cleanup', handleNavCleanup);
+    return () => {
+      document.removeEventListener('navigation:cleanup', handleNavCleanup);
+    };
+  }, [onClose]);
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir="rtl">

@@ -271,6 +271,23 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     fetchStudents();
   }, [fetchPendingRequests, fetchStudents]);
 
+  // ─── Navigation cleanup: close all modals/dialogs when navigating away ───
+  useEffect(() => {
+    const handleNavCleanup = () => {
+      setProfileModalOpen(false);
+      setRemoveConfirmId(null);
+      setBulkDeleteConfirmOpen(false);
+      setAcceptAllConfirmOpen(false);
+      setRejectAllConfirmOpen(false);
+      setPerformanceStudentId(null);
+      setPendingPanelOpen(false);
+    };
+    document.addEventListener('navigation:cleanup', handleNavCleanup);
+    return () => {
+      document.removeEventListener('navigation:cleanup', handleNavCleanup);
+    };
+  }, []);
+
   // -------------------------------------------------------
   // Search for students to add
   // -------------------------------------------------------

@@ -775,6 +775,22 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // ─── Navigation cleanup: close all Radix UI Dialogs when navigating away ───
+  useEffect(() => {
+    const handleNavCleanup = () => {
+      setConfirmDialog({ open: false, title: '', description: '', onConfirm: () => {} });
+      setShowNewDM(false);
+      setEditingMessageId(null);
+      setMessageMenuId(null);
+      setConvMenuId(null);
+      setHeaderMenuOpen(false);
+    };
+    document.addEventListener('navigation:cleanup', handleNavCleanup);
+    return () => {
+      document.removeEventListener('navigation:cleanup', handleNavCleanup);
+    };
+  }, []);
+
   // =====================================================
   // Open a conversation
   // =====================================================
