@@ -125,30 +125,35 @@ function NavItems({
   const router = useRouter();
 
   const handleNav = (sectionId: string) => {
-    // Navigate via URL — usePathname() is the SOLE source of truth for the UI.
-    // The URL change triggers re-render, which updates activeSection from pathname.
-    // The Zustand store is synced FROM pathname (not vice versa), eliminating race conditions.
     const path = getSectionPath(role, sectionId);
+
+    // ─── CRITICAL: Close mobile Sheet FIRST, then navigate ───
+    // The mobile Sheet uses Radix UI Dialog, which adds `inert` to the
+    // React root when open. If we navigate BEFORE closing the Sheet,
+    // Radix UI's close animation may re-add `inert` after our cleanup,
+    // making the entire page non-interactive (hover works, clicks don't).
+    //
+    // By closing the Sheet FIRST:
+    // 1. Radix Dialog starts its close process
+    // 2. We clean up inert/pointer-events
+    // 3. We navigate (which triggers additional cleanup in the layout)
+    // 4. Radix Dialog finishes closing and removes its portal
+    //
+    // This order ensures inert is never left behind after navigation.
+    onNavClick?.(); // Close the mobile Sheet FIRST
+
+    // Navigate via URL — usePathname() is the SOLE source of truth for the UI.
     router.push(path);
 
-    // ─── CRITICAL: Global modal/overlay cleanup on navigation ───
-    // When navigating while a modal is open, the modal's backdrop overlay
-    // can persist in the DOM and block all pointer events. This cleanup
-    // ensures the body is always interactive after navigation.
-    //
-    // We run cleanup MULTIPLE times:
-    // 1. Immediately — to close dialogs and remove inert/pointer-events
-    // 2. After rAF — to catch React batched updates
-    // 3. After 300ms — to catch slow animations
-    // (The dashboard layout also runs cleanup on pathname change)
+    // Global modal/overlay cleanup — removes inert and body locks.
+    // The layout also runs cleanup on pathname change, but this ensures
+    // immediate cleanup before the URL change propagates.
     cleanupAfterNavigation();
 
+    // Deferred cleanup catches React batched updates and animation timing
     requestAnimationFrame(() => {
       cleanupAfterNavigation();
     });
-
-    // Close the mobile sheet
-    onNavClick?.();
   };
 
   return (

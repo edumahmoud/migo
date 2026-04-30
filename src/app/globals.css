@@ -403,19 +403,13 @@
 }
 
 /* ─── GLOBAL OVERLAY DEADLOCK PREVENTION ─── */
-/* These rules MUST be global (not inside @media) because overlay blocking
-   happens on ALL devices, not just touch devices. When a user navigates while
-   a modal is open, stale overlays can block all pointer events.
+/* ROOT CAUSE: The `inert` HTML attribute blocks ALL user interaction events
+   (click, focus, keyboard) but does NOT block CSS :hover. This is why users
+   see hover effects but clicks don't work after navigation.
    
-   ROOT CAUSE: The `inert` HTML attribute blocks ALL user interaction events
-   (click, focus, keyboard) but does NOT block CSS :hover (which is applied
-   by the browser's rendering engine based on pointer position). This is why
-   users see hover effects but clicks don't work after navigation.
-   
-   Radix UI Dialog adds `inert` to page content when a dialog opens. In the
-   keep-alive pattern, a dialog's portal stays at body level with
-   data-state="open" even after the section is hidden, keeping `inert` on
-   the React root (#__next) and making the entire app non-interactive. */
+   The JavaScript cleanup (navigation-cleanup.ts) handles removing `inert` and
+   body locks. These CSS rules are a defense-in-depth layer that prevents stale
+   overlays from blocking clicks even if the JS cleanup is delayed. */
 
 /* Framer Motion AnimatePresence exit animations keep elements in DOM briefly;
    this ensures they don't intercept pointer events during exit */
@@ -423,9 +417,7 @@
   pointer-events: none !important;
 }
 
-/* Hidden keep-alive sections (tabpanel with aria-hidden) must never intercept pointer events.
-   This is the PRIMARY fix for the overlay blocking bug — when a section is hidden via
-   CSS display:none + aria-hidden, any fixed-position overlays inside it must not block clicks. */
+/* Hidden keep-alive sections (tabpanel with aria-hidden) must never intercept pointer events. */
 [role="tabpanel"][aria-hidden="true"] {
   pointer-events: none !important;
 }
@@ -436,49 +428,39 @@
   pointer-events: none !important;
 }
 
-/* Any closed Radix portal must not block clicks */
+/* Any closed Radix portal content must not block clicks */
 [data-radix-portal] [data-state="closed"] {
   pointer-events: none !important;
 }
 
-/* Radix UI Dialog overlays that are not open must never block clicks.
-   These are typically fixed-position backdrop divs with bg-black/80 */
+/* Closed overlays must never block clicks */
 [data-radix-overlay][data-state="closed"],
 [data-radix-overlay]:not([data-state="open"]) {
   pointer-events: none !important;
 }
 
-/* ─── CRITICAL: Stale portal prevention ─── */
-/* When a dialog in a hidden section has its portal at body level,
-   the portal itself might still have data-state="open" but should NOT
-   block page interaction. These rules target portal overlays that are
-   visually invisible (opacity 0 or display none) but still block clicks. */
+/* Closed sheet/dialog overlay and content must not block */
 [data-radix-portal] [data-state="closed"][data-slot="sheet-overlay"],
 [data-radix-portal] [data-state="closed"][data-slot="dialog-overlay"] {
   pointer-events: none !important;
   opacity: 0 !important;
 }
 
-/* Ensure sheet/dialog content containers with closed state don't block */
 [data-radix-portal] [data-state="closed"][data-slot="sheet-content"],
 [data-radix-portal] [data-state="closed"][data-slot="dialog-content"] {
   pointer-events: none !important;
   visibility: hidden !important;
 }
 
-/* ─── Stale portal overlay blocking fix ─── */
-/* When navigating away from a section that had an open dialog, the
-   portal overlay (bg-black/50, fixed inset-0, z-50) can remain in DOM
-   and block all clicks on the page. This rule ensures portals without
-   any genuinely open content are non-interactive. */
+/* Portals without any open content are stale and must not block clicks */
 [data-radix-portal]:not(:has([data-state="open"])) {
   pointer-events: none !important;
 }
 
-/* ─── CRITICAL: Prevent body pointer-events lock ─── */
-/* Radix UI Dialog sets pointer-events: none on <body> when a dialog opens.
-   This must be overridden to prevent the entire page from becoming non-interactive
-   after navigation. The JavaScript cleanup will handle proper restoration. */
+/* ─── CRITICAL: Ensure header/sidebar/nav are ALWAYS interactive ─── */
+/* Even when body has pointer-events: none (set by Radix Dialog), these
+   navigation elements must remain clickable. The JS cleanup removes
+   pointer-events: none from body, but this CSS rule is a safety net. */
 body[style*="pointer-events: none"] header,
 body[style*="pointer-events: none"] aside,
 body[style*="pointer-events: none"] nav,
