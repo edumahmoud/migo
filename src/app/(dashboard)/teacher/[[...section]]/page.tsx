@@ -17,7 +17,7 @@ export default function TeacherPage() {
     return (
       <div className="min-h-screen flex items-center justify-center" dir="rtl">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items:center shadow-lg shadow-emerald-500/30">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
             <BookOpen className="w-9 h-9 text-white" />
           </div>
           <div className="flex items-center gap-2">

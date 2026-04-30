@@ -152,10 +152,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     }
   }, [pathnameSection, storeSection, setTeacherSection]);
 
-  // Use store value for rendering — updates IMMEDIATELY on sidebar click
-  // because the sidebar calls setTeacherSection() before router.push()
-  // Falls back to pathnameSection on first render (before Zustand persist hydrates)
-  const activeSection: TeacherSection = storeSection || pathnameSection;
+  // URL (pathname) is the source of truth for rendering.
+  // Store is used only as fallback for instant sidebar clicks (before URL updates).
+  // On page refresh, pathnameSection is correct from the URL, while storeSection
+  // defaults to 'dashboard' (not persisted), so pathnameSection MUST take priority.
+  const activeSection: TeacherSection = pathnameSection || storeSection;
 
   // Keep-alive: track which sections have been mounted to prevent unmount/remount
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);

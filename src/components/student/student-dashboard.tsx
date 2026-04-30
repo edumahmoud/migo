@@ -137,8 +137,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Router for URL-based navigation ───
   const router = useRouter();
 
-  // ─── Active section: Zustand store is PRIMARY source (instant on click),
-  //    pathname is SECONDARY (syncs on back/forward, direct URL access)
+  // ─── Active section: pathname is PRIMARY source of truth (URL = source of truth),
+  //    Zustand store is used for INSTANT updates on sidebar click (before URL changes)
   const pathname = usePathname();
   const pathnameSection = useMemo(() => {
     return getStudentSectionFromPathname(pathname);
@@ -151,9 +151,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     }
   }, [pathnameSection, storeSection, setStudentSection]);
 
-  // Use store value for rendering — updates IMMEDIATELY on sidebar click
-  // Falls back to pathnameSection on first render (before Zustand persist hydrates)
-  const activeSection: StudentSection = storeSection || pathnameSection;
+  // URL (pathname) is the source of truth for rendering.
+  // Store is used only as fallback for instant sidebar clicks (before URL updates).
+  // On page refresh, pathnameSection is correct from the URL, while storeSection
+  // defaults to 'dashboard' (not persisted), so pathnameSection MUST take priority.
+  const activeSection: StudentSection = pathnameSection || storeSection;
 
   // Keep-alive: track which sections have been mounted to prevent remounting
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);
@@ -2350,6 +2352,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         userId={profile.id}
         userRole="student"
         userGender={profile.gender}
+        titleId={profile.title_id}
         avatarUrl={profile.avatar_url}
         onSignOut={onSignOut}
         onOpenSettings={() => handleSectionChange('settings')}

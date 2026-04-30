@@ -266,9 +266,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     }
   }, [pathnameSection, storeSection, setAdminSection]);
 
-  // Use store value for rendering — updates IMMEDIATELY on sidebar click
-  // Falls back to pathnameSection on first render (before Zustand persist hydrates)
-  const activeSection: AdminSection = storeSection || pathnameSection;
+  // URL (pathname) is the source of truth for rendering.
+  // Store is used only as fallback for instant sidebar clicks (before URL updates).
+  // On page refresh, pathnameSection is correct from the URL, while storeSection
+  // defaults to 'dashboard' (not persisted), so pathnameSection MUST take priority.
+  const activeSection: AdminSection = pathnameSection || storeSection;
 
   // ─── Keep-alive: track which sections have been mounted ───
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);
@@ -3224,7 +3226,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
       {/* Sidebar */}
       <AppSidebar
-        role={profile.role as 'student' | 'teacher' | 'admin'}
+        role={profile.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
         customNavItems={adminNavItems.filter(item => !(item as { superadminOnly?: boolean }).superadminOnly || profile.role === 'superadmin')}

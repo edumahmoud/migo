@@ -226,7 +226,13 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // =====================================================
   const fetchConversations = useCallback(async () => {
     try {
-      const res = await fetch(`/api/chat?action=conversations&userId=${profile.id}`);
+      // 🔒 Pass auth token for reliable authentication (not just cookies)
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+      const res = await fetch(`/api/chat?action=conversations&userId=${profile.id}`, { headers });
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
