@@ -55,7 +55,7 @@ import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import NotificationsSection from '@/components/shared/notifications-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
-import { useMountedSections } from '@/hooks/use-mounted-sections';
+import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import type { UserProfile, Quiz, Score, Subject, TeacherSection } from '@/lib/types';
@@ -136,27 +136,22 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const storeSection = useAppStore((s) => s.teacherSection);
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
-  // ─── Active section: Zustand store is PRIMARY source (instant on click),
-  //    pathname is SECONDARY (syncs on back/forward, direct URL access)
+  // ─── Navigation: Zustand store is the SOLE source of truth for activeSection.
+  //    Sidebar clicks update the store instantly → CSS toggle is immediate.
+  //    Pathname changes (browser back/forward, direct URL) are synced to the store.
+  //    A "pending navigation" guard prevents pathname from overwriting a sidebar click
+  //    during the brief window where the store has updated but the URL hasn't caught up.
   const pathname = usePathname();
   const pathnameSection = useMemo(() => {
     return getTeacherSectionFromPathname(pathname);
   }, [pathname]);
   const router = useRouter();
 
-  // Sync pathname → store (for back/forward, direct URL access, page refresh)
-  // This runs AFTER render, so the store always catches up to the URL
-  useEffect(() => {
-    if (pathnameSection !== storeSection) {
-      setTeacherSection(pathnameSection);
-    }
-  }, [pathnameSection, storeSection, setTeacherSection]);
-
-  // URL (pathname) is the source of truth for rendering.
-  // Store is used only as fallback for instant sidebar clicks (before URL updates).
-  // On page refresh, pathnameSection is correct from the URL, while storeSection
-  // defaults to 'dashboard' (not persisted), so pathnameSection MUST take priority.
-  const activeSection: TeacherSection = pathnameSection || storeSection;
+  const activeSection: TeacherSection = useNavigationSync({
+    pathnameSection,
+    storeSection,
+    setStoreSection: setTeacherSection,
+  }) as TeacherSection;
 
   // Keep-alive: track which sections have been mounted to prevent unmount/remount
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);

@@ -52,7 +52,7 @@ import { STUDENT_SECTION_PATHS, getStudentSectionFromPathname } from '@/lib/navi
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
-import { useMountedSections } from '@/hooks/use-mounted-sections';
+import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
 import AttendanceSection from '@/components/shared/attendance-section';
 
 // -------------------------------------------------------
@@ -137,28 +137,27 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Router for URL-based navigation ───
   const router = useRouter();
 
-  // ─── Active section: pathname is PRIMARY source of truth (URL = source of truth),
-  //    Zustand store is used for INSTANT updates on sidebar click (before URL changes)
+  // ─── Navigation: Zustand store is the SOLE source of truth for activeSection.
+  //    Sidebar clicks update the store instantly → CSS toggle is immediate.
+  //    Pathname changes (browser back/forward, direct URL) are synced to the store.
+  //    A "pending navigation" guard prevents pathname from overwriting a sidebar click
+  //    during the brief window where the store has updated but the URL hasn't caught up.
   const pathname = usePathname();
   const pathnameSection = useMemo(() => {
     return getStudentSectionFromPathname(pathname);
   }, [pathname]);
 
-  // Sync pathname → store (for back/forward, direct URL access, page refresh)
-  useEffect(() => {
-    if (pathnameSection !== storeSection) {
-      setStudentSection(pathnameSection);
-    }
-  }, [pathnameSection, storeSection, setStudentSection]);
-
-  // URL (pathname) is the source of truth for rendering.
-  // Store is used only as fallback for instant sidebar clicks (before URL updates).
-  // On page refresh, pathnameSection is correct from the URL, while storeSection
-  // defaults to 'dashboard' (not persisted), so pathnameSection MUST take priority.
-  const activeSection: StudentSection = pathnameSection || storeSection;
+  const activeSection: StudentSection = useNavigationSync({
+    pathnameSection,
+    storeSection,
+    setStoreSection: setStudentSection,
+  }) as StudentSection;
 
   // Keep-alive: track which sections have been mounted to prevent remounting
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);
+
+  // Data loading flag — used only for dashboard section loading indicator
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   // When navigating away from subjects, clear selectedSubjectId
   useEffect(() => {
@@ -2296,9 +2295,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     </motion.div>
     );
   };
-
-  // Data loading flag — used only for dashboard section loading indicator
-  const [dataLoaded, setDataLoaded] = useState(false);
 
   // -------------------------------------------------------
   // Render: Section content

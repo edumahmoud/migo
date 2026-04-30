@@ -74,7 +74,7 @@ import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 import { ADMIN_SECTION_PATHS, getAdminSectionFromPathname } from '@/lib/navigation-config';
-import { useMountedSections } from '@/hooks/use-mounted-sections';
+import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
 
 // -------------------------------------------------------
 // Props
@@ -251,26 +251,22 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const setAdminSection = useAppStore((s) => s.setAdminSection);
   const storeSection = useAppStore((s) => s.adminSection);
   const router = useRouter();
-  const pathname = usePathname();
 
-  // ─── Navigation: Zustand store is PRIMARY source (instant on click),
-  //    pathname is SECONDARY (syncs on back/forward, direct URL access)
+  // ─── Navigation: Zustand store is the SOLE source of truth for activeSection.
+  //    Sidebar clicks update the store instantly → CSS toggle is immediate.
+  //    Pathname changes (browser back/forward, direct URL) are synced to the store.
+  //    A "pending navigation" guard prevents pathname from overwriting a sidebar click
+  //    during the brief window where the store has updated but the URL hasn't caught up.
+  const pathname = usePathname();
   const pathnameSection = useMemo(() => {
     return getAdminSectionFromPathname(pathname);
   }, [pathname]);
 
-  // Sync pathname → store (for back/forward, direct URL access, page refresh)
-  useEffect(() => {
-    if (pathnameSection !== storeSection) {
-      setAdminSection(pathnameSection);
-    }
-  }, [pathnameSection, storeSection, setAdminSection]);
-
-  // URL (pathname) is the source of truth for rendering.
-  // Store is used only as fallback for instant sidebar clicks (before URL updates).
-  // On page refresh, pathnameSection is correct from the URL, while storeSection
-  // defaults to 'dashboard' (not persisted), so pathnameSection MUST take priority.
-  const activeSection: AdminSection = pathnameSection || storeSection;
+  const activeSection: AdminSection = useNavigationSync({
+    pathnameSection,
+    storeSection,
+    setStoreSection: setAdminSection,
+  }) as AdminSection;
 
   // ─── Keep-alive: track which sections have been mounted ───
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);
