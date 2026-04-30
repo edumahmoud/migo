@@ -168,3 +168,43 @@ Stage Summary:
 - Catch-all routes `[[...section]]` match both base paths (`/student`) and nested paths (`/student/subjects`, `/student/chat`, etc.)
 - Dashboard layout handles auth, socket, status store, and ban overlay centrally
 - Lint clean, no issues
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Fix navigation freeze and slow initial load
+
+Work Log:
+- Deep investigation of navigation flow: read all critical files (layout, pages, dashboards, sidebar, navigation config, auth store, socket provider, chat section)
+- Identified root cause of navigation freeze: `AnimatePresence mode="popLayout"` with `key={activeSection}` in all 3 dashboards
+  - When section changes, BOTH old (exiting) and new (entering) sections exist in DOM simultaneously
+  - Heavy sections like ChatSection do extensive initialization (Supabase Realtime, polling, Socket.IO)
+  - If any section throws during mount, NO error boundary exists → entire React tree crashes
+  - User sees frozen UI (DOM still alive for hover effects) but nothing functional works
+- Identified root cause of slow initial load: auth initialized TWICE (home page + dashboard layout)
+  - User sees "جاري التحميل" → "جاري التحويل" → "جاري التحميل" → Dashboard (3 loading screens)
+  - Dashboard layout calls `initialize()` unconditionally, even if auth is already done
+
+Fixes applied:
+1. Removed `AnimatePresence mode="popLayout"` from section switching in all 3 dashboards
+   - Replaced with simple `motion.div key={activeSection}` (no exit animation, no simultaneous rendering)
+   - Old section unmounts immediately, new section mounts — only one section in DOM at a time
+2. Added `SectionErrorBoundary` component wrapping section content in all 3 dashboards
+   - Catches rendering errors in any section
+   - Shows Arabic error message with retry button and collapsible debug details
+   - Prevents section crashes from breaking the entire app
+3. Optimized auth initialization in dashboard layout
+   - Added condition: `if (!initialized) { initialize(); }` — skips re-initialization if auth is already done
+   - Prevents redundant network calls (getSession + /api/auth/me) when navigating from home page
+   - Eliminates the second "جاري التحميل" screen
+4. Lighter loading screens
+   - Removed framer-motion animations from loading screens in both layout and home page
+   - Simpler, smaller DOM elements render faster
+   - Less JavaScript to parse/execute during initial load
+
+Stage Summary:
+- Files changed: 6
+  - New: `src/components/shared/section-error-boundary.tsx`
+  - Modified: `src/app/(dashboard)/layout.tsx`, `src/app/page.tsx`, `src/components/student/student-dashboard.tsx`, `src/components/teacher/teacher-dashboard.tsx`, `src/components/admin/admin-dashboard.tsx`
+- Key change: Navigation no longer renders old+new sections simultaneously, error boundary prevents total app crash
+- GitHub commit: 04e979e
