@@ -129,9 +129,10 @@ ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT F
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP WITH TIME ZONE;
 
 -- Enable Realtime for chat tables (required for instant message delivery)
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_participants;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+-- Wrapped in DO blocks to avoid error if tables are already in the publication
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.messages; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_participants; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- Add missing RLS DELETE policies (required for conversation deletion)
 DROP POLICY IF EXISTS "Users can delete their own participation" ON public.conversation_participants;

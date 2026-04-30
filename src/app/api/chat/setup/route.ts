@@ -69,9 +69,10 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender ON public.messages(sender_id);
 
 -- Enable Supabase Realtime for chat tables (required for postgres_changes)
 -- This allows the client to subscribe to INSERT/UPDATE/DELETE events
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_participants;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+-- Wrapped in DO blocks to avoid error if tables are already in the publication
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.messages; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_participants; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- Enable RLS
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
