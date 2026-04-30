@@ -11,10 +11,6 @@ import { getDefaultPath } from '@/lib/navigation-config';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import RoleGuard from '@/components/shared/role-guard';
-import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
-// Import inert-guard to activate the module-level inert blocker.
-// This runs at import time and persists across component mounts/unmounts.
-import '@/lib/inert-guard';
 import type { UserRole } from '@/lib/types';
 
 // =====================================================
@@ -27,12 +23,9 @@ import type { UserRole } from '@/lib/types';
 //   Layer 3 (Client):     RoleGuard component — client-side redirect
 //   Layer 4 (This file):  Layout-level auth init + redirect
 //
-// INERT FIX (v8): The inert-guard module (imported above) runs at
-// module level and prevents `inert` from being set on html/body
-// elements. It also uses a MutationObserver + setInterval to remove
-// any `inert` attributes that get added to other elements. This is
-// more reliable than the per-component useInertCleanup hooks because
-// it persists across component mounts/unmounts.
+// INERT FIX (v9): Dialog/Sheet/AlertDialog now use modal={false}
+// which prevents Radix from ever adding `inert` to the page.
+// No more inert cleanup code needed!
 
 // Map URL prefix → allowed roles
 const ROUTE_ROLE_MAP: Record<string, UserRole[]> = {
@@ -94,11 +87,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     }
   }, [initialized, user, loading, pathname, router]);
-
-  // Navigation cleanup: remove inert/body locks on pathname change
-  useEffect(() => {
-    cleanupAfterNavigation();
-  }, [pathname]);
 
   if (!isSupabaseConfigured) {
     return <SupabaseConfigError />;

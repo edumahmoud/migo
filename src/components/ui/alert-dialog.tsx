@@ -6,10 +6,20 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
+/**
+ * AlertDialog — Non-modal by default.
+ *
+ * Same reason as Dialog: prevents `inert` attribute from being added to
+ * sibling elements, which was causing the bug where hover works but clicks
+ * don't after navigation.
+ *
+ * See dialog.tsx for the full explanation.
+ */
 function AlertDialog({
+  modal = false,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+  return <AlertDialogPrimitive.Root data-slot="alert-dialog" modal={modal} {...props} />
 }
 
 function AlertDialogTrigger({
@@ -44,35 +54,10 @@ function AlertDialogOverlay({
   )
 }
 
-/**
- * Inert cleanup hook — lightweight version.
- * The module-level inert-guard (imported in layout.tsx) handles the heavy lifting.
- * This hook just does an immediate cleanup on mount as an extra safety net.
- */
-function useInertCleanup() {
-  React.useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.documentElement.removeAttribute('inert');
-    document.body.removeAttribute('inert');
-    document.querySelectorAll('[inert]').forEach((el) => {
-      const isInOpenDialog = el.closest('[data-state="open"][role="dialog"]');
-      if (!isInOpenDialog) {
-        el.removeAttribute('inert');
-      }
-    });
-    if (document.body.style.pointerEvents === 'none') {
-      document.body.style.pointerEvents = '';
-    }
-  }, []);
-}
-
 function AlertDialogContent({
   className,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
-  // Remove stale inert attributes caused by Radix AlertDialog modal behavior
-  useInertCleanup();
-
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />

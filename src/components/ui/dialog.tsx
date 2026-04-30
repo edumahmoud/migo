@@ -6,10 +6,30 @@ import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Dialog — Non-modal by default.
+ *
+ * WHY NON-MODAL?
+ * Radix Dialog's modal mode adds `inert` attribute to all sibling elements
+ * when a dialog opens. The `inert` attribute blocks ALL user interaction
+ * (click, focus, keyboard) but NOT CSS :hover. When a dialog's parent
+ * component unmounts during navigation, Radix's cleanup may not complete,
+ * leaving `inert` stuck on the page root — which breaks ALL button clicks
+ * until a page refresh.
+ *
+ * Using `modal={false}` prevents Radix from ever adding `inert`, which
+ * eliminates this bug entirely. Trade-offs:
+ *   - Tab key no longer traps focus inside the dialog (acceptable)
+ *   - Background content is still interactive while dialog is open
+ *   - The overlay still visually covers the background
+ *   - Clicking the overlay or pressing Escape still closes the dialog
+ *   - This is the SAME approach used by the mobile sidebar (app-sidebar.tsx)
+ */
 function Dialog({
+  modal = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+  return <DialogPrimitive.Root data-slot="dialog" modal={modal} {...props} />
 }
 
 function DialogTrigger({
@@ -46,35 +66,6 @@ function DialogOverlay({
   )
 }
 
-/**
- * Inert cleanup hook — lightweight version that delegates to the
- * module-level inert-guard for the heavy lifting.
- *
- * The inert-guard module (imported in layout.tsx) handles:
- *   - Preventing `inert` on html/body via setAttribute override
- *   - MutationObserver that removes `inert` immediately
- *   - 100ms interval cleanup as fallback
- *
- * This hook just does an immediate cleanup on mount as an extra safety net.
- */
-function useInertCleanup() {
-  React.useEffect(() => {
-    if (typeof document === 'undefined') return;
-    // Immediate cleanup on mount — the module-level guard handles ongoing cleanup
-    document.documentElement.removeAttribute('inert');
-    document.body.removeAttribute('inert');
-    document.querySelectorAll('[inert]').forEach((el) => {
-      const isInOpenDialog = el.closest('[data-state="open"][role="dialog"]');
-      if (!isInOpenDialog) {
-        el.removeAttribute('inert');
-      }
-    });
-    if (document.body.style.pointerEvents === 'none') {
-      document.body.style.pointerEvents = '';
-    }
-  }, []);
-}
-
 function DialogContent({
   className,
   children,
@@ -83,9 +74,6 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
-  // Remove stale inert attributes caused by Radix Dialog modal behavior
-  useInertCleanup();
-
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />

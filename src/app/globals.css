@@ -403,17 +403,12 @@
 }
 
 /* ─── Stale Overlay Cleanup ─── */
-/* Lightweight rules to ensure closed Radix portals don't block clicks.
-   The rebuild eliminated the keep-alive pattern (which was the root cause
-   of the navigation blocking bug), so these are just safety nets. */
+/* With modal={false} on Dialog/Sheet/AlertDialog, Radix no longer adds
+   `inert` to the page. These rules are safety nets for any remaining
+   portal cleanup issues. */
 
 /* Closed Radix portal content must not block clicks */
 [data-radix-portal] [data-state="closed"] {
-  pointer-events: none !important;
-}
-
-/* Stale portals (no open content) must not block clicks */
-[data-radix-portal]:not(:has([data-state="open"])) {
   pointer-events: none !important;
 }
 

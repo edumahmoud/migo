@@ -7,29 +7,16 @@ import { XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
- * Inert cleanup hook — lightweight version.
- * The module-level inert-guard (imported in layout.tsx) handles the heavy lifting.
- * This hook just does an immediate cleanup on mount as an extra safety net.
+ * Sheet — Non-modal by default.
+ *
+ * Same reason as Dialog: prevents `inert` attribute from being added to
+ * sibling elements, which was causing the bug where hover works but clicks
+ * don't after navigation.
+ *
+ * See dialog.tsx for the full explanation.
  */
-function useInertCleanup() {
-  React.useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.documentElement.removeAttribute('inert');
-    document.body.removeAttribute('inert');
-    document.querySelectorAll('[inert]').forEach((el) => {
-      const isInOpenDialog = el.closest('[data-state="open"][role="dialog"]');
-      if (!isInOpenDialog) {
-        el.removeAttribute('inert');
-      }
-    });
-    if (document.body.style.pointerEvents === 'none') {
-      document.body.style.pointerEvents = '';
-    }
-  }, []);
-}
-
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+function Sheet({ modal = false, ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  return <SheetPrimitive.Root data-slot="sheet" modal={modal} {...props} />
 }
 
 function SheetTrigger({
@@ -74,9 +61,6 @@ function SheetContent({
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
 }) {
-  // Remove stale inert attributes (Sheet uses Dialog under the hood)
-  useInertCleanup();
-
   return (
     <SheetPortal>
       <SheetOverlay />
