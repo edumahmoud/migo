@@ -6,7 +6,6 @@ import { useAppStore } from '@/stores/app-store';
 import { useStatusStore } from '@/stores/status-store';
 import { destroySocket } from '@/lib/socket';
 import AdminDashboard from '@/components/admin/admin-dashboard';
-import RoleGuard from '@/components/shared/role-guard';
 
 export default function AdminPage() {
   const { user } = useAuthStore();
@@ -15,7 +14,7 @@ export default function AdminPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center pointer-events-none" dir="rtl">
         <div className="flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
             <Shield className="w-9 h-9 text-white" />
@@ -38,11 +37,7 @@ export default function AdminPage() {
     window.location.href = '/';
   };
 
-  // RoleGuard ensures only 'admin' and 'superadmin' roles can access this page
-  // Defense in Depth: middleware.ts (Edge) → RoleGuard (client)
-  return (
-    <RoleGuard allowedRoles={['admin', 'superadmin']}>
-      <AdminDashboard profile={user} onSignOut={handleSignOut} />
-    </RoleGuard>
-  );
+  // RoleGuard is handled by the dashboard layout — no need for a duplicate here.
+  // Defense in Depth: middleware.ts (Edge) → layout RoleGuard (client)
+  return <AdminDashboard profile={user} onSignOut={handleSignOut} />;
 }

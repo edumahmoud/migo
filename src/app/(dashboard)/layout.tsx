@@ -108,7 +108,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading || !initialized) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 pointer-events-none" dir="rtl">
         <div className="flex flex-col items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
             <GraduationCap className="w-7 h-7 text-white" />

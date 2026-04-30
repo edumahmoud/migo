@@ -6,7 +6,6 @@ import { useAppStore } from '@/stores/app-store';
 import { useStatusStore } from '@/stores/status-store';
 import { destroySocket } from '@/lib/socket';
 import StudentDashboard from '@/components/student/student-dashboard';
-import RoleGuard from '@/components/shared/role-guard';
 
 export default function StudentPage() {
   const { user } = useAuthStore();
@@ -15,7 +14,7 @@ export default function StudentPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center pointer-events-none" dir="rtl">
         <div className="flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
             <GraduationCap className="w-9 h-9 text-white" />
@@ -38,11 +37,7 @@ export default function StudentPage() {
     window.location.href = '/';
   };
 
-  // RoleGuard ensures only 'student' role can access this page
-  // Defense in Depth: middleware.ts (Edge) → RoleGuard (client)
-  return (
-    <RoleGuard allowedRoles={['student']}>
-      <StudentDashboard profile={user} onSignOut={handleSignOut} />
-    </RoleGuard>
-  );
+  // RoleGuard is handled by the dashboard layout — no need for a duplicate here.
+  // Defense in Depth: middleware.ts (Edge) → layout RoleGuard (client)
+  return <StudentDashboard profile={user} onSignOut={handleSignOut} />;
 }

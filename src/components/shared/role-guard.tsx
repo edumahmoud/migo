@@ -70,7 +70,7 @@ export default function RoleGuard({ allowedRoles, children }: RoleGuardProps) {
 
   if (guardState === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-emerald-50/30" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-emerald-50/30 pointer-events-none" dir="rtl">
         <div className="flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
             <Loader2 className="w-8 h-8 text-white animate-spin" />
@@ -86,7 +86,7 @@ export default function RoleGuard({ allowedRoles, children }: RoleGuardProps) {
 
   if (guardState === 'unauthorized') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-orange-50" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-orange-50 pointer-events-none" dir="rtl">
         <div className="flex flex-col items-center gap-4 max-w-md text-center p-6">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-orange-600 flex items-center justify-center shadow-lg shadow-red-500/30">
             <ShieldAlert className="w-8 h-8 text-white" />

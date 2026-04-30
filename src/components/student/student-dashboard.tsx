@@ -137,16 +137,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Router for URL-based navigation ───
   const router = useRouter();
 
-  // ─── Navigation: Zustand store is the SOLE source of truth for activeSection.
-  //    Sidebar clicks update the store instantly → CSS toggle is immediate.
-  //    Pathname changes (browser back/forward, direct URL) are synced to the store.
-  //    A "pending navigation" guard prevents pathname from overwriting a sidebar click
-  //    during the brief window where the store has updated but the URL hasn't caught up.
+  // ─── Navigation: usePathname() is the SOLE source of truth for activeSection.
+  //    Sidebar clicks call router.push() → URL changes → pathname updates → UI re-renders.
+  //    The Zustand store is synced FROM the pathname (not vice versa) so the sidebar
+  //    can highlight the correct active item. This eliminates ALL race conditions.
   const pathname = usePathname();
   const pathnameSection = useMemo(() => {
     return getStudentSectionFromPathname(pathname);
   }, [pathname]);
 
+  // Sync pathname → Zustand store (for sidebar highlight only)
+  // The return value is ALWAYS pathnameSection (the URL is the source of truth)
   const activeSection: StudentSection = useNavigationSync({
     pathnameSection,
     storeSection,
@@ -154,6 +155,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   }) as StudentSection;
 
   // Keep-alive: track which sections have been mounted to prevent remounting
+  // activeSection is derived from pathname, so visibility is strictly URL-reactive
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);
 
   // Data loading flag — used only for dashboard section loading indicator
