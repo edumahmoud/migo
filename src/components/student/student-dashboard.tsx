@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
@@ -47,6 +48,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject } from '@/lib/types';
+import { STUDENT_SECTION_PATHS, getStudentSectionFromSlug } from '@/lib/navigation-config';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 
@@ -121,19 +123,15 @@ function scorePercentage(score: number, total: number): number {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
+export default function StudentDashboard({ profile, onSignOut, sectionSlug }: StudentDashboardProps) {
   // ─── App store ───
-  const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
 
-  // ─── Local active section synced with store ───
-  const [activeSection, setActiveSection] = useState<StudentSection>(storedStudentSection || 'dashboard');
+  // ─── Router for URL-based navigation ───
+  const router = useRouter();
 
-  // Keep local state in sync when store changes (e.g. notification navigation)
-  useEffect(() => {
-    if (storedStudentSection && storedStudentSection !== activeSection) {
-      setActiveSection(storedStudentSection);
-    }
-  }, [storedStudentSection, activeSection]);
+  // ─── Active section derived from URL slug ───
+  const activeSection: StudentSection = getStudentSectionFromSlug(sectionSlug || []);
 
   // When navigating away from subjects, clear selectedSubjectId
   useEffect(() => {
@@ -490,8 +488,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Section change handler
   // -------------------------------------------------------
   const handleSectionChange = (section: string) => {
-    setActiveSection(section as StudentSection);
-    storeSetStudentSection(section as StudentSection);
+    const path = STUDENT_SECTION_PATHS[section as StudentSection] || '/student';
+    router.push(path);
   };
 
   // -------------------------------------------------------
@@ -1052,7 +1050,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 أحدث الملخصات
               </h3>
               <button
-                onClick={() => setActiveSection('summaries')}
+                onClick={() => router.push('/student/summaries')}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
               >
                 عرض الكل
@@ -1070,7 +1068,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <motion.button
                       key={summary.id}
                       whileHover={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
-                      onClick={() => setViewingSummaryId(summary.id)}
+                      onClick={() => router.push(`/summary/${summary.id}`)}
                       className="flex w-full items-start gap-3 p-4 text-right transition-colors"
                     >
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
@@ -1202,7 +1200,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 </button>
 
                 <button
-                  onClick={() => setViewingSummaryId(summary.id)}
+                  onClick={() => router.push(`/summary/${summary.id}`)}
                   className="w-full text-right"
                 >
                   <div className="flex items-center gap-3 mb-3">
@@ -1444,7 +1442,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             أنشئ ملخصاً أولاً وسيتم توليد اختبار تلقائياً
           </p>
           <button
-            onClick={() => setActiveSection('summaries')}
+            onClick={() => router.push('/student/summaries')}
             className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700"
           >
             <FileText className="h-4 w-4" />
@@ -1500,7 +1498,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <div className="mt-4 flex items-center gap-2">
                     {isCompleted ? (
                       <button
-                        onClick={() => setViewingQuizId(quiz.id)}
+                        onClick={() => router.push(`/quiz/${quiz.id}`)}
                         className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
                       >
                         <Eye className="h-3.5 w-3.5" />
@@ -1508,7 +1506,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       </button>
                     ) : (
                       <button
-                        onClick={() => setViewingQuizId(quiz.id)}
+                        onClick={() => router.push(`/quiz/${quiz.id}`)}
                         className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-teal-700"
                       >
                         <Play className="h-3.5 w-3.5" />

@@ -30,7 +30,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
-import { useAppStore } from '@/stores/app-store';
+import { useRouter } from 'next/navigation';
 import type { UserProfile, Subject, Quiz, QuizQuestion, Score } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -104,7 +104,7 @@ function isQuizExpired(quiz: Quiz): boolean {
 // Main Component
 // -------------------------------------------------------
 export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
-  const { setViewingQuizId } = useAppStore();
+  const router = useRouter();
 
   // ─── Sub-tab ───
   const [subTab, setSubTab] = useState<ExamSubTab>('active');
@@ -1296,7 +1296,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           {/* Active: Take quiz button (student) */}
           {!isFinishedTab && !myScore && (
             <button
-              onClick={() => setViewingQuizId(quiz.id)}
+              onClick={() => router.push(`/quiz/${quiz.id}`)}
               className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 mt-3 w-full justify-center"
             >
               <Play className="h-3.5 w-3.5" />
@@ -1307,7 +1307,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           {/* View quiz (student completed / finished) */}
           {myScore && (
             <button
-              onClick={() => setViewingQuizId(quiz.id)}
+              onClick={() => router.push(`/quiz/${quiz.id}`)}
               className="flex items-center gap-1.5 rounded-lg border px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors mt-3 w-full justify-center"
             >
               <Eye className="h-3.5 w-3.5" />

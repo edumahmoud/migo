@@ -1,88 +1,30 @@
 'use client';
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, Megaphone, Ban, TrendingUp, MessageCircle, Building2, FileText, FolderOpen, FileSpreadsheet, Bell } from 'lucide-react';
+import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useStatusStore } from '@/stores/status-store';
-import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 import { setSocketAuth, destroySocket } from '@/lib/socket';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { getDefaultPath } from '@/lib/navigation-config';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
 import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
-import StudentDashboard from '@/components/student/student-dashboard';
-import TeacherDashboard from '@/components/teacher/teacher-dashboard';
-import AdminDashboard from '@/components/admin/admin-dashboard';
-import QuizView from '@/components/shared/quiz-view';
-import SummaryView from '@/components/shared/summary-view';
-import UserProfilePage from '@/components/shared/user-profile-page';
-import AppHeader from '@/components/shared/app-header';
-import AppSidebar from '@/components/shared/app-sidebar';
 import SetupWizard from '@/components/setup/setup-wizard';
-import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
-// Admin navigation items (shared between admin-dashboard and profile page sidebar)
-const adminNavItems = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'users', label: 'المستخدمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'announcements', label: 'الإعلانات', icon: <Megaphone className="h-5 w-5" /> },
-  { id: 'banned', label: 'المحظورون', icon: <Ban className="h-5 w-5" /> },
-  { id: 'reports', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
-  { id: 'institution', label: 'المؤسسة', icon: <Building2 className="h-5 w-5" /> },
-];
-
-// Teacher navigation items (for profile page sidebar)
-const teacherNavItems = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'students', label: 'الطلاب', icon: <Users className="h-5 w-5" /> },
-  { id: 'files', label: 'ملفاتي', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'analytics', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
-];
-
-// Student navigation items (for profile page sidebar)
-const studentNavItems = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'teachers', label: 'المعلمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'summaries', label: 'الملخصات', icon: <FileText className="h-5 w-5" /> },
-  { id: 'assignments', label: 'المهام', icon: <FileSpreadsheet className="h-5 w-5" /> },
-  { id: 'files', label: 'ملفاتي', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
-];
-
 function HomeContent() {
-  const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo } = useAuthStore();
-  const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection } = useAppStore();
+  const { user, loading, initialized, initialize, signOut, sessionKickedMessage } = useAuthStore();
+  const { reset: resetAppStore } = useAppStore();
   const { cleanup: cleanupStatusStore, init: initStatusStore } = useStatusStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
-
-  // ─── Close sidebar when navigating to quiz/summary views ───
-  // These views don't include the sidebar component, so we need to ensure
-  // the mobile Sheet (portal) is closed and desktop sidebar state is reset
-  // NOTE: Profile page DOES include AppSidebar, so we don't force-close it there
-  useEffect(() => {
-    if (currentPage === 'quiz' || currentPage === 'summary') {
-      if (sidebarOpen) {
-        setSidebarOpen(false);
-      }
-    }
-  }, [currentPage, sidebarOpen, setSidebarOpen]);
+  const router = useRouter();
 
   // ─── Setup Wizard state ───
   const [setupCheckDone, setSetupCheckDone] = useState(false);
@@ -143,18 +85,17 @@ function HomeContent() {
 
     if (newUser && user) {
       // New Google OAuth user - redirect to student dashboard (default role)
-      setCurrentPage('student-dashboard');
-      // Clean the URL
+      router.replace('/student');
       window.history.replaceState({}, '', '/');
     }
-  }, [searchParams, user, setCurrentPage]);
+  }, [searchParams, user, router]);
 
   // Initialize auth on mount
   useEffect(() => {
     initialize();
   }, [initialize]);
 
-  // Set correct page when user state changes
+  // Redirect authenticated users to their dashboard route
   useEffect(() => {
     if (!initialized) return;
 
@@ -162,21 +103,11 @@ function HomeContent() {
     if (wizardInProgress) return;
 
     if (user) {
-      if (currentPage === 'auth') {
-        setCurrentPage(
-          user.role === 'superadmin' || user.role === 'admin'
-            ? 'admin-dashboard'
-            : user.role === 'teacher'
-              ? 'teacher-dashboard'
-              : 'student-dashboard'
-        );
-      }
-    } else if (currentPage !== 'auth') {
-      // Only set to auth if we're not already on auth page
-      // This prevents flicker during sign-out
-      setCurrentPage('auth');
+      // Redirect to the proper dashboard route based on role
+      const dashboardPath = getDefaultPath(user.role as 'student' | 'teacher' | 'admin' | 'superadmin');
+      router.replace(dashboardPath);
     }
-  }, [user, initialized, currentPage, setCurrentPage, wizardInProgress]);
+  }, [user, initialized, wizardInProgress, router]);
 
   // Show auth error toast if present in URL
   useEffect(() => {
@@ -249,7 +180,7 @@ function HomeContent() {
   }
 
   // Auth pages (login / register)
-  if (!user || currentPage === 'auth') {
+  if (!user) {
     return (
       <div className="min-h-screen flex flex-col justify-start pt-6 px-4 pb-4 sm:flex sm:items-center sm:justify-center sm:p-4 bg-gradient-to-br from-emerald-600 to-teal-700" dir="rtl">
         {/* Background decoration */}
@@ -329,173 +260,25 @@ function HomeContent() {
     );
   }
 
-  // Quiz view
-  if (currentPage === 'quiz' && viewingQuizId) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-teal-50" dir="rtl">
-        <QuizView
-          quizId={viewingQuizId}
-          onBack={() => setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard')}
-          profile={user}
-        />
-      </div>
-    );
-  }
-
-  // Summary view
-  if (currentPage === 'summary' && viewingSummaryId) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-teal-50" dir="rtl">
-        <SummaryView
-          summaryId={viewingSummaryId}
-          onBack={() => setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard')}
-        />
-      </div>
-    );
-  }
-
-  // Profile view — includes AppSidebar so the toggle button works
-  if (currentPage === 'profile' && profileUserId) {
-    const profileNavItems = (() => {
-      if (user.role === 'superadmin' || user.role === 'admin') {
-        return adminNavItems;
-      } else if (user.role === 'teacher') {
-        return teacherNavItems;
-      } else {
-        return studentNavItems;
-      }
-    })();
-
-    const profileActiveSection = (() => {
-      if (user.role === 'superadmin' || user.role === 'admin') return storedAdminSection || 'dashboard';
-      if (user.role === 'teacher') return storedTeacherSection || 'dashboard';
-      return storedStudentSection || 'dashboard';
-    })();
-
-    const profileSectionChangeHandler = (section: string) => {
-      if (user.role === 'superadmin' || user.role === 'admin') {
-        setAdminSection(section as AdminSection);
-      } else if (user.role === 'teacher') {
-        setTeacherSection(section as TeacherSection);
-      } else {
-        setStudentSection(section as StudentSection);
-      }
-      setCurrentPage(
-        user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' :
-        user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard'
-      );
-    };
-
-    return (
-      <div className="flex min-h-screen bg-background" dir="rtl">
-        <AppHeader
-          userName={user.name}
-          userId={user.id}
-          userRole={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
-          userGender={user.gender}
-          titleId={user.title_id}
-          avatarUrl={user.avatar_url}
-          onSignOut={() => {
-            destroySocket();
-            cleanupStatusStore();
-            resetAppStore();
-            setCurrentPage('auth');
-            signOut();
-          }}
-          onOpenSettings={() => {
-            if (user.role === 'superadmin' || user.role === 'admin') {
-              setAdminSection('settings' as AdminSection);
-              setCurrentPage('admin-dashboard');
-            } else if (user.role === 'teacher') {
-              setTeacherSection('settings' as TeacherSection);
-              setCurrentPage('teacher-dashboard');
-            } else {
-              setStudentSection('settings' as StudentSection);
-              setCurrentPage('student-dashboard');
-            }
-          }}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          sidebarCollapsed={!sidebarOpen}
-        />
-        <AppSidebar
-          role={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
-          activeSection={profileActiveSection}
-          onSectionChange={profileSectionChangeHandler}
-          customNavItems={profileNavItems}
-        />
-        <main className={`flex-1 pt-14 sm:pt-16 transition-all duration-300 pl-0 ${
-          sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
-        }`}>
-          <UserProfilePage
-            userId={profileUserId}
-            currentUser={user}
-            onBack={() => setCurrentPage(
-              user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' :
-              user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard'
-            )}
-          />
-        </main>
-      </div>
-    );
-  }
-
-  // Authenticated content wrapped with SocketProvider
-  const dashboardContent = (() => {
-    // Check if user is banned (but not admin - admins can't be banned)
-    const isBannedUser = banInfo && user.role !== 'admin' && user.role !== 'superadmin';
-
-    // Superadmin or Admin dashboard
-    if (user.role === 'superadmin' || user.role === 'admin' || currentPage === 'admin-dashboard') {
-      return (
-        <AdminDashboard
-          profile={user}
-          onSignOut={() => {
-            destroySocket();
-            cleanupStatusStore();
-            resetAppStore();
-            setCurrentPage('auth');
-            signOut();
-          }}
-        />
-      );
-    }
-
-    // Teacher dashboard
-    if (user.role === 'teacher' || currentPage === 'teacher-dashboard') {
-      const teacherContent = (
-        <TeacherDashboard
-          profile={user}
-          onSignOut={() => {
-            destroySocket();
-            cleanupStatusStore();
-            resetAppStore();
-            setCurrentPage('auth');
-            signOut();
-          }}
-        />
-      );
-      return isBannedUser ? <BannedUserOverlay>{teacherContent}</BannedUserOverlay> : teacherContent;
-    }
-
-    // Student dashboard (default)
-    const studentContent = (
-      <StudentDashboard
-        profile={user}
-        onSignOut={() => {
-          destroySocket();
-          cleanupStatusStore();
-          resetAppStore();
-          setCurrentPage('auth');
-          signOut();
-        }}
-      />
-    );
-    return isBannedUser ? <BannedUserOverlay>{studentContent}</BannedUserOverlay> : studentContent;
-  })();
-
+  // User is authenticated — show loading while redirect happens
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-emerald-50/30" dir="rtl">
-      {dashboardContent}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50" dir="rtl">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center gap-4"
+      >
+        <div className="relative">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+            <GraduationCap className="w-9 h-9 text-white" />
+          </div>
+          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 animate-ping" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+          <span className="text-sm font-medium text-emerald-700">جاري التحويل...</span>
+        </div>
+      </motion.div>
     </div>
   );
 }

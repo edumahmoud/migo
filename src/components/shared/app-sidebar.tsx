@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -14,6 +14,10 @@ import {
   ChevronRight,
   MessageCircle,
   Bell,
+  Megaphone,
+  Ban,
+  Building2,
+  ClipboardList,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -24,6 +28,11 @@ import {
 } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
+import {
+  STUDENT_SECTION_PATHS,
+  TEACHER_SECTION_PATHS,
+  ADMIN_SECTION_PATHS,
+} from '@/lib/navigation-config';
 
 // -------------------------------------------------------
 // Types
@@ -31,7 +40,8 @@ import { useAppStore } from '@/stores/app-store';
 interface AppSidebarProps {
   role: 'student' | 'teacher' | 'admin' | 'superadmin';
   activeSection: string;
-  onSectionChange: (section: string) => void;
+  /** @deprecated No longer used - navigation is now URL-based via router.push */
+  onSectionChange?: (section: string) => void;
   customNavItems?: NavItem[];
 }
 
@@ -67,23 +77,51 @@ const teacherNavItems: NavItem[] = [
   { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
 ];
 
+const defaultAdminNavItems: NavItem[] = [
+  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'users', label: 'المستخدمون', icon: <Users className="h-5 w-5" /> },
+  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'announcements', label: 'الإعلانات', icon: <Megaphone className="h-5 w-5" /> },
+  { id: 'banned', label: 'المحظورون', icon: <Ban className="h-5 w-5" /> },
+  { id: 'reports', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
+  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
+  { id: 'institution', label: 'المؤسسة', icon: <Building2 className="h-5 w-5" /> },
+];
+
+// -------------------------------------------------------
+// Get the URL path for a given section + role
+// -------------------------------------------------------
+function getSectionPath(role: 'student' | 'teacher' | 'admin' | 'superadmin', sectionId: string): string {
+  if (role === 'student') return STUDENT_SECTION_PATHS[sectionId as keyof typeof STUDENT_SECTION_PATHS] || '/student';
+  if (role === 'teacher') return TEACHER_SECTION_PATHS[sectionId as keyof typeof TEACHER_SECTION_PATHS] || '/teacher';
+  return ADMIN_SECTION_PATHS[sectionId as keyof typeof ADMIN_SECTION_PATHS] || '/admin';
+}
+
 // -------------------------------------------------------
 // Navigation items content (shared between collapsed/expanded/mobile)
 // -------------------------------------------------------
 function NavItems({
   navItems,
   activeSection,
-  onSectionChange,
+  role,
   collapsed,
   onNavClick,
 }: {
   navItems: NavItem[];
   activeSection: string;
-  onSectionChange: (id: string) => void;
+  role: 'student' | 'teacher' | 'admin' | 'superadmin';
   collapsed: boolean;
   onNavClick?: () => void;
 }) {
   const { chatUnreadCount } = useAppStore();
+  const router = useRouter();
+
+  const handleNav = (sectionId: string) => {
+    const path = getSectionPath(role, sectionId);
+    router.push(path);
+    onNavClick?.();
+  };
 
   return (
     <ul className="space-y-1">
@@ -94,10 +132,7 @@ function NavItems({
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                onSectionChange(item.id);
-                onNavClick?.();
-              }}
+              onClick={() => handleNav(item.id)}
               className={`flex w-full items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 collapsed
                   ? 'justify-center px-2 py-3'
@@ -152,18 +187,18 @@ function NavItems({
 export default function AppSidebar({
   role,
   activeSection,
-  onSectionChange,
+  onSectionChange: _onSectionChange,
   customNavItems,
 }: AppSidebarProps) {
   const isMobile = useIsMobile();
   const { sidebarOpen, setSidebarOpen } = useAppStore();
-  const navItems = customNavItems || (role === 'student' ? studentNavItems : (role === 'admin' || role === 'superadmin') ? [] : teacherNavItems);
+  const navItems = customNavItems || (role === 'student' ? studentNavItems : (role === 'admin' || role === 'superadmin') ? defaultAdminNavItems : teacherNavItems);
 
   const collapsed = !sidebarOpen;
 
-  const handleToggle = useCallback(() => {
+  const handleToggle = () => {
     setSidebarOpen(!sidebarOpen);
-  }, [sidebarOpen, setSidebarOpen]);
+  };
 
   // On mobile, use Sheet (drawer)
   if (isMobile) {
@@ -179,7 +214,7 @@ export default function AppSidebar({
                 <NavItems
                   navItems={navItems}
                   activeSection={activeSection}
-                  onSectionChange={onSectionChange}
+                  role={role}
                   collapsed={false}
                   onNavClick={() => setSidebarOpen(false)}
                 />
@@ -205,7 +240,7 @@ export default function AppSidebar({
             <NavItems
               navItems={navItems}
               activeSection={activeSection}
-              onSectionChange={onSectionChange}
+              role={role}
               collapsed={collapsed}
             />
           </nav>

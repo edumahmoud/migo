@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 // recharts is imported at top level for now — consider lazy-loading the analytics tab component
 import {
@@ -71,6 +72,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
+import { ADMIN_SECTION_PATHS, getAdminSectionFromSlug } from '@/lib/navigation-config';
 
 // -------------------------------------------------------
 // Props
@@ -240,20 +242,14 @@ interface UserWithMeta extends UserProfile {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function AdminDashboard({ profile, onSignOut }: AdminDashboardProps) {
+export default function AdminDashboard({ profile, onSignOut, sectionSlug }: AdminDashboardProps) {
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
-  const { sidebarOpen, setSidebarOpen, adminSection: storedAdminSection, setAdminSection: storeSetAdminSection } = useAppStore();
+  const { sidebarOpen, setSidebarOpen } = useAppStore();
+  const router = useRouter();
 
   // ─── Navigation ───
-  const [activeSection, setActiveSection] = useState<AdminSection>(storedAdminSection || 'dashboard');
-
-  // Keep local state in sync when store changes (e.g. notification navigation)
-  useEffect(() => {
-    if (storedAdminSection && storedAdminSection !== activeSection) {
-      setActiveSection(storedAdminSection);
-    }
-  }, [storedAdminSection, activeSection]);
+  const activeSection: AdminSection = getAdminSectionFromSlug(sectionSlug || []);
 
   // ─── Data state ───
   const [allUsers, setAllUsers] = useState<UserWithMeta[]>([]);
@@ -497,12 +493,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // Section change handler
   // -------------------------------------------------------
   const handleSectionChange = (section: string) => {
-    setActiveSection(section as AdminSection);
-    storeSetAdminSection(section as AdminSection);
-    // Fetch section-specific data
-    if (section === 'banned' || section === 'users') fetchBannedUsers();
-    if (section === 'announcements') fetchAnnouncements();
-    if (section === 'reports') fetchUsageStats(usagePeriod);
+    const path = ADMIN_SECTION_PATHS[section as AdminSection] || '/admin';
+    router.push(path);
   };
 
   // -------------------------------------------------------
@@ -533,6 +525,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       fetchUsageStats(usagePeriod);
     }
   }, [usagePeriod, activeSection, fetchUsageStats]);
+
+  // Fetch section-specific data when section changes
+  useEffect(() => {
+    if (activeSection === 'banned' || activeSection === 'users') fetchBannedUsers();
+    if (activeSection === 'announcements') fetchAnnouncements();
+    // reports section already has its own useEffect watching usagePeriod and activeSection
+  }, [activeSection, fetchBannedUsers, fetchAnnouncements]);
 
   // -------------------------------------------------------
   // Computed values
@@ -1038,7 +1037,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           value={studentCount}
           color="amber"
         />
-        <div onClick={() => setActiveSection('banned')} className="cursor-pointer">
+        <div onClick={() => router.push('/admin/banned')} className="cursor-pointer">
           <StatCard
             icon={<Ban className="h-5 w-5" />}
             label="المحظورون"
@@ -1059,7 +1058,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 أحدث المستخدمين
               </h3>
               <button
-                onClick={() => setActiveSection('users')}
+                onClick={() => router.push('/admin/users')}
                 className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
               >
                 عرض الكل

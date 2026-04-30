@@ -41,11 +41,6 @@ function ProfilePageInner({ params }: { params: Promise<{ id: string }> }) {
     router.push(getDefaultPath(user.role as 'student' | 'teacher' | 'admin' | 'superadmin') + '/settings');
   };
 
-  const handleSectionChange = (section: string) => {
-    const basePath = getDefaultPath(user.role as 'student' | 'teacher' | 'admin' | 'superadmin');
-    router.push(section === 'dashboard' ? basePath : `${basePath}/${section}`);
-  };
-
   // Determine active section from current path (we're on profile)
   const activeSection = 'dashboard'; // Default for profile page sidebar
 
@@ -66,7 +61,6 @@ function ProfilePageInner({ params }: { params: Promise<{ id: string }> }) {
       <AppSidebar
         role={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
         activeSection={activeSection}
-        onSectionChange={handleSectionChange}
       />
       <main className={`flex-1 pt-14 sm:pt-16 transition-all duration-300 pl-0 ${
         sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'

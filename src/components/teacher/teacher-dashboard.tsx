@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { TEACHER_SECTION_PATHS, getTeacherSectionFromSlug } from '@/lib/navigation-config';
 import { motion, AnimatePresence } from 'framer-motion';
 // recharts is imported at top level for now — consider lazy-loading the analytics tab component
 import {
@@ -123,20 +125,14 @@ const PIE_COLORS = ['#10b981', '#14b8a6', '#f59e0b', '#ef4444'];
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboardProps) {
+export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: TeacherDashboardProps) {
   // ─── Stores ───
-  const { teacherSection: storedTeacherSection, setTeacherSection: storeSetTeacherSection, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
-  // ─── Local active section synced with store ───
-  const [activeSection, setActiveSection] = useState<TeacherSection>(storedTeacherSection || 'dashboard');
-
-  // Keep local state in sync when store changes (e.g. notification navigation)
-  useEffect(() => {
-    if (storedTeacherSection && storedTeacherSection !== activeSection) {
-      setActiveSection(storedTeacherSection);
-    }
-  }, [storedTeacherSection, activeSection]);
+  // ─── Active section derived from URL ───
+  const activeSection: TeacherSection = getTeacherSectionFromSlug(sectionSlug || []);
+  const router = useRouter();
 
   // When navigating away from subjects, clear selectedSubjectId
   useEffect(() => {
@@ -390,8 +386,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // Section change handler
   // -------------------------------------------------------
   const handleSectionChange = (section: string) => {
-    setActiveSection(section as TeacherSection);
-    storeSetTeacherSection(section as TeacherSection);
+    const path = TEACHER_SECTION_PATHS[section as TeacherSection] || '/teacher';
+    router.push(path);
   };
 
   // -------------------------------------------------------
@@ -935,7 +931,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           />
           {pendingStudents.length > 0 && (
             <button
-              onClick={() => setActiveSection('students')}
+              onClick={() => router.push('/teacher/students')}
               className="absolute -top-2 -left-2 flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white shadow-sm hover:bg-amber-600 transition-colors"
             >
               <UserPlus className="h-3 w-3" />
@@ -974,7 +970,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 نظرة عامة على الطلاب
               </h3>
               <button
-                onClick={() => setActiveSection('students')}
+                onClick={() => router.push('/teacher/students')}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
               >
                 عرض الكل
@@ -1055,7 +1051,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 تنبيهات الأداء
               </h3>
               <button
-                onClick={() => setActiveSection('analytics')}
+                onClick={() => router.push('/teacher/analytics')}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
               >
                 عرض الكل

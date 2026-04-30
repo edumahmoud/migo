@@ -98,10 +98,6 @@ export const useAppStore = create<AppState>()(
     {
       name: 'attendo-app-store',
       partialize: (state) => ({
-        studentSection: state.studentSection,
-        teacherSection: state.teacherSection,
-        adminSection: state.adminSection,
-        currentPage: state.currentPage,
         selectedSubjectId: state.selectedSubjectId,
         courseTab: state.courseTab,
       }),
