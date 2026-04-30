@@ -137,17 +137,19 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Router for URL-based navigation ───
   const router = useRouter();
 
-  // ─── Navigation: usePathname() is the SOLE source of truth for activeSection.
-  //    Sidebar clicks call router.push() → URL changes → pathname updates → UI re-renders.
-  //    The Zustand store is synced FROM the pathname (not vice versa) so the sidebar
-  //    can highlight the correct active item. This eliminates ALL race conditions.
+  // ─── Navigation: The Zustand store is the PRIMARY source of truth for activeSection.
+  //    Sidebar clicks update the store IMMEDIATELY via setStudentSection(),
+  //    then also call router.push() for the URL. The useNavigationSync hook
+  //    also syncs URL → store (for direct URL access / browser back-forward).
+  //    This fixes the Next.js 16 catch-all route issue where usePathname()
+  //    may not trigger re-renders for soft navigations.
   const pathname = usePathname();
   const pathnameSection = useMemo(() => {
     return getStudentSectionFromPathname(pathname);
   }, [pathname]);
 
-  // Sync pathname → Zustand store (for sidebar highlight only)
-  // The return value is ALWAYS pathnameSection (the URL is the source of truth)
+  // Sync pathname → Zustand store (for direct URL access / browser back-forward)
+  // The return value is the STORE section (primary source for rendering)
   const activeSection: StudentSection = useNavigationSync({
     pathnameSection,
     storeSection,
@@ -515,6 +517,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Section change handler
   // -------------------------------------------------------
   const handleSectionChange = (section: string) => {
+    // IMMEDIATELY update the Zustand store — this is the PRIMARY navigation
+    // mechanism (fixes Next.js 16 catch-all route re-render issue)
+    setStudentSection(section as StudentSection);
+    // Also update the URL for browser history, address bar, back/forward
     const path = STUDENT_SECTION_PATHS[section as StudentSection] || '/student';
     router.push(path);
   };
@@ -1077,7 +1083,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 أحدث الملخصات
               </h3>
               <button
-                onClick={() => router.push('/student/summaries')}
+                onClick={() => handleSectionChange('summaries')}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
               >
                 عرض الكل
@@ -1469,7 +1475,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             أنشئ ملخصاً أولاً وسيتم توليد اختبار تلقائياً
           </p>
           <button
-            onClick={() => router.push('/student/summaries')}
+            onClick={() => handleSectionChange('summaries')}
             className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700"
           >
             <FileText className="h-4 w-4" />

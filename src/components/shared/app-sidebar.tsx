@@ -115,16 +115,27 @@ function NavItems({
   onNavClick?: () => void;
 }) {
   const chatUnreadCount = useAppStore((s) => s.chatUnreadCount);
+  const setStudentSection = useAppStore((s) => s.setStudentSection);
+  const setTeacherSection = useAppStore((s) => s.setTeacherSection);
+  const setAdminSection = useAppStore((s) => s.setAdminSection);
   const router = useRouter();
 
   const handleNav = (sectionId: string) => {
     const path = getSectionPath(role, sectionId);
 
+    // IMMEDIATELY update the Zustand store — this is the PRIMARY navigation
+    // mechanism. The store change triggers an instant re-render, showing the
+    // new section without waiting for usePathname() to update.
+    // (In Next.js 16 catch-all routes, usePathname() may not re-render reliably)
+    if (role === 'student') setStudentSection(sectionId as any);
+    else if (role === 'teacher') setTeacherSection(sectionId as any);
+    else setAdminSection(sectionId as any);
+
     // Close the mobile drawer FIRST (before navigation)
     // This ensures no Radix Dialog artifacts remain
     onNavClick?.();
 
-    // Navigate via URL
+    // Also navigate via URL (for browser history, address bar, back/forward)
     router.push(path);
   };
 

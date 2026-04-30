@@ -252,17 +252,19 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const storeSection = useAppStore((s) => s.adminSection);
   const router = useRouter();
 
-  // ─── Navigation: usePathname() is the SOLE source of truth for activeSection.
-  //    Sidebar clicks call router.push() → URL changes → pathname updates → UI re-renders.
-  //    The Zustand store is synced FROM the pathname (not vice versa) so the sidebar
-  //    can highlight the correct active item. This eliminates ALL race conditions.
+  // ─── Navigation: The Zustand store is the PRIMARY source of truth for activeSection.
+  //    Sidebar clicks update the store IMMEDIATELY via setAdminSection(),
+  //    then also call router.push() for the URL. The useNavigationSync hook
+  //    also syncs URL → store (for direct URL access / browser back-forward).
+  //    This fixes the Next.js 16 catch-all route issue where usePathname()
+  //    may not trigger re-renders for soft navigations.
   const pathname = usePathname();
   const pathnameSection = useMemo(() => {
     return getAdminSectionFromPathname(pathname);
   }, [pathname]);
 
-  // Sync pathname → Zustand store (for sidebar highlight only)
-  // The return value is ALWAYS pathnameSection (the URL is the source of truth)
+  // Sync pathname → Zustand store (for direct URL access / browser back-forward)
+  // The return value is the STORE section (primary source for rendering)
   const activeSection: AdminSection = useNavigationSync({
     pathnameSection,
     storeSection,
@@ -527,6 +529,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // Section change handler
   // -------------------------------------------------------
   const handleSectionChange = (section: string) => {
+    // IMMEDIATELY update the Zustand store — this is the PRIMARY navigation
+    // mechanism (fixes Next.js 16 catch-all route re-render issue)
+    setAdminSection(section as AdminSection);
+    // Also update the URL for browser history, address bar, back/forward
     const path = ADMIN_SECTION_PATHS[section as AdminSection] || '/admin';
     router.push(path);
   };
@@ -1071,7 +1077,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           value={studentCount}
           color="amber"
         />
-        <div onClick={() => router.push('/admin/banned')} className="cursor-pointer">
+        <div onClick={() => handleSectionChange('banned')} className="cursor-pointer">
           <StatCard
             icon={<Ban className="h-5 w-5" />}
             label="المحظورون"
@@ -1092,7 +1098,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 أحدث المستخدمين
               </h3>
               <button
-                onClick={() => router.push('/admin/users')}
+                onClick={() => handleSectionChange('users')}
                 className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
               >
                 عرض الكل

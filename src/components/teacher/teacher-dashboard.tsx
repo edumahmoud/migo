@@ -136,18 +136,20 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const storeSection = useAppStore((s) => s.teacherSection);
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
-  // ─── Navigation: usePathname() is the SOLE source of truth for activeSection.
-  //    Sidebar clicks call router.push() → URL changes → pathname updates → UI re-renders.
-  //    The Zustand store is synced FROM the pathname (not vice versa) so the sidebar
-  //    can highlight the correct active item. This eliminates ALL race conditions.
+  // ─── Navigation: The Zustand store is the PRIMARY source of truth for activeSection.
+  //    Sidebar clicks update the store IMMEDIATELY via setTeacherSection(),
+  //    then also call router.push() for the URL. The useNavigationSync hook
+  //    also syncs URL → store (for direct URL access / browser back-forward).
+  //    This fixes the Next.js 16 catch-all route issue where usePathname()
+  //    may not trigger re-renders for soft navigations.
   const pathname = usePathname();
   const pathnameSection = useMemo(() => {
     return getTeacherSectionFromPathname(pathname);
   }, [pathname]);
   const router = useRouter();
 
-  // Sync pathname → Zustand store (for sidebar highlight only)
-  // The return value is ALWAYS pathnameSection (the URL is the source of truth)
+  // Sync pathname → Zustand store (for direct URL access / browser back-forward)
+  // The return value is the STORE section (primary source for rendering)
   const activeSection: TeacherSection = useNavigationSync({
     pathnameSection,
     storeSection,
@@ -425,6 +427,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // Section change handler
   // -------------------------------------------------------
   const handleSectionChange = (section: string) => {
+    // IMMEDIATELY update the Zustand store — this is the PRIMARY navigation
+    // mechanism (fixes Next.js 16 catch-all route re-render issue)
+    setTeacherSection(section as TeacherSection);
+    // Also update the URL for browser history, address bar, back/forward
     const path = TEACHER_SECTION_PATHS[section as TeacherSection] || '/teacher';
     router.push(path);
   };
@@ -970,7 +976,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           />
           {pendingStudents.length > 0 && (
             <button
-              onClick={() => router.push('/teacher/students')}
+              onClick={() => handleSectionChange('students')}
               className="absolute -top-2 -left-2 flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white shadow-sm hover:bg-amber-600 transition-colors"
             >
               <UserPlus className="h-3 w-3" />
@@ -1009,7 +1015,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 نظرة عامة على الطلاب
               </h3>
               <button
-                onClick={() => router.push('/teacher/students')}
+                onClick={() => handleSectionChange('students')}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
               >
                 عرض الكل
@@ -1090,7 +1096,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 تنبيهات الأداء
               </h3>
               <button
-                onClick={() => router.push('/teacher/analytics')}
+                onClick={() => handleSectionChange('analytics')}
                 className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
               >
                 عرض الكل
