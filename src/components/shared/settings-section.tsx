@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+
 import {
   User,
   Mail,
@@ -29,21 +29,6 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -211,27 +196,21 @@ export default function SettingsSection({
   // ─── Status / Presence (now from global store) ───
   const userStatus = myStatus;
 
-  // ─── Navigation cleanup: close all Radix UI Dialogs when navigating away ───
-  // When the user navigates to a different section while a Dialog is open,
-  // Radix UI keeps `inert` on page content and `pointer-events: none` on body.
-  // This effect closes all Dialogs when the pathname changes or a cleanup event fires.
-  const pathname = usePathname();
+  // ─── Escape key handler for custom modals ───
   useEffect(() => {
-    setAvatarPreviewOpen(false);
-    setDeleteConfirmOpen(false);
-  }, [pathname]);
-
-  // Also listen for the custom navigation:cleanup event (dispatched by cleanupAfterNavigation)
-  useEffect(() => {
-    const handleNavCleanup = () => {
-      setAvatarPreviewOpen(false);
-      setDeleteConfirmOpen(false);
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (deleteConfirmOpen) {
+          setDeleteConfirmOpen(false);
+          setDeleteConfirmText('');
+        } else if (avatarPreviewOpen) {
+          setAvatarPreviewOpen(false);
+        }
+      }
     };
-    document.addEventListener('navigation:cleanup', handleNavCleanup);
-    return () => {
-      document.removeEventListener('navigation:cleanup', handleNavCleanup);
-    };
-  }, []);
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [deleteConfirmOpen, avatarPreviewOpen]);
 
   // ─── Set socket auth credentials ───
   useEffect(() => {
@@ -1390,104 +1369,148 @@ export default function SettingsSection({
                 </Button>
               </div>
 
-              {/* Delete confirmation dialog */}
-              <AlertDialog open={deleteConfirmOpen} onOpenChange={(open) => {
-                setDeleteConfirmOpen(open);
-                if (!open) setDeleteConfirmText('');
-              }}>
-                <AlertDialogContent dir="rtl">
-                  <AlertDialogHeader className="text-right">
-                    <AlertDialogTitle className="text-right flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-rose-500" />
-                      تأكيد حذف الحساب
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="text-right">
-                      هذا الإجراء لا يمكن التراجع عنه. سيتم حذف حسابك وجميع بياناتك بشكل نهائي.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-
-                  <div className="space-y-3 py-2">
-                    <p className="text-sm text-muted-foreground">
-                      يرجى كتابة <span className="font-bold text-rose-600">حذف</span> للتأكيد:
-                    </p>
-                    <Input
-                      value={deleteConfirmText}
-                      onChange={(e) => setDeleteConfirmText(e.target.value)}
-                      placeholder='اكتب "حذف" هنا'
-                      className="text-right"
-                      dir="rtl"
+              {/* Delete confirmation dialog — custom CSS modal (no Radix UI) */}
+              <AnimatePresence>
+                {deleteConfirmOpen && (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="fixed inset-0 z-50 bg-black/50"
+                      onClick={() => {
+                        setDeleteConfirmOpen(false);
+                        setDeleteConfirmText('');
+                      }}
                     />
-                  </div>
-
-                  <AlertDialogFooter className="flex-row-reverse gap-2">
-                    <AlertDialogCancel disabled={isDeleting}>إلغاء</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteAccount}
-                      className="bg-rose-600 hover:bg-rose-700 text-white"
-                      disabled={isDeleting || deleteConfirmText !== 'حذف'}
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                      transition={{ duration: 0.15 }}
+                      className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+                      dir="rtl"
                     >
-                      {isDeleting ? (
-                        <span className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          جاري الحذف...
-                        </span>
-                      ) : (
-                        'حذف الحساب نهائياً'
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                      <div className="pointer-events-auto w-full max-w-md rounded-xl border bg-background shadow-lg p-6">
+                        <div className="flex items-center gap-2 text-right mb-2">
+                          <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0" />
+                          <h3 className="text-lg font-semibold text-foreground">تأكيد حذف الحساب</h3>
+                        </div>
+                        <p className="text-sm text-muted-foreground text-right mb-4">هذا الإجراء لا يمكن التراجع عنه. سيتم حذف حسابك وجميع بياناتك بشكل نهائي.</p>
+
+                        <div className="space-y-3 py-2">
+                          <p className="text-sm text-muted-foreground">
+                            يرجى كتابة <span className="font-bold text-rose-600">حذف</span> للتأكيد:
+                          </p>
+                          <Input
+                            value={deleteConfirmText}
+                            onChange={(e) => setDeleteConfirmText(e.target.value)}
+                            placeholder='اكتب "حذف" هنا'
+                            className="text-right"
+                            dir="rtl"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 justify-start mt-4">
+                          <button
+                            onClick={() => {
+                              setDeleteConfirmOpen(false);
+                              setDeleteConfirmText('');
+                            }}
+                            disabled={isDeleting}
+                            className="rounded-lg border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            onClick={handleDeleteAccount}
+                            disabled={isDeleting || deleteConfirmText !== 'حذف'}
+                            className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                          >
+                            {isDeleting ? (
+                              <span className="flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                جاري الحذف...
+                              </span>
+                            ) : (
+                              'حذف الحساب نهائياً'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
           )}
         </div>
       </div>
 
-      {/* Avatar Preview Dialog */}
-      <Dialog open={avatarPreviewOpen} onOpenChange={setAvatarPreviewOpen}>
-        <DialogContent
-          className="sm:max-w-md p-0 overflow-hidden bg-black/95 border-none"
-          showCloseButton={false}
-        >
-          <DialogTitle className="sr-only">معاينة الصورة الشخصية</DialogTitle>
-          <div className="relative flex items-center justify-center min-h-[300px]">
-            <img
-              src={profile.avatar_url || ''}
-              alt={profile.name}
-              className="max-h-[70vh] max-w-full object-contain"
-            />
-            {/* Close button */}
-            <button
+      {/* Avatar Preview Dialog — custom CSS modal (no Radix UI) */}
+      <AnimatePresence>
+        {avatarPreviewOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-50 bg-black/80"
               onClick={() => setAvatarPreviewOpen(false)}
-              className="absolute top-3 left-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+              dir="rtl"
             >
-              <X className="h-4 w-4" />
-            </button>
-            {/* Download button */}
-            <a
-              href={profile.avatar_url || ''}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="absolute bottom-3 left-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
-            >
-              <Download className="h-4 w-4" />
-            </a>
-            {/* Change avatar button */}
-            <button
-              onClick={() => {
-                setAvatarPreviewOpen(false);
-                setTimeout(() => avatarInputRef.current?.click(), 200);
-              }}
-              className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-white hover:bg-black/80 transition-colors text-xs"
-            >
-              <Camera className="h-3.5 w-3.5" />
-              تغيير الصورة
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+              <div className="pointer-events-auto relative w-full max-w-md rounded-xl overflow-hidden bg-black/95 border-none shadow-lg">
+                <div className="sr-only">معاينة الصورة الشخصية</div>
+                <div className="relative flex items-center justify-center min-h-[300px]">
+                  <img
+                    src={profile.avatar_url || ''}
+                    alt={profile.name}
+                    className="max-h-[70vh] max-w-full object-contain"
+                  />
+                  {/* Close button */}
+                  <button
+                    onClick={() => setAvatarPreviewOpen(false)}
+                    className="absolute top-3 left-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  {/* Download button */}
+                  <a
+                    href={profile.avatar_url || ''}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute bottom-3 left-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                  >
+                    <Download className="h-4 w-4" />
+                  </a>
+                  {/* Change avatar button */}
+                  <button
+                    onClick={() => {
+                      setAvatarPreviewOpen(false);
+                      setTimeout(() => avatarInputRef.current?.click(), 200);
+                    }}
+                    className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-white hover:bg-black/80 transition-colors text-xs"
+                  >
+                    <Camera className="h-3.5 w-3.5" />
+                    تغيير الصورة
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

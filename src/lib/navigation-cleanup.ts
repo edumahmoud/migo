@@ -1,53 +1,137 @@
 /**
- * Navigation Cleanup Utility — SIMPLIFIED (v5)
+ * Navigation Cleanup Utility — v6 (Targeted Fix)
  *
- * REBUILD: The old navigation-cleanup.ts (v4) was a 300+ line utility that
- * fought the `inert` attribute added by Radix UI Dialog components. It used
- * MutationObservers, requestAnimationFrame loops, and periodic safety intervals
- * to remove `inert` from the page content.
+ * ROOT CAUSE: Radix UI Dialog/AlertDialog adds `inert` attribute to sibling
+ * elements when a dialog opens. The `inert` attribute blocks ALL user
+ * interaction events (click, focus, keyboard) but does NOT block CSS :hover.
+ * This is why users see hover effects but clicks don't work.
  *
- * The root cause was the "keep-alive" pattern that kept ALL sections in the DOM
- * with CSS `hidden` class. Radix Dialog components in hidden sections could add
- * `inert` to the page root, blocking all clicks (but not hover, since inert
- * doesn't affect CSS :hover).
+ * When a section with an open Radix Dialog unmounts (due to conditional rendering),
+ * the Dialog's cleanup animation may not complete, leaving `inert` stuck on the page.
  *
- * The rebuild eliminates the keep-alive pattern entirely — only the active
- * section is in the DOM. This means:
- *   - No hidden sections with Dialog state
- *   - No stale `inert` attributes
- *   - No need for aggressive cleanup
- *
- * This file is kept as a minimal utility for body lock cleanup only.
+ * APPROACH:
+ *   1. MutationObserver: immediately removes `inert` when added to non-dialog content
+ *   2. Navigation cleanup: removes `inert` + body locks on pathname change
+ *   3. No rAF loops or periodic intervals needed (the MutationObserver is sufficient)
  */
+
+let observer: MutationObserver | null = null;
+
+/**
+ * Check if any Radix Dialog is genuinely open (visible + interactive).
+ */
+function isDialogOpen(): boolean {
+  // Check for open dialog content in portals
+  const openDialogs = document.querySelectorAll(
+    '[data-state="open"][role="dialog"], ' +
+    '[data-state="open"][data-slot="dialog-content"], ' +
+    '[data-state="open"][data-slot="alert-dialog-content"], ' +
+    '[data-state="open"][data-slot="sheet-content"]'
+  );
+  return openDialogs.length > 0;
+}
+
+/**
+ * Remove `inert` attribute from elements that shouldn't have it.
+ * Only removes from the React root content, not from inside dialog portals.
+ */
+function removeStaleInert() {
+  if (typeof document === 'undefined') return;
+
+  // If a dialog IS genuinely open, inert on the root is expected behavior
+  // (it prevents interaction with content behind the dialog)
+  if (isDialogOpen()) return;
+
+  // No dialog is open — remove ALL inert attributes
+  document.documentElement.removeAttribute('inert');
+  document.body.removeAttribute('inert');
+
+  const inertElements = document.querySelectorAll('[inert]');
+  inertElements.forEach((el) => {
+    // Don't remove inert from inside a dialog portal (that's intentional)
+    if (el.closest('[data-radix-portal]')) return;
+    el.removeAttribute('inert');
+  });
+}
 
 /**
  * Clean up body styles that modals/dialogs may have left behind.
- * This is a lightweight cleanup for body overflow/pointer-events
- * that Radix UI or custom modals might set.
  */
 export function cleanupBodyLocks() {
   if (typeof document === 'undefined') return;
 
-  const body = document.body;
-  // Only reset if no dialog is genuinely open
-  const openDialogs = document.querySelectorAll('[data-state="open"][role="dialog"]');
-  if (openDialogs.length === 0) {
+  if (!isDialogOpen()) {
+    const body = document.body;
     body.style.removeProperty('pointer-events');
     body.style.removeProperty('overflow');
     body.style.removeProperty('padding-right');
     body.removeAttribute('data-scroll-locked');
+    body.removeAttribute('data-radix-scroll-locked');
     body.style.pointerEvents = '';
     body.style.overflow = '';
   }
 }
 
 /**
- * Called on navigation to clean up any leftover body locks.
+ * Full cleanup — removes inert, body locks, and stale overlays.
  */
-export function cleanupAfterNavigation() {
+function fullCleanup() {
+  removeStaleInert();
   cleanupBodyLocks();
 }
 
-// These are no-ops now — kept for backward compatibility with imports
-export function initNavigationGuard() {}
-export function destroyNavigationGuard() {}
+/**
+ * Initialize the MutationObserver guard.
+ * Watches for `inert` attribute additions and removes them when no dialog is open.
+ */
+export function initNavigationGuard() {
+  if (typeof document === 'undefined' || observer) return;
+
+  observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'inert') {
+        const target = mutation.target;
+        if (target instanceof HTMLElement && target.hasAttribute('inert')) {
+          // Remove inert if no dialog is genuinely open
+          if (!isDialogOpen()) {
+            target.removeAttribute('inert');
+          }
+        }
+      }
+    }
+  });
+
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['inert'],
+    subtree: true,
+  });
+}
+
+/**
+ * Destroy the MutationObserver guard.
+ */
+export function destroyNavigationGuard() {
+  if (observer) {
+    observer.disconnect();
+    observer = null;
+  }
+}
+
+/**
+ * Called on navigation to clean up any leftover state.
+ */
+export function cleanupAfterNavigation() {
+  if (typeof document === 'undefined') return;
+
+  // 1. Dispatch custom event so sections can close their dialogs
+  document.dispatchEvent(new CustomEvent('navigation:cleanup'));
+
+  // 2. Immediate cleanup
+  fullCleanup();
+
+  // 3. Deferred cleanup (catches inert re-added during close animations)
+  setTimeout(fullCleanup, 100);
+  setTimeout(fullCleanup, 300);
+  setTimeout(fullCleanup, 500);
+}

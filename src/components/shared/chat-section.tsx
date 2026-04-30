@@ -34,16 +34,6 @@ import type { UserProfile, Conversation, ChatMessage, UserStatus } from '@/lib/t
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
 import { useStatusStore, getStatusColor, getStatusLabel, isVisible } from '@/stores/status-store';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 // =====================================================
@@ -775,10 +765,21 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // ─── Navigation cleanup: close all Radix UI Dialogs when navigating away ───
+  // ─── Close custom confirm dialog on Escape key ───
+  useEffect(() => {
+    if (!confirmDialog.open) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setConfirmDialog((prev) => ({ ...prev, open: false }));
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [confirmDialog.open]);
+
+  // ─── Navigation cleanup: reset local UI state when navigating away ───
   useEffect(() => {
     const handleNavCleanup = () => {
-      setConfirmDialog({ open: false, title: '', description: '', onConfirm: () => {} });
       setShowNewDM(false);
       setEditingMessageId(null);
       setMessageMenuId(null);
@@ -2327,36 +2328,53 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       {/* ============================================ */}
       {/* CONFIRMATION DIALOG                          */}
       {/* ============================================ */}
-      <AlertDialog
-        open={confirmDialog.open}
-        onOpenChange={(open) => {
-          if (!open) setConfirmDialog((prev) => ({ ...prev, open: false }));
-        }}
-      >
-        <AlertDialogContent dir="rtl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-right">
-              <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
-              {confirmDialog.title}
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-right">
-              {confirmDialog.description}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row gap-2 justify-start">
-            <AlertDialogCancel className="rounded-lg">إلغاء</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                confirmDialog.onConfirm();
-                setConfirmDialog((prev) => ({ ...prev, open: false }));
-              }}
-              className="rounded-lg bg-red-600 text-white hover:bg-red-700"
+      <AnimatePresence>
+        {confirmDialog.open && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-50 bg-black/50"
+              onClick={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+              dir="rtl"
             >
-              حذف
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <div className="pointer-events-auto w-full max-w-md rounded-xl border bg-background shadow-lg p-6">
+                <div className="flex items-center gap-2 text-right mb-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                  <h3 className="text-lg font-semibold text-foreground">{confirmDialog.title}</h3>
+                </div>
+                <p className="text-sm text-muted-foreground text-right mb-6">{confirmDialog.description}</p>
+                <div className="flex gap-2 justify-start">
+                  <button
+                    onClick={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
+                    className="rounded-lg border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    onClick={() => {
+                      confirmDialog.onConfirm();
+                      setConfirmDialog((prev) => ({ ...prev, open: false }));
+                    }}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+                  >
+                    حذف
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

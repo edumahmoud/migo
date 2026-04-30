@@ -11,7 +11,7 @@ import { getDefaultPath } from '@/lib/navigation-config';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import RoleGuard from '@/components/shared/role-guard';
-import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
+import { cleanupAfterNavigation, initNavigationGuard, destroyNavigationGuard } from '@/lib/navigation-cleanup';
 import type { UserRole } from '@/lib/types';
 
 // =====================================================
@@ -24,9 +24,10 @@ import type { UserRole } from '@/lib/types';
 //   Layer 3 (Client):     RoleGuard component — client-side redirect
 //   Layer 4 (This file):  Layout-level auth init + redirect
 //
-// REBUILD: Removed all navigation-cleanup guard logic (MutationObserver,
-// rAF loop, etc.) because the keep-alive pattern has been eliminated.
-// Only a lightweight body-lock cleanup remains.
+// REBUILD v2: Re-added targeted MutationObserver guard for inert cleanup.
+// Even with conditional rendering, Radix Dialog components in sections like
+// chat/settings/course can add inert during close animations. The observer
+// removes inert when no dialog is genuinely open.
 
 // Map URL prefix → allowed roles
 const ROUTE_ROLE_MAP: Record<string, UserRole[]> = {
@@ -89,10 +90,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [initialized, user, loading, pathname, router]);
 
-  // Lightweight body-lock cleanup on navigation
+  // Navigation cleanup: remove inert/body locks on pathname change
   useEffect(() => {
     cleanupAfterNavigation();
   }, [pathname]);
+
+  // MutationObserver guard: removes stale inert attributes when no dialog is open
+  useEffect(() => {
+    initNavigationGuard();
+    return () => {
+      destroyNavigationGuard();
+    };
+  }, []);
 
   if (!isSupabaseConfigured) {
     return <SupabaseConfigError />;
