@@ -74,6 +74,7 @@ import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 import { ADMIN_SECTION_PATHS, getAdminSectionFromPathname } from '@/lib/navigation-config';
+import { useMountedSections } from '@/hooks/use-mounted-sections';
 
 // -------------------------------------------------------
 // Props
@@ -245,7 +246,9 @@ interface UserWithMeta extends UserProfile {
 export default function AdminDashboard({ profile, onSignOut }: AdminDashboardProps) {
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
-  const { sidebarOpen, setSidebarOpen, setAdminSection } = useAppStore();
+  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
+  const setAdminSection = useAppStore((s) => s.setAdminSection);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -253,6 +256,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const activeSection: AdminSection = useMemo(() => {
     return getAdminSectionFromPathname(pathname);
   }, [pathname]);
+
+  // ─── Keep-alive: track which sections have been mounted ───
+  const { isMounted: isSectionMounted } = useMountedSections(activeSection);
 
   // Sync Zustand store section state with URL-derived activeSection
   useEffect(() => {
@@ -3221,26 +3227,55 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
       }`}>
         <div className="mx-auto max-w-6xl p-3 md:p-8">
-          {activeSection === 'dashboard' && !dataLoaded ? renderLoading() : (
-            <SectionErrorBoundary sectionName={activeSection}>
-              <motion.div
-                key={activeSection}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.15 }}
-              >
-                {activeSection === 'dashboard' && renderDashboard()}
-                {activeSection === 'users' && renderUsers()}
-                {activeSection === 'subjects' && renderSubjects()}
-                {activeSection === 'announcements' && renderAnnouncements()}
-                {activeSection === 'banned' && renderBannedUsers()}
-                {activeSection === 'reports' && renderReports()}
-                {activeSection === 'chat' && <ChatSection profile={profile} role="admin" />}
-                {activeSection === 'settings' && <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />}
-                {activeSection === 'institution' && <InstitutionSection profile={profile} />}
-              </motion.div>
-            </SectionErrorBoundary>
-          )}
+          <SectionErrorBoundary sectionName={activeSection}>
+            <div className="relative">
+              {isSectionMounted('dashboard') && (
+                <div className={activeSection === 'dashboard' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'dashboard'}>
+                  {!dataLoaded ? renderLoading() : renderDashboard()}
+                </div>
+              )}
+              {isSectionMounted('users') && (
+                <div className={activeSection === 'users' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'users'}>
+                  {renderUsers()}
+                </div>
+              )}
+              {isSectionMounted('subjects') && (
+                <div className={activeSection === 'subjects' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'subjects'}>
+                  {renderSubjects()}
+                </div>
+              )}
+              {isSectionMounted('announcements') && (
+                <div className={activeSection === 'announcements' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'announcements'}>
+                  {renderAnnouncements()}
+                </div>
+              )}
+              {isSectionMounted('banned') && (
+                <div className={activeSection === 'banned' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'banned'}>
+                  {renderBannedUsers()}
+                </div>
+              )}
+              {isSectionMounted('reports') && (
+                <div className={activeSection === 'reports' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'reports'}>
+                  {renderReports()}
+                </div>
+              )}
+              {isSectionMounted('chat') && (
+                <div className={activeSection === 'chat' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'chat'}>
+                  <ChatSection profile={profile} role="admin" />
+                </div>
+              )}
+              {isSectionMounted('settings') && (
+                <div className={activeSection === 'settings' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'settings'}>
+                  <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
+                </div>
+              )}
+              {isSectionMounted('institution') && (
+                <div className={activeSection === 'institution' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'institution'}>
+                  <InstitutionSection profile={profile} />
+                </div>
+              )}
+            </div>
+          </SectionErrorBoundary>
         </div>
       </main>
     </div>

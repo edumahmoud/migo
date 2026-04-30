@@ -12,9 +12,14 @@ import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, initialized, initialize, banInfo } = useAuthStore();
-  const { cleanup: cleanupStatusStore, init: initStatusStore } = useStatusStore();
-  const { reset: resetAppStore } = useAppStore();
+  const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
+  const initialized = useAuthStore((s) => s.initialized);
+  const initialize = useAuthStore((s) => s.initialize);
+  const banInfo = useAuthStore((s) => s.banInfo);
+  const cleanupStatusStore = useStatusStore((s) => s.cleanup);
+  const initStatusStore = useStatusStore((s) => s.init);
+  const resetAppStore = useAppStore((s) => s.reset);
   const router = useRouter();
 
   // Only initialize auth if not already done (prevents redundant network calls on re-mount)

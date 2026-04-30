@@ -114,7 +114,7 @@ function NavItems({
   collapsed: boolean;
   onNavClick?: () => void;
 }) {
-  const { chatUnreadCount } = useAppStore();
+  const chatUnreadCount = useAppStore((s) => s.chatUnreadCount);
   const router = useRouter();
 
   const handleNav = (sectionId: string) => {
@@ -193,7 +193,8 @@ export default function AppSidebar({
   customNavItems,
 }: AppSidebarProps) {
   const isMobile = useIsMobile();
-  const { sidebarOpen, setSidebarOpen } = useAppStore();
+  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const navItems = customNavItems || (role === 'student' ? studentNavItems : (role === 'admin' || role === 'superadmin') ? defaultAdminNavItems : teacherNavItems);
 
   const collapsed = !sidebarOpen;

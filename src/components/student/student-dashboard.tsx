@@ -52,6 +52,8 @@ import { STUDENT_SECTION_PATHS, getStudentSectionFromPathname } from '@/lib/navi
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
+import { useMountedSections } from '@/hooks/use-mounted-sections';
+import AttendanceSection from '@/components/shared/attendance-section';
 
 // -------------------------------------------------------
 // PDF.js worker setup - lazy loaded to avoid server-side DOMMatrix error
@@ -125,7 +127,11 @@ function scorePercentage(score: number, total: number): number {
 // -------------------------------------------------------
 export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
   // ─── App store ───
-  const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setStudentSection } = useAppStore();
+  const selectedSubjectId = useAppStore((s) => s.selectedSubjectId);
+  const setSelectedSubjectId = useAppStore((s) => s.setSelectedSubjectId);
+  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
+  const setStudentSection = useAppStore((s) => s.setStudentSection);
 
   // ─── Router for URL-based navigation ───
   const router = useRouter();
@@ -135,6 +141,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const activeSection: StudentSection = useMemo(() => {
     return getStudentSectionFromPathname(pathname);
   }, [pathname]);
+
+  // Keep-alive: track which sections have been mounted to prevent remounting
+  const { isMounted: isSectionMounted } = useMountedSections(activeSection);
 
   // Sync Zustand store section state with URL-derived activeSection
   // This ensures the header label and any store-dependent logic stays in sync
@@ -2355,14 +2364,74 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         <div className="p-3 sm:p-6 lg:p-8 space-y-4">
           <AnnouncementsBanner userId={profile.id} />
           <SectionErrorBoundary sectionName={activeSection}>
-            <motion.div
-              key={activeSection}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.15 }}
-            >
-              {renderSection()}
-            </motion.div>
+            <div className="relative">
+              {/* Keep-alive: All mounted sections stay in DOM, only active one is visible */}
+              {/* This prevents the expensive unmount/remount cycle that caused navigation freezes */}
+              {isSectionMounted('dashboard') && (
+                <div className={activeSection === 'dashboard' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'dashboard'}>
+                  {activeSection === 'dashboard' && !dataLoaded ? (
+                    <div className="flex flex-col items-center justify-center py-20">
+                      <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-4" />
+                      <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
+                    </div>
+                  ) : renderDashboard()}
+                </div>
+              )}
+              {isSectionMounted('subjects') && (
+                <div className={activeSection === 'subjects' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'subjects'}>
+                  {selectedSubjectId ? (
+                    <CoursePage profile={profile} role="student" />
+                  ) : (
+                    <SubjectsSection profile={profile} role="student" />
+                  )}
+                </div>
+              )}
+              {isSectionMounted('summaries') && (
+                <div className={activeSection === 'summaries' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'summaries'}>
+                  {renderSummaries()}
+                </div>
+              )}
+              {isSectionMounted('assignments') && (
+                <div className={activeSection === 'assignments' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'assignments'}>
+                  <AssignmentsSection profile={profile} role="student" />
+                </div>
+              )}
+              {isSectionMounted('files') && (
+                <div className={activeSection === 'files' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'files'}>
+                  <PersonalFilesSection profile={profile} role="student" />
+                </div>
+              )}
+              {isSectionMounted('teachers') && (
+                <div className={activeSection === 'teachers' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'teachers'}>
+                  {renderTeachers()}
+                </div>
+              )}
+              {isSectionMounted('chat') && (
+                <div className={activeSection === 'chat' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'chat'}>
+                  <ChatSection profile={profile} role="student" />
+                </div>
+              )}
+              {isSectionMounted('settings') && (
+                <div className={activeSection === 'settings' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'settings'}>
+                  <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
+                </div>
+              )}
+              {isSectionMounted('notifications') && (
+                <div className={activeSection === 'notifications' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'notifications'}>
+                  <NotificationsSection />
+                </div>
+              )}
+              {isSectionMounted('quizzes') && (
+                <div className={activeSection === 'quizzes' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'quizzes'}>
+                  {renderQuizzes()}
+                </div>
+              )}
+              {isSectionMounted('attendance') && (
+                <div className={activeSection === 'attendance' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'attendance'}>
+                  <AttendanceSection profile={profile} role="student" />
+                </div>
+              )}
+            </div>
           </SectionErrorBoundary>
         </div>
       </main>

@@ -55,6 +55,7 @@ import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import NotificationsSection from '@/components/shared/notifications-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
+import { useMountedSections } from '@/hooks/use-mounted-sections';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import type { UserProfile, Quiz, Score, Subject, TeacherSection } from '@/lib/types';
@@ -127,7 +128,11 @@ const PIE_COLORS = ['#10b981', '#14b8a6', '#f59e0b', '#ef4444'];
 // -------------------------------------------------------
 export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboardProps) {
   // ─── Stores ───
-  const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setTeacherSection } = useAppStore();
+  const selectedSubjectId = useAppStore((s) => s.selectedSubjectId);
+  const setSelectedSubjectId = useAppStore((s) => s.setSelectedSubjectId);
+  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
+  const setTeacherSection = useAppStore((s) => s.setTeacherSection);
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
   // ─── Active section: derived purely from pathname (no use(params) — avoids Suspense/remount bug)
@@ -136,6 +141,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     return getTeacherSectionFromPathname(pathname);
   }, [pathname]);
   const router = useRouter();
+
+  // Keep-alive: track which sections have been mounted to prevent unmount/remount
+  const { isMounted: isSectionMounted } = useMountedSections(activeSection);
 
   // Sync Zustand store section state with URL-derived activeSection
   useEffect(() => {
@@ -1903,28 +1911,71 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4">
           <AnnouncementsBanner userId={profile.id} />
           <SectionErrorBoundary sectionName={activeSection}>
-            <motion.div
-              key={activeSection}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.15 }}
-            >
-              {activeSection === 'dashboard' && (!dataLoaded ? (
-                <div className="flex flex-col items-center justify-center py-32">
-                  <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mb-4" />
-                  <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
+            <div className="relative">
+              {isSectionMounted('dashboard') && (
+                <div className={activeSection === 'dashboard' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'dashboard'}>
+                  {!dataLoaded ? (
+                    <div className="flex flex-col items-center justify-center py-32">
+                      <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mb-4" />
+                      <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
+                    </div>
+                  ) : renderDashboard()}
                 </div>
-              ) : renderDashboard())}
-              {activeSection === 'subjects' && (selectedSubjectId
-                ? <CoursePage profile={profile} role="teacher" />
-                : <SubjectsSection profile={profile} role="teacher" />)}
-              {activeSection === 'students' && renderStudents()}
-              {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
-              {activeSection === 'analytics' && renderAnalytics()}
-              {activeSection === 'chat' && <ChatSection profile={profile} role="teacher" />}
-              {activeSection === 'settings' && <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />}
-              {activeSection === 'notifications' && <NotificationsSection />}
-            </motion.div>
+              )}
+              {isSectionMounted('subjects') && (
+                <div className={activeSection === 'subjects' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'subjects'}>
+                  {selectedSubjectId
+                    ? <CoursePage profile={profile} role="teacher" />
+                    : <SubjectsSection profile={profile} role="teacher" />}
+                </div>
+              )}
+              {isSectionMounted('students') && (
+                <div className={activeSection === 'students' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'students'}>
+                  {renderStudents()}
+                </div>
+              )}
+              {isSectionMounted('files') && (
+                <div className={activeSection === 'files' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'files'}>
+                  <PersonalFilesSection profile={profile} role="teacher" />
+                </div>
+              )}
+              {isSectionMounted('assignments') && (
+                <div className={activeSection === 'assignments' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'assignments'}>
+                  <div className="flex flex-col items-center justify-center py-32">
+                    <ClipboardList className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">قريباً - التكليفات</p>
+                  </div>
+                </div>
+              )}
+              {isSectionMounted('attendance') && (
+                <div className={activeSection === 'attendance' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'attendance'}>
+                  <div className="flex flex-col items-center justify-center py-32">
+                    <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">قريباً - الحضور والغياب</p>
+                  </div>
+                </div>
+              )}
+              {isSectionMounted('analytics') && (
+                <div className={activeSection === 'analytics' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'analytics'}>
+                  {renderAnalytics()}
+                </div>
+              )}
+              {isSectionMounted('chat') && (
+                <div className={activeSection === 'chat' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'chat'}>
+                  <ChatSection profile={profile} role="teacher" />
+                </div>
+              )}
+              {isSectionMounted('settings') && (
+                <div className={activeSection === 'settings' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'settings'}>
+                  <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
+                </div>
+              )}
+              {isSectionMounted('notifications') && (
+                <div className={activeSection === 'notifications' ? '' : 'hidden'} role="tabpanel" aria-hidden={activeSection !== 'notifications'}>
+                  <NotificationsSection />
+                </div>
+              )}
+            </div>
           </SectionErrorBoundary>
         </div>
       </main>
