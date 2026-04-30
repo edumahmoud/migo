@@ -1,15 +1,42 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { GraduationCap, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useStatusStore } from '@/stores/status-store';
 import { useAppStore } from '@/stores/app-store';
 import { setSocketAuth, destroySocket } from '@/lib/socket';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { getDefaultPath } from '@/lib/navigation-config';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
+import RoleGuard from '@/components/shared/role-guard';
+import type { UserRole } from '@/lib/types';
+
+// =====================================================
+// Dashboard Layout — Protected Route Wrapper
+// =====================================================
+//
+// Defense in Depth:
+//   Layer 1 (Edge):       middleware.ts — blocks unauthorized at Edge
+//   Layer 2 (API):        auth-helpers.ts — per-endpoint role checks
+//   Layer 3 (Client):     RoleGuard component — client-side redirect
+//   Layer 4 (This file):  Layout-level auth init + redirect
+//
+// This layout:
+//   1. Initializes auth state (Zustand store)
+//   2. Redirects unauthenticated users to login
+//   3. Validates role-to-route match (e.g., student can't be on /admin)
+//   4. Initializes Socket.IO and status store
+//   5. Shows banned user overlay
+
+// Map URL prefix → allowed roles
+const ROUTE_ROLE_MAP: Record<string, UserRole[]> = {
+  '/admin': ['admin', 'superadmin'],
+  '/teacher': ['teacher'],
+  '/student': ['student'],
+};
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -21,6 +48,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const initStatusStore = useStatusStore((s) => s.init);
   const resetAppStore = useAppStore((s) => s.reset);
   const router = useRouter();
+  const pathname = usePathname();
 
   // Only initialize auth if not already done (prevents redundant network calls on re-mount)
   useEffect(() => {
@@ -47,6 +75,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [initialized, user, loading, router]);
 
+  // ─── Client-Side Role-to-Route Validation ───
+  // This is an additional safety net on top of middleware.ts.
+  // If a user somehow reaches a route they shouldn't be on
+  // (e.g., direct client-side navigation), redirect them.
+  useEffect(() => {
+    if (!initialized || !user || loading) return;
+
+    const userRole = user.role as UserRole;
+
+    // Find which route prefix matches the current pathname
+    for (const [routePrefix, allowedRoles] of Object.entries(ROUTE_ROLE_MAP)) {
+      if (pathname.startsWith(routePrefix)) {
+        if (!allowedRoles.includes(userRole)) {
+          // Role mismatch — redirect to their correct dashboard
+          const correctPath = getDefaultPath(userRole as 'student' | 'teacher' | 'admin' | 'superadmin');
+          console.warn(
+            `[DashboardLayout] Role mismatch: role='${userRole}', path='${pathname}'. ` +
+            `Redirecting to '${correctPath}'`
+          );
+          router.replace(correctPath);
+          return;
+        }
+        break; // Found matching route, role is correct
+      }
+    }
+  }, [initialized, user, loading, pathname, router]);
+
   if (!isSupabaseConfigured) {
     return <SupabaseConfigError />;
   }
@@ -69,11 +124,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) return null;
 
+  // ─── Determine allowed roles for current route ───
+  let allowedRoles: UserRole[] = ['student', 'teacher', 'admin', 'superadmin']; // default: allow all
+  for (const [routePrefix, roles] of Object.entries(ROUTE_ROLE_MAP)) {
+    if (pathname.startsWith(routePrefix)) {
+      allowedRoles = roles;
+      break;
+    }
+  }
+
   const isBannedUser = banInfo && user.role !== 'admin' && user.role !== 'superadmin';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-emerald-50/30" dir="rtl">
-      {isBannedUser ? <BannedUserOverlay>{children}</BannedUserOverlay> : children}
+      <RoleGuard allowedRoles={allowedRoles}>
+        {isBannedUser ? <BannedUserOverlay>{children}</BannedUserOverlay> : children}
+      </RoleGuard>
     </div>
   );
 }

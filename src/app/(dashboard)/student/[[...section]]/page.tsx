@@ -6,6 +6,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useStatusStore } from '@/stores/status-store';
 import { destroySocket } from '@/lib/socket';
 import StudentDashboard from '@/components/student/student-dashboard';
+import RoleGuard from '@/components/shared/role-guard';
 
 export default function StudentPage() {
   const { user } = useAuthStore();
@@ -37,8 +38,11 @@ export default function StudentPage() {
     window.location.href = '/';
   };
 
-  // No use(params) or Suspense — activeSection is derived from usePathname()
-  // inside StudentDashboard. This prevents the component from being unmounted
-  // and remounted on every navigation (which was causing the freezing bug).
-  return <StudentDashboard profile={user} onSignOut={handleSignOut} />;
+  // RoleGuard ensures only 'student' role can access this page
+  // Defense in Depth: middleware.ts (Edge) → RoleGuard (client)
+  return (
+    <RoleGuard allowedRoles={['student']}>
+      <StudentDashboard profile={user} onSignOut={handleSignOut} />
+    </RoleGuard>
+  );
 }

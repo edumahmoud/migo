@@ -1,38 +1,34 @@
-import { NextResponse } from 'next/server';
-import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 
-// Auth helper
-async function getAuthUser(request: Request) {
-  let authUser = null;
-  const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-    if (!error && user) authUser = user;
-  }
-  if (!authUser) {
-    try {
-      const serverClient = await getSupabaseServerClient();
-      const { data: { user }, error } = await serverClient.auth.getUser();
-      if (!error && user) authUser = user;
-    } catch {}
-  }
-  return authUser;
-}
+// 🔒 SECURITY: Profile viewing requires authentication
+// - Any authenticated user can view basic profile info (id, name, avatar, role)
+// - Only the profile owner can see email and other sensitive fields
+// - File request statuses only shown to authenticated requesters
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
+  // 🔒 SECURITY: Require authentication to view profiles
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const { userId } = await params;
-    const authUser = await getAuthUser(request);
+    const authenticatedUserId = authResult.user.id;
+
+    // Determine if viewer is the profile owner or an admin
+    const viewerRole = await getUserRole(authenticatedUserId);
+    const isOwnProfile = authenticatedUserId === userId;
+    const isAdmin = viewerRole === 'admin' || viewerRole === 'superadmin';
 
     // Fetch user profile - try with username first, fallback without
     let profile = null;
     const { data: profileWithUsername, error: profileError } = await supabaseServer
       .from('users')
-      .select('id, name, username, role, avatar_url, title_id, gender, created_at')
+      .select('id, name, username, role, avatar_url, title_id, gender, email, created_at')
       .eq('id', userId)
       .single();
 
@@ -41,7 +37,7 @@ export async function GET(
       if (profileError.message?.includes('username') || profileError.code === 'PGRST204') {
         const { data: profileNoUsername, error: fallbackError } = await supabaseServer
           .from('users')
-          .select('id, name, role, avatar_url, title_id, gender, created_at')
+          .select('id, name, role, avatar_url, title_id, gender, email, created_at')
           .eq('id', userId)
           .single();
 
@@ -54,6 +50,11 @@ export async function GET(
       }
     } else {
       profile = profileWithUsername;
+    }
+
+    // 🔒 SECURITY: Strip email for non-owners and non-admins
+    if (!isOwnProfile && !isAdmin) {
+      delete (profile as Record<string, unknown>).email;
     }
 
     // Fetch public files
@@ -72,12 +73,12 @@ export async function GET(
 
     // If the requester is viewing someone else's profile, check their file request statuses
     let fileRequestStatuses: Record<string, { status: string; requestId: string }> = {};
-    if (authUser && authUser.id !== userId && files.length > 0) {
+    if (!isOwnProfile && files.length > 0) {
       const fileIds = files.map((f: { id: string }) => f.id);
       const { data: myRequests } = await supabaseServer
         .from('file_requests')
         .select('id, file_id, status')
-        .eq('requester_id', authUser.id)
+        .eq('requester_id', authenticatedUserId)
         .in('file_id', fileIds);
 
       if (myRequests && myRequests.length > 0) {

@@ -1,12 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * GET /api/push/setup
  * Check if push_subscriptions table exists, create it if not.
+ * 🔒 SECURITY: Admin-only — exposes database schema details
  *
  * POST /api/push/setup
  * Force create the push_subscriptions table.
+ * 🔒 SECURITY: Admin-only — can trigger database table creation
  */
 
 const CREATE_TABLE_SQL = `
@@ -50,7 +53,11 @@ CREATE TRIGGER trg_push_subscriptions_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.update_push_subscriptions_updated_at();
 `;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 🔒 SECURITY: Admin-only — exposes database schema DDL
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     // Check if table exists by trying to select from it
     const { error } = await supabaseServer
@@ -63,7 +70,6 @@ export async function GET() {
       return NextResponse.json({
         exists: false,
         message: 'جدول push_subscriptions غير موجود. استخدم POST لإنشائه.',
-        sql: CREATE_TABLE_SQL.trim(),
       });
     }
 
@@ -80,7 +86,11 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // 🔒 SECURITY: Admin-only — can create database tables
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     // First check if table already exists
     const { error: checkError } = await supabaseServer
@@ -119,11 +129,10 @@ export async function POST() {
     });
 
     if (!response.ok) {
-      // If RPC not available, return the SQL for manual execution
+      // If RPC not available, return the SQL for manual execution (admin-only)
       return NextResponse.json({
         success: false,
         message: 'لا يمكن إنشاء الجدول تلقائياً. يرجى تنفيذ SQL يدوياً في Supabase Dashboard.',
-        sql: CREATE_TABLE_SQL.trim(),
       });
     }
 
@@ -134,10 +143,7 @@ export async function POST() {
   } catch (error) {
     console.error('Push setup create error:', error);
     return NextResponse.json(
-      {
-        error: 'حدث خطأ في إنشاء الجدول',
-        sql: CREATE_TABLE_SQL.trim(),
-      },
+      { error: 'حدث خطأ في إنشاء الجدول' },
       { status: 500 }
     );
   }

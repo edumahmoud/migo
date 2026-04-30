@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -240,8 +241,13 @@ ON CONFLICT (conversation_id, user_id) DO NOTHING;
 
 /**
  * GET: Check if chat tables exist and return SQL + setup info
+ * 🔒 SECURITY: Admin-only — exposes database schema DDL and setup info
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 🔒 SECURITY: Admin-only endpoint — exposes full SQL DDL with RLS policies
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   const projectRef = SUPABASE_URL.replace('https://', '').replace('.supabase.co', '');
   
   // Check if tables exist
@@ -284,8 +290,13 @@ export async function GET() {
 
 /**
  * POST: Check and ensure group conversations exist for all subjects
+ * 🔒 SECURITY: Admin-only — can trigger database schema modifications
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // 🔒 SECURITY: Admin-only endpoint — can trigger database modifications
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   let tablesExist = false;
   try {
     const checkRes = await fetch(

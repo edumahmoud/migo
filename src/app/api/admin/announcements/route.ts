@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
-import { requireAdmin, authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
-// GET /api/admin/announcements - list all announcements
+// GET /api/admin/announcements - list all announcements (admin only)
 export async function GET(request: NextRequest) {
-  const authResult = await authenticateRequest(request);
+  // 🔒 SECURITY: Changed from authenticateRequest to requireAdmin
+  // This endpoint lists ALL announcements including inactive ones — admin only
+  const authResult = await requireAdmin(request);
   if (!authResult.success) return authErrorResponse(authResult);
 
   try {

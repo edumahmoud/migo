@@ -165,19 +165,33 @@ async function checkAndPromoteFirstUser(userId: string): Promise<UserProfile | n
 
 type UserRole = 'student' | 'teacher' | 'admin' | 'superadmin';
 
-/** Create a fallback profile from auth metadata when RLS blocks DB reads */
+/** Create a fallback profile from auth metadata when API/DB fetch fails.
+ *
+ * ⚠️ SECURITY: This function ALWAYS assigns role='student' regardless of
+ * what user_metadata.role says. The user_metadata object is CLIENT-MODIFIABLE
+ * in Supabase — a malicious user could set their metadata role to 'admin'
+ * and gain unauthorized access if we trusted it.
+ *
+ * The REAL role is always fetched from the database via /api/auth/me.
+ * This fallback is only used when that API call fails (network error, etc.),
+ * and in that case, the safest default is 'student' (least privilege).
+ *
+ * When the API recovers, the correct role will be fetched and this fallback
+ * will be replaced.
+ */
 function createFallbackProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; created_at?: string; updated_at?: string }): UserProfile {
   const userName = (authUser.user_metadata?.full_name as string) || (authUser.user_metadata?.name as string) || authUser.email?.split('@')[0] || 'مستخدم';
   const avatarUrl = (authUser.user_metadata?.avatar_url as string) || null;
-  const userRole = (authUser.user_metadata?.role as string) || 'student';
-  const validRole = (['teacher', 'admin', 'superadmin'].includes(userRole) ? userRole : 'student') as UserRole;
+  // SECURITY: Always default to 'student' — NEVER trust user_metadata.role
+  // user_metadata is client-modifiable and can be tampered with
+  const safeDefaultRole: UserRole = 'student';
 
   return {
     id: authUser.id,
     email: authUser.email || '',
     name: userName,
     username: generateUsername(userName, authUser.id),
-    role: validRole,
+    role: safeDefaultRole,
     avatar_url: avatarUrl,
     created_at: authUser.created_at || new Date().toISOString(),
     updated_at: authUser.updated_at || new Date().toISOString(),

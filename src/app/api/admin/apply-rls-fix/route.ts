@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { requireAdmin, authErrorResponse } from '@/lib/auth-helpers';
 
 /**
  * POST /api/admin/apply-rls-fix
@@ -267,8 +268,13 @@ export async function POST(request: NextRequest) {
 /**
  * GET /api/admin/apply-rls-fix
  * Quick check endpoint — returns current status without making changes.
+ * 🔒 SECURITY: Admin-only — exposes database function existence info
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 🔒 SECURITY: Admin-only endpoint — exposes database internal status
+  const authResult = await requireAdmin(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     // Quick check if is_admin() function exists
     const { error: rpcError } = await supabaseServer.rpc('is_admin');

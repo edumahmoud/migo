@@ -6,6 +6,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useStatusStore } from '@/stores/status-store';
 import { destroySocket } from '@/lib/socket';
 import AdminDashboard from '@/components/admin/admin-dashboard';
+import RoleGuard from '@/components/shared/role-guard';
 
 export default function AdminPage() {
   const { user } = useAuthStore();
@@ -37,8 +38,11 @@ export default function AdminPage() {
     window.location.href = '/';
   };
 
-  // No use(params) or Suspense — activeSection is derived from usePathname()
-  // inside AdminDashboard. This prevents the component from being unmounted
-  // and remounted on every navigation (which was causing the freezing bug).
-  return <AdminDashboard profile={user} onSignOut={handleSignOut} />;
+  // RoleGuard ensures only 'admin' and 'superadmin' roles can access this page
+  // Defense in Depth: middleware.ts (Edge) → RoleGuard (client)
+  return (
+    <RoleGuard allowedRoles={['admin', 'superadmin']}>
+      <AdminDashboard profile={user} onSignOut={handleSignOut} />
+    </RoleGuard>
+  );
 }

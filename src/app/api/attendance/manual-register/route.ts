@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { requireTeacher, authErrorResponse } from '@/lib/auth-helpers';
 
 // ─── POST: Teacher manually registers a student as present ───
 // Uses service role key to bypass RLS (teacher can't normally insert on behalf of student)
+// 🔒 SECURITY: Requires teacher role. The teacherId is verified from the authenticated
+// session, NOT from the request body (which could be spoofed).
 export async function POST(request: NextRequest) {
-  try {
-    const { sessionId, studentId, teacherId } = await request.json();
+  // 🔒 SECURITY: Only teachers (and admins) can manually register attendance
+  const authResult = await requireTeacher(request);
+  if (!authResult.success) return authErrorResponse(authResult);
 
-    if (!sessionId || !studentId || !teacherId) {
-      return NextResponse.json({ error: 'sessionId, studentId, and teacherId are required' }, { status: 400 });
+  try {
+    const { sessionId, studentId } = await request.json();
+
+    if (!sessionId || !studentId) {
+      return NextResponse.json({ error: 'sessionId and studentId are required' }, { status: 400 });
     }
 
-    // Verify the teacher owns this attendance session
+    // SECURITY: Use the authenticated user's ID, not a body parameter
+    // The old code trusted `teacherId` from the request body which could be spoofed
+    const authenticatedTeacherId = authResult.user.id;
+
+    // Verify the authenticated teacher owns this attendance session
     const { data: session, error: sessionError } = await supabaseServer
       .from('attendance_sessions')
       .select('id, teacher_id, status')
@@ -22,8 +33,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'جلسة الحضور غير موجودة' }, { status: 404 });
     }
 
-    if (session.teacher_id !== teacherId) {
-      return NextResponse.json({ error: 'غير مصرح بهذا الإجراء' }, { status: 403 });
+    // SECURITY: Verify the authenticated user IS the teacher of this session
+    // Not just any teacher can register attendance for any session
+    if (session.teacher_id !== authenticatedTeacherId && authResult.role !== 'admin' && authResult.role !== 'superadmin') {
+      return NextResponse.json({ error: 'غير مصرح بهذا الإجراء — لست معلم هذه الجلسة' }, { status: 403 });
     }
 
     if (session.status !== 'active') {

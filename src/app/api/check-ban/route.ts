@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 
 export async function GET(request: NextRequest) {
+  // 🔒 SECURITY: Require authentication — ban status should not be publicly queryable
+  const authResult = await authenticateRequest(request);
+  if (!authResult.success) return authErrorResponse(authResult);
+
   try {
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
