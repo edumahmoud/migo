@@ -35,6 +35,7 @@ import {
   TEACHER_SECTION_PATHS,
   ADMIN_SECTION_PATHS,
 } from '@/lib/navigation-config';
+import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 
 // -------------------------------------------------------
 // Types
@@ -134,12 +135,8 @@ function NavItems({
     // When navigating while a modal is open, the modal's backdrop overlay
     // can persist in the DOM and block all pointer events. This cleanup
     // ensures the body is always interactive after navigation.
-    import('@/lib/navigation-cleanup').then(({ cleanupBodyLocks, forceCleanupOverlays }) => {
-      // Slight delay to let the navigation start before cleaning up
-      requestAnimationFrame(() => {
-        forceCleanupOverlays();
-        cleanupBodyLocks();
-      });
+    requestAnimationFrame(() => {
+      cleanupAfterNavigation();
     });
 
     // Close the mobile sheet

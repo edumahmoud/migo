@@ -75,6 +75,7 @@ import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 import { ADMIN_SECTION_PATHS, getAdminSectionFromPathname } from '@/lib/navigation-config';
 import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
+import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 
 // -------------------------------------------------------
 // Props
@@ -288,9 +289,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       setCreateAnnouncementOpen(false);
 
       // Force-cleanup any body locks left by Radix UI / modal libraries
-      import('@/lib/navigation-cleanup').then(({ cleanupBodyLocks }) => {
-        cleanupBodyLocks();
-      });
+      cleanupAfterNavigation();
 
       prevSectionRef.current = activeSection;
     }

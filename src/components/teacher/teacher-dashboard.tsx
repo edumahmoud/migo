@@ -56,6 +56,7 @@ import NotificationsSection from '@/components/shared/notifications-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
 import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
+import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import type { UserProfile, Quiz, Score, Subject, TeacherSection } from '@/lib/types';
@@ -184,9 +185,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       setStudentSearch('');
 
       // Force-cleanup any body locks left by Radix UI / modal libraries
-      import('@/lib/navigation-cleanup').then(({ cleanupBodyLocks }) => {
-        cleanupBodyLocks();
-      });
+      cleanupAfterNavigation();
 
       prevSectionRef.current = activeSection;
     }

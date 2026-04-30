@@ -53,6 +53,7 @@ import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
+import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 import AttendanceSection from '@/components/shared/attendance-section';
 
 // -------------------------------------------------------
@@ -188,9 +189,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       setSummaryStep('input');
 
       // Force-cleanup any body locks left by Radix UI / modal libraries
-      import('@/lib/navigation-cleanup').then(({ cleanupBodyLocks }) => {
-        cleanupBodyLocks();
-      });
+      cleanupAfterNavigation();
 
       prevSectionRef.current = activeSection;
     }
