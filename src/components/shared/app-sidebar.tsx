@@ -130,6 +130,18 @@ function NavItems({
     const path = getSectionPath(role, sectionId);
     router.push(path);
 
+    // ─── CRITICAL: Global modal/overlay cleanup on navigation ───
+    // When navigating while a modal is open, the modal's backdrop overlay
+    // can persist in the DOM and block all pointer events. This cleanup
+    // ensures the body is always interactive after navigation.
+    import('@/lib/navigation-cleanup').then(({ cleanupBodyLocks, forceCleanupOverlays }) => {
+      // Slight delay to let the navigation start before cleaning up
+      requestAnimationFrame(() => {
+        forceCleanupOverlays();
+        cleanupBodyLocks();
+      });
+    });
+
     // Close the mobile sheet
     onNavClick?.();
   };

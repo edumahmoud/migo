@@ -405,6 +405,18 @@
     [data-exiting="true"] {
       pointer-events: none !important;
     }
+
+    /* ─── MODAL/OVERLAY DEADLOCK PREVENTION ─── */
+    /* When a user navigates to a different section while a modal is open,
+       the section gets `hidden` (display: none) but fixed-position modal
+       backdrops can still intercept pointer events in some edge cases.
+       This rule ensures fixed elements inside hidden sections can't block clicks.
+    */
+    [aria-hidden="true"] .fixed,
+    [aria-hidden="true"] [class*="fixed"] {
+      pointer-events: none !important;
+      visibility: hidden !important;
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 // recharts is imported at top level for now — consider lazy-loading the analytics tab component
@@ -272,6 +272,29 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // ─── Keep-alive: track which sections have been mounted ───
   // activeSection is derived from pathname, so visibility is strictly URL-reactive
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);
+
+  // ─── MODAL CLEANUP ON NAVIGATION ───
+  // When the user navigates to a different section while a modal is open,
+  // the modal's fixed-position backdrop stays visible and blocks all clicks.
+  // This effect closes ALL modals when the active section changes.
+  const prevSectionRef = useRef(activeSection);
+  useEffect(() => {
+    if (prevSectionRef.current !== activeSection) {
+      // Close all modals
+      setUserDetailOpen(false);
+      setSelectedUser(null);
+      setSubjectDetailOpen(false);
+      setBanDialogOpen(false);
+      setCreateAnnouncementOpen(false);
+
+      // Force-cleanup any body locks left by Radix UI / modal libraries
+      import('@/lib/navigation-cleanup').then(({ cleanupBodyLocks }) => {
+        cleanupBodyLocks();
+      });
+
+      prevSectionRef.current = activeSection;
+    }
+  }, [activeSection]);
 
   // ─── Data state ───
   const [allUsers, setAllUsers] = useState<UserWithMeta[]>([]);

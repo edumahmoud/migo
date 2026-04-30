@@ -168,6 +168,34 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     }
   }, [activeSection, selectedSubjectId, setSelectedSubjectId]);
 
+  // ─── MODAL CLEANUP ON NAVIGATION ───
+  // When the user navigates to a different section while a modal is open,
+  // the modal's fixed-position backdrop stays visible and blocks all clicks.
+  // This effect closes ALL modals when the active section changes.
+  const prevSectionRef = useRef(activeSection);
+  useEffect(() => {
+    if (prevSectionRef.current !== activeSection) {
+      // Close all modals
+      setNewSummaryOpen(false);
+      setLinkTeacherOpen(false);
+      setTeacherPreview(null);
+      setTeacherCode('');
+      setIncomingPanelOpen(false);
+      setConfirmIncomingAcceptAllOpen(false);
+      setConfirmIncomingRejectAllOpen(false);
+      setSelectedTeacher(null);
+      setUnlinkConfirmOpen(false);
+      setSummaryStep('input');
+
+      // Force-cleanup any body locks left by Radix UI / modal libraries
+      import('@/lib/navigation-cleanup').then(({ cleanupBodyLocks }) => {
+        cleanupBodyLocks();
+      });
+
+      prevSectionRef.current = activeSection;
+    }
+  }, [activeSection]);
+
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
