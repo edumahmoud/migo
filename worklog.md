@@ -95,3 +95,28 @@ Stage Summary:
 - Removed duplicate RoleGuard = fewer opportunities for loading screen flashes
 - pathname = sole source of truth = eliminates all Zustand vs Router race conditions
 - Net code reduction: 75 insertions, 121 deletions (simpler is better)
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix modal/overlay deadlock - close all modals on navigation and cleanup body locks
+
+Work Log:
+- Identified root cause: modal backdrops with position:fixed inside keep-alive sections
+  persist even when parent section gets display:none, blocking all pointer events
+- Created navigation-cleanup.ts utility with cleanupBodyLocks() and forceCleanupOverlays()
+- Added useEffect in student dashboard to close 9 modal states on activeSection change
+- Added useEffect in teacher dashboard to close 8 modal states on activeSection change
+- Added useEffect in admin dashboard to close 5 modal states on activeSection change
+- Added body lock cleanup call in sidebar handleNav() with requestAnimationFrame delay
+- Added CSS safety net: [aria-hidden=true] .fixed gets pointer-events:none + visibility:hidden
+- Removed body pointer-events:auto !important rule (would break legitimate modal interactions)
+- Added useRef import to admin dashboard (was missing)
+- Lint passes clean, dev server running fine
+- Pushed to GitHub: 6 files changed, commit 1d24d8e
+
+Stage Summary:
+- 3-layer defense against modal/overlay deadlock:
+  1. Component-level: useEffect closes all modal states on section change
+  2. Global: cleanupBodyLocks() removes body pointer-events/overflow locks
+  3. CSS: [aria-hidden=true] .fixed gets pointer-events:none!important
+- Net addition: 171 lines across 6 files (mostly modal cleanup logic)
