@@ -115,13 +115,24 @@ function NavItems({
   onNavClick?: () => void;
 }) {
   const chatUnreadCount = useAppStore((s) => s.chatUnreadCount);
+  const setStudentSection = useAppStore((s) => s.setStudentSection);
+  const setTeacherSection = useAppStore((s) => s.setTeacherSection);
+  const setAdminSection = useAppStore((s) => s.setAdminSection);
   const router = useRouter();
 
   const handleNav = (sectionId: string) => {
+    // 1. Update Zustand store IMMEDIATELY for instant UI response
+    //    This is the critical fix — the store update triggers re-render
+    //    synchronously, so the CSS hidden class toggles instantly.
+    if (role === 'student') setStudentSection(sectionId as any);
+    else if (role === 'teacher') setTeacherSection(sectionId as any);
+    else setAdminSection(sectionId as any);
+
+    // 2. Update the URL (may take time for Next.js soft navigation)
     const path = getSectionPath(role, sectionId);
-    // Close the mobile sheet and navigate immediately
-    // Using router.push first ensures the URL updates before the Sheet closes
     router.push(path);
+
+    // 3. Close the mobile sheet
     onNavClick?.();
   };
 

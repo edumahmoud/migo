@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GraduationCap,
@@ -245,43 +244,17 @@ export default function AppHeader({
 }
 
 // -------------------------------------------------------
-// Active section label (derives section from URL pathname)
+// Active section label — reads from Zustand store (instant update)
 // -------------------------------------------------------
 function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 'superadmin' }) {
-  const pathname = usePathname();
+  const studentSection = useAppStore((s) => s.studentSection);
+  const teacherSection = useAppStore((s) => s.teacherSection);
+  const adminSection = useAppStore((s) => s.adminSection);
 
-  // Derive section from URL path
   let sectionKey = 'dashboard';
-  if (role === 'student') {
-    const segment = pathname.replace('/student/', '').replace('/student', '');
-    const map: Record<string, string> = {
-      '': 'dashboard', subjects: 'subjects', summaries: 'summaries',
-      assignments: 'assignments', files: 'files', teachers: 'teachers',
-      chat: 'chat', settings: 'settings', notifications: 'notifications',
-      quizzes: 'quizzes', attendance: 'attendance',
-    };
-    const firstSegment = segment.split('/')[0];
-    sectionKey = map[firstSegment] || 'dashboard';
-  } else if (role === 'teacher') {
-    const segment = pathname.replace('/teacher/', '').replace('/teacher', '');
-    const map: Record<string, string> = {
-      '': 'dashboard', subjects: 'subjects', students: 'students',
-      files: 'files', assignments: 'assignments', attendance: 'attendance',
-      analytics: 'analytics', chat: 'chat', settings: 'settings',
-      notifications: 'notifications',
-    };
-    const firstSegment = segment.split('/')[0];
-    sectionKey = map[firstSegment] || 'dashboard';
-  } else {
-    const segment = pathname.replace('/admin/', '').replace('/admin', '');
-    const map: Record<string, string> = {
-      '': 'dashboard', users: 'users', subjects: 'subjects',
-      reports: 'reports', announcements: 'announcements', banned: 'banned',
-      institution: 'institution', chat: 'chat', settings: 'settings',
-    };
-    const firstSegment = segment.split('/')[0];
-    sectionKey = map[firstSegment] || 'dashboard';
-  }
+  if (role === 'student') sectionKey = studentSection;
+  else if (role === 'teacher') sectionKey = teacherSection;
+  else sectionKey = adminSection;
 
   const label = SECTION_LABELS[sectionKey] || '';
 

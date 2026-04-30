@@ -132,24 +132,31 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const setStudentSection = useAppStore((s) => s.setStudentSection);
+  const storeSection = useAppStore((s) => s.studentSection);
 
   // ─── Router for URL-based navigation ───
   const router = useRouter();
 
-  // ─── Active section: derived purely from pathname (no use(params) — avoids Suspense/remount bug)
+  // ─── Active section: Zustand store is PRIMARY source (instant on click),
+  //    pathname is SECONDARY (syncs on back/forward, direct URL access)
   const pathname = usePathname();
-  const activeSection: StudentSection = useMemo(() => {
+  const pathnameSection = useMemo(() => {
     return getStudentSectionFromPathname(pathname);
   }, [pathname]);
 
+  // Sync pathname → store (for back/forward, direct URL access, page refresh)
+  useEffect(() => {
+    if (pathnameSection !== storeSection) {
+      setStudentSection(pathnameSection);
+    }
+  }, [pathnameSection, storeSection, setStudentSection]);
+
+  // Use store value for rendering — updates IMMEDIATELY on sidebar click
+  // Falls back to pathnameSection on first render (before Zustand persist hydrates)
+  const activeSection: StudentSection = storeSection || pathnameSection;
+
   // Keep-alive: track which sections have been mounted to prevent remounting
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);
-
-  // Sync Zustand store section state with URL-derived activeSection
-  // This ensures the header label and any store-dependent logic stays in sync
-  useEffect(() => {
-    setStudentSection(activeSection);
-  }, [activeSection, setStudentSection]);
 
   // When navigating away from subjects, clear selectedSubjectId
   useEffect(() => {

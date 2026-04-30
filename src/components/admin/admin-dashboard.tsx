@@ -249,21 +249,29 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const setAdminSection = useAppStore((s) => s.setAdminSection);
+  const storeSection = useAppStore((s) => s.adminSection);
   const router = useRouter();
   const pathname = usePathname();
 
-  // ─── Navigation: derived purely from pathname (no use(params) — avoids Suspense/remount bug)
-  const activeSection: AdminSection = useMemo(() => {
+  // ─── Navigation: Zustand store is PRIMARY source (instant on click),
+  //    pathname is SECONDARY (syncs on back/forward, direct URL access)
+  const pathnameSection = useMemo(() => {
     return getAdminSectionFromPathname(pathname);
   }, [pathname]);
 
+  // Sync pathname → store (for back/forward, direct URL access, page refresh)
+  useEffect(() => {
+    if (pathnameSection !== storeSection) {
+      setAdminSection(pathnameSection);
+    }
+  }, [pathnameSection, storeSection, setAdminSection]);
+
+  // Use store value for rendering — updates IMMEDIATELY on sidebar click
+  // Falls back to pathnameSection on first render (before Zustand persist hydrates)
+  const activeSection: AdminSection = storeSection || pathnameSection;
+
   // ─── Keep-alive: track which sections have been mounted ───
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);
-
-  // Sync Zustand store section state with URL-derived activeSection
-  useEffect(() => {
-    setAdminSection(activeSection);
-  }, [activeSection, setAdminSection]);
 
   // ─── Data state ───
   const [allUsers, setAllUsers] = useState<UserWithMeta[]>([]);

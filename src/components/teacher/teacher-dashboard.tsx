@@ -133,22 +133,32 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const setTeacherSection = useAppStore((s) => s.setTeacherSection);
+  const storeSection = useAppStore((s) => s.teacherSection);
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
-  // ─── Active section: derived purely from pathname (no use(params) — avoids Suspense/remount bug)
+  // ─── Active section: Zustand store is PRIMARY source (instant on click),
+  //    pathname is SECONDARY (syncs on back/forward, direct URL access)
   const pathname = usePathname();
-  const activeSection: TeacherSection = useMemo(() => {
+  const pathnameSection = useMemo(() => {
     return getTeacherSectionFromPathname(pathname);
   }, [pathname]);
   const router = useRouter();
 
+  // Sync pathname → store (for back/forward, direct URL access, page refresh)
+  // This runs AFTER render, so the store always catches up to the URL
+  useEffect(() => {
+    if (pathnameSection !== storeSection) {
+      setTeacherSection(pathnameSection);
+    }
+  }, [pathnameSection, storeSection, setTeacherSection]);
+
+  // Use store value for rendering — updates IMMEDIATELY on sidebar click
+  // because the sidebar calls setTeacherSection() before router.push()
+  // Falls back to pathnameSection on first render (before Zustand persist hydrates)
+  const activeSection: TeacherSection = storeSection || pathnameSection;
+
   // Keep-alive: track which sections have been mounted to prevent unmount/remount
   const { isMounted: isSectionMounted } = useMountedSections(activeSection);
-
-  // Sync Zustand store section state with URL-derived activeSection
-  useEffect(() => {
-    setTeacherSection(activeSection);
-  }, [activeSection, setTeacherSection]);
 
   // When navigating away from subjects, clear selectedSubjectId
   useEffect(() => {
