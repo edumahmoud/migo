@@ -80,7 +80,6 @@ import { ADMIN_SECTION_PATHS, getAdminSectionFromPathname } from '@/lib/navigati
 interface AdminDashboardProps {
   profile: UserProfile;
   onSignOut: () => void;
-  sectionSlug?: string[];
 }
 
 // -------------------------------------------------------
@@ -242,32 +241,17 @@ interface UserWithMeta extends UserProfile {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function AdminDashboard({ profile, onSignOut, sectionSlug }: AdminDashboardProps) {
+export default function AdminDashboard({ profile, onSignOut }: AdminDashboardProps) {
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
   const { sidebarOpen, setSidebarOpen, setAdminSection } = useAppStore();
   const router = useRouter();
   const pathname = usePathname();
 
-  // ─── Navigation: pathname is the PRIMARY source (updates synchronously on router.push).
-  // sectionSlug (from use(params)) can lag behind on client-side navigation, causing stale renders.
+  // ─── Navigation: derived purely from pathname (no use(params) — avoids Suspense/remount bug)
   const activeSection: AdminSection = useMemo(() => {
-    // Primary: pathname-based derivation — always up-to-date
-    const fromPath = getAdminSectionFromPathname(pathname);
-    if (fromPath !== 'dashboard') return fromPath;
-    // Only use sectionSlug when pathname gives 'dashboard' (i.e. /admin with no segment)
-    // and sectionSlug is non-empty — this handles the initial mount before pathname updates
-    if (sectionSlug && sectionSlug.length > 0) {
-      const segment = sectionSlug[0];
-      const map: Record<string, AdminSection> = {
-        users: 'users', subjects: 'subjects', reports: 'reports',
-        announcements: 'announcements', banned: 'banned', institution: 'institution',
-        chat: 'chat', settings: 'settings',
-      };
-      return map[segment] || 'dashboard';
-    }
-    return 'dashboard';
-  }, [pathname, sectionSlug]);
+    return getAdminSectionFromPathname(pathname);
+  }, [pathname]);
 
   // Sync Zustand store section state with URL-derived activeSection
   useEffect(() => {
@@ -280,7 +264,9 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
   const [allScores, setAllScores] = useState<Score[]>([]);
   const [totalQuizzes, setTotalQuizzes] = useState(0);
   const [totalSubmissions, setTotalSubmissions] = useState(0);
-  const [loadingData, setLoadingData] = useState(true);
+
+  // Data loading flag — does NOT block the UI; sections render immediately
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   // ─── Users section state ───
   const [userSearch, setUserSearch] = useState('');
@@ -389,14 +375,12 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
   }, []);
 
   const fetchAllData = useCallback(async (silent = false) => {
-    if (!silent) setLoadingData(true);
     try {
       const token = await getAuthToken();
       
       if (!token) {
         console.error('Admin data fetch: No auth token available');
         if (!silent) toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
-        if (!silent) setLoadingData(false);
         return;
       }
       
@@ -416,7 +400,6 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
             toast.error(`خطأ في جلب البيانات: ${errorData.error || res.status}`);
           }
         }
-        if (!silent) setLoadingData(false);
         return;
       }
       
@@ -435,12 +418,11 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
         console.error('Admin data fetch returned error:', result.error);
         if (!silent) toast.error(result.error || 'حدث خطأ أثناء جلب البيانات');
       }
+      setDataLoaded(true);
     } catch (error) {
       console.error('Error fetching admin data:', error);
       const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع أثناء جلب البيانات';
       if (!silent) toast.error(message);
-    } finally {
-      if (!silent) setLoadingData(false);
     }
   }, [fetchWithTimeout, getAuthToken]);
 
@@ -3238,7 +3220,7 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
         sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
       }`}>
         <div className="mx-auto max-w-6xl p-3 md:p-8">
-          {loadingData ? renderLoading() : (
+          {activeSection === 'dashboard' && !dataLoaded ? renderLoading() : (
             <AnimatePresence mode="popLayout">
               <motion.div
                 key={activeSection}

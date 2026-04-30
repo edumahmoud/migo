@@ -66,7 +66,6 @@ import UserLink from '@/components/shared/user-link';
 interface TeacherDashboardProps {
   profile: UserProfile;
   onSignOut: () => void;
-  sectionSlug?: string[];
 }
 
 // -------------------------------------------------------
@@ -125,31 +124,16 @@ const PIE_COLORS = ['#10b981', '#14b8a6', '#f59e0b', '#ef4444'];
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: TeacherDashboardProps) {
+export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboardProps) {
   // ─── Stores ───
   const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setTeacherSection } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
-  // ─── Active section: pathname is the PRIMARY source (updates synchronously on router.push).
-  // sectionSlug (from use(params)) can lag behind on client-side navigation, causing stale renders.
+  // ─── Active section: derived purely from pathname (no use(params) — avoids Suspense/remount bug)
   const pathname = usePathname();
   const activeSection: TeacherSection = useMemo(() => {
-    // Primary: pathname-based derivation — always up-to-date
-    const fromPath = getTeacherSectionFromPathname(pathname);
-    if (fromPath !== 'dashboard') return fromPath;
-    // Only use sectionSlug when pathname gives 'dashboard' (i.e. /teacher with no segment)
-    // and sectionSlug is non-empty — this handles the initial mount before pathname updates
-    if (sectionSlug && sectionSlug.length > 0) {
-      const segment = sectionSlug[0];
-      const map: Record<string, TeacherSection> = {
-        subjects: 'subjects', students: 'students', files: 'files',
-        assignments: 'assignments', attendance: 'attendance', analytics: 'analytics',
-        chat: 'chat', settings: 'settings', notifications: 'notifications',
-      };
-      return map[segment] || 'dashboard';
-    }
-    return 'dashboard';
-  }, [pathname, sectionSlug]);
+    return getTeacherSectionFromPathname(pathname);
+  }, [pathname]);
   const router = useRouter();
 
   // Sync Zustand store section state with URL-derived activeSection
@@ -168,7 +152,6 @@ export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: Te
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
 
   // ─── Students section ───
   const [studentSearch, setStudentSearch] = useState('');
@@ -357,10 +340,13 @@ export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: Te
     }
   }, [profile.id]);
 
+  // Data loading flag — does NOT block the UI; sections render immediately
+  // with empty/skeleton state while data loads in the background
+  const [dataLoaded, setDataLoaded] = useState(false);
+
   const fetchAllData = useCallback(async () => {
-    setLoadingData(true);
     await Promise.all([fetchStudents(), fetchQuizzes(), fetchScores(), fetchTeacherSubjects(), fetchTeacherFilesCount()]);
-    setLoadingData(false);
+    setDataLoaded(true);
   }, [fetchStudents, fetchQuizzes, fetchScores, fetchTeacherSubjects, fetchTeacherFilesCount]);
 
   useEffect(() => {
@@ -1915,32 +1901,30 @@ export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: Te
       }`}>
         <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4">
           <AnnouncementsBanner userId={profile.id} />
-          {loadingData ? (
-            <div className="flex flex-col items-center justify-center py-32">
-              <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mb-4" />
-              <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
-            </div>
-          ) : (
-            <AnimatePresence mode="popLayout">
-              <motion.div
-                key={activeSection}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.15 }}
-              >
-                {activeSection === 'dashboard' && renderDashboard()}
-                {activeSection === 'subjects' && (selectedSubjectId
-                  ? <CoursePage profile={profile} role="teacher" />
-                  : <SubjectsSection profile={profile} role="teacher" />)}
-                {activeSection === 'students' && renderStudents()}
-                {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
-                {activeSection === 'analytics' && renderAnalytics()}
-                {activeSection === 'chat' && <ChatSection profile={profile} role="teacher" />}
-                {activeSection === 'settings' && <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />}
-                {activeSection === 'notifications' && <NotificationsSection />}
-              </motion.div>
-            </AnimatePresence>
-          )}
+          <AnimatePresence mode="popLayout">
+            <motion.div
+              key={activeSection}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.15 }}
+            >
+              {activeSection === 'dashboard' && (!dataLoaded ? (
+                <div className="flex flex-col items-center justify-center py-32">
+                  <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mb-4" />
+                  <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
+                </div>
+              ) : renderDashboard())}
+              {activeSection === 'subjects' && (selectedSubjectId
+                ? <CoursePage profile={profile} role="teacher" />
+                : <SubjectsSection profile={profile} role="teacher" />)}
+              {activeSection === 'students' && renderStudents()}
+              {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
+              {activeSection === 'analytics' && renderAnalytics()}
+              {activeSection === 'chat' && <ChatSection profile={profile} role="teacher" />}
+              {activeSection === 'settings' && <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />}
+              {activeSection === 'notifications' && <NotificationsSection />}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
 

@@ -71,7 +71,6 @@ async function getPdfjsLib() {
 interface StudentDashboardProps {
   profile: UserProfile;
   onSignOut: () => void;
-  sectionSlug?: string[];
 }
 
 // -------------------------------------------------------
@@ -123,33 +122,18 @@ function scorePercentage(score: number, total: number): number {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function StudentDashboard({ profile, onSignOut, sectionSlug }: StudentDashboardProps) {
+export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
   // ─── App store ───
   const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setStudentSection } = useAppStore();
 
   // ─── Router for URL-based navigation ───
   const router = useRouter();
 
-  // ─── Active section: pathname is the PRIMARY source (updates synchronously on router.push).
-  // sectionSlug (from use(params)) can lag behind on client-side navigation, causing stale renders.
+  // ─── Active section: derived purely from pathname (no use(params) — avoids Suspense/remount bug)
   const pathname = usePathname();
   const activeSection: StudentSection = useMemo(() => {
-    // Primary: pathname-based derivation — always up-to-date
-    const fromPath = getStudentSectionFromPathname(pathname);
-    if (fromPath !== 'dashboard') return fromPath;
-    // Only use sectionSlug when pathname gives 'dashboard' (i.e. /student with no segment)
-    // and sectionSlug is non-empty — this handles the initial mount before pathname updates
-    if (sectionSlug && sectionSlug.length > 0) {
-      const segment = sectionSlug[0];
-      const map: Record<string, StudentSection> = {
-        subjects: 'subjects', summaries: 'summaries', assignments: 'assignments',
-        files: 'files', teachers: 'teachers', chat: 'chat', settings: 'settings',
-        notifications: 'notifications', quizzes: 'quizzes', attendance: 'attendance',
-      };
-      return map[segment] || 'dashboard';
-    }
-    return 'dashboard';
-  }, [pathname, sectionSlug]);
+    return getStudentSectionFromPathname(pathname);
+  }, [pathname]);
 
   // Sync Zustand store section state with URL-derived activeSection
   // This ensures the header label and any store-dependent logic stays in sync
@@ -173,7 +157,6 @@ export default function StudentDashboard({ profile, onSignOut, sectionSlug }: St
   const [scores, setScores] = useState<Score[]>([]);
   const [linkedTeachers, setLinkedTeachers] = useState<UserProfile[]>([]);
   const [fileCount, setFileCount] = useState(0);
-  const [loadingData, setLoadingData] = useState(true);
 
   // ─── New summary modal ───
   const [newSummaryOpen, setNewSummaryOpen] = useState(false);
@@ -451,9 +434,8 @@ export default function StudentDashboard({ profile, onSignOut, sectionSlug }: St
 
   // Load all data
   const fetchAllData = useCallback(async () => {
-    setLoadingData(true);
     await Promise.all([fetchSummaries(), fetchQuizzes(), fetchScores(), fetchLinkedTeachers(), fetchIncomingLinkRequests(), fetchFileCount()]);
-    setLoadingData(false);
+    setDataLoaded(true);
   }, [fetchSummaries, fetchQuizzes, fetchScores, fetchLinkedTeachers, fetchIncomingLinkRequests, fetchFileCount]);
 
   useEffect(() => {
@@ -2296,11 +2278,17 @@ export default function StudentDashboard({ profile, onSignOut, sectionSlug }: St
     );
   };
 
+  // Data loading flag — does NOT block the UI; sections render immediately
+  // with empty/skeleton state while data loads in the background
+  const [dataLoaded, setDataLoaded] = useState(false);
+
   // -------------------------------------------------------
   // Render: Section content
   // -------------------------------------------------------
   const renderSection = () => {
-    if (loadingData) {
+    // Only the dashboard section needs to wait for data
+    // Other sections (chat, settings, etc.) load independently
+    if (activeSection === 'dashboard' && !dataLoaded) {
       return (
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-4" />
