@@ -5,14 +5,13 @@ import { useRouter, usePathname } from 'next/navigation';
 import { GraduationCap, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useStatusStore } from '@/stores/status-store';
-import { useAppStore } from '@/stores/app-store';
 import { setSocketAuth, destroySocket } from '@/lib/socket';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { getDefaultPath } from '@/lib/navigation-config';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import RoleGuard from '@/components/shared/role-guard';
-import { cleanupAfterNavigation, initNavigationGuard, destroyNavigationGuard } from '@/lib/navigation-cleanup';
+import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 import type { UserRole } from '@/lib/types';
 
 // =====================================================
@@ -25,12 +24,9 @@ import type { UserRole } from '@/lib/types';
 //   Layer 3 (Client):     RoleGuard component — client-side redirect
 //   Layer 4 (This file):  Layout-level auth init + redirect
 //
-// This layout:
-//   1. Initializes auth state (Zustand store)
-//   2. Redirects unauthenticated users to login
-//   3. Validates role-to-route match (e.g., student can't be on /admin)
-//   4. Initializes Socket.IO and status store
-//   5. Shows banned user overlay
+// REBUILD: Removed all navigation-cleanup guard logic (MutationObserver,
+// rAF loop, etc.) because the keep-alive pattern has been eliminated.
+// Only a lightweight body-lock cleanup remains.
 
 // Map URL prefix → allowed roles
 const ROUTE_ROLE_MAP: Record<string, UserRole[]> = {
@@ -47,11 +43,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const banInfo = useAuthStore((s) => s.banInfo);
   const cleanupStatusStore = useStatusStore((s) => s.cleanup);
   const initStatusStore = useStatusStore((s) => s.init);
-  const resetAppStore = useAppStore((s) => s.reset);
   const router = useRouter();
   const pathname = usePathname();
 
-  // Only initialize auth if not already done (prevents redundant network calls on re-mount)
+  // Only initialize auth if not already done
   useEffect(() => {
     if (!initialized) {
       initialize();
@@ -76,53 +71,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [initialized, user, loading, router]);
 
-  // ─── Client-Side Role-to-Route Validation ───
-  // This is an additional safety net on top of middleware.ts.
-  // If a user somehow reaches a route they shouldn't be on
-  // (e.g., direct client-side navigation), redirect them.
+  // Client-Side Role-to-Route Validation
   useEffect(() => {
     if (!initialized || !user || loading) return;
 
     const userRole = user.role as UserRole;
 
-    // Find which route prefix matches the current pathname
     for (const [routePrefix, allowedRoles] of Object.entries(ROUTE_ROLE_MAP)) {
       if (pathname.startsWith(routePrefix)) {
         if (!allowedRoles.includes(userRole)) {
-          // Role mismatch — redirect to their correct dashboard
           const correctPath = getDefaultPath(userRole as 'student' | 'teacher' | 'admin' | 'superadmin');
-          console.warn(
-            `[DashboardLayout] Role mismatch: role='${userRole}', path='${pathname}'. ` +
-            `Redirecting to '${correctPath}'`
-          );
           router.replace(correctPath);
           return;
         }
-        break; // Found matching route, role is correct
+        break;
       }
     }
   }, [initialized, user, loading, pathname, router]);
 
-  // ─── GLOBAL OVERLAY CLEANUP ON NAVIGATION ───
-  // Whenever the pathname changes, clean up any stale body locks
-  // and mark stale overlays as non-interactive. This is the primary
-  // defense against the "transparent overlay" blocking bug.
-  // IMPORTANT: We only use CSS-based cleanup (no DOM removal) because
-  // removing React-managed portal nodes causes React to crash.
+  // Lightweight body-lock cleanup on navigation
   useEffect(() => {
     cleanupAfterNavigation();
   }, [pathname]);
-
-  // ─── Initialize MutationObserver guard ───
-  // This watches for `inert` and `pointer-events: none` being (re-)added
-  // to the page content by Radix UI Dialogs in hidden sections, and
-  // removes them automatically when no visible dialog is open.
-  useEffect(() => {
-    initNavigationGuard();
-    return () => {
-      destroyNavigationGuard();
-    };
-  }, []);
 
   if (!isSupabaseConfigured) {
     return <SupabaseConfigError />;
@@ -146,8 +116,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) return null;
 
-  // ─── Determine allowed roles for current route ───
-  let allowedRoles: UserRole[] = ['student', 'teacher', 'admin', 'superadmin']; // default: allow all
+  // Determine allowed roles for current route
+  let allowedRoles: UserRole[] = ['student', 'teacher', 'admin', 'superadmin'];
   for (const [routePrefix, roles] of Object.entries(ROUTE_ROLE_MAP)) {
     if (pathname.startsWith(routePrefix)) {
       allowedRoles = roles;

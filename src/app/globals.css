@@ -402,60 +402,19 @@
   }
 }
 
-/* ─── GLOBAL OVERLAY DEADLOCK PREVENTION ─── */
-/* ROOT CAUSE: The `inert` HTML attribute blocks ALL user interaction events
-   (click, focus, keyboard) but does NOT block CSS :hover. This is why users
-   see hover effects but clicks don't work after navigation.
+/* ─── Stale Overlay Cleanup ─── */
+/* Lightweight rules to ensure closed Radix portals don't block clicks.
+   The rebuild eliminated the keep-alive pattern (which was the root cause
+   of the navigation blocking bug), so these are just safety nets. */
 
-   The JavaScript cleanup (navigation-cleanup.ts v4) handles removing `inert`
-   and body locks with a requestAnimationFrame loop. These CSS rules are a
-   defense-in-depth layer that prevents stale overlays from blocking clicks. */
-
-/* Framer Motion AnimatePresence exit animations keep elements in DOM briefly;
-   this ensures they don't intercept pointer events during exit */
-[data-exiting="true"] {
-  pointer-events: none !important;
-}
-
-/* Any closed Radix portal content must not block clicks */
+/* Closed Radix portal content must not block clicks */
 [data-radix-portal] [data-state="closed"] {
   pointer-events: none !important;
 }
 
-/* Closed overlays must never block clicks */
-[data-radix-overlay][data-state="closed"],
-[data-radix-overlay]:not([data-state="open"]) {
-  pointer-events: none !important;
-}
-
-/* Closed sheet/dialog overlay and content must not block */
-[data-radix-portal] [data-state="closed"][data-slot="sheet-overlay"],
-[data-radix-portal] [data-state="closed"][data-slot="dialog-overlay"] {
-  pointer-events: none !important;
-  opacity: 0 !important;
-}
-
-[data-radix-portal] [data-state="closed"][data-slot="sheet-content"],
-[data-radix-portal] [data-state="closed"][data-slot="dialog-content"] {
-  pointer-events: none !important;
-  visibility: hidden !important;
-}
-
-/* Portals without any open content are stale and must not block clicks */
+/* Stale portals (no open content) must not block clicks */
 [data-radix-portal]:not(:has([data-state="open"])) {
   pointer-events: none !important;
-}
-
-/* ─── CRITICAL: Ensure header/sidebar/nav are ALWAYS interactive ─── */
-/* Even when body has pointer-events: none (set by Radix Dialog), these
-   navigation elements must remain clickable. The JS cleanup removes
-   pointer-events: none from body, but this CSS rule is a safety net. */
-body[style*="pointer-events: none"] header,
-body[style*="pointer-events: none"] aside,
-body[style*="pointer-events: none"] nav,
-body[style*="pointer-events: none"] [role="banner"],
-body[style*="pointer-events: none"] [role="navigation"] {
-  pointer-events: auto !important;
 }
 
 /* ─── Minimum Touch Target (44px) for Mobile Accessibility ─── */

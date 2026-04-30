@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { TEACHER_SECTION_PATHS, getTeacherSectionFromPathname } from '@/lib/navigation-config';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -52,12 +52,10 @@ import StatCard from '@/components/shared/stat-card';
 import SubjectsSection from '@/components/shared/subjects-section';
 import PersonalFilesSection from '@/components/shared/personal-files-section';
 import AnnouncementsBanner from '@/components/shared/announcements-banner';
-import SectionTransition from '@/components/shared/section-transition';
 import NotificationsSection from '@/components/shared/notifications-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
-import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
-import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
+import { useNavigationSync } from '@/hooks/use-mounted-sections';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import type { UserProfile, Quiz, Score, Subject, TeacherSection } from '@/lib/types';
@@ -156,10 +154,6 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     setStoreSection: setTeacherSection,
   }) as TeacherSection;
 
-  // Keep-alive: track which sections have been mounted to prevent unmount/remount
-  // activeSection is derived from pathname, so visibility is strictly URL-reactive
-  const { isMounted: isSectionMounted } = useMountedSections(activeSection);
-
   // When navigating away from subjects, clear selectedSubjectId
   useEffect(() => {
     if (activeSection !== 'subjects' && selectedSubjectId) {
@@ -168,25 +162,17 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   }, [activeSection, selectedSubjectId, setSelectedSubjectId]);
 
   // ─── MODAL CLEANUP ON NAVIGATION ───
-  // When the user navigates to a different section while a modal is open,
-  // the modal's fixed-position backdrop stays visible and blocks all clicks.
-  // This effect closes ALL modals when the active section changes.
+  // When the user navigates to a different section, close any open modals
+  // that are rendered at the top level (outside section conditionals).
+  // Section-internal modals (pendingPanel, sendRequest, etc.) are automatically
+  // unmounted when their section unmounts with simple conditional rendering.
   const prevSectionRef = useRef(activeSection);
   useEffect(() => {
     if (prevSectionRef.current !== activeSection) {
-      // Close all modals
+      // Close top-level modals that persist across sections
       setStudentDetailOpen(false);
       setSelectedStudent(null);
-      setConfirmAcceptAllOpen(false);
-      setConfirmRejectAllOpen(false);
       setConfirmRemoveOpen(false);
-      setPendingPanelOpen(false);
-      setSendRequestOpen(false);
-      setStudentPreview(null);
-      setStudentSearch('');
-
-      // Force-cleanup any body locks left by Radix UI / modal libraries
-      cleanupAfterNavigation();
 
       prevSectionRef.current = activeSection;
     }
@@ -1947,68 +1933,71 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <AnnouncementsBanner userId={profile.id} />
           <SectionErrorBoundary sectionName={activeSection}>
             <div className="relative">
-              {isSectionMounted('dashboard') && (
-                <SectionTransition isActive={activeSection === 'dashboard'}>
+              {activeSection === 'dashboard' && (
+                <div className="animate-section-enter">
                   {!dataLoaded ? (
                     <div className="flex flex-col items-center justify-center py-32">
                       <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mb-4" />
                       <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
                     </div>
                   ) : renderDashboard()}
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('subjects') && (
-                <SectionTransition isActive={activeSection === 'subjects'}>
-                  {selectedSubjectId
-                    ? <CoursePage profile={profile} role="teacher" />
-                    : <SubjectsSection profile={profile} role="teacher" />}
-                </SectionTransition>
+              {activeSection === 'subjects' && selectedSubjectId && (
+                <div className="animate-section-enter">
+                  <CoursePage profile={profile} role="teacher" />
+                </div>
               )}
-              {isSectionMounted('students') && (
-                <SectionTransition isActive={activeSection === 'students'}>
+              {activeSection === 'subjects' && !selectedSubjectId && (
+                <div className="animate-section-enter">
+                  <SubjectsSection profile={profile} role="teacher" />
+                </div>
+              )}
+              {activeSection === 'students' && (
+                <div className="animate-section-enter">
                   {renderStudents()}
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('files') && (
-                <SectionTransition isActive={activeSection === 'files'}>
+              {activeSection === 'files' && (
+                <div className="animate-section-enter">
                   <PersonalFilesSection profile={profile} role="teacher" />
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('assignments') && (
-                <SectionTransition isActive={activeSection === 'assignments'}>
+              {activeSection === 'assignments' && (
+                <div className="animate-section-enter">
                   <div className="flex flex-col items-center justify-center py-32">
                     <ClipboardList className="h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">قريباً - التكليفات</p>
                   </div>
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('attendance') && (
-                <SectionTransition isActive={activeSection === 'attendance'}>
+              {activeSection === 'attendance' && (
+                <div className="animate-section-enter">
                   <div className="flex flex-col items-center justify-center py-32">
                     <Users className="h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">قريباً - الحضور والغياب</p>
                   </div>
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('analytics') && (
-                <SectionTransition isActive={activeSection === 'analytics'}>
+              {activeSection === 'analytics' && (
+                <div className="animate-section-enter">
                   {renderAnalytics()}
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('chat') && (
-                <SectionTransition isActive={activeSection === 'chat'}>
+              {activeSection === 'chat' && (
+                <div className="animate-section-enter">
                   <ChatSection profile={profile} role="teacher" />
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('settings') && (
-                <SectionTransition isActive={activeSection === 'settings'}>
+              {activeSection === 'settings' && (
+                <div className="animate-section-enter">
                   <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('notifications') && (
-                <SectionTransition isActive={activeSection === 'notifications'}>
+              {activeSection === 'notifications' && (
+                <div className="animate-section-enter">
                   <NotificationsSection />
-                </SectionTransition>
+                </div>
               )}
             </div>
           </SectionErrorBoundary>

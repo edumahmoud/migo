@@ -69,14 +69,12 @@ import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
-import SectionTransition from '@/components/shared/section-transition';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 import { ADMIN_SECTION_PATHS, getAdminSectionFromPathname } from '@/lib/navigation-config';
-import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
-import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
+import { useNavigationSync } from '@/hooks/use-mounted-sections';
 
 // -------------------------------------------------------
 // Props
@@ -271,10 +269,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     setStoreSection: setAdminSection,
   }) as AdminSection;
 
-  // ─── Keep-alive: track which sections have been mounted ───
-  // activeSection is derived from pathname, so visibility is strictly URL-reactive
-  const { isMounted: isSectionMounted } = useMountedSections(activeSection);
-
   // ─── MODAL CLEANUP ON NAVIGATION ───
   // When the user navigates to a different section while a modal is open,
   // the modal's fixed-position backdrop stays visible and blocks all clicks.
@@ -288,9 +282,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       setSubjectDetailOpen(false);
       setBanDialogOpen(false);
       setCreateAnnouncementOpen(false);
-
-      // Force-cleanup any body locks left by Radix UI / modal libraries
-      cleanupAfterNavigation();
 
       prevSectionRef.current = activeSection;
     }
@@ -3260,50 +3251,50 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <div className="mx-auto max-w-6xl p-3 md:p-8">
           <SectionErrorBoundary sectionName={activeSection}>
             <div className="relative">
-              {isSectionMounted('dashboard') && (
-                <SectionTransition isActive={activeSection === 'dashboard'}>
+              {activeSection === 'dashboard' && (
+                <div className="animate-section-enter">
                   {!dataLoaded ? renderLoading() : renderDashboard()}
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('users') && (
-                <SectionTransition isActive={activeSection === 'users'}>
+              {activeSection === 'users' && (
+                <div className="animate-section-enter">
                   {renderUsers()}
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('subjects') && (
-                <SectionTransition isActive={activeSection === 'subjects'}>
+              {activeSection === 'subjects' && (
+                <div className="animate-section-enter">
                   {renderSubjects()}
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('announcements') && (
-                <SectionTransition isActive={activeSection === 'announcements'}>
+              {activeSection === 'announcements' && (
+                <div className="animate-section-enter">
                   {renderAnnouncements()}
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('banned') && (
-                <SectionTransition isActive={activeSection === 'banned'}>
+              {activeSection === 'banned' && (
+                <div className="animate-section-enter">
                   {renderBannedUsers()}
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('reports') && (
-                <SectionTransition isActive={activeSection === 'reports'}>
+              {activeSection === 'reports' && (
+                <div className="animate-section-enter">
                   {renderReports()}
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('chat') && (
-                <SectionTransition isActive={activeSection === 'chat'}>
+              {activeSection === 'chat' && (
+                <div className="animate-section-enter">
                   <ChatSection profile={profile} role="admin" />
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('settings') && (
-                <SectionTransition isActive={activeSection === 'settings'}>
+              {activeSection === 'settings' && (
+                <div className="animate-section-enter">
                   <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
-                </SectionTransition>
+                </div>
               )}
-              {isSectionMounted('institution') && (
-                <SectionTransition isActive={activeSection === 'institution'}>
+              {activeSection === 'institution' && (
+                <div className="animate-section-enter">
                   <InstitutionSection profile={profile} />
-                </SectionTransition>
+                </div>
               )}
             </div>
           </SectionErrorBoundary>

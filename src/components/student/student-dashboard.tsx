@@ -52,10 +52,8 @@ import { STUDENT_SECTION_PATHS, getStudentSectionFromPathname } from '@/lib/navi
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
-import { useMountedSections, useNavigationSync } from '@/hooks/use-mounted-sections';
-import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
+import { useNavigationSync } from '@/hooks/use-mounted-sections';
 import AttendanceSection from '@/components/shared/attendance-section';
-import SectionTransition from '@/components/shared/section-transition';
 
 // -------------------------------------------------------
 // PDF.js worker setup - lazy loaded to avoid server-side DOMMatrix error
@@ -156,10 +154,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setStoreSection: setStudentSection,
   }) as StudentSection;
 
-  // Keep-alive: track which sections have been mounted to prevent remounting
-  // activeSection is derived from pathname, so visibility is strictly URL-reactive
-  const { isMounted: isSectionMounted } = useMountedSections(activeSection);
-
   // Data loading flag — used only for dashboard section loading indicator
   const [dataLoaded, setDataLoaded] = useState(false);
 
@@ -171,30 +165,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   }, [activeSection, selectedSubjectId, setSelectedSubjectId]);
 
   // ─── MODAL CLEANUP ON NAVIGATION ───
-  // When the user navigates to a different section while a modal is open,
-  // the modal's fixed-position backdrop stays visible and blocks all clicks.
-  // This effect closes ALL modals when the active section changes.
-  const prevSectionRef = useRef(activeSection);
-  useEffect(() => {
-    if (prevSectionRef.current !== activeSection) {
-      // Close all modals
-      setNewSummaryOpen(false);
-      setLinkTeacherOpen(false);
-      setTeacherPreview(null);
-      setTeacherCode('');
-      setIncomingPanelOpen(false);
-      setConfirmIncomingAcceptAllOpen(false);
-      setConfirmIncomingRejectAllOpen(false);
-      setSelectedTeacher(null);
-      setUnlinkConfirmOpen(false);
-      setSummaryStep('input');
-
-      // Force-cleanup any body locks left by Radix UI / modal libraries
-      cleanupAfterNavigation();
-
-      prevSectionRef.current = activeSection;
-    }
-  }, [activeSection]);
+  // With simple conditional rendering, modals are automatically unmounted
+  // when navigating away from their section, so no manual cleanup is needed.
+  // The cleanupAfterNavigation() call and prevSectionRef are no longer required.
 
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
@@ -2400,74 +2373,72 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         <div className="p-3 sm:p-6 lg:p-8 space-y-4">
           <AnnouncementsBanner userId={profile.id} />
           <SectionErrorBoundary sectionName={activeSection}>
-            <div className="relative">
-              {/* Keep-alive: All mounted sections stay in DOM, only active one is visible */}
-              {/* This prevents the expensive unmount/remount cycle that caused navigation freezes */}
-              {isSectionMounted('dashboard') && (
-                <SectionTransition isActive={activeSection === 'dashboard'}>
-                  {activeSection === 'dashboard' && !dataLoaded ? (
-                    <div className="flex flex-col items-center justify-center py-20">
-                      <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-4" />
-                      <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
-                    </div>
-                  ) : renderDashboard()}
-                </SectionTransition>
-              )}
-              {isSectionMounted('subjects') && (
-                <SectionTransition isActive={activeSection === 'subjects'}>
-                  {selectedSubjectId ? (
-                    <CoursePage profile={profile} role="student" />
-                  ) : (
-                    <SubjectsSection profile={profile} role="student" />
-                  )}
-                </SectionTransition>
-              )}
-              {isSectionMounted('summaries') && (
-                <SectionTransition isActive={activeSection === 'summaries'}>
-                  {renderSummaries()}
-                </SectionTransition>
-              )}
-              {isSectionMounted('assignments') && (
-                <SectionTransition isActive={activeSection === 'assignments'}>
-                  <AssignmentsSection profile={profile} role="student" />
-                </SectionTransition>
-              )}
-              {isSectionMounted('files') && (
-                <SectionTransition isActive={activeSection === 'files'}>
-                  <PersonalFilesSection profile={profile} role="student" />
-                </SectionTransition>
-              )}
-              {isSectionMounted('teachers') && (
-                <SectionTransition isActive={activeSection === 'teachers'}>
-                  {renderTeachers()}
-                </SectionTransition>
-              )}
-              {isSectionMounted('chat') && (
-                <SectionTransition isActive={activeSection === 'chat'}>
-                  <ChatSection profile={profile} role="student" />
-                </SectionTransition>
-              )}
-              {isSectionMounted('settings') && (
-                <SectionTransition isActive={activeSection === 'settings'}>
-                  <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
-                </SectionTransition>
-              )}
-              {isSectionMounted('notifications') && (
-                <SectionTransition isActive={activeSection === 'notifications'}>
-                  <NotificationsSection />
-                </SectionTransition>
-              )}
-              {isSectionMounted('quizzes') && (
-                <SectionTransition isActive={activeSection === 'quizzes'}>
-                  {renderQuizzes()}
-                </SectionTransition>
-              )}
-              {isSectionMounted('attendance') && (
-                <SectionTransition isActive={activeSection === 'attendance'}>
-                  <AttendanceSection profile={profile} role="student" />
-                </SectionTransition>
-              )}
-            </div>
+            {/* Simple conditional rendering — only the active section is in the DOM */}
+            {activeSection === 'dashboard' && (
+              <div className="animate-section-enter">
+                {!dataLoaded ? (
+                  <div className="flex flex-col items-center justify-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-4" />
+                    <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
+                  </div>
+                ) : renderDashboard()}
+              </div>
+            )}
+            {activeSection === 'subjects' && selectedSubjectId && (
+              <div className="animate-section-enter">
+                <CoursePage profile={profile} role="student" />
+              </div>
+            )}
+            {activeSection === 'subjects' && !selectedSubjectId && (
+              <div className="animate-section-enter">
+                <SubjectsSection profile={profile} role="student" />
+              </div>
+            )}
+            {activeSection === 'summaries' && (
+              <div className="animate-section-enter">
+                {renderSummaries()}
+              </div>
+            )}
+            {activeSection === 'assignments' && (
+              <div className="animate-section-enter">
+                <AssignmentsSection profile={profile} role="student" />
+              </div>
+            )}
+            {activeSection === 'files' && (
+              <div className="animate-section-enter">
+                <PersonalFilesSection profile={profile} role="student" />
+              </div>
+            )}
+            {activeSection === 'teachers' && (
+              <div className="animate-section-enter">
+                {renderTeachers()}
+              </div>
+            )}
+            {activeSection === 'chat' && (
+              <div className="animate-section-enter">
+                <ChatSection profile={profile} role="student" />
+              </div>
+            )}
+            {activeSection === 'settings' && (
+              <div className="animate-section-enter">
+                <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />
+              </div>
+            )}
+            {activeSection === 'notifications' && (
+              <div className="animate-section-enter">
+                <NotificationsSection />
+              </div>
+            )}
+            {activeSection === 'quizzes' && (
+              <div className="animate-section-enter">
+                {renderQuizzes()}
+              </div>
+            )}
+            {activeSection === 'attendance' && (
+              <div className="animate-section-enter">
+                <AttendanceSection profile={profile} role="student" />
+              </div>
+            )}
           </SectionErrorBoundary>
         </div>
       </main>
