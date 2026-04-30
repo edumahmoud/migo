@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 // recharts is imported at top level for now — consider lazy-loading the analytics tab component
@@ -249,8 +249,21 @@ export default function AdminDashboard({ profile, onSignOut, sectionSlug }: Admi
   const router = useRouter();
   const pathname = usePathname();
 
-  // ─── Navigation (derived from URL pathname - most reliable) ───
-  const activeSection: AdminSection = getAdminSectionFromPathname(pathname);
+  // ─── Navigation: prefer sectionSlug (from URL params), fall back to pathname ───
+  const activeSection: AdminSection = useMemo(() => {
+    // Primary: sectionSlug from URL catch-all params (updates immediately on router.push)
+    if (sectionSlug && sectionSlug.length > 0) {
+      const segment = sectionSlug[0];
+      const map: Record<string, AdminSection> = {
+        users: 'users', subjects: 'subjects', reports: 'reports',
+        announcements: 'announcements', banned: 'banned', institution: 'institution',
+        chat: 'chat', settings: 'settings',
+      };
+      return map[segment] || 'dashboard';
+    }
+    // Fallback: pathname-based derivation
+    return getAdminSectionFromPathname(pathname);
+  }, [sectionSlug, pathname]);
 
   // Sync Zustand store section state with URL-derived activeSection
   useEffect(() => {

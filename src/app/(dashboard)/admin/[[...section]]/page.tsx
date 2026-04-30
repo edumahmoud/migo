@@ -25,7 +25,11 @@ function AdminPageInner({ params }: { params: Promise<{ section?: string[] }> })
     window.location.href = '/';
   };
 
-  return <AdminDashboard profile={user} onSignOut={handleSignOut} sectionSlug={section} />;
+  // key forces full remount when the top-level section changes,
+  // guaranteeing the correct section renders without needing a manual refresh
+  const sectionKey = section?.[0] || 'dashboard';
+
+  return <AdminDashboard key={sectionKey} profile={user} onSignOut={handleSignOut} sectionSlug={section} />;
 }
 
 export default function AdminPage({ params }: { params: Promise<{ section?: string[] }> }) {

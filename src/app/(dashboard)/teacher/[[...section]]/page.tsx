@@ -25,7 +25,11 @@ function TeacherPageInner({ params }: { params: Promise<{ section?: string[] }> 
     window.location.href = '/';
   };
 
-  return <TeacherDashboard profile={user} onSignOut={handleSignOut} sectionSlug={section} />;
+  // key forces full remount when the top-level section changes,
+  // guaranteeing the correct section renders without needing a manual refresh
+  const sectionKey = section?.[0] || 'dashboard';
+
+  return <TeacherDashboard key={sectionKey} profile={user} onSignOut={handleSignOut} sectionSlug={section} />;
 }
 
 export default function TeacherPage({ params }: { params: Promise<{ section?: string[] }> }) {

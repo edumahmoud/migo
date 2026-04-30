@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { TEACHER_SECTION_PATHS, getTeacherSectionFromPathname } from '@/lib/navigation-config';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -130,9 +130,23 @@ export default function TeacherDashboard({ profile, onSignOut, sectionSlug }: Te
   const { selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setTeacherSection } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
 
-  // ─── Active section derived from URL pathname (most reliable) ───
+  // ─── Active section: prefer sectionSlug (from URL params), fall back to pathname ───
   const pathname = usePathname();
-  const activeSection: TeacherSection = getTeacherSectionFromPathname(pathname);
+  const activeSection: TeacherSection = useMemo(() => {
+    // Primary: sectionSlug from URL catch-all params (updates immediately on router.push)
+    if (sectionSlug && sectionSlug.length > 0) {
+      const segment = sectionSlug[0];
+      if (segment === 'subjects' && sectionSlug.length > 1) return 'subjects';
+      const map: Record<string, TeacherSection> = {
+        subjects: 'subjects', students: 'students', files: 'files',
+        assignments: 'assignments', attendance: 'attendance', analytics: 'analytics',
+        chat: 'chat', settings: 'settings', notifications: 'notifications',
+      };
+      return map[segment] || 'dashboard';
+    }
+    // Fallback: pathname-based derivation
+    return getTeacherSectionFromPathname(pathname);
+  }, [sectionSlug, pathname]);
   const router = useRouter();
 
   // Sync Zustand store section state with URL-derived activeSection

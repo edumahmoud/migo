@@ -118,14 +118,11 @@ function NavItems({
   const router = useRouter();
 
   const handleNav = (sectionId: string) => {
-    // Close the mobile sheet FIRST to prevent overlay from blocking interactions
+    const path = getSectionPath(role, sectionId);
+    // Close the mobile sheet and navigate immediately
+    // Using router.push first ensures the URL updates before the Sheet closes
+    router.push(path);
     onNavClick?.();
-    // Navigate after a short delay to let the Sheet close animation start
-    // and prevent the Radix Dialog overlay from staying and blocking the page
-    setTimeout(() => {
-      const path = getSectionPath(role, sectionId);
-      router.push(path);
-    }, 150);
   };
 
   return (
