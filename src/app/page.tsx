@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
@@ -19,12 +19,11 @@ import SetupWizard from '@/components/setup/setup-wizard';
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
 function HomeContent() {
-  const { user, loading, initialized, initialize, signOut, sessionKickedMessage } = useAuthStore();
+  const { user, loading, initialized, initialize, sessionKickedMessage } = useAuthStore();
   const { reset: resetAppStore } = useAppStore();
   const { cleanup: cleanupStatusStore, init: initStatusStore } = useStatusStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   // ─── Setup Wizard state ───
   const [setupCheckDone, setSetupCheckDone] = useState(false);
@@ -85,10 +84,9 @@ function HomeContent() {
 
     if (newUser && user) {
       // New Google OAuth user - redirect to student dashboard (default role)
-      router.replace('/student');
-      window.history.replaceState({}, '', '/');
+      window.location.href = '/student';
     }
-  }, [searchParams, user, router]);
+  }, [searchParams, user]);
 
   // Initialize auth on mount
   useEffect(() => {
@@ -96,16 +94,19 @@ function HomeContent() {
   }, [initialize]);
 
   // Redirect authenticated users to their dashboard route
-  // Use early redirect to minimize the "جاري التحويل" screen time
+  // Use window.location.href for a hard redirect — this avoids the
+  // "جاري التحويل" infinite loading bug where router.replace() can hang
+  // without actually navigating. A hard redirect is instantaneous and
+  // guaranteed to work.
   useEffect(() => {
     if (!initialized) return;
     if (wizardInProgress) return;
 
     if (user) {
       const dashboardPath = getDefaultPath(user.role as 'student' | 'teacher' | 'admin' | 'superadmin');
-      router.replace(dashboardPath);
+      window.location.href = dashboardPath;
     }
-  }, [user, initialized, wizardInProgress, router]);
+  }, [user, initialized, wizardInProgress]);
 
   // Show auth error toast if present in URL
   useEffect(() => {
@@ -258,20 +259,10 @@ function HomeContent() {
     );
   }
 
-  // User is authenticated — redirect is happening, show minimal indicator
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 pointer-events-none" dir="rtl">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-          <GraduationCap className="w-7 h-7 text-white" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-          <span className="text-sm font-medium text-emerald-700">جاري التحويل...</span>
-        </div>
-      </div>
-    </div>
-  );
+  // User is authenticated — hard redirect is in progress (window.location.href).
+  // No need for a "جاري التحويل" screen — the browser handles the transition.
+  // Return null to avoid any flash of content.
+  return null;
 }
 
 export default function Home() {
