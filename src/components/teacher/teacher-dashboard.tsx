@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { TEACHER_SECTION_PATHS, getTeacherSectionFromPathname } from '@/lib/navigation-config';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 // recharts is imported at top level for now — consider lazy-loading the analytics tab component
 import {
   BarChart,
@@ -1901,7 +1902,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       }`}>
         <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4">
           <AnnouncementsBanner userId={profile.id} />
-          <AnimatePresence mode="popLayout">
+          <SectionErrorBoundary sectionName={activeSection}>
             <motion.div
               key={activeSection}
               initial={{ opacity: 0 }}
@@ -1924,7 +1925,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               {activeSection === 'settings' && <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />}
               {activeSection === 'notifications' && <NotificationsSection />}
             </motion.div>
-          </AnimatePresence>
+          </SectionErrorBoundary>
         </div>
       </main>
 

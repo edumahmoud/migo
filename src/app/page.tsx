@@ -96,14 +96,12 @@ function HomeContent() {
   }, [initialize]);
 
   // Redirect authenticated users to their dashboard route
+  // Use early redirect to minimize the "جاري التحويل" screen time
   useEffect(() => {
     if (!initialized) return;
-
-    // Don't redirect away from the setup wizard while it's in progress
     if (wizardInProgress) return;
 
     if (user) {
-      // Redirect to the proper dashboard route based on role
       const dashboardPath = getDefaultPath(user.role as 'student' | 'teacher' | 'admin' | 'superadmin');
       router.replace(dashboardPath);
     }
@@ -260,25 +258,18 @@ function HomeContent() {
     );
   }
 
-  // User is authenticated — show loading while redirect happens
+  // User is authenticated — redirect is happening, show minimal indicator
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50" dir="rtl">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="flex flex-col items-center gap-4"
-      >
-        <div className="relative">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-            <GraduationCap className="w-9 h-9 text-white" />
-          </div>
-          <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 animate-ping" />
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+          <GraduationCap className="w-7 h-7 text-white" />
         </div>
         <div className="flex items-center gap-2">
           <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
           <span className="text-sm font-medium text-emerald-700">جاري التحويل...</span>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

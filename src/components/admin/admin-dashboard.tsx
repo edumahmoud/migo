@@ -68,6 +68,7 @@ import InstitutionSection from '@/components/admin/institution-section';
 import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
+import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
@@ -3221,7 +3222,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       }`}>
         <div className="mx-auto max-w-6xl p-3 md:p-8">
           {activeSection === 'dashboard' && !dataLoaded ? renderLoading() : (
-            <AnimatePresence mode="popLayout">
+            <SectionErrorBoundary sectionName={activeSection}>
               <motion.div
                 key={activeSection}
                 initial={{ opacity: 0 }}
@@ -3238,7 +3239,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 {activeSection === 'settings' && <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />}
                 {activeSection === 'institution' && <InstitutionSection profile={profile} />}
               </motion.div>
-            </AnimatePresence>
+            </SectionErrorBoundary>
           )}
         </div>
       </main>

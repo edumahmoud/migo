@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { GraduationCap, Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth-store';
 import { useStatusStore } from '@/stores/status-store';
 import { useAppStore } from '@/stores/app-store';
@@ -18,9 +17,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { reset: resetAppStore } = useAppStore();
   const router = useRouter();
 
+  // Only initialize auth if not already done (prevents redundant network calls on re-mount)
   useEffect(() => {
-    initialize();
-  }, [initialize]);
+    if (!initialized) {
+      initialize();
+    }
+  }, [initialized, initialize]);
 
   // Initialize socket and status store
   useEffect(() => {
@@ -47,22 +49,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (loading || !initialized) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50" dir="rtl">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-4"
-        >
-          <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-              <GraduationCap className="w-9 h-9 text-white" />
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 animate-ping" />
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+            <GraduationCap className="w-7 h-7 text-white" />
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
             <span className="text-sm font-medium text-emerald-700">جاري التحميل...</span>
           </div>
-        </motion.div>
+        </div>
       </div>
     );
   }

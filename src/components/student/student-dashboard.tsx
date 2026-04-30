@@ -51,6 +51,7 @@ import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject } from 
 import { STUDENT_SECTION_PATHS, getStudentSectionFromPathname } from '@/lib/navigation-config';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
+import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 
 // -------------------------------------------------------
 // PDF.js worker setup - lazy loaded to avoid server-side DOMMatrix error
@@ -2278,8 +2279,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     );
   };
 
-  // Data loading flag — does NOT block the UI; sections render immediately
-  // with empty/skeleton state while data loads in the background
+  // Data loading flag — used only for dashboard section loading indicator
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // -------------------------------------------------------
@@ -2354,7 +2354,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }`}>
         <div className="p-3 sm:p-6 lg:p-8 space-y-4">
           <AnnouncementsBanner userId={profile.id} />
-          <AnimatePresence mode="popLayout">
+          <SectionErrorBoundary sectionName={activeSection}>
             <motion.div
               key={activeSection}
               initial={{ opacity: 0 }}
@@ -2363,7 +2363,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             >
               {renderSection()}
             </motion.div>
-          </AnimatePresence>
+          </SectionErrorBoundary>
         </div>
       </main>
 
