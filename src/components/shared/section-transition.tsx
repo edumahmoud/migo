@@ -20,6 +20,12 @@ import { useState, useCallback } from 'react';
  *   Uses the same render-phase state update pattern as `useMountedSections`
  *   to avoid lint violations (no setState in effects, no ref updates in render).
  *
+ * IMPORTANT: Does NOT use `role="tabpanel"` or `aria-hidden` because:
+ *   - The CSS rule `[role="tabpanel"][aria-hidden="true"]` applies
+ *     `pointer-events: none !important`, which can interfere with interaction
+ *   - The `hidden` class (display: none) already handles visibility completely
+ *   - Using both `hidden` + `aria-hidden` is redundant and risks CSS conflicts
+ *
  * Usage:
  *   <SectionTransition isActive={activeSection === 'dashboard'}>
  *     <DashboardContent />
@@ -51,11 +57,7 @@ export default function SectionTransition({
   }, []);
 
   return (
-    <div
-      className={isActive ? '' : 'hidden'}
-      role="tabpanel"
-      aria-hidden={!isActive}
-    >
+    <div className={isActive ? '' : 'hidden'}>
       <div
         className={shouldAnimate ? 'animate-section-enter' : ''}
         onAnimationEnd={handleAnimationEnd}

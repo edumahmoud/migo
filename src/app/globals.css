@@ -406,25 +406,14 @@
 /* ROOT CAUSE: The `inert` HTML attribute blocks ALL user interaction events
    (click, focus, keyboard) but does NOT block CSS :hover. This is why users
    see hover effects but clicks don't work after navigation.
-   
-   The JavaScript cleanup (navigation-cleanup.ts) handles removing `inert` and
-   body locks. These CSS rules are a defense-in-depth layer that prevents stale
-   overlays from blocking clicks even if the JS cleanup is delayed. */
+
+   The JavaScript cleanup (navigation-cleanup.ts v4) handles removing `inert`
+   and body locks with a requestAnimationFrame loop. These CSS rules are a
+   defense-in-depth layer that prevents stale overlays from blocking clicks. */
 
 /* Framer Motion AnimatePresence exit animations keep elements in DOM briefly;
    this ensures they don't intercept pointer events during exit */
 [data-exiting="true"] {
-  pointer-events: none !important;
-}
-
-/* Hidden keep-alive sections (tabpanel with aria-hidden) must never intercept pointer events. */
-[role="tabpanel"][aria-hidden="true"] {
-  pointer-events: none !important;
-}
-
-/* Fixed-position elements inside hidden tabpanels must not block clicks. */
-[role="tabpanel"][aria-hidden="true"] .fixed,
-[role="tabpanel"][aria-hidden="true"] [class*="fixed"] {
   pointer-events: none !important;
 }
 
