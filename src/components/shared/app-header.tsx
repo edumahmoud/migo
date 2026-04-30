@@ -63,10 +63,12 @@ export default function AppHeader({
   const { openProfile } = useAppStore();
   const { myStatus, init: initStatusStore } = useStatusStore();
 
-  // Initialize status store
+  // Initialize status store with userId (critical for Supabase Presence)
   useEffect(() => {
-    initStatusStore();
-  }, [initStatusStore]);
+    if (userId) {
+      initStatusStore(userId);
+    }
+  }, [initStatusStore, userId]);
 
   // Gender-aware role label
   const isFemale = userGender === 'female';

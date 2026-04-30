@@ -222,10 +222,12 @@ export default function SettingsSection({
     }
   }, [isConnected, profile.id, emitStatusChange, myStatus]);
 
-  // ─── Initialize status store ───
+  // ─── Initialize status store with userId ───
   useEffect(() => {
-    initStatusStore();
-  }, [initStatusStore]);
+    if (profile.id) {
+      initStatusStore(profile.id);
+    }
+  }, [initStatusStore, profile.id]);
 
   // ─── Check notification permission ───
   useEffect(() => {

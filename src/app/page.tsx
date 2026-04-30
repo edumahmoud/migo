@@ -68,7 +68,7 @@ const studentNavItems = [
 function HomeContent() {
   const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo } = useAuthStore();
   const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection } = useAppStore();
-  const { cleanup: cleanupStatusStore } = useStatusStore();
+  const { cleanup: cleanupStatusStore, init: initStatusStore } = useStatusStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
 
@@ -197,15 +197,18 @@ function HomeContent() {
     }
   }, [sessionKickedMessage]);
 
-  // Initialize shared socket auth when user is available
+  // Initialize shared socket auth and status store when user is available
   useEffect(() => {
     if (user) {
       setSocketAuth(user.id, user.name);
+      // Initialize status store at app level so online/offline tracking
+      // works even before the user opens the chat section
+      initStatusStore(user.id);
     } else {
       destroySocket();
       cleanupStatusStore();
     }
-  }, [user]);
+  }, [user, initStatusStore, cleanupStatusStore]);
 
   // ─── Supabase Configuration Check ───
   // If Supabase is not configured, show a clear error page

@@ -54,6 +54,10 @@ ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT 
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_edited BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP WITH TIME ZONE;
 
+-- Add is_hidden and is_archived columns to conversation_participants (if they don't exist)
+ALTER TABLE public.conversation_participants ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.conversation_participants ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_conversations_subject ON public.conversations(subject_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_type ON public.conversations(type);
@@ -62,6 +66,12 @@ CREATE INDEX IF NOT EXISTS idx_conversation_participants_conv ON public.conversa
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON public.messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_messages_created ON public.messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON public.messages(sender_id);
+
+-- Enable Supabase Realtime for chat tables (required for postgres_changes)
+-- This allows the client to subscribe to INSERT/UPDATE/DELETE events
+ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_participants;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
 
 -- Enable RLS
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
@@ -99,6 +109,18 @@ CREATE POLICY "Users can add participants" ON public.conversation_participants
 DROP POLICY IF EXISTS "Users can update their own participation" ON public.conversation_participants;
 CREATE POLICY "Users can update their own participation" ON public.conversation_participants
   FOR UPDATE USING (user_id = auth.uid());
+
+-- Allow participants to delete their own participation record (for leaving/hiding conversations)
+DROP POLICY IF EXISTS "Users can delete their own participation" ON public.conversation_participants;
+CREATE POLICY "Users can delete their own participation" ON public.conversation_participants
+  FOR DELETE USING (user_id = auth.uid());
+
+-- Allow users to delete messages in their conversations (for conversation cleanup)
+DROP POLICY IF EXISTS "Users can delete messages in their conversations" ON public.messages;
+CREATE POLICY "Users can delete messages in their conversations" ON public.messages
+  FOR DELETE USING (
+    conversation_id IN (SELECT conversation_id FROM public.conversation_participants WHERE user_id = auth.uid())
+  );
 
 -- RLS Policies for messages
 DROP POLICY IF EXISTS "Users can view messages in their conversations" ON public.messages;

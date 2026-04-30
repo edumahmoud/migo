@@ -212,8 +212,10 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   const conversationsRef = useRef<Conversation[]>([]);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const backupPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const convPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastPollTimeRef = useRef<number>(0);
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
+  const convRealtimeChannelRef = useRef<RealtimeChannel | null>(null);
 
   // ─── Keep refs in sync ───
   useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
@@ -298,6 +300,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     // Clear existing intervals
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (backupPollingRef.current) clearInterval(backupPollingRef.current);
+    if (convPollingRef.current) clearInterval(convPollingRef.current);
 
     // ─── Supabase Realtime: PRIMARY real-time delivery (works on Vercel) ───
     try {
@@ -311,101 +314,104 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               schema: 'public',
               table: 'messages',
             },
-              (payload) => {
-                const newMsg = payload.new as Record<string, unknown>;
-                const convId = (newMsg.conversation_id as string) || null;
-                if (!convId) return;
-
-                const currentActiveId = activeConvIdRef.current;
-
-                // Fetch the full message with sender info via API
-                fetch(`/api/chat?action=messages&conversationId=${convId}&limit=1`)
-                  .then(r => r.json())
-                  .then(data => {
-                    const serverMessages: ChatMessage[] = data.messages || [];
-                    const fullMsg = serverMessages.find(
-                      (m: ChatMessage) => m.id === newMsg.id
-                    );
-                    if (!fullMsg) return;
-
-                    if (convId === currentActiveId) {
-                      setMessages((prev) => {
-                        if (prev.some((m) => m.id === fullMsg.id)) return prev;
-                        const isDuplicate = prev.some((m) =>
-                          m.id.startsWith('temp-') &&
-                          m.sender_id === fullMsg.sender_id &&
-                          m.content === fullMsg.content &&
-                          Date.now() - new Date(m.created_at).getTime() < 10000
-                        );
-                        if (isDuplicate) {
-                          return prev.map((m) =>
-                            m.id.startsWith('temp-') && m.sender_id === fullMsg.sender_id && m.content === fullMsg.content
-                              ? fullMsg
-                              : m
-                          );
-                        }
-                        const isContentDuplicate = prev.some((m) =>
-                          m.id !== fullMsg.id &&
-                          m.sender_id === fullMsg.sender_id &&
-                          m.content === fullMsg.content &&
-                          Math.abs(new Date(m.created_at).getTime() - new Date(fullMsg.created_at).getTime()) < 10000
-                        );
-                        if (isContentDuplicate) return prev;
-                        return [...prev, fullMsg];
-                      });
-                      fetch('/api/chat', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'mark-read', conversationId: convId, userId: profile.id }),
-                      }).catch(() => {});
-                    } else {
-                      const senderName = fullMsg.sender?.name || 'مستخدم';
-                      toast(`رسالة جديدة من ${senderName}`, {
-                        description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
-                        icon: <Bell className="h-4 w-4 text-emerald-600" />,
-                        duration: 5000,
-                      });
-                      setLocalUnread((prev) => {
-                        const next = new Map(prev);
-                        next.set(convId, (next.get(convId) || 0) + 1);
-                        return next;
-                      });
-                    }
-                    fetchConversations();
-                  })
-                  .catch(() => {});
-              }
-          )
-          // ─── Also listen for message updates (edits/deletes) ───
-          .on(
-            'postgres_changes',
-            {
-              event: 'UPDATE',
-              schema: 'public',
-              table: 'messages',
-            },
             (payload) => {
-              const updated = payload.new as Record<string, unknown>;
-              const msgId = updated.id as string;
-              if (!msgId) return;
+              const newMsg = payload.new as Record<string, unknown>;
+              const convId = (newMsg.conversation_id as string) || null;
+              if (!convId) return;
 
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (m.id !== msgId) return m;
-                  return {
-                    ...m,
-                    content: (updated.content as string) || m.content,
-                    is_edited: (updated.is_edited as boolean) ?? m.is_edited,
-                    is_deleted: (updated.is_deleted as boolean) ?? m.is_deleted,
-                    edited_at: (updated.edited_at as string) || m.edited_at,
-                  };
+              // Skip our own messages (already handled optimistically)
+              if (newMsg.sender_id === profile.id) return;
+
+              const currentActiveId = activeConvIdRef.current;
+
+              // Fetch the full message with sender info via API
+              fetch(`/api/chat?action=messages&conversationId=${convId}&limit=50`)
+                .then(r => r.json())
+                .then(data => {
+                  const serverMessages: ChatMessage[] = data.messages || [];
+                  const fullMsg = serverMessages.find(
+                    (m: ChatMessage) => m.id === newMsg.id
+                  );
+                  if (!fullMsg) return;
+
+                  if (convId === currentActiveId) {
+                    setMessages((prev) => {
+                      if (prev.some((m) => m.id === fullMsg.id)) return prev;
+                      const isDuplicate = prev.some((m) =>
+                        m.id.startsWith('temp-') &&
+                        m.sender_id === fullMsg.sender_id &&
+                        m.content === fullMsg.content &&
+                        Date.now() - new Date(m.created_at).getTime() < 10000
+                      );
+                      if (isDuplicate) {
+                        return prev.map((m) =>
+                          m.id.startsWith('temp-') && m.sender_id === fullMsg.sender_id && m.content === fullMsg.content
+                            ? fullMsg
+                            : m
+                        );
+                      }
+                      const isContentDuplicate = prev.some((m) =>
+                        m.id !== fullMsg.id &&
+                        m.sender_id === fullMsg.sender_id &&
+                        m.content === fullMsg.content &&
+                        Math.abs(new Date(m.created_at).getTime() - new Date(fullMsg.created_at).getTime()) < 10000
+                      );
+                      if (isContentDuplicate) return prev;
+                      return [...prev, fullMsg];
+                    });
+                    fetch('/api/chat', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'mark-read', conversationId: convId, userId: profile.id }),
+                    }).catch(() => {});
+                  } else {
+                    const senderName = fullMsg.sender?.name || 'مستخدم';
+                    toast(`رسالة جديدة من ${senderName}`, {
+                      description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
+                      icon: <Bell className="h-4 w-4 text-emerald-600" />,
+                      duration: 5000,
+                    });
+                    setLocalUnread((prev) => {
+                      const next = new Map(prev);
+                      next.set(convId, (next.get(convId) || 0) + 1);
+                      return next;
+                    });
+                  }
+                  fetchConversations();
                 })
-              );
+                .catch(() => {});
             }
-          )
-          .subscribe((subStatus) => {
-            console.log('[Chat Realtime] subscription status:', subStatus);
-          });
+        )
+        // ─── Also listen for message updates (edits/deletes) ───
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+          },
+          (payload) => {
+            const updated = payload.new as Record<string, unknown>;
+            const msgId = updated.id as string;
+            if (!msgId) return;
+
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (m.id !== msgId) return m;
+                return {
+                  ...m,
+                  content: (updated.content as string) || m.content,
+                  is_edited: (updated.is_edited as boolean) ?? m.is_edited,
+                  is_deleted: (updated.is_deleted as boolean) ?? m.is_deleted,
+                  edited_at: (updated.edited_at as string) || m.edited_at,
+                };
+              })
+            );
+          }
+        )
+        .subscribe((subStatus) => {
+          console.log('[Chat Realtime] subscription status:', subStatus);
+        });
 
         realtimeChannelRef.current = channel;
       }
@@ -413,22 +419,85 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       console.error('[Chat Realtime] setup error:', err);
     }
 
+    // ─── Supabase Realtime: Listen for new conversations ───
+    // When someone adds us as a participant, refresh the conversation list
+    try {
+      if (!convRealtimeChannelRef.current) {
+        const convChannel = supabase
+          .channel('chat-conversations-realtime')
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'conversation_participants',
+              filter: `user_id=eq.${profile.id}`,
+            },
+            (payload) => {
+              console.log('[Chat Realtime] New conversation participant:', payload.new);
+              // We were added to a conversation — refresh the list
+              fetchConversations();
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'conversation_participants',
+              filter: `user_id=eq.${profile.id}`,
+            },
+            () => {
+              // Participant record updated (e.g. unarchived, unhidden)
+              fetchConversations();
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'DELETE',
+              schema: 'public',
+              table: 'conversation_participants',
+            },
+            (payload) => {
+              const deleted = payload.old as Record<string, unknown>;
+              // Check if we were removed from a conversation
+              if (deleted?.user_id === profile.id) {
+                fetchConversations();
+              }
+            }
+          )
+          .subscribe((subStatus) => {
+            console.log('[Chat Conv Realtime] subscription status:', subStatus);
+          });
+
+        convRealtimeChannelRef.current = convChannel;
+      }
+    } catch (err) {
+      console.error('[Chat Conv Realtime] setup error:', err);
+    }
+
     // ─── Polling: lightweight backup for reliability ───
-    // In Realtime mode: poll every 10 seconds as backup
-    // In Socket.IO mode: poll every 15 seconds as backup
-    // When disconnected: poll every 5 seconds
+    // In ALL modes: poll conversations periodically to catch new conversations
+    // In Realtime mode: poll messages every 10 seconds as backup
+    // In Socket.IO mode: poll messages every 15 seconds as backup  
+    // When disconnected: poll messages every 5 seconds
     if (!isConnected) {
       pollingRef.current = setInterval(pollMessages, 5000);
-      backupPollingRef.current = setInterval(fetchConversations, 8000);
     } else if (isRealtimeMode) {
       backupPollingRef.current = setInterval(pollMessages, 10000);
     } else {
       backupPollingRef.current = setInterval(pollMessages, 15000);
     }
 
+    // ALWAYS poll conversations — this catches new conversations, unread changes, etc.
+    // that Realtime might miss (e.g. if Realtime isn't enabled on the table)
+    convPollingRef.current = setInterval(fetchConversations, 8000);
+
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
       if (backupPollingRef.current) clearInterval(backupPollingRef.current);
+      if (convPollingRef.current) clearInterval(convPollingRef.current);
       if (realtimeChannelRef.current) {
         try {
           supabase.removeChannel(realtimeChannelRef.current);
@@ -437,15 +506,25 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         }
         realtimeChannelRef.current = null;
       }
+      if (convRealtimeChannelRef.current) {
+        try {
+          supabase.removeChannel(convRealtimeChannelRef.current);
+        } catch {
+          // Ignore cleanup errors
+        }
+        convRealtimeChannelRef.current = null;
+      }
     };
   }, [isConnected, isRealtimeMode, pollMessages, profile.id, fetchConversations]);
 
   // =====================================================
-  // Initialize status store on mount
+  // Initialize status store on mount with userId
   // =====================================================
   useEffect(() => {
-    initStatusStore();
-  }, [initStatusStore]);
+    if (profile.id) {
+      initStatusStore(profile.id);
+    }
+  }, [initStatusStore, profile.id]);
 
   // =====================================================
   // Fetch user statuses when conversations load

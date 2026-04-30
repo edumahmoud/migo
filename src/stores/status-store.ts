@@ -15,6 +15,11 @@ import type { RealtimeChannel, RealtimePresenceJoinPayload } from '@supabase/sup
 // Dual strategy:
 //   - Socket.IO: Primary when available (typing, presence, status)
 //   - Supabase Presence: Fallback on Vercel (no Socket.IO server)
+//
+// IMPORTANT: init() MUST be called with a userId for
+// Supabase Presence to work correctly. Without a userId,
+// the presence channel key defaults to 'anonymous' and
+// other users won't see this user as online.
 // =====================================================
 
 interface StatusState {
@@ -28,8 +33,8 @@ interface StatusState {
   initialized: boolean;
 
   // Actions
-  /** Initialize socket event listeners (call once after socket connects) */
-  init: () => void;
+  /** Initialize socket event listeners. Call with userId for Presence to work. */
+  init: (userId?: string) => void;
   /** Set the current user's own status and emit to socket */
   setMyStatus: (status: UserStatus, userId: string) => void;
   /** Get a specific user's visible status */
@@ -119,6 +124,9 @@ let listenersRegistered = false;
 // Supabase Presence channel (used when Socket.IO is unavailable)
 let presenceChannel: RealtimeChannel | null = null;
 
+// Track whether we've set up presence with a real userId
+let presenceInitializedWithUserId = false;
+
 // Presence state tracking for Supabase Realtime
 interface PresenceState {
   userId: string;
@@ -132,16 +140,28 @@ export const useStatusStore = create<StatusState>((set, get) => ({
   myUserId: null,
   initialized: false,
 
-  init: () => {
-    // Always re-attach listeners — the socket may have been destroyed and recreated
-    // since the last init() call. Removing old listeners first prevents duplicates.
+  init: (userId?: string) => {
+    // If userId is provided, store it immediately
+    if (userId) {
+      set({ myUserId: userId });
+    }
+
     const socket = getSocket();
 
     // If no socket is available (Realtime-only mode / no Socket.IO server),
     // use Supabase Presence as a fallback for online/offline tracking.
     if (!socket) {
       // Set up Supabase Presence for online status tracking
-      setupSupabasePresence(get);
+      const effectiveUserId = userId || get().myUserId;
+      if (effectiveUserId) {
+        setupSupabasePresence(get, effectiveUserId);
+        // Also set our status to online immediately
+        get().setMyStatus(get().myStatus, effectiveUserId);
+      } else {
+        // Defer presence setup until setMyStatus is called with a userId
+        // Store a flag so setMyStatus knows to initialize presence
+        setupDeferredPresence(get);
+      }
       set({ initialized: true });
       return;
     }
@@ -157,7 +177,6 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     listenersRegistered = true;
 
     // ─── On connect/reconnect: re-request online users ───
-    // This is critical to recover status data after a disconnect
     function handleConnect() {
       socket.emit('get-online-users');
       // Also re-emit our own status so others see us as online
@@ -173,8 +192,6 @@ export const useStatusStore = create<StatusState>((set, get) => ({
       set((state) => {
         const next = new Map(state.userStatuses);
         for (const uid of userIds) {
-          // Don't overwrite a known non-online status (e.g. busy/away/invisible)
-          // unless they're currently offline/unknown
           const existing = next.get(uid);
           if (!existing || existing === 'offline') {
             next.set(uid, 'online');
@@ -189,7 +206,6 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     function handleUserOnline(userId: string) {
       set((state) => {
         const next = new Map(state.userStatuses);
-        // Only set to online if they were offline or unknown
         const existing = next.get(userId);
         if (!existing || existing === 'offline') {
           next.set(userId, 'online');
@@ -214,7 +230,6 @@ export const useStatusStore = create<StatusState>((set, get) => ({
       set((state) => {
         const next = new Map(state.userStatuses);
         next.set(data.userId, data.status);
-        // If this is our own status update reflected back, sync myStatus
         const isOwnStatus = data.userId === state.myUserId;
         return {
           userStatuses: next,
@@ -241,6 +256,12 @@ export const useStatusStore = create<StatusState>((set, get) => ({
       socket.emit('get-online-users');
     }
 
+    // Also emit our own status if we have a userId
+    const { myStatus, myUserId } = get();
+    if (myUserId && socket.connected && myStatus !== 'offline') {
+      socket.emit('status-change', { userId: myUserId, status: myStatus });
+    }
+
     set({ initialized: true });
   },
 
@@ -259,6 +280,10 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     }
 
     // Update Supabase Presence (for Vercel fallback)
+    // If presence channel doesn't exist yet, create it now with the correct userId
+    if (!presenceChannel && !getSocket()) {
+      setupSupabasePresence(get, userId);
+    }
     updatePresenceStatus(userId, status);
 
     // Update local state immediately
@@ -278,8 +303,50 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     if (socket?.connected && userIds.length > 0) {
       socket.emit('get-user-status', { userIds });
     }
-    // When Socket.IO is unavailable, Supabase Presence handles status tracking
-    // No additional fetch needed — presence syncs automatically
+
+    // When Socket.IO is unavailable, use Supabase Presence to check statuses
+    if (!socket && presenceChannel) {
+      // Trigger a presence sync by re-tracking our own presence
+      // This causes a 'sync' event which updates all user statuses
+      const { myStatus, myUserId } = get();
+      if (myUserId) {
+        try {
+          presenceChannel.track({
+            userId: myUserId,
+            status: myStatus,
+            onlineAt: new Date().toISOString(),
+          });
+        } catch {
+          // Ignore tracking errors
+        }
+      }
+    }
+
+    // Additionally, directly check the current presence state for these users
+    if (!socket && presenceChannel) {
+      try {
+        const state = presenceChannel.presenceState<PresenceState>();
+        const updates: Array<{ userId: string; status: UserStatus }> = [];
+        for (const uid of userIds) {
+          const presences = state[uid];
+          if (presences && presences.length > 0) {
+            const latestPresence = presences[presences.length - 1];
+            updates.push({ userId: uid, status: latestPresence.status || 'online' });
+          }
+        }
+        if (updates.length > 0) {
+          set((s) => {
+            const next = new Map(s.userStatuses);
+            for (const u of updates) {
+              next.set(u.userId, u.status);
+            }
+            return { userStatuses: next };
+          });
+        }
+      } catch {
+        // Ignore presence state errors
+      }
+    }
   },
 
   setOnlineUsers: (userIds: string[]) => {
@@ -318,7 +385,9 @@ export const useStatusStore = create<StatusState>((set, get) => ({
         supabase.removeChannel(presenceChannel);
       } catch { /* Ignore */ }
       presenceChannel = null;
+      presenceInitializedWithUserId = false;
     }
+    set({ myUserId: null, initialized: false });
   },
 }));
 
@@ -326,28 +395,41 @@ export const useStatusStore = create<StatusState>((set, get) => ({
 // Supabase Presence Helper (fallback for Vercel)
 // =====================================================
 
-function setupSupabasePresence(getState: () => StatusState) {
+function setupSupabasePresence(getState: () => StatusState, userId: string) {
   // Don't create duplicate channels
-  if (presenceChannel) return;
+  if (presenceChannel) {
+    // If channel exists but wasn't set up with a real userId, recreate it
+    if (!presenceInitializedWithUserId && userId) {
+      try {
+        supabase.removeChannel(presenceChannel);
+        presenceChannel = null;
+      } catch { /* Ignore */ }
+    } else {
+      // Channel already properly initialized
+      return;
+    }
+  }
 
   try {
-    const { myUserId, myStatus } = getState();
+    const { myStatus } = getState();
+
+    console.log(`[StatusStore] Setting up Supabase Presence for user: ${userId}`);
 
     presenceChannel = supabase.channel('attenddo-presence', {
       config: {
         presence: {
-          key: myUserId || 'anonymous',
+          key: userId, // Use userId as the presence key (NOT 'anonymous')
         },
       },
     });
 
     presenceChannel.on('presence', { event: 'sync' }, () => {
-      const state = presenceChannel?.presenceState<{ userId: string; status: UserStatus; onlineAt: string }>();
+      const state = presenceChannel?.presenceState<PresenceState>();
       if (!state) return;
 
       const onlineUserIds: string[] = [];
       for (const [key, presences] of Object.entries(state)) {
-        // key is the userId we set in presence key
+        // key is the userId we set in presence config
         if (key === 'anonymous') continue;
         // Mark this user as online
         onlineUserIds.push(key);
@@ -364,13 +446,13 @@ function setupSupabasePresence(getState: () => StatusState) {
       // Mark users NOT in the presence list as offline
       const currentStatuses = useStatusStore.getState().userStatuses;
       const offlineUpdates: string[] = [];
-      currentStatuses.forEach((status, userId) => {
-        if (status !== 'offline' && !onlineUserIds.includes(userId)) {
-          offlineUpdates.push(userId);
+      currentStatuses.forEach((status, uid) => {
+        if (status !== 'offline' && !onlineUserIds.includes(uid)) {
+          offlineUpdates.push(uid);
         }
       });
-      for (const userId of offlineUpdates) {
-        useStatusStore.getState().setUserStatus(userId, 'offline');
+      for (const uid of offlineUpdates) {
+        useStatusStore.getState().setUserStatus(uid, 'offline');
       }
     });
 
@@ -392,14 +474,16 @@ function setupSupabasePresence(getState: () => StatusState) {
       }
     });
 
-    presenceChannel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED' && myUserId) {
+    presenceChannel.subscribe(async (subStatus) => {
+      console.log('[StatusStore] Presence subscription status:', subStatus);
+      if (subStatus === 'SUBSCRIBED') {
         // Track our own presence
         await presenceChannel?.track({
-          userId: myUserId,
+          userId,
           status: myStatus,
           onlineAt: new Date().toISOString(),
         });
+        presenceInitializedWithUserId = true;
       }
     });
   } catch (err) {
@@ -407,8 +491,87 @@ function setupSupabasePresence(getState: () => StatusState) {
   }
 }
 
+/**
+ * Deferred presence setup — creates a temporary channel that will be
+ * replaced with a proper one once setMyStatus() is called with a userId.
+ */
+function setupDeferredPresence(getState: () => StatusState) {
+  // Create a minimal channel just to subscribe to presence events
+  // so we can see OTHER users coming online, but don't track ourselves yet
+  if (presenceChannel) return;
+
+  try {
+    presenceChannel = supabase.channel('attenddo-presence', {
+      config: {
+        presence: {
+          key: `pending-${Date.now()}`, // Temporary key, will be replaced
+        },
+      },
+    });
+
+    presenceChannel.on('presence', { event: 'sync' }, () => {
+      const state = presenceChannel?.presenceState<PresenceState>();
+      if (!state) return;
+
+      const onlineUserIds: string[] = [];
+      for (const [key, presences] of Object.entries(state)) {
+        if (key.startsWith('pending-') || key === 'anonymous') continue;
+        onlineUserIds.push(key);
+        const latestPresence = presences[presences.length - 1];
+        if (latestPresence?.status && latestPresence.status !== 'online') {
+          useStatusStore.getState().setUserStatus(key, latestPresence.status);
+        }
+      }
+
+      useStatusStore.getState().setOnlineUsers(onlineUserIds);
+
+      const currentStatuses = useStatusStore.getState().userStatuses;
+      const offlineUpdates: string[] = [];
+      currentStatuses.forEach((status, uid) => {
+        if (status !== 'offline' && !onlineUserIds.includes(uid)) {
+          offlineUpdates.push(uid);
+        }
+      });
+      for (const uid of offlineUpdates) {
+        useStatusStore.getState().setUserStatus(uid, 'offline');
+      }
+    });
+
+    presenceChannel.on('presence', { event: 'join' }, ({ newPresences }: RealtimePresenceJoinPayload<PresenceState>) => {
+      for (const p of newPresences) {
+        if (p.userId && p.status) {
+          useStatusStore.getState().setUserStatus(p.userId, p.status);
+        } else if (p.userId) {
+          useStatusStore.getState().setUserStatus(p.userId, 'online');
+        }
+      }
+    });
+
+    presenceChannel.on('presence', { event: 'leave' }, ({ leftPresences }: { leftPresences: PresenceState[] }) => {
+      for (const p of leftPresences) {
+        if (p.userId) {
+          useStatusStore.getState().setUserStatus(p.userId, 'offline');
+        }
+      }
+    });
+
+    presenceChannel.subscribe((subStatus) => {
+      console.log('[StatusStore] Deferred presence subscription:', subStatus);
+    });
+  } catch (err) {
+    console.error('[StatusStore] Deferred presence setup error:', err);
+  }
+}
+
 function updatePresenceStatus(userId: string, status: UserStatus) {
   if (!presenceChannel) return;
+
+  // If the channel was set up with a temporary/pending key, recreate with real userId
+  if (!presenceInitializedWithUserId) {
+    const state = useStatusStore.getState();
+    setupSupabasePresence(() => state, userId);
+    return;
+  }
 
   try {
     presenceChannel.track({

@@ -809,26 +809,23 @@ export async function POST(request: NextRequest) {
         }
 
         // Verify the user is a participant
-        const { data: participation } = await supabaseServer
+        const { data: participation, error: partError } = await supabaseServer
           .from('conversation_participants')
           .select('user_id')
           .eq('conversation_id', conversationId)
           .eq('user_id', userId)
-          .single();
+          .maybeSingle();
 
-        if (!participation) {
-          return NextResponse.json({ error: 'لست مشاركاً في هذه المحادثة' }, { status: 403 });
+        if (partError) {
+          console.error('[Chat API] Delete conv - participant check error:', partError);
         }
 
-        // Check how many participants are left
-        const { data: allParticipants } = await supabaseServer
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', conversationId);
-
-        const otherParticipants = (allParticipants || []).filter(
-          (p: { user_id: string }) => p.user_id !== userId
-        );
+        if (!participation) {
+          // User is not a participant — the conversation may have already been deleted.
+          // Return success anyway so the client can clean up its local state.
+          console.log('[Chat API] Delete conv - user not participant, returning success');
+          return NextResponse.json({ success: true });
+        }
 
         // For individual conversations: delete messages and the entire conversation
         // This ensures a fresh start if the same two users chat again
@@ -836,26 +833,43 @@ export async function POST(request: NextRequest) {
           .from('conversations')
           .select('type')
           .eq('id', conversationId)
-          .single();
+          .maybeSingle();
 
         if (convInfo?.type === 'individual') {
           // Delete all messages in the conversation
-          await supabaseServer
+          const { error: msgDeleteError } = await supabaseServer
             .from('messages')
             .delete()
             .eq('conversation_id', conversationId);
 
+          if (msgDeleteError) {
+            console.error('[Chat API] Delete conv - messages delete error:', msgDeleteError);
+            return NextResponse.json({ error: 'فشل حذف رسائل المحادثة' }, { status: 500 });
+          }
+
           // Delete all participant records
-          await supabaseServer
+          const { error: partDeleteError } = await supabaseServer
             .from('conversation_participants')
             .delete()
             .eq('conversation_id', conversationId);
 
+          if (partDeleteError) {
+            console.error('[Chat API] Delete conv - participants delete error:', partDeleteError);
+            return NextResponse.json({ error: 'فشل حذف مشاركي المحادثة' }, { status: 500 });
+          }
+
           // Delete the conversation itself
-          await supabaseServer
+          const { error: convDeleteError } = await supabaseServer
             .from('conversations')
             .delete()
             .eq('id', conversationId);
+
+          if (convDeleteError) {
+            console.error('[Chat API] Delete conv - conversation delete error:', convDeleteError);
+            return NextResponse.json({ error: 'فشل حذف المحادثة' }, { status: 500 });
+          }
+
+          console.log('[Chat API] Delete conv - individual conversation fully deleted:', conversationId);
         } else {
           // For group conversations: use soft-delete (hide for this user only)
           // Other participants should still see the group chat
@@ -878,6 +892,8 @@ export async function POST(request: NextRequest) {
               return NextResponse.json({ error: 'فشل حذف المحادثة' }, { status: 500 });
             }
           }
+
+          console.log('[Chat API] Delete conv - group conversation hidden for user:', conversationId, userId);
         }
 
         return NextResponse.json({ success: true });

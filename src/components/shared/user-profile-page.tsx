@@ -281,8 +281,10 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
 
   // ─── Initialize status store & fetch user status ───
   useEffect(() => {
-    initStatusStore();
-  }, [initStatusStore]);
+    if (currentUser.id) {
+      initStatusStore(currentUser.id);
+    }
+  }, [initStatusStore, currentUser.id]);
 
   useEffect(() => {
     if (userId) {
