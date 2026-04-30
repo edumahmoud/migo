@@ -445,13 +445,6 @@
   pointer-events: none !important;
 }
 
-/* Any element with the `inert` attribute that is NOT inside a portal
-   should have it removed by JS — but as a CSS safety net, ensure
-   inert elements in the main layout don't block clicks */
-body > [inert]:not([data-radix-portal]) {
-  pointer-events: auto !important;
-}
-
 /* ─── Minimum Touch Target (44px) for Mobile Accessibility ─── */
 @layer utilities {
   .touch-target {

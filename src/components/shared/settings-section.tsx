@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   User,
@@ -209,6 +210,28 @@ export default function SettingsSection({
 
   // ─── Status / Presence (now from global store) ───
   const userStatus = myStatus;
+
+  // ─── Navigation cleanup: close all Radix UI Dialogs when navigating away ───
+  // When the user navigates to a different section while a Dialog is open,
+  // Radix UI keeps `inert` on page content and `pointer-events: none` on body.
+  // This effect closes all Dialogs when the pathname changes or a cleanup event fires.
+  const pathname = usePathname();
+  useEffect(() => {
+    setAvatarPreviewOpen(false);
+    setDeleteConfirmOpen(false);
+  }, [pathname]);
+
+  // Also listen for the custom navigation:cleanup event (dispatched by cleanupAfterNavigation)
+  useEffect(() => {
+    const handleNavCleanup = () => {
+      setAvatarPreviewOpen(false);
+      setDeleteConfirmOpen(false);
+    };
+    document.addEventListener('navigation:cleanup', handleNavCleanup);
+    return () => {
+      document.removeEventListener('navigation:cleanup', handleNavCleanup);
+    };
+  }, []);
 
   // ─── Set socket auth credentials ───
   useEffect(() => {

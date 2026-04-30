@@ -12,7 +12,7 @@ import { getDefaultPath } from '@/lib/navigation-config';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import RoleGuard from '@/components/shared/role-guard';
-import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
+import { cleanupAfterNavigation, initNavigationGuard, destroyNavigationGuard } from '@/lib/navigation-cleanup';
 import type { UserRole } from '@/lib/types';
 
 // =====================================================
@@ -112,6 +112,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     cleanupAfterNavigation();
   }, [pathname]);
+
+  // ─── Initialize MutationObserver guard ───
+  // This watches for `inert` and `pointer-events: none` being (re-)added
+  // to the page content by Radix UI Dialogs in hidden sections, and
+  // removes them automatically when no visible dialog is open.
+  useEffect(() => {
+    initNavigationGuard();
+    return () => {
+      destroyNavigationGuard();
+    };
+  }, []);
 
   if (!isSupabaseConfigured) {
     return <SupabaseConfigError />;

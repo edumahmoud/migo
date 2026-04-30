@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -210,6 +211,26 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
   const profileUserStatus = getUserStatus(userId);
 
   const { openProfile } = useAppStore();
+
+  // ─── Navigation cleanup: close all Radix UI Dialogs when navigating away ───
+  const pathname = usePathname();
+  useEffect(() => {
+    setRequestDialogOpen(false);
+    setPhotoEnlarged(false);
+    setRequestingFileId(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    const handleNavCleanup = () => {
+      setRequestDialogOpen(false);
+      setPhotoEnlarged(false);
+      setRequestingFileId(null);
+    };
+    document.addEventListener('navigation:cleanup', handleNavCleanup);
+    return () => {
+      document.removeEventListener('navigation:cleanup', handleNavCleanup);
+    };
+  }, []);
 
   // ─── Auth headers ─────────────────────────────────────
   const getAuthHeaders = async () => {
