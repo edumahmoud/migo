@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
+  UsersRound,
   Plus,
   Trash2,
   Edit3,
@@ -13,9 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
-  Palette,
   Check,
-  X,
   AlertCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -37,13 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
-import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
+import UserLink from '@/components/shared/user-link';
 import type { UserProfile } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -342,10 +335,13 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   };
 
   const openEdit = (team: Team) => {
-    setEditTeam(team);
-    setFormName(team.name);
-    setFormLevel(team.level || '');
-    setFormColor(team.color);
+    // Use setTimeout to avoid DropdownMenu/Dialog focus conflict
+    setTimeout(() => {
+      setEditTeam(team);
+      setFormName(team.name);
+      setFormLevel(team.level || '');
+      setFormColor(team.color);
+    }, 0);
   };
 
   // -------------------------------------------------------
@@ -470,8 +466,18 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             unassigned.map(student => (
               <div key={student.id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
                 <div className="flex items-center gap-3">
-                  <UserAvatar profile={student} size="sm" />
-                  <span className="text-sm font-medium">{formatNameWithTitle(student)}</span>
+                  <UserLink
+                    userId={student.id}
+                    name={student.name || 'مستخدم'}
+                    avatarUrl={student.avatar_url}
+                    role={student.role}
+                    gender={student.gender}
+                    titleId={student.title_id}
+                    size="sm"
+                    showAvatar={true}
+                    showRole={false}
+                    showUsername={false}
+                  />
                 </div>
                 <Button
                   size="sm"
@@ -536,7 +542,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                   <Edit3 className="h-4 w-4 ml-2" />
                   تعديل
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setAddMemberTeamId(team.id)}>
+                <DropdownMenuItem onClick={() => setTimeout(() => setAddMemberTeamId(team.id), 0)}>
                   <UserPlus className="h-4 w-4 ml-2" />
                   إضافة عضو
                 </DropdownMenuItem>
@@ -567,8 +573,22 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                   teamMembers.map((member) => (
                     <div key={member.id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-3">
-                        <UserAvatar profile={member.user} size="sm" />
-                        <span className="text-sm">{member.user ? formatNameWithTitle(member.user) : 'مستخدم'}</span>
+                        {member.user ? (
+                          <UserLink
+                            userId={member.user.id}
+                            name={member.user.name || 'مستخدم'}
+                            avatarUrl={member.user.avatar_url}
+                            role={member.user.role}
+                            gender={member.user.gender}
+                            titleId={member.user.title_id}
+                            size="sm"
+                            showAvatar={true}
+                            showRole={false}
+                            showUsername={false}
+                          />
+                        ) : (
+                          <span className="text-sm">مستخدم</span>
+                        )}
                       </div>
                       <Button
                         size="sm"
@@ -598,7 +618,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Users className="h-5 w-5 text-emerald-600" />
+            <UsersRound className="h-5 w-5 text-emerald-600" />
             المجموعات والمستويات
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -639,7 +659,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
           className="flex flex-col items-center gap-4 py-16 text-center"
         >
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-            <Users className="h-8 w-8 text-muted-foreground" />
+            <UsersRound className="h-8 w-8 text-muted-foreground" />
           </div>
           <div>
             <h3 className="font-semibold text-lg">لا يوجد فرق بعد</h3>

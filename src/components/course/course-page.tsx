@@ -11,6 +11,7 @@ import {
   ListChecks,
   MessageCircle,
   Users,
+  UsersRound,
   LayoutDashboard,
   Loader2,
   Hash,
@@ -28,6 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
+import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 import type { UserProfile, Subject, SubjectTeacher, CourseTab } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -79,7 +81,7 @@ const TABS: TabConfig[] = [
   { id: 'assignments', label: 'المهام', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'chat', label: 'المحادثة', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'students', label: 'الطلاب', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
-  { id: 'teams', label: 'المجموعات', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
+  { id: 'teams', label: 'المجموعات', icon: <UsersRound className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
 ];
 
 // -------------------------------------------------------
@@ -456,7 +458,11 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         {courseTab === 'assignments' && <AssignmentsTab {...commonProps} />}
         {courseTab === 'chat' && <ChatTab {...commonProps} />}
         {courseTab === 'students' && role === 'teacher' && <StudentsTab {...commonProps} />}
-        {courseTab === 'teams' && role === 'teacher' && <TeamsTab subjectId={subject.id} profile={profile} />}
+        {courseTab === 'teams' && role === 'teacher' && (
+          <SectionErrorBoundary name="المجموعات">
+            <TeamsTab subjectId={subject.id} profile={profile} />
+          </SectionErrorBoundary>
+        )}
       </Suspense>
     );
   };
