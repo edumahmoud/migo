@@ -40,3 +40,28 @@ Stage Summary:
 - Added lastSyncedPathname ref to track synced state without stale closures
 - All three dashboards (student, teacher, admin) use the same hook, so fix applies to all
 - Lint passes cleanly
+
+---
+Task ID: 2
+Agent: Main
+Task: Fix DOM-level click blocking - hover works but clicks don't (inert attribute issue)
+
+Work Log:
+- Performed comprehensive audit of all components that could block interaction
+- Identified Radix UI Dialog/Sheet/AlertDialog as the source of `inert` attribute leaks
+- Found that per-component `useInertCleanup` hooks stop running when Dialog unmounts during navigation
+- Found that `queueMicrotask` in MutationObserver callback races with Radix's own microtask-based inert management
+- Created module-level `inert-guard.ts` that:
+  1. Overrides `Element.prototype.setAttribute` to prevent `inert` on html/body entirely
+  2. Uses MutationObserver with SYNCHRONOUS removal (no queueMicrotask)
+  3. Runs 100ms interval cleanup (down from 500ms)
+  4. Only preserves `inert` inside actually open dialogs (`[data-state="open"][role="dialog"]`)
+- Simplified `useInertCleanup` hooks in dialog.tsx, sheet.tsx, alert-dialog.tsx to just do immediate cleanup on mount
+- Removed duplicate MutationObserver/interval from dashboard layout (module-level guard handles it)
+- Updated navigation-cleanup.ts to use forceRemoveInert from inert-guard module
+
+Stage Summary:
+- Created /home/z/my-project/src/lib/inert-guard.ts — module-level inert blocker
+- Modified 5 files: layout.tsx, dialog.tsx, sheet.tsx, alert-dialog.tsx, navigation-cleanup.ts
+- Two-pronged fix: (1) useNavigationSync race condition fix + (2) module-level inert guard
+- Pushed to remote as commit b545118
