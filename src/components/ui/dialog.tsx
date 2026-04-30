@@ -46,6 +46,83 @@ function DialogOverlay({
   )
 }
 
+/**
+ * Inert cleanup hook — removes stale `inert` attributes from the page.
+ *
+ * Radix UI Dialog adds `inert` to sibling elements when a dialog opens (modal behavior).
+ * This blocks ALL user interaction (click, focus, keyboard) but NOT CSS :hover.
+ * When a dialog's parent component unmounts during navigation (conditional rendering),
+ * the Dialog cleanup may not complete, leaving `inert` stuck on the page root.
+ *
+ * This hook:
+ *   1. Removes `inert` from all non-portal elements immediately on mount
+ *   2. Sets up a MutationObserver to remove `inert` as soon as it's added
+ *   3. Runs a periodic check (every 300ms) as a belt-and-suspenders fallback
+ *
+ * Trade-off: Users CAN interact with background content while a dialog is open.
+ * This is acceptable because:
+ *   - The dialog overlay still visually covers the background
+ *   - Clicking the overlay closes the dialog (via onPointerDownOutside)
+ *   - Escape key still closes the dialog
+ *   - The alternative (broken clicks everywhere) is much worse
+ */
+function useInertCleanup() {
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    // Immediately remove any existing inert attributes
+    function removeAllInert() {
+      document.documentElement.removeAttribute('inert');
+      document.body.removeAttribute('inert');
+      document.querySelectorAll('[inert]').forEach((el) => {
+        // Don't remove inert from inside a Radix portal (dialog content itself)
+        if (!el.closest('[data-radix-portal]')) {
+          el.removeAttribute('inert');
+        }
+      });
+      // Fix body pointer-events
+      if (document.body.style.pointerEvents === 'none') {
+        document.body.style.pointerEvents = '';
+      }
+    }
+
+    // Run immediately
+    removeAllInert();
+
+    // MutationObserver: remove inert as soon as it's added
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'inert') {
+          const target = mutation.target;
+          if (target instanceof HTMLElement && target.hasAttribute('inert')) {
+            // Don't remove inert from inside dialog portals (that's the dialog content)
+            if (!target.closest('[data-radix-portal]')) {
+              // Use microtask to avoid interfering with Radix's internal state
+              queueMicrotask(() => {
+                target.removeAttribute('inert');
+              });
+            }
+          }
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['inert'],
+      subtree: true,
+    });
+
+    // Periodic cleanup as fallback (catches edge cases)
+    const interval = setInterval(removeAllInert, 300);
+
+    return () => {
+      observer.disconnect();
+      clearInterval(interval);
+    };
+  }, []);
+}
+
 function DialogContent({
   className,
   children,
@@ -54,6 +131,9 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  // Remove stale inert attributes caused by Radix Dialog modal behavior
+  useInertCleanup();
+
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />

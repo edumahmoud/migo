@@ -11,7 +11,7 @@ import { getDefaultPath } from '@/lib/navigation-config';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import RoleGuard from '@/components/shared/role-guard';
-import { cleanupAfterNavigation, initNavigationGuard, destroyNavigationGuard } from '@/lib/navigation-cleanup';
+import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 import type { UserRole } from '@/lib/types';
 
 // =====================================================
@@ -95,11 +95,65 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     cleanupAfterNavigation();
   }, [pathname]);
 
-  // MutationObserver guard: removes stale inert attributes when no dialog is open
+  // GLOBAL INERT CLEANUP: Belt-and-suspenders approach to prevent stale `inert`
+  // attributes from blocking ALL user interaction. Radix UI Dialog adds `inert`
+  // to sibling elements when a dialog opens. When the dialog's parent unmounts
+  // (e.g., during section navigation), the cleanup may not complete, leaving
+  // `inert` stuck on the page root. This blocks clicks but NOT CSS :hover.
+  // The periodic interval ensures inert is ALWAYS removed, even if the
+  // MutationObserver in dialog.tsx misses something.
   useEffect(() => {
-    initNavigationGuard();
+    if (typeof document === 'undefined') return;
+
+    function forceRemoveInert() {
+      document.documentElement.removeAttribute('inert');
+      document.body.removeAttribute('inert');
+      document.querySelectorAll('[inert]').forEach((el) => {
+        if (!el.closest('[data-radix-portal]')) {
+          el.removeAttribute('inert');
+        }
+      });
+      // Fix body pointer-events (another Radix artifact)
+      if (document.body.style.pointerEvents === 'none') {
+        document.body.style.pointerEvents = '';
+      }
+    }
+
+    // Run immediately
+    forceRemoveInert();
+
+    // Periodic cleanup every 500ms — aggressive but necessary
+    const interval = setInterval(forceRemoveInert, 500);
+
+    // Also observe DOM mutations for immediate cleanup
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'inert') {
+          const target = mutation.target;
+          if (target instanceof HTMLElement && target.hasAttribute('inert')) {
+            if (!target.closest('[data-radix-portal]')) {
+              target.removeAttribute('inert');
+            }
+          }
+        }
+        // Also catch style changes on body (pointer-events: none)
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+          if (mutation.target === document.body && document.body.style.pointerEvents === 'none') {
+            document.body.style.pointerEvents = '';
+          }
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['inert', 'style'],
+      subtree: true,
+    });
+
     return () => {
-      destroyNavigationGuard();
+      clearInterval(interval);
+      observer.disconnect();
     };
   }, []);
 
