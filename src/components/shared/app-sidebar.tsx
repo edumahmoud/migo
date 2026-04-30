@@ -1,7 +1,7 @@
 'use client';
 
-import { useRouter, usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   FileText,
@@ -17,17 +17,11 @@ import {
   Megaphone,
   Ban,
   Building2,
-  ClipboardList,
   CalendarCheck,
   BrainCircuit,
+  X,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
 import {
@@ -35,7 +29,6 @@ import {
   TEACHER_SECTION_PATHS,
   ADMIN_SECTION_PATHS,
 } from '@/lib/navigation-config';
-import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 
 // -------------------------------------------------------
 // Types
@@ -127,33 +120,12 @@ function NavItems({
   const handleNav = (sectionId: string) => {
     const path = getSectionPath(role, sectionId);
 
-    // ─── CRITICAL: Close mobile Sheet FIRST, then navigate ───
-    // The mobile Sheet uses Radix UI Dialog, which adds `inert` to the
-    // React root when open. If we navigate BEFORE closing the Sheet,
-    // Radix UI's close animation may re-add `inert` after our cleanup,
-    // making the entire page non-interactive (hover works, clicks don't).
-    //
-    // By closing the Sheet FIRST:
-    // 1. Radix Dialog starts its close process
-    // 2. We clean up inert/pointer-events
-    // 3. We navigate (which triggers additional cleanup in the layout)
-    // 4. Radix Dialog finishes closing and removes its portal
-    //
-    // This order ensures inert is never left behind after navigation.
-    onNavClick?.(); // Close the mobile Sheet FIRST
+    // Close the mobile drawer FIRST (before navigation)
+    // This ensures no Radix Dialog artifacts remain
+    onNavClick?.();
 
-    // Navigate via URL — usePathname() is the SOLE source of truth for the UI.
+    // Navigate via URL
     router.push(path);
-
-    // Global modal/overlay cleanup — removes inert and body locks.
-    // The layout also runs cleanup on pathname change, but this ensures
-    // immediate cleanup before the URL change propagates.
-    cleanupAfterNavigation();
-
-    // Deferred cleanup catches React batched updates and animation timing
-    requestAnimationFrame(() => {
-      cleanupAfterNavigation();
-    });
   };
 
   return (
@@ -162,9 +134,7 @@ function NavItems({
         const isActive = activeSection === item.id;
         return (
           <li key={item.id}>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <button
               onClick={() => handleNav(item.id)}
               className={`flex w-full items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 collapsed
@@ -173,7 +143,7 @@ function NavItems({
               } ${
                 isActive
                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground border border-transparent'
+                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground border border-transparent active:bg-muted/80'
               }`}
               title={collapsed ? item.label : undefined}
             >
@@ -183,7 +153,7 @@ function NavItems({
                 }`}
               >
                 {item.icon}
-                {/* Notification badge on chat icon - always visible */}
+                {/* Notification badge on chat icon */}
                 {item.id === 'chat' && chatUnreadCount > 0 && (
                   <span
                     className={`absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-emerald-600 text-white font-bold ${
@@ -198,19 +168,97 @@ function NavItems({
                 <>
                   <span>{item.label}</span>
                   {isActive && item.id !== 'chat' && (
-                    <motion.div
-                      layoutId="activeIndicator"
-                      className="mr-auto h-2 w-2 rounded-full bg-emerald-500"
-                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    />
+                    <span className="mr-auto h-2 w-2 rounded-full bg-emerald-500" />
                   )}
                 </>
               )}
-            </motion.button>
+            </button>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+// -------------------------------------------------------
+// Mobile Drawer — CSS-only, NO Radix UI Dialog
+// -------------------------------------------------------
+// WHY NOT Radix Sheet?
+// Radix UI Dialog adds `inert` attribute to the React root when a
+// dialog/sheet opens. The `inert` attribute blocks ALL user interaction
+// events (click, focus, keyboard) but does NOT block CSS :hover.
+// This causes the bug where hover works but clicks don't after
+// the first navigation, because Radix's close animation re-adds
+// `inert` during the 300ms transition period.
+//
+// This custom CSS drawer:
+// - Uses CSS transform for slide animation (no JS animation library)
+// - Does NOT add `inert` to the page
+// - Does NOT add `pointer-events: none` to body
+// - Closes on backdrop click and Escape key
+// - Has no focus trap (acceptable for a navigation sidebar)
+// - Zero risk of blocking page interactivity
+function MobileDrawer({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  // Close on Escape key
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  }, [onClose]);
+
+  useEffect(() => {
+    if (open) {
+      document.addEventListener('keydown', handleKeyDown);
+      // Prevent body scroll when drawer is open (without pointer-events: none)
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [open, handleKeyDown]);
+
+  return (
+    <>
+      {/* Backdrop overlay — click to close */}
+      <div
+        className={`fixed inset-0 z-50 bg-black/50 transition-opacity duration-300 ${
+          open ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Drawer panel — slides from right (RTL) */}
+      <div
+        role="dialog"
+        aria-label="القائمة الرئيسية"
+        aria-modal="true"
+        className={`fixed top-0 right-0 z-50 h-full w-72 bg-background shadow-xl transition-transform duration-300 ease-in-out ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
+        dir="rtl"
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 left-3 rounded-lg p-1.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+          aria-label="إغلاق القائمة"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        {children}
+      </div>
+    </>
   );
 }
 
@@ -234,29 +282,24 @@ export default function AppSidebar({
     setSidebarOpen(!sidebarOpen);
   };
 
-  // On mobile, use Sheet (drawer)
+  // On mobile, use custom CSS drawer (NOT Radix Sheet)
   if (isMobile) {
     return (
-      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="right" className="w-72 p-0">
-          <SheetHeader className="sr-only">
-            <SheetTitle>القائمة الرئيسية</SheetTitle>
-          </SheetHeader>
-          <div className="flex h-full flex-col overflow-hidden pt-2" dir="rtl">
-            <ScrollArea className="flex-1 min-h-0">
-              <nav className="px-3 py-4">
-                <NavItems
-                  navItems={navItems}
-                  activeSection={activeSection}
-                  role={role}
-                  collapsed={false}
-                  onNavClick={() => setSidebarOpen(false)}
-                />
-              </nav>
-            </ScrollArea>
-          </div>
-        </SheetContent>
-      </Sheet>
+      <MobileDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
+        <div className="flex h-full flex-col overflow-hidden pt-2" dir="rtl">
+          <ScrollArea className="flex-1 min-h-0">
+            <nav className="px-3 py-4">
+              <NavItems
+                navItems={navItems}
+                activeSection={activeSection}
+                role={role}
+                collapsed={false}
+                onNavClick={() => setSidebarOpen(false)}
+              />
+            </nav>
+          </ScrollArea>
+        </div>
+      </MobileDrawer>
     );
   }
 
