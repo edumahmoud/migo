@@ -69,6 +69,7 @@ async function getPdfjsLib() {
 interface StudentDashboardProps {
   profile: UserProfile;
   onSignOut: () => void;
+  sectionSlug?: string[];
 }
 
 // -------------------------------------------------------

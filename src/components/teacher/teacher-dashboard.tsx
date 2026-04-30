@@ -64,6 +64,7 @@ import UserLink from '@/components/shared/user-link';
 interface TeacherDashboardProps {
   profile: UserProfile;
   onSignOut: () => void;
+  sectionSlug?: string[];
 }
 
 // -------------------------------------------------------

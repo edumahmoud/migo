@@ -78,6 +78,7 @@ import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcemen
 interface AdminDashboardProps {
   profile: UserProfile;
   onSignOut: () => void;
+  sectionSlug?: string[];
 }
 
 // -------------------------------------------------------
