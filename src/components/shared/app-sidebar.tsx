@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -196,18 +196,28 @@ function NavItems({
 // -------------------------------------------------------
 // WHY NOT Radix Sheet?
 // Radix UI Dialog adds `inert` attribute to the React root when a
-// dialog/sheet opens. The `inert` attribute blocks ALL user interaction
-// events (click, focus, keyboard) but does NOT block CSS :hover.
-// This causes the bug where hover works but clicks don't after
-// the first navigation, because Radix's close animation re-adds
-// `inert` during the 300ms transition period.
+// dialog/sheet opens. This blocks ALL user interaction but NOT CSS :hover.
+//
+// WHY NO role="dialog" / aria-modal?
+// These attributes are INAPPROPRIATE for a navigation sidebar.
+// A sidebar is NOT a modal dialog — it doesn't trap focus and
+// shouldn't block interaction with the rest of the page.
+//
+// More critically: on iOS Safari, aria-modal="true" triggers the
+// accessibility engine to suppress click events on elements outside
+// the dialog. Even after removing the attribute, iOS Safari caches
+// the accessibility tree and may continue suppressing clicks.
+// The ONLY reliable fix is to NEVER use these attributes on the
+// drawer, and to completely unmount drawer elements from the DOM
+// when closed (not just hide with CSS).
 //
 // This custom CSS drawer:
 // - Uses CSS transform for slide animation (no JS animation library)
+// - Does NOT use role="dialog" or aria-modal (nav sidebar, not modal)
 // - Does NOT add `inert` to the page
-// - Does NOT add `pointer-events: none` to body
+// - COMPLETELY UNMOUNTS when closed (no DOM residue)
+// - Uses `nav` role for semantic HTML
 // - Closes on backdrop click and Escape key
-// - Has no focus trap (acceptable for a navigation sidebar)
 // - Zero risk of blocking page interactivity
 function MobileDrawer({
   open,
@@ -218,6 +228,17 @@ function MobileDrawer({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  // `mounted` tracks whether the drawer DOM elements should be rendered.
+  // When open=true, we mount immediately. When open=false, we keep
+  // the elements mounted for the close animation, then unmount after
+  // the transition completes (via onTransitionEnd) or after 400ms timeout.
+  const [mounted, setMounted] = useState(false);
+
+  // When opening, set mounted immediately during render (before paint)
+  if (open && !mounted) {
+    setMounted(true);
+  }
+
   // Close on Escape key — only when drawer is open
   useEffect(() => {
     if (!open) return;
@@ -233,11 +254,29 @@ function MobileDrawer({
       document.removeEventListener('keydown', handler);
       document.body.style.overflow = '';
     };
-  }, [open, onClose]); // stable deps — onClose must be wrapped in useCallback by parent
+  }, [open, onClose]);
+
+  // Safety: force unmount after 400ms when closing
+  // (in case onTransitionEnd doesn't fire on some mobile browsers)
+  useEffect(() => {
+    if (open || !mounted) return;
+    const timeout = setTimeout(() => setMounted(false), 400);
+    return () => clearTimeout(timeout);
+  }, [open, mounted]);
+
+  const handleTransitionEnd = () => {
+    if (!open && mounted) {
+      setMounted(false);
+    }
+  };
+
+  // When completely unmounted, render nothing
+  if (!mounted) return null;
 
   return (
     <>
       {/* Backdrop overlay — click to close */}
+      {/* ONLY in the DOM when drawer is open/closing, never when fully closed */}
       <div
         className={`fixed inset-0 z-50 bg-black/50 transition-opacity duration-300 ${
           open ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -247,23 +286,14 @@ function MobileDrawer({
       />
 
       {/* Drawer panel — slides from right (RTL) */}
-      {/*
-        CRITICAL: aria-modal and role="dialog" are ONLY set when open.
-        When closed, these attributes are removed. On mobile browsers
-        (especially iOS Safari), aria-modal="true" on a persistent DOM
-        element signals the accessibility engine to suppress click events
-        on elements outside the dialog — even when the dialog is visually
-        off-screen. This was the root cause of the 8-attempt bug where
-        hover worked but clicks didn't after navigation.
-      */}
-      <div
-        role={open ? 'dialog' : undefined}
-        aria-label={open ? 'القائمة الرئيسية' : undefined}
-        aria-modal={open ? 'true' : undefined}
+      {/* NO role="dialog" or aria-modal — this is a nav sidebar, NOT a modal */}
+      <nav
+        aria-label="القائمة الرئيسية"
         className={`fixed top-0 right-0 z-50 h-full w-72 bg-background shadow-xl transition-transform duration-300 ease-in-out ${
           open ? 'translate-x-0' : 'translate-x-full pointer-events-none'
         }`}
         dir="rtl"
+        onTransitionEnd={handleTransitionEnd}
       >
         {/* Close button */}
         <button
@@ -275,7 +305,7 @@ function MobileDrawer({
         </button>
 
         {children}
-      </div>
+      </nav>
     </>
   );
 }

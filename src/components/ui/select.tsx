@@ -6,10 +6,20 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Select — Non-modal by default.
+ *
+ * Same reason as Dialog: In Next.js App Router, modal={true} sets `inert`
+ * on body children via Radix's DismissableLayer. If cleanup doesn't complete
+ * during navigation, `inert` stays stuck, blocking ALL clicks.
+ * Using modal={false} prevents this entirely.
+ * See dialog.tsx for the full explanation.
+ */
 function Select({
+  modal = false,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
+  return <SelectPrimitive.Root data-slot="select" modal={modal} {...props} />
 }
 
 function SelectGroup({

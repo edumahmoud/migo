@@ -153,15 +153,19 @@ export default function NotificationBell() {
     }
   }, [isOpen]);
 
-  // Close on outside click
+  // Close on outside click (both mouse and touch for mobile)
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent | TouchEvent) => {
       if (isOpen && dropdownRef.current && !dropdownRef.current.contains(e.target as Node) && buttonRef.current && !buttonRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('touchstart', handleClick as EventListener, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('touchstart', handleClick as EventListener);
+    };
   }, [isOpen]);
 
   /** Fetch teacher info for the link request modal */
@@ -645,7 +649,7 @@ export default function NotificationBell() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            className="fixed inset-0 z-[10000] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
             onClick={() => !processingAction && setLinkRequestModal(null)}
           >
             <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />

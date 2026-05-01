@@ -26,10 +26,14 @@ import type { UserRole } from '@/lib/types';
 //
 // CLICK FIX (v12): Two concurrent bugs were causing "hover works but clicks don't":
 //
-// BUG 1: aria-modal="true" on MobileDrawer was ALWAYS present in the DOM
-//   even when the drawer was closed. On iOS Safari, this suppresses click
-//   events on elements outside the dialog, even when off-screen.
-//   FIX: Made aria-modal and role="dialog" conditional on drawer's open state.
+// BUG 1: aria-modal="true" and role="dialog" on MobileDrawer were ALWAYS
+//   present in the DOM even when the drawer was closed. On iOS Safari, this
+//   suppresses click events on elements outside the dialog, even when off-screen.
+//   Even removing these attributes dynamically didn't fix it because iOS Safari
+//   caches the accessibility tree.
+//   FIX: Removed role="dialog" and aria-modal from MobileDrawer ENTIRELY
+//   (it's a nav sidebar, not a modal dialog). Also completely UNMOUNT the
+//   MobileDrawer from the DOM when closed (not just hide with CSS).
 //
 // BUG 2: The safety net cleanup was looking for #__next or #root element
 //   which DON'T EXIST in Next.js App Router (React renders directly into
@@ -37,8 +41,8 @@ import type { UserRole } from '@/lib/types';
 //   When Dialog/Sheet used modal={true}, Radix set `inert` on body children,
 //   and if cleanup didn't complete during navigation, `inert` stayed stuck.
 //   FIX: Scan ALL body children for stuck attributes (not just specific IDs).
-//   Also use modal={false} on Dialog/Sheet/AlertDialog to prevent `inert`
-//   from being set in the first place.
+//   Also use modal={false} on Dialog/Sheet/AlertDialog/Select to prevent
+//   `inert` from being set in the first place.
 
 // Map URL prefix → allowed roles
 const ROUTE_ROLE_MAP: Record<string, UserRole[]> = {
