@@ -6,10 +6,35 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * DropdownMenu — Non-modal by default.
+ *
+ * Same reason as Dialog: the Radix Menu component's modal mode sets
+ * `body.style.pointerEvents = "none"` via DismissableLayer (to block
+ * outside clicks while the menu is open) AND calls `hideOthers()` from
+ * `aria-hidden` (which adds `aria-hidden="true"` to sibling elements).
+ *
+ * If the DropdownMenu's parent unmounts during navigation (e.g., switching
+ * dashboard sections), the cleanup may not complete, leaving
+ * `body.style.pointerEvents` stuck at "none" or `aria-hidden` stuck on
+ * the React root — which breaks ALL button clicks while CSS :hover still
+ * appears to work.
+ *
+ * Using `modal={false}` prevents BOTH of these side effects:
+ *   - DismissableLayer does NOT set body.style.pointerEvents
+ *   - MenuRootContentNonModal does NOT call hideOthers()
+ *
+ * Trade-offs:
+ *   - Clicking outside the menu no longer auto-closes it (but Escape still works)
+ *   - Focus is no longer trapped inside the menu
+ *   - No scroll lock while the menu is open
+ *   - This is the SAME approach used by Dialog/Sheet/AlertDialog
+ */
 function DropdownMenu({
+  modal = false,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" modal={modal} {...props} />
 }
 
 function DropdownMenuPortal({

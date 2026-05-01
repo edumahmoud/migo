@@ -6,10 +6,19 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * ContextMenu — Non-modal by default.
+ *
+ * Same reason as DropdownMenu: the Radix Menu component's modal mode sets
+ * `body.style.pointerEvents = "none"` via DismissableLayer AND calls
+ * `hideOthers()` from `aria-hidden`. Using `modal={false}` prevents both.
+ * See dropdown-menu.tsx for the full explanation.
+ */
 function ContextMenu({
+  modal = false,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
-  return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
+  return <ContextMenuPrimitive.Root data-slot="context-menu" modal={modal} {...props} />
 }
 
 function ContextMenuTrigger({

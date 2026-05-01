@@ -11,6 +11,7 @@ import { getDefaultPath } from '@/lib/navigation-config';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import RoleGuard from '@/components/shared/role-guard';
+import { cleanupAfterNavigation } from '@/lib/navigation-cleanup';
 import type { UserRole } from '@/lib/types';
 
 // =====================================================
@@ -23,9 +24,12 @@ import type { UserRole } from '@/lib/types';
 //   Layer 3 (Client):     RoleGuard component — client-side redirect
 //   Layer 4 (This file):  Layout-level auth init + redirect
 //
-// INERT FIX (v9): Dialog/Sheet/AlertDialog now use modal={false}
-// which prevents Radix from ever adding `inert` to the page.
-// No more inert cleanup code needed!
+// CLICK FIX (v10): All Radix modal components (Dialog, Sheet,
+// AlertDialog, DropdownMenu, ContextMenu) now use modal={false}.
+// This prevents Radix's DismissableLayer from setting
+// body.style.pointerEvents = "none" and from adding aria-hidden
+// to the React root. A periodic safety net cleans up any remaining
+// stuck styles.
 
 // Map URL prefix → allowed roles
 const ROUTE_ROLE_MAP: Record<string, UserRole[]> = {
@@ -87,6 +91,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     }
   }, [initialized, user, loading, pathname, router]);
+
+  // Navigation cleanup on pathname change
+  useEffect(() => {
+    cleanupAfterNavigation();
+  }, [pathname]);
+
+  // SAFETY NET: Periodic cleanup of stuck body.style.pointerEvents
+  // and stale aria-hidden on the React root.
+  // Even with modal={false}, this catches edge cases where:
+  //   - A component was rendered with modal={true} explicitly
+  //   - The Select component (which is always modal) was used
+  //   - A third-party library sets these styles
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const cleanup = () => {
+      // Fix stuck body.pointerEvents
+      if (document.body.style.pointerEvents === 'none') {
+        document.body.style.pointerEvents = '';
+      }
+      // Fix stuck aria-hidden on React root
+      const root = document.getElementById('__next') || document.getElementById('root');
+      if (root?.getAttribute('aria-hidden') === 'true') {
+        root.removeAttribute('aria-hidden');
+      }
+      if (root?.getAttribute('data-aria-hidden') === 'true') {
+        root.removeAttribute('data-aria-hidden');
+      }
+    };
+
+    // Run immediately
+    cleanup();
+
+    // Run every 500ms as safety net
+    const interval = setInterval(cleanup, 500);
+
+    return () => clearInterval(interval);
+  }, []);
 
   if (!isSupabaseConfigured) {
     return <SupabaseConfigError />;
