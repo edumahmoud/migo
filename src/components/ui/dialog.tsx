@@ -7,29 +7,23 @@ import { XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
- * Dialog — Non-modal by default.
+ * Dialog — Modal mode (default).
  *
- * WHY NON-MODAL?
- * Radix Dialog's modal mode adds `inert` attribute to all sibling elements
- * when a dialog opens. The `inert` attribute blocks ALL user interaction
- * (click, focus, keyboard) but NOT CSS :hover. When a dialog's parent
- * component unmounts during navigation, Radix's cleanup may not complete,
- * leaving `inert` stuck on the page root — which breaks ALL button clicks
- * until a page refresh.
+ * Previous versions used modal={false} to work around a bug where clicks
+ * stopped working after navigation. The REAL root cause was aria-modal="true"
+ * on the MobileDrawer component (app-sidebar.tsx) that was always present
+ * in the DOM even when closed — on iOS Safari, this suppressed click events
+ * on elements outside the dialog. That has been fixed by making aria-modal
+ * conditional on the drawer's open state.
  *
- * Using `modal={false}` prevents Radix from ever adding `inert`, which
- * eliminates this bug entirely. Trade-offs:
- *   - Tab key no longer traps focus inside the dialog (acceptable)
- *   - Background content is still interactive while dialog is open
- *   - The overlay still visually covers the background
- *   - Clicking the overlay or pressing Escape still closes the dialog
- *   - This is the SAME approach used by the mobile sidebar (app-sidebar.tsx)
+ * Using modal={true} (default) provides proper focus trapping and
+ * accessibility. The safety net CSS rules in globals.css ensure that
+ * any closed Radix overlays don't block clicks.
  */
 function Dialog({
-  modal = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" modal={modal} {...props} />
+  return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
 function DialogTrigger({

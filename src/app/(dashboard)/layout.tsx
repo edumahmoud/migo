@@ -24,12 +24,22 @@ import type { UserRole } from '@/lib/types';
 //   Layer 3 (Client):     RoleGuard component — client-side redirect
 //   Layer 4 (This file):  Layout-level auth init + redirect
 //
-// CLICK FIX (v10): All Radix modal components (Dialog, Sheet,
-// AlertDialog, DropdownMenu, ContextMenu) now use modal={false}.
-// This prevents Radix's DismissableLayer from setting
-// body.style.pointerEvents = "none" and from adding aria-hidden
-// to the React root. A periodic safety net cleans up any remaining
-// stuck styles.
+// CLICK FIX (v11): The REAL root cause of the "hover works but clicks don't"
+// bug was NOT the `inert` attribute from Radix — it was `aria-modal="true"`
+// on the MobileDrawer component (app-sidebar.tsx) that was ALWAYS present
+// in the DOM even when closed. On iOS Safari, `aria-modal="true"` on a
+// persistent `role="dialog"` element causes the browser to suppress click
+// events on elements outside the dialog, even when the dialog is off-screen.
+//
+// FIX: Made `aria-modal` and `role="dialog"` conditional on the drawer's
+// `open` state in MobileDrawer. Also added `pointer-events-none` to the
+// drawer panel when closed. Restored `modal={true}` on Dialog/Sheet/AlertDialog
+// since `inert` wasn't the problem.
+//
+// Safety nets below clean up:
+//   - Stuck `inert` attribute on the React root (from Radix modal components)
+//   - Stuck `body.style.pointerEvents = "none"`
+//   - Stuck `aria-hidden` on the React root
 
 // Map URL prefix → allowed roles
 const ROUTE_ROLE_MAP: Record<string, UserRole[]> = {
@@ -97,12 +107,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     cleanupAfterNavigation();
   }, [pathname]);
 
-  // SAFETY NET: Periodic cleanup of stuck body.style.pointerEvents
-  // and stale aria-hidden on the React root.
-  // Even with modal={false}, this catches edge cases where:
-  //   - A component was rendered with modal={true} explicitly
-  //   - The Select component (which is always modal) was used
-  //   - A third-party library sets these styles
+  // SAFETY NET: Periodic cleanup of stuck body.style.pointerEvents,
+  // stale aria-hidden, and inert attribute on the React root.
+  // With modal={true} restored on Dialog/Sheet/AlertDialog, Radix will
+  // set these attributes. If a modal's parent unmounts during navigation
+  // before Radix's cleanup runs, they can get stuck.
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
@@ -118,6 +127,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
       if (root?.getAttribute('data-aria-hidden') === 'true') {
         root.removeAttribute('data-aria-hidden');
+      }
+      // Fix stuck inert attribute on React root
+      // (Radix modal components set this on siblings when open)
+      if (root?.hasAttribute('inert')) {
+        root.removeAttribute('inert');
       }
     };
 

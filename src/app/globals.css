@@ -403,14 +403,11 @@
 }
 
 /* ─── Stale Overlay Cleanup ─── */
-/* With modal={false} on Dialog/Sheet/AlertDialog/DropdownMenu/ContextMenu,
-   Radix no longer sets body.style.pointerEvents = "none" or adds
-   aria-hidden to sibling elements. These rules are safety nets. */
+/* With Dialog/Sheet/AlertDialog restored to modal={true} (default), these
+   rules are critical safety nets to prevent lingering overlays from blocking
+   clicks after navigation or during close animations. */
 
-/* Closed Radix portal content must not block clicks.
-   Note: Radix Portal renders a <div> into document.body but does NOT add
-   a data-radix-portal attribute by default. This rule targets the
-   data-state="closed" pattern on any Radix content inside a portal. */
+/* Closed Radix portal CONTENT must not block clicks. */
 [data-state="closed"][data-radix-menu-content],
 [data-state="closed"][data-radix-dialog-content],
 [data-state="closed"][data-radix-popover-content],
@@ -420,6 +417,17 @@
 [data-state="closed"][data-slot^="context-menu-content"],
 [data-state="closed"][data-slot^="popover-content"],
 [data-state="closed"][data-slot^="alert-dialog-content"] {
+  pointer-events: none !important;
+}
+
+/* Closed Radix portal OVERLAYS must not block clicks.
+   The overlay is `fixed inset-0 z-50 bg-black/50` and during the close
+   animation (~150-300ms), it's still in the DOM covering the entire screen.
+   If navigation unmounts the parent before the animation completes, the
+   overlay can remain in the DOM and block ALL clicks on the page. */
+[data-state="closed"][data-slot="dialog-overlay"],
+[data-state="closed"][data-slot="sheet-overlay"],
+[data-state="closed"][data-slot="alert-dialog-overlay"] {
   pointer-events: none !important;
 }
 

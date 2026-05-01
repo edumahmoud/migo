@@ -1,25 +1,18 @@
 /**
- * Navigation Cleanup Utility — v10
+ * Navigation Cleanup Utility — v11
  *
- * With Dialog/Sheet/AlertDialog/DropdownMenu/ContextMenu using modal={false},
- * Radix no longer sets `body.style.pointerEvents = "none"` or adds
- * `aria-hidden` to sibling elements. This eliminates the root cause of the
- * "hover works but clicks don't" bug.
+ * The REAL root cause of the "hover works but clicks don't" bug was
+ * `aria-modal="true"` on the MobileDrawer that was always present in the DOM
+ * even when closed (fixed in app-sidebar.tsx v11). This module provides
+ * safety nets for remaining edge cases with Radix modal components.
  *
- * ROOT CAUSE ANALYSIS:
- * The Radix DismissableLayer component (used internally by Dialog, Menu,
- * Popover, etc.) sets `body.style.pointerEvents = "none"` when
- * `disableOutsidePointerEvents = true` (which happens when modal=true).
- * If the component's parent unmounts during navigation before the
- * DismissableLayer's useEffect cleanup runs, `body.style.pointerEvents`
- * can get stuck at "none", blocking ALL clicks while CSS :hover still
- * works on elements with explicit `pointer-events: auto`.
+ * With Dialog/Sheet/AlertDialog restored to modal={true}, Radix may set:
+ *   - `body.style.pointerEvents = "none"` via DismissableLayer
+ *   - `aria-hidden="true"` on sibling elements via `aria-hidden` package
+ *   - `inert` attribute on sibling elements
  *
- * Additionally, `hideOthers()` from the `aria-hidden` package adds
- * `aria-hidden="true"` to sibling elements of the modal content. If
- * cleanup doesn't complete, this can also remain stuck.
- *
- * This module provides safety nets for both issues.
+ * If a modal's parent unmounts during navigation before cleanup, these
+ * can remain stuck. This module cleans them up on navigation.
  */
 
 /**
@@ -56,6 +49,15 @@ export function cleanupAfterNavigation() {
   // attribute. Clean this up too.
   if (rootEl?.getAttribute('data-aria-hidden') === 'true') {
     rootEl.removeAttribute('data-aria-hidden');
+  }
+
+  // Safety net 4: Remove stuck inert attribute from React root
+  // Radix modal components add `inert` to sibling elements when a modal
+  // is open. If the modal's parent unmounts during navigation before
+  // Radix's cleanup, `inert` can remain stuck.
+  if (rootEl?.hasAttribute('inert')) {
+    console.warn('[navigation-cleanup] Removing stuck inert attribute from root element');
+    rootEl.removeAttribute('inert');
   }
 }
 

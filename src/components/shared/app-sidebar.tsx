@@ -218,24 +218,22 @@ function MobileDrawer({
   onClose: () => void;
   children: React.ReactNode;
 }) {
-  // Close on Escape key
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onClose();
-    }
-  }, [onClose]);
-
+  // Close on Escape key — only when drawer is open
   useEffect(() => {
-    if (open) {
-      document.addEventListener('keydown', handleKeyDown);
-      // Prevent body scroll when drawer is open (without pointer-events: none)
-      document.body.style.overflow = 'hidden';
-    }
+    if (!open) return;
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    document.addEventListener('keydown', handler);
+    document.body.style.overflow = 'hidden';
+
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handler);
       document.body.style.overflow = '';
     };
-  }, [open, handleKeyDown]);
+  }, [open, onClose]); // stable deps — onClose must be wrapped in useCallback by parent
 
   return (
     <>
@@ -249,12 +247,21 @@ function MobileDrawer({
       />
 
       {/* Drawer panel — slides from right (RTL) */}
+      {/*
+        CRITICAL: aria-modal and role="dialog" are ONLY set when open.
+        When closed, these attributes are removed. On mobile browsers
+        (especially iOS Safari), aria-modal="true" on a persistent DOM
+        element signals the accessibility engine to suppress click events
+        on elements outside the dialog — even when the dialog is visually
+        off-screen. This was the root cause of the 8-attempt bug where
+        hover worked but clicks didn't after navigation.
+      */}
       <div
-        role="dialog"
-        aria-label="القائمة الرئيسية"
-        aria-modal="true"
+        role={open ? 'dialog' : undefined}
+        aria-label={open ? 'القائمة الرئيسية' : undefined}
+        aria-modal={open ? 'true' : undefined}
         className={`fixed top-0 right-0 z-50 h-full w-72 bg-background shadow-xl transition-transform duration-300 ease-in-out ${
-          open ? 'translate-x-0' : 'translate-x-full'
+          open ? 'translate-x-0' : 'translate-x-full pointer-events-none'
         }`}
         dir="rtl"
       >
@@ -293,10 +300,13 @@ export default function AppSidebar({
     setSidebarOpen(!sidebarOpen);
   };
 
+  // Stable close callback — prevents MobileDrawer useEffect from re-running on every render
+  const closeSidebar = useCallback(() => setSidebarOpen(false), [setSidebarOpen]);
+
   // On mobile, use custom CSS drawer (NOT Radix Sheet)
   if (isMobile) {
     return (
-      <MobileDrawer open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
+      <MobileDrawer open={sidebarOpen} onClose={closeSidebar}>
         <div className="flex h-full flex-col overflow-hidden pt-2" dir="rtl">
           <ScrollArea className="flex-1 min-h-0">
             <nav className="px-3 py-4">
@@ -305,7 +315,7 @@ export default function AppSidebar({
                 activeSection={activeSection}
                 role={role}
                 collapsed={false}
-                onNavClick={() => setSidebarOpen(false)}
+                onNavClick={closeSidebar}
               />
             </nav>
           </ScrollArea>

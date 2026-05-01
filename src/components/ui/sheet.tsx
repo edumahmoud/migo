@@ -7,16 +7,15 @@ import { XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
- * Sheet — Non-modal by default.
+ * Sheet — Modal mode (default).
  *
- * Same reason as Dialog: prevents `inert` attribute from being added to
- * sibling elements, which was causing the bug where hover works but clicks
- * don't after navigation.
- *
- * See dialog.tsx for the full explanation.
+ * Same fix as Dialog: the REAL root cause of the click bug was
+ * aria-modal="true" on the MobileDrawer, not Radix's inert attribute.
+ * Restored modal={true} for proper focus trapping and accessibility.
+ * CSS safety nets in globals.css handle any lingering overlay issues.
  */
-function Sheet({ modal = false, ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" modal={modal} {...props} />
+function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  return <SheetPrimitive.Root data-slot="sheet" {...props} />
 }
 
 function SheetTrigger({

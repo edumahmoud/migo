@@ -7,19 +7,17 @@ import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
 /**
- * AlertDialog — Non-modal by default.
+ * AlertDialog — Modal mode (default).
  *
- * Same reason as Dialog: prevents `inert` attribute from being added to
- * sibling elements, which was causing the bug where hover works but clicks
- * don't after navigation.
- *
- * See dialog.tsx for the full explanation.
+ * Same fix as Dialog: the REAL root cause of the click bug was
+ * aria-modal="true" on the MobileDrawer, not Radix's inert attribute.
+ * Restored modal={true} for proper focus trapping and accessibility.
+ * CSS safety nets in globals.css handle any lingering overlay issues.
  */
 function AlertDialog({
-  modal = false,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" modal={modal} {...props} />
+  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
 }
 
 function AlertDialogTrigger({
