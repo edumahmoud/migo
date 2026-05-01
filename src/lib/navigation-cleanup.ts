@@ -1,18 +1,12 @@
 /**
- * Navigation Cleanup Utility — v11
+ * Navigation Cleanup Utility — v12
  *
- * The REAL root cause of the "hover works but clicks don't" bug was
- * `aria-modal="true"` on the MobileDrawer that was always present in the DOM
- * even when closed (fixed in app-sidebar.tsx v11). This module provides
- * safety nets for remaining edge cases with Radix modal components.
+ * CRITICAL FIX: In Next.js App Router, there's NO #__next or #root wrapper
+ * div — React renders directly into <body>. Previous safety nets used
+ * `document.getElementById('__next')` which ALWAYS returned null, so they
+ * NEVER cleaned up stuck `inert` or `aria-hidden` attributes!
  *
- * With Dialog/Sheet/AlertDialog restored to modal={true}, Radix may set:
- *   - `body.style.pointerEvents = "none"` via DismissableLayer
- *   - `aria-hidden="true"` on sibling elements via `aria-hidden` package
- *   - `inert` attribute on sibling elements
- *
- * If a modal's parent unmounts during navigation before cleanup, these
- * can remain stuck. This module cleans them up on navigation.
+ * This version scans ALL children of document.body for stuck attributes.
  */
 
 /**
@@ -24,41 +18,80 @@ export function cleanupAfterNavigation() {
   // Dispatch custom event so sections can close their dialogs
   document.dispatchEvent(new CustomEvent('navigation:cleanup'));
 
-  // Safety net 1: Fix stale body.style.pointerEvents
-  // The Radix DismissableLayer sets this to "none" when a modal component
-  // is open. If the component unmounts during navigation without cleanup,
-  // this stays stuck at "none" and blocks all clicks.
   const body = document.body;
+
+  // Safety net 1: Fix stale body.style.pointerEvents
   if (body.style.pointerEvents === 'none') {
     console.warn('[navigation-cleanup] Fixing stuck body.style.pointerEvents = "none"');
     body.style.pointerEvents = '';
   }
 
-  // Safety net 2: Remove stale aria-hidden from React root elements
-  // The `hideOthers()` function from `aria-hidden` adds aria-hidden="true"
-  // to siblings of modal content (portals). If cleanup doesn't complete,
-  // the React root can get stuck with aria-hidden="true".
-  const rootEl = document.getElementById('__next') || document.getElementById('root');
-  if (rootEl?.getAttribute('aria-hidden') === 'true') {
-    console.warn('[navigation-cleanup] Removing stuck aria-hidden="true" from root element');
-    rootEl.removeAttribute('aria-hidden');
+  // Safety net 2: Fix stuck body.style.overflow
+  if (body.style.overflow === 'hidden') {
+    console.warn('[navigation-cleanup] Fixing stuck body.style.overflow = "hidden"');
+    body.style.overflow = '';
   }
 
-  // Safety net 3: Remove stale data-aria-hidden marker
-  // The `hideOthers()` function also adds a `data-aria-hidden` marker
-  // attribute. Clean this up too.
-  if (rootEl?.getAttribute('data-aria-hidden') === 'true') {
-    rootEl.removeAttribute('data-aria-hidden');
+  // Safety net 3: Scan ALL body children for stuck inert/aria-hidden
+  // This is the CRITICAL fix — previous versions only checked #__next which
+  // doesn't exist in Next.js App Router!
+  const bodyChildren = body.children;
+  for (let i = 0; i < bodyChildren.length; i++) {
+    const el = bodyChildren[i] as HTMLElement;
+
+    // Skip Radix portal elements (they manage their own state)
+    if (el.hasAttribute('data-radix-portal') || el.getAttribute('data-slot')?.includes('portal')) {
+      continue;
+    }
+
+    // Skip script, style, link, meta elements
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'meta') {
+      continue;
+    }
+
+    // Remove stuck inert attribute
+    if (el.hasAttribute('inert')) {
+      console.warn('[navigation-cleanup] Removing stuck inert from', tag, el.id || el.className?.substring(0, 50));
+      el.removeAttribute('inert');
+    }
+
+    // Remove stuck aria-hidden
+    if (el.getAttribute('aria-hidden') === 'true') {
+      console.warn('[navigation-cleanup] Removing stuck aria-hidden from', tag, el.id || el.className?.substring(0, 50));
+      el.removeAttribute('aria-hidden');
+    }
+
+    // Remove stuck data-aria-hidden marker
+    if (el.getAttribute('data-aria-hidden') === 'true') {
+      el.removeAttribute('data-aria-hidden');
+    }
   }
 
-  // Safety net 4: Remove stuck inert attribute from React root
-  // Radix modal components add `inert` to sibling elements when a modal
-  // is open. If the modal's parent unmounts during navigation before
-  // Radix's cleanup, `inert` can remain stuck.
-  if (rootEl?.hasAttribute('inert')) {
-    console.warn('[navigation-cleanup] Removing stuck inert attribute from root element');
-    rootEl.removeAttribute('inert');
-  }
+  // Safety net 4: Remove any leftover Radix portal overlays that are
+  // stuck in the closed state. These `fixed inset-0 z-50` elements
+  // cover the entire screen and block all clicks.
+  const closedOverlays = document.querySelectorAll(
+    '[data-state="closed"][data-radix-dialog-overlay], ' +
+    '[data-state="closed"][data-radix-alert-dialog-overlay], ' +
+    '[data-state="closed"][data-slot="dialog-overlay"], ' +
+    '[data-state="closed"][data-slot="sheet-overlay"], ' +
+    '[data-slot="alert-dialog-overlay"][data-state="closed"]'
+  );
+  closedOverlays.forEach((el) => {
+    console.warn('[navigation-cleanup] Removing stuck closed overlay from DOM');
+    el.remove();
+  });
+
+  // Safety net 5: Remove any Radix portal containers that are empty
+  // or contain only closed-state elements.
+  document.querySelectorAll('[data-radix-portal]').forEach((portal) => {
+    const hasOpenContent = portal.querySelector('[data-state="open"]');
+    if (!hasOpenContent) {
+      console.warn('[navigation-cleanup] Removing orphaned Radix portal');
+      portal.remove();
+    }
+  });
 }
 
 // These are no longer used but kept for backward compatibility

@@ -7,17 +7,18 @@ import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
 /**
- * AlertDialog — Modal mode (default).
+ * AlertDialog — Non-modal by default.
  *
- * Same fix as Dialog: the REAL root cause of the click bug was
- * aria-modal="true" on the MobileDrawer, not Radix's inert attribute.
- * Restored modal={true} for proper focus trapping and accessibility.
- * CSS safety nets in globals.css handle any lingering overlay issues.
+ * Same reason as Dialog: In Next.js App Router, modal={true} sets `inert`
+ * on body children, and if cleanup doesn't complete during navigation,
+ * `inert` stays stuck. Using modal={false} prevents this entirely.
+ * See dialog.tsx for the full explanation.
  */
 function AlertDialog({
+  modal = false,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+  return <AlertDialogPrimitive.Root data-slot="alert-dialog" modal={modal} {...props} />
 }
 
 function AlertDialogTrigger({

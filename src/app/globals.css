@@ -403,9 +403,9 @@
 }
 
 /* ─── Stale Overlay Cleanup ─── */
-/* With Dialog/Sheet/AlertDialog restored to modal={true} (default), these
-   rules are critical safety nets to prevent lingering overlays from blocking
-   clicks after navigation or during close animations. */
+/* With Dialog/Sheet/AlertDialog using modal={false}, Radix won't set
+   `inert` on sibling elements. These CSS rules are safety nets for
+   any edge case where overlays remain in the DOM after closing. */
 
 /* Closed Radix portal CONTENT must not block clicks. */
 [data-state="closed"][data-radix-menu-content],

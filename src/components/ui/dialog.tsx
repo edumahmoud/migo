@@ -7,23 +7,28 @@ import { XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 /**
- * Dialog — Modal mode (default).
+ * Dialog — Non-modal by default.
  *
- * Previous versions used modal={false} to work around a bug where clicks
- * stopped working after navigation. The REAL root cause was aria-modal="true"
- * on the MobileDrawer component (app-sidebar.tsx) that was always present
- * in the DOM even when closed — on iOS Safari, this suppressed click events
- * on elements outside the dialog. That has been fixed by making aria-modal
- * conditional on the drawer's open state.
+ * WHY NON-MODAL?
+ * In Next.js App Router, there's NO #__next or #root wrapper div — React
+ * renders directly into <body>. When Radix Dialog uses modal={true}, it
+ * sets the `inert` attribute on all sibling elements of the portal (i.e.,
+ * all other children of <body>). If a Dialog's parent unmounts during
+ * navigation before Radix's cleanup runs, `inert` stays stuck on the
+ * React content, blocking ALL user interaction (clicks, focus, keyboard)
+ * while CSS :hover still works.
  *
- * Using modal={true} (default) provides proper focus trapping and
- * accessibility. The safety net CSS rules in globals.css ensure that
- * any closed Radix overlays don't block clicks.
+ * The safety net cleanup can't reliably find the React root because
+ * there's no #__next or #root element in Next.js App Router.
+ *
+ * Using modal={false} prevents Radix from ever setting `inert`, which
+ * eliminates this bug entirely.
  */
 function Dialog({
+  modal = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+  return <DialogPrimitive.Root data-slot="dialog" modal={modal} {...props} />
 }
 
 function DialogTrigger({

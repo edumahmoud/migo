@@ -24,22 +24,21 @@ import type { UserRole } from '@/lib/types';
 //   Layer 3 (Client):     RoleGuard component — client-side redirect
 //   Layer 4 (This file):  Layout-level auth init + redirect
 //
-// CLICK FIX (v11): The REAL root cause of the "hover works but clicks don't"
-// bug was NOT the `inert` attribute from Radix — it was `aria-modal="true"`
-// on the MobileDrawer component (app-sidebar.tsx) that was ALWAYS present
-// in the DOM even when closed. On iOS Safari, `aria-modal="true"` on a
-// persistent `role="dialog"` element causes the browser to suppress click
-// events on elements outside the dialog, even when the dialog is off-screen.
+// CLICK FIX (v12): Two concurrent bugs were causing "hover works but clicks don't":
 //
-// FIX: Made `aria-modal` and `role="dialog"` conditional on the drawer's
-// `open` state in MobileDrawer. Also added `pointer-events-none` to the
-// drawer panel when closed. Restored `modal={true}` on Dialog/Sheet/AlertDialog
-// since `inert` wasn't the problem.
+// BUG 1: aria-modal="true" on MobileDrawer was ALWAYS present in the DOM
+//   even when the drawer was closed. On iOS Safari, this suppresses click
+//   events on elements outside the dialog, even when off-screen.
+//   FIX: Made aria-modal and role="dialog" conditional on drawer's open state.
 //
-// Safety nets below clean up:
-//   - Stuck `inert` attribute on the React root (from Radix modal components)
-//   - Stuck `body.style.pointerEvents = "none"`
-//   - Stuck `aria-hidden` on the React root
+// BUG 2: The safety net cleanup was looking for #__next or #root element
+//   which DON'T EXIST in Next.js App Router (React renders directly into
+//   <body>). So the safety net NEVER cleaned up stuck `inert` attributes!
+//   When Dialog/Sheet used modal={true}, Radix set `inert` on body children,
+//   and if cleanup didn't complete during navigation, `inert` stayed stuck.
+//   FIX: Scan ALL body children for stuck attributes (not just specific IDs).
+//   Also use modal={false} on Dialog/Sheet/AlertDialog to prevent `inert`
+//   from being set in the first place.
 
 // Map URL prefix → allowed roles
 const ROUTE_ROLE_MAP: Record<string, UserRole[]> = {
@@ -107,41 +106,107 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     cleanupAfterNavigation();
   }, [pathname]);
 
-  // SAFETY NET: Periodic cleanup of stuck body.style.pointerEvents,
-  // stale aria-hidden, and inert attribute on the React root.
-  // With modal={true} restored on Dialog/Sheet/AlertDialog, Radix will
-  // set these attributes. If a modal's parent unmounts during navigation
-  // before Radix's cleanup runs, they can get stuck.
+  // SAFETY NET: Periodic cleanup + MutationObserver for stuck attributes.
+  // In Next.js App Router, there's NO #__next or #root wrapper div — React
+  // renders directly into <body>. Previous safety nets looked for these IDs
+  // and always returned null, so they NEVER cleaned up anything!
+  //
+  // With modal={false} on Dialog/Sheet/AlertDialog, Radix shouldn't set these
+  // attributes. But this safety net catches any edge case where they get set
+  // (e.g., the Select component which is always modal, or a component that
+  // explicitly sets modal={true}).
   useEffect(() => {
     if (typeof document === 'undefined') return;
+
+    const isRadixPortal = (el: Element) =>
+      el.hasAttribute('data-radix-portal') ||
+      el.getAttribute('data-slot')?.includes('portal') ||
+      false;
+
+    const isSkippable = (el: Element) => {
+      const tag = el.tagName.toLowerCase();
+      return tag === 'script' || tag === 'style' || tag === 'link' || tag === 'meta';
+    };
 
     const cleanup = () => {
       // Fix stuck body.pointerEvents
       if (document.body.style.pointerEvents === 'none') {
+        console.warn('[safety-net] Fixing stuck body.style.pointerEvents = "none"');
         document.body.style.pointerEvents = '';
       }
-      // Fix stuck aria-hidden on React root
-      const root = document.getElementById('__next') || document.getElementById('root');
-      if (root?.getAttribute('aria-hidden') === 'true') {
-        root.removeAttribute('aria-hidden');
+
+      // Fix stuck body.overflow (set by MobileDrawer when open)
+      if (document.body.style.overflow === 'hidden') {
+        document.body.style.overflow = '';
       }
-      if (root?.getAttribute('data-aria-hidden') === 'true') {
-        root.removeAttribute('data-aria-hidden');
-      }
-      // Fix stuck inert attribute on React root
-      // (Radix modal components set this on siblings when open)
-      if (root?.hasAttribute('inert')) {
-        root.removeAttribute('inert');
+
+      // Scan ALL children of document.body for stuck attributes
+      const bodyChildren = document.body.children;
+      for (let i = 0; i < bodyChildren.length; i++) {
+        const el = bodyChildren[i] as HTMLElement;
+        if (isRadixPortal(el) || isSkippable(el)) continue;
+
+        if (el.hasAttribute('inert')) {
+          console.warn('[safety-net] Removing stuck inert from', el.tagName, el.id || el.className?.substring(0, 50));
+          el.removeAttribute('inert');
+        }
+        if (el.getAttribute('aria-hidden') === 'true') {
+          console.warn('[safety-net] Removing stuck aria-hidden from', el.tagName, el.id || el.className?.substring(0, 50));
+          el.removeAttribute('aria-hidden');
+        }
+        if (el.getAttribute('data-aria-hidden') === 'true') {
+          el.removeAttribute('data-aria-hidden');
+        }
       }
     };
 
     // Run immediately
     cleanup();
 
-    // Run every 500ms as safety net
-    const interval = setInterval(cleanup, 500);
+    // Run every 300ms as safety net (faster than before for quicker recovery)
+    const interval = setInterval(cleanup, 300);
 
-    return () => clearInterval(interval);
+    // ALSO use MutationObserver for REAL-TIME detection of `inert` being added.
+    // This catches the attribute the instant it's set, instead of waiting up to 300ms.
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes') {
+          const el = mutation.target as HTMLElement;
+          if (mutation.attributeName === 'inert' && el.hasAttribute('inert') && !isRadixPortal(el) && !isSkippable(el)) {
+            console.warn('[safety-net-observer] Detected inert added to', el.tagName, el.id || el.className?.substring(0, 50));
+            // Delay removal slightly to allow Radix's own cleanup a chance
+            // (if a Dialog is intentionally being opened, we don't want to fight it)
+            setTimeout(() => {
+              // Only remove if there's no active open Radix content in the DOM
+              const hasOpenDialog = document.querySelector('[data-state="open"][data-radix-dialog-content], [data-state="open"][data-slot="dialog-content"], [data-state="open"][data-slot="sheet-content"], [data-state="open"][data-slot="alert-dialog-content"]');
+              if (!hasOpenDialog && el.hasAttribute('inert')) {
+                console.warn('[safety-net-observer] Removing stuck inert (no open dialog found)');
+                el.removeAttribute('inert');
+              }
+            }, 100);
+          }
+          if (mutation.attributeName === 'aria-hidden' && el.getAttribute('aria-hidden') === 'true' && !isRadixPortal(el) && !isSkippable(el)) {
+            const hasOpenDialog = document.querySelector('[data-state="open"][data-radix-dialog-content], [data-state="open"][data-slot="dialog-content"], [data-state="open"][data-slot="sheet-content"], [data-state="open"][data-slot="alert-dialog-content"]');
+            if (!hasOpenDialog) {
+              console.warn('[safety-net-observer] Removing stuck aria-hidden (no open dialog found)');
+              el.removeAttribute('aria-hidden');
+            }
+          }
+        }
+      }
+    });
+
+    // Observe ALL children of body for attribute changes
+    observer.observe(document.body, {
+      attributes: true,
+      subtree: false, // Only direct children of body
+      attributeFilter: ['inert', 'aria-hidden'],
+    });
+
+    return () => {
+      clearInterval(interval);
+      observer.disconnect();
+    };
   }, []);
 
   if (!isSupabaseConfigured) {
