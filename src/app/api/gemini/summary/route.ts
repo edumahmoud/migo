@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateSummary } from '@/lib/gemini';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
-import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
+import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 import { supabaseServer } from '@/lib/supabase-server';
 
 /**
@@ -31,11 +31,18 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
 
-    // Use centralized validation for content-type and body size
-    const validationError = validateRequest(request, { largeBody: true });
-    if (validationError) return validationError;
+    // Parse JSON body with specific error handling
+    let body: { content?: string; title?: string };
+    try {
+      body = await request.json();
+    } catch {
+      console.error('[Summary API] Failed to parse JSON body');
+      return NextResponse.json(
+        { success: false, error: 'تنسيق الطلب غير صالح' },
+        { status: 400 }
+      );
+    }
 
-    const body = await request.json();
     const rawContent = body.content;
     const title = body.title || 'ملخص';
 
@@ -46,8 +53,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sanitize and limit content length
-    const sanitizedContent = sanitizeString(rawContent, 200000); // 200K chars for large PDFs
+    // Sanitize and limit content length (200K chars — AI models can't handle more anyway)
+    const sanitizedContent = sanitizeString(rawContent, 200000);
     if (sanitizedContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى غير صالح بعد التنظيف' },
@@ -151,6 +158,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return safeErrorResponse('حدث خطأ أثناء إنشاء الملخص');
+    // Include the actual error in the response for debugging
+    console.error('[Summary API] Unhandled error details:', errMsg);
+    return NextResponse.json(
+      { success: false, error: `حدث خطأ أثناء إنشاء الملخص: ${errMsg.substring(0, 200)}` },
+      { status: 500 }
+    );
   }
 }

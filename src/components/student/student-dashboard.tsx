@@ -786,10 +786,22 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
         console.log('[Summary] Saved successfully, id:', savedSummaryId);
 
+        // Add summary to local state IMMEDIATELY so it shows even before fetchSummaries
+        const newSummary: Summary = {
+          id: savedSummaryId,
+          user_id: profile.id,
+          title,
+          original_content: originalContent,
+          summary_content: summaryContent,
+          created_at: new Date().toISOString(),
+        };
+        setSummaries(prev => [newSummary, ...prev]);
+
         // Generate quiz in background (non-blocking)
         generateQuizInBackground(token, originalContent, title, savedSummaryId, pendingId);
 
         toast.success(`تم إنشاء ملخص "${title}" بنجاح`);
+        // Also refresh from server to get the authoritative version
         fetchSummaries();
       } catch (err) {
         console.error('[Summary] Background error:', err);

@@ -6,7 +6,8 @@
  * (pdf-parse dynamic requires, Vercel serverless module resolution, etc.)
  *
  * CRITICAL: pdfjs-dist is loaded dynamically to prevent SSR issues.
- * It uses browser-only APIs (DOMMatrix, canvas, etc.) that don't exist in Node.js.
+ * Worker is DISABLED because we only extract text (no rendering needed),
+ * and loading the worker from CDN/self-hosted causes CORS/fetch issues.
  */
 
 export interface PdfExtractionResult {
@@ -14,11 +15,17 @@ export interface PdfExtractionResult {
   pages: number;
 }
 
+/** Max chars to send to the AI (matches server-side sanitizeString limit) */
+const MAX_TEXT_LENGTH = 200000;
+
 /**
  * Extract text from a PDF File in the browser.
  *
  * Uses dynamic import to load pdfjs-dist ONLY in the browser,
  * preventing SSR/prerender errors from browser-only APIs.
+ *
+ * Worker is disabled — for text extraction we don't need it,
+ * and it avoids CORS/fetch errors loading the worker script.
  *
  * @param file - The PDF File object from an <input type="file">
  * @returns Extracted text and page count
@@ -33,12 +40,18 @@ export async function extractPdfTextClient(file: File): Promise<PdfExtractionRes
     // Dynamic import — only loads pdfjs-dist in the browser
     const pdfjsLib = await import('pdfjs-dist');
 
-    // Configure worker — served from our own /public directory
-    // (CDN URLs are unreliable for specific versions like 5.6.205)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    // Disable worker entirely — for text-only extraction we don't need it.
+    // This avoids all worker-related errors (CDN fetch failures, CORS, etc.)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdf = await pdfjsLib.getDocument({
+      data: new Uint8Array(arrayBuffer),
+      // Explicitly disable worker — runs on main thread (fine for text extraction)
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: true,
+    }).promise;
 
     const numPages = pdf.numPages;
     const textParts: string[] = [];
@@ -67,10 +80,17 @@ export async function extractPdfTextClient(file: File): Promise<PdfExtractionRes
       textParts.push(pageText);
     }
 
-    const fullText = textParts.join('\n\n');
+    let fullText = textParts.join('\n\n');
 
     if (!fullText.trim()) {
       throw new Error('NO_TEXT_EXTRACTED');
+    }
+
+    // Truncate to 200K chars (matches server-side limit)
+    // AI models can't process more than this anyway
+    if (fullText.length > MAX_TEXT_LENGTH) {
+      console.log(`[PDF Client] Text truncated from ${fullText.length} to ${MAX_TEXT_LENGTH} chars`);
+      fullText = fullText.substring(0, MAX_TEXT_LENGTH);
     }
 
     return { text: fullText, pages: numPages };
