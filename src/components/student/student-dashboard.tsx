@@ -211,31 +211,71 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // -------------------------------------------------------
   // Data fetching
   // -------------------------------------------------------
+  /**
+   * Wait for a valid Supabase auth session with exponential backoff.
+   * On mobile, session hydration from localStorage can be slow (1-5s),
+   * so we need multiple retries before giving up.
+   */
+  const waitForSession = useCallback(async (maxWaitMs = 8000): Promise<string> => {
+    const startTime = Date.now();
+    const delays = [500, 1000, 1500, 2000, 3000]; // progressive backoff
+    let attempt = 0;
+
+    while (Date.now() - startTime < maxWaitMs) {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      if (token) {
+        console.log(`[waitForSession] Got token after ${attempt} retries, ${Date.now() - startTime}ms`);
+        return token;
+      }
+      const delay = delays[Math.min(attempt, delays.length - 1)];
+      console.warn(`[waitForSession] No token yet (attempt ${attempt + 1}), waiting ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      attempt++;
+    }
+
+    console.error('[waitForSession] Failed to get session after', maxWaitMs, 'ms');
+    return '';
+  }, []);
+
   const fetchSummaries = useCallback(async () => {
     try {
-      // Wait for auth session to be available (critical on mobile where session hydration is slower)
-      const { data: { session } } = await supabase.auth.getSession();
-      let token = session?.access_token || '';
-
-      // If session not yet hydrated, wait briefly and retry
-      if (!token) {
-        console.warn('[fetchSummaries] No token yet, waiting for session...');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const { data: { session: retrySession } } = await supabase.auth.getSession();
-        token = retrySession?.access_token || '';
-      }
+      // Wait for auth session with progressive backoff (critical on mobile)
+      const token = await waitForSession(8000);
 
       const res = await fetch('/api/summaries', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
       if (res.ok) {
         const { data } = await res.json();
-        setSummaries((data as Summary[]) || []);
-      } else if (res.status === 401 && !token) {
-        // Auth not ready yet — don't clear existing summaries, just log
-        console.warn('[fetchSummaries] Auth not ready, will retry on auth state change');
+        const fetched = (data as Summary[]) || [];
+        setSummaries(fetched);
+        // Cache to localStorage for offline/mobile resilience
+        try {
+          localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
+          localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+        } catch { /* localStorage might be unavailable */ }
+      } else if (res.status === 401) {
+        // Auth not ready yet — try direct Supabase query as fallback
+        console.warn('[fetchSummaries] API returned 401, trying direct query...');
+        const { data, error } = await supabase
+          .from('summaries')
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('created_at', { ascending: false });
+        if (!error && data) {
+          const fetched = (data as Summary[]) || [];
+          setSummaries(fetched);
+          try {
+            localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
+            localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+          } catch { /* ignore */ }
+        } else {
+          // Last resort: try localStorage cache
+          loadSummariesFromCache();
+        }
       } else {
-        // Fallback to direct Supabase query (might fail due to RLS)
+        // Fallback to direct Supabase query
         console.warn('[fetchSummaries] Server API failed, trying direct query...');
         const { data, error } = await supabase
           .from('summaries')
@@ -244,8 +284,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           .order('created_at', { ascending: false });
         if (error) {
           console.error('Error fetching summaries (fallback):', error);
+          loadSummariesFromCache();
         } else {
-          setSummaries((data as Summary[]) || []);
+          const fetched = (data as Summary[]) || [];
+          setSummaries(fetched);
+          try {
+            localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
+            localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+          } catch { /* ignore */ }
         }
       }
     } catch (err) {
@@ -257,8 +303,39 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false });
       if (!error && data) {
-        setSummaries((data as Summary[]) || []);
+        const fetched = (data as Summary[]) || [];
+        setSummaries(fetched);
+        try {
+          localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
+          localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+        } catch { /* ignore */ }
+      } else {
+        loadSummariesFromCache();
       }
+    }
+  }, [profile.id, waitForSession]);
+
+  /**
+   * Load summaries from localStorage cache as a last resort.
+   * Only used when both API and direct Supabase query fail.
+   * Cache is considered valid for up to 1 hour.
+   */
+  const loadSummariesFromCache = useCallback(() => {
+    try {
+      const cached = localStorage.getItem(`summaries_${profile.id}`);
+      const cacheTs = localStorage.getItem(`summaries_${profile.id}_ts`);
+      if (cached) {
+        const age = cacheTs ? Date.now() - parseInt(cacheTs) : Infinity;
+        if (age < 3600000) { // less than 1 hour old
+          const parsed = JSON.parse(cached) as Summary[];
+          console.log('[loadSummariesFromCache] Loaded', parsed.length, 'summaries from cache (age:', Math.round(age / 1000), 's)');
+          setSummaries(parsed);
+          return;
+        }
+      }
+      console.warn('[loadSummariesFromCache] No valid cache found');
+    } catch {
+      // localStorage unavailable or corrupted
     }
   }, [profile.id]);
 
@@ -482,6 +559,22 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setLoadingData(false);
   }, [fetchSummaries, fetchQuizzes, fetchScores, fetchLinkedTeachers, fetchIncomingLinkRequests, fetchFileCount]);
 
+  // ─── Load summaries from localStorage cache immediately on mount ───
+  // This gives instant UI on mobile while waiting for the API to respond.
+  // The API fetch will override this with fresh data once it completes.
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem(`summaries_${profile.id}`);
+      if (cached) {
+        const parsed = JSON.parse(cached) as Summary[];
+        if (parsed.length > 0) {
+          console.log('[Init] Loaded', parsed.length, 'summaries from localStorage cache');
+          setSummaries(parsed);
+        }
+      }
+    } catch { /* ignore */ }
+  }, [profile.id]);
+
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
@@ -489,12 +582,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Re-fetch summaries when auth session becomes available ───
   // On mobile, session hydration can be slow, so we listen for auth state changes
   // and retry fetching if we didn't have a token on the first attempt.
+  // CRITICAL: INITIAL_SESSION fires on page refresh when session is re-hydrated.
+  // Without handling it, summaries disappear after refresh on mobile.
   useEffect(() => {
     let cancelled = false;
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return;
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
-        console.log('[Auth] Session ready, re-fetching summaries...');
+      // INITIAL_SESSION: fires on page refresh when persisted session is loaded
+      // SIGNED_IN: fires after explicit sign-in
+      // TOKEN_REFRESHED: fires when the JWT is refreshed
+      if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
+        console.log('[Auth] Event:', event, '— re-fetching summaries...');
         fetchSummaries();
       }
     });
@@ -649,9 +747,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // Run the rest in the background (no await — fire and track)
     const processInBackground = async () => {
       try {
-        // Get auth token
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token || '';
+        // Get auth token with robust retry (mobile session hydration can be slow)
+        const token = await waitForSession(10000);
 
         if (!token) {
           throw new Error('انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى');
@@ -786,6 +883,44 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
         console.log('[Summary] Saved successfully, id:', savedSummaryId);
 
+        // ─── Post-save verification: confirm the summary actually exists in the DB ───
+        // On mobile, network issues can cause false positives. Verify the save.
+        try {
+          const verifyRes = await fetch(`/api/summaries`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          if (verifyRes.ok) {
+            const { data: verifyData } = await verifyRes.json();
+            const allSummaries = (verifyData as Summary[]) || [];
+            const found = allSummaries.some((s: Summary) => s.id === savedSummaryId);
+            if (!found) {
+              console.warn('[Summary] Post-save verification failed — summary not found in DB! Attempting re-insert...');
+              // The server-side save claimed success but the summary isn't there.
+              // Try client-side insert as last resort.
+              const { data: reInserted, error: reInsertError } = await supabase
+                .from('summaries')
+                .insert({
+                  user_id: profile.id,
+                  title,
+                  original_content: originalContent,
+                  summary_content: summaryContent,
+                })
+                .select()
+                .single();
+              if (reInsertError) {
+                console.error('[Summary] Re-insert also failed:', reInsertError.message);
+              } else {
+                savedSummaryId = reInserted.id;
+                console.log('[Summary] Re-insert succeeded, new id:', savedSummaryId);
+              }
+            } else {
+              console.log('[Summary] Post-save verification passed ✓');
+            }
+          }
+        } catch (verifyErr) {
+          console.warn('[Summary] Post-save verification error (non-critical):', verifyErr);
+        }
+
         // Add summary to local state IMMEDIATELY so it shows even before fetchSummaries
         const newSummary: Summary = {
           id: savedSummaryId,
@@ -796,6 +931,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           created_at: new Date().toISOString(),
         };
         setSummaries(prev => [newSummary, ...prev]);
+
+        // Cache to localStorage for mobile resilience
+        try {
+          const currentCached = localStorage.getItem(`summaries_${profile.id}`);
+          const existingSummaries = currentCached ? JSON.parse(currentCached) as Summary[] : [];
+          const merged = [newSummary, ...existingSummaries.filter((s: Summary) => s.id !== savedSummaryId)];
+          localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(merged));
+          localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+        } catch { /* ignore */ }
 
         // Generate quiz in background (non-blocking)
         generateQuizInBackground(token, originalContent, title, savedSummaryId, pendingId);
