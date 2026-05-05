@@ -542,13 +542,25 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
     }
 
+    // ───────────────────────────────────────────────────────
+    // CRITICAL: Snapshot state values into local constants BEFORE
+    // resetting form state. The processInBackground function runs
+    // asynchronously after setState calls. While React batching
+    // preserves values in the current render's closure, snapshotting
+    // makes the code robust against future React changes and makes
+    // the intent explicit.
+    // ───────────────────────────────────────────────────────
+    const inputMode = summaryInputMode;
+    const capturedFile = summaryFile;
+    const capturedText = summaryText.trim();
+
     // Create a pending summary tracker with AbortController for cancellation
     const pendingId = `pending-${Date.now()}`;
     const abortController = new AbortController();
     const pending: PendingSummary = {
       id: pendingId,
       title,
-      mode: summaryInputMode,
+      mode: inputMode,
       status: 'extracting',
       startedAt: Date.now(),
       abortController,
@@ -564,7 +576,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setSummaryStep('input');
     setCreatingSummary(false);
 
-    toast.info(summaryInputMode === 'file'
+    toast.info(inputMode === 'file'
       ? 'جاري استخراج النص وتوليد الملخص في الخلفية...'
       : 'جاري توليد الملخص في الخلفية...'
     );
@@ -577,12 +589,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         const token = session?.access_token || '';
 
         // Step 1: Get content (text or extract from PDF on server)
-        if (summaryInputMode === 'file' && summaryFile) {
+        if (inputMode === 'file' && capturedFile) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
           // Send PDF to server for extraction + summarization in one request
           const formData = new FormData();
-          formData.append('file', summaryFile);
+          formData.append('file', capturedFile);
 
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
 
@@ -595,15 +607,22 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             signal: abortController.signal,
           });
 
+          if (!summaryRes.ok) {
+            throw new Error(`فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
+          }
+
           const summaryData = await summaryRes.json();
           if (!summaryData.success) {
             throw new Error(summaryData.error || 'فشل في إنشاء الملخص');
           }
 
-          const summaryContent = summaryData.data.summary;
+          const summaryContent = summaryData.data?.summary;
+          if (!summaryContent) {
+            throw new Error('لم يتم إنشاء محتوى الملخص');
+          }
           // The API now returns the extracted text alongside the summary,
           // eliminating the need for a second request to /api/gemini/extract-pdf
-          const originalContent = summaryData.data.extractedText || `[ملف PDF: ${summaryFile.name}]`;
+          const originalContent = summaryData.data?.extractedText || `[ملف PDF: ${capturedFile.name}]`;
 
           // Save summary to supabase
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
@@ -620,6 +639,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             .single();
 
           if (summaryError) {
+            console.error('[Summary] Insert failed:', summaryError.message, summaryError.code);
             throw new Error(summaryError.message);
           }
 
@@ -628,7 +648,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           generateQuizInBackground(token, originalContent, title, insertedSummary.id, pendingId);
         } else {
           // Text mode
-          const content = summaryText.trim();
+          const content = capturedText;
 
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
 
@@ -642,12 +662,19 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             signal: abortController.signal,
           });
 
+          if (!summaryRes.ok) {
+            throw new Error(`فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
+          }
+
           const summaryData = await summaryRes.json();
           if (!summaryData.success) {
             throw new Error(summaryData.error || 'فشل في إنشاء الملخص');
           }
 
-          const summaryContent = summaryData.data.summary;
+          const summaryContent = summaryData.data?.summary;
+          if (!summaryContent) {
+            throw new Error('لم يتم إنشاء محتوى الملخص');
+          }
 
           // Save summary to supabase
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
@@ -664,6 +691,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             .single();
 
           if (summaryError) {
+            console.error('[Summary] Insert failed:', summaryError.message, summaryError.code);
             throw new Error(summaryError.message);
           }
 
