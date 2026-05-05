@@ -78,8 +78,8 @@ const LEVEL_OPTIONS = [
 ];
 
 const SUB_LEVEL_OPTIONS = [
-  { value: 'الترم الأول', label: 'الترم الأول' },
-  { value: 'الترم الثاني', label: 'الترم الثاني' },
+  { value: 'المستوى الأول', label: 'المستوى الأول' },
+  { value: 'المستوى الثاني', label: 'المستوى الثاني' },
 ];
 
 /** Generate a 6-character alphanumeric join code (uppercase + digits) */
@@ -675,14 +675,14 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer min-w-[140px]"
                 dir="rtl"
               >
-                <option value="">كل الفرقات</option>
+                <option value="">جميع الفرق</option>
                 {LEVEL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
 
-            {/* المستوى (الترم) filter */}
+            {/* المستوى filter */}
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
               <select
@@ -691,7 +691,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer min-w-[140px]"
                 dir="rtl"
               >
-                <option value="">كل الترمات</option>
+                <option value="">جميع المستويات</option>
                 {SUB_LEVEL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
@@ -766,8 +766,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         // Backward compatibility: map old values to new ones
         const mapSubLevel = (val: string | undefined): string | undefined => {
           if (!val) return val;
-          if (val === 'مستوى أول') return 'الترم الأول';
-          if (val === 'مستوى ثاني') return 'الترم الثاني';
+          if (val === 'مستوى أول') return 'المستوى الأول';
+          if (val === 'مستوى ثاني') return 'المستوى الثاني';
           return val;
         };
         let filteredSubjects = subjects.map((s) => ({ ...s, sub_level: mapSubLevel(s.sub_level) }));
@@ -1175,7 +1175,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   />
                 </div>
 
-                {/* الفرقة (السنة الدراسية) & المستوى (الترم الدراسي) */}
+                {/* الفرقة (السنة الدراسية) & المستوى الدراسي */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
@@ -1196,7 +1196,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      المستوى (الترم الدراسي)
+                      المستوى الدراسي
                     </label>
                     <select
                       value={newSubjectSubLevel}

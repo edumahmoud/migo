@@ -133,8 +133,8 @@ const LEVEL_OPTIONS = [
 ];
 
 const SUB_LEVEL_OPTIONS = [
-  { value: 'الترم الأول', label: 'الترم الأول' },
-  { value: 'الترم الثاني', label: 'الترم الثاني' },
+  { value: 'المستوى الأول', label: 'المستوى الأول' },
+  { value: 'المستوى الثاني', label: 'المستوى الثاني' },
 ];
 
 // -------------------------------------------------------
@@ -649,7 +649,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   {subject.sub_level && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 px-2.5 py-0.5 text-xs text-white font-medium">
                       <Calendar className="h-3 w-3" />
-                      {subject.sub_level === 'مستوى أول' ? 'الترم الأول' : subject.sub_level === 'مستوى ثاني' ? 'الترم الثاني' : subject.sub_level}
+                      {subject.sub_level === 'مستوى أول' ? 'المستوى الأول' : subject.sub_level === 'مستوى ثاني' ? 'المستوى الثاني' : subject.sub_level}
                     </span>
                   )}
                 </div>
@@ -808,7 +808,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   />
                 </div>
 
-                {/* الفرقة (السنة الدراسية) & المستوى (الترم الدراسي) */}
+                {/* الفرقة (السنة الدراسية) & المستوى الدراسي */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
@@ -829,7 +829,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      المستوى (الترم الدراسي)
+                      المستوى الدراسي
                     </label>
                     <select
                       value={editSubLevel}
