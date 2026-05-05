@@ -19,6 +19,8 @@ import {
   LogOut,
   UserCog,
   Shield,
+  Filter,
+  GraduationCap,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -61,6 +63,23 @@ async function tryRefreshSession(): Promise<boolean> {
 const SUBJECT_COLORS = [
   '#10b981', '#14b8a6', '#f59e0b', '#ef4444',
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
+];
+
+// -------------------------------------------------------
+// Filter options
+// -------------------------------------------------------
+
+const LEVEL_OPTIONS = [
+  { value: 'الفرقة الأولى', label: 'الفرقة الأولى' },
+  { value: 'الفرقة الثانية', label: 'الفرقة الثانية' },
+  { value: 'الفرقة الثالثة', label: 'الفرقة الثالثة' },
+  { value: 'الفرقة الرابعة', label: 'الفرقة الرابعة' },
+  { value: 'الفرقة الخامسة', label: 'الفرقة الخامسة' },
+];
+
+const SUB_LEVEL_OPTIONS = [
+  { value: 'الترم الأول', label: 'الترم الأول' },
+  { value: 'الترم الثاني', label: 'الترم الثاني' },
 ];
 
 /** Generate a 6-character alphanumeric join code (uppercase + digits) */
@@ -164,6 +183,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   // ─── Cancel / Leave loading state ───
   const [leavingSubjectId, setLeavingSubjectId] = useState<string | null>(null);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState<{ subjectId: string; subjectName: string } | null>(null);
+
+  // ─── Filter state ───
+  const [filterLevel, setFilterLevel] = useState<string>('');
+  const [filterSubLevel, setFilterSubLevel] = useState<string>('');
 
   // ─── Refs for stable real-time callbacks ───
   const fetchSubjectsRef = useRef<(() => Promise<void>) | undefined>(undefined);
@@ -632,6 +655,63 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         </div>
       </motion.div>
 
+      {/* ─── Filters ─── */}
+      {!loadingSubjects && subjects.length > 0 && (
+        <motion.div
+          variants={cardVariants}
+          className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border bg-card p-4 shadow-sm"
+        >
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground shrink-0">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span>تصفية</span>
+          </div>
+          <div className="flex flex-1 flex-wrap items-center gap-3">
+            {/* الفرقة filter */}
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-4 w-4 text-muted-foreground shrink-0" />
+              <select
+                value={filterLevel}
+                onChange={(e) => setFilterLevel(e.target.value)}
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer min-w-[140px]"
+                dir="rtl"
+              >
+                <option value="">كل الفرقات</option>
+                {LEVEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* المستوى (الترم) filter */}
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+              <select
+                value={filterSubLevel}
+                onChange={(e) => setFilterSubLevel(e.target.value)}
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer min-w-[140px]"
+                dir="rtl"
+              >
+                <option value="">كل الترمات</option>
+                {SUB_LEVEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Clear filters button */}
+            {(filterLevel || filterSubLevel) && (
+              <button
+                onClick={() => { setFilterLevel(''); setFilterSubLevel(''); }}
+                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
+              >
+                <X className="h-3 w-3" />
+                مسح التصفية
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
+
       {/* ─── Loading State ─── */}
       {loadingSubjects && (
         <div className="flex flex-col items-center justify-center py-20">
@@ -680,17 +760,33 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         </motion.div>
       )}
 
-      {/* ─── Compute filtered subject lists (student only) ─── */}
+      {/* ─── Compute filtered subject lists ─── */}
       {(() => {
+        // Apply level/sub_level filters first
+        // Backward compatibility: map old values to new ones
+        const mapSubLevel = (val: string | undefined): string | undefined => {
+          if (!val) return val;
+          if (val === 'مستوى أول') return 'الترم الأول';
+          if (val === 'مستوى ثاني') return 'الترم الثاني';
+          return val;
+        };
+        let filteredSubjects = subjects.map((s) => ({ ...s, sub_level: mapSubLevel(s.sub_level) }));
+        if (filterLevel) {
+          filteredSubjects = filteredSubjects.filter((s) => s.level === filterLevel);
+        }
+        if (filterSubLevel) {
+          filteredSubjects = filteredSubjects.filter((s) => s.sub_level === filterSubLevel);
+        }
+
         // For students: split into approved / pending / rejected
         const approvedSubjects = role === 'student'
-          ? subjects.filter((s) => (enrollmentStatuses[s.id] || 'approved') === 'approved')
-          : subjects;
+          ? filteredSubjects.filter((s) => (enrollmentStatuses[s.id] || 'approved') === 'approved')
+          : filteredSubjects;
         const pendingSubjects = role === 'student'
-          ? subjects.filter((s) => enrollmentStatuses[s.id] === 'pending')
+          ? filteredSubjects.filter((s) => enrollmentStatuses[s.id] === 'pending')
           : [];
         const rejectedSubjects = role === 'student'
-          ? subjects.filter((s) => enrollmentStatuses[s.id] === 'rejected')
+          ? filteredSubjects.filter((s) => enrollmentStatuses[s.id] === 'rejected')
           : [];
 
         return (
@@ -774,9 +870,27 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             </button>
                           )}
 
+                          {/* Level & Sub-level badges */}
+                          {(subject.level || subject.sub_level) && (
+                            <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+                              {subject.level && (
+                                <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs text-blue-700">
+                                  <GraduationCap className="h-3 w-3 shrink-0" />
+                                  <span className="font-medium">{subject.level}</span>
+                                </div>
+                              )}
+                              {subject.sub_level && (
+                                <div className="inline-flex items-center gap-1 rounded-full bg-purple-50 border border-purple-200 px-2.5 py-1 text-xs text-purple-700">
+                                  <Calendar className="h-3 w-3 shrink-0" />
+                                  <span className="font-medium">{subject.sub_level}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Co-teacher badge */}
                           {role === 'teacher' && subject.is_co_teacher && (
-                            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-1 text-xs text-teal-700">
+                            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-1 text-xs text-teal-700">
                               <Shield className="h-3 w-3 shrink-0" />
                               <span className="font-medium">معلم مشارك</span>
                             </div>
@@ -1061,11 +1175,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   />
                 </div>
 
-                {/* Level (الفرقة) & Sub-level (المستوى) */}
+                {/* الفرقة (السنة الدراسية) & المستوى (الترم الدراسي) */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      الفرقة
+                      الفرقة (السنة الدراسية)
                     </label>
                     <select
                       value={newSubjectLevel}
@@ -1075,16 +1189,14 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       disabled={creatingSubject}
                     >
                       <option value="">بدون فرقة</option>
-                      <option value="الفرقة الأولى">الفرقة الأولى</option>
-                      <option value="الفرقة الثانية">الفرقة الثانية</option>
-                      <option value="الفرقة الثالثة">الفرقة الثالثة</option>
-                      <option value="الفرقة الرابعة">الفرقة الرابعة</option>
-                      <option value="الفرقة الخامسة">الفرقة الخامسة</option>
+                      {LEVEL_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      المستوى
+                      المستوى (الترم الدراسي)
                     </label>
                     <select
                       value={newSubjectSubLevel}
@@ -1093,9 +1205,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       dir="rtl"
                       disabled={creatingSubject}
                     >
-                      <option value="">بدون مستوى</option>
-                      <option value="مستوى أول">مستوى أول</option>
-                      <option value="مستوى ثاني">مستوى ثاني</option>
+                      <option value="">بدون ترم</option>
+                      {SUB_LEVEL_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

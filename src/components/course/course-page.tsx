@@ -23,6 +23,8 @@ import {
   X,
   Sparkles,
   LogOut,
+  GraduationCap,
+  Calendar,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -118,6 +120,20 @@ function hexToRgba(hex: string, alpha: number): string {
 const SUBJECT_COLORS = [
   '#10b981', '#14b8a6', '#f59e0b', '#ef4444',
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
+];
+
+// Filter options (shared with subjects-section)
+const LEVEL_OPTIONS = [
+  { value: 'الفرقة الأولى', label: 'الفرقة الأولى' },
+  { value: 'الفرقة الثانية', label: 'الفرقة الثانية' },
+  { value: 'الفرقة الثالثة', label: 'الفرقة الثالثة' },
+  { value: 'الفرقة الرابعة', label: 'الفرقة الرابعة' },
+  { value: 'الفرقة الخامسة', label: 'الفرقة الخامسة' },
+];
+
+const SUB_LEVEL_OPTIONS = [
+  { value: 'الترم الأول', label: 'الترم الأول' },
+  { value: 'الترم الثاني', label: 'الترم الثاني' },
 ];
 
 // -------------------------------------------------------
@@ -620,6 +636,23 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   {subject.description}
                 </p>
               )}
+              {/* Level & Sub-level badges */}
+              {(subject.level || subject.sub_level) && (
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  {subject.level && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 px-2.5 py-0.5 text-xs text-white font-medium">
+                      <GraduationCap className="h-3 w-3" />
+                      {subject.level}
+                    </span>
+                  )}
+                  {subject.sub_level && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 px-2.5 py-0.5 text-xs text-white font-medium">
+                      <Calendar className="h-3 w-3" />
+                      {subject.sub_level === 'مستوى أول' ? 'الترم الأول' : subject.sub_level === 'مستوى ثاني' ? 'الترم الثاني' : subject.sub_level}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -774,11 +807,11 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   />
                 </div>
 
-                {/* Level (الفرقة) & Sub-level (المستوى) */}
+                {/* الفرقة (السنة الدراسية) & المستوى (الترم الدراسي) */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      الفرقة
+                      الفرقة (السنة الدراسية)
                     </label>
                     <select
                       value={editLevel}
@@ -788,16 +821,14 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       disabled={savingSubject}
                     >
                       <option value="">بدون فرقة</option>
-                      <option value="الفرقة الأولى">الفرقة الأولى</option>
-                      <option value="الفرقة الثانية">الفرقة الثانية</option>
-                      <option value="الفرقة الثالثة">الفرقة الثالثة</option>
-                      <option value="الفرقة الرابعة">الفرقة الرابعة</option>
-                      <option value="الفرقة الخامسة">الفرقة الخامسة</option>
+                      {LEVEL_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      المستوى
+                      المستوى (الترم الدراسي)
                     </label>
                     <select
                       value={editSubLevel}
@@ -806,9 +837,10 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       dir="rtl"
                       disabled={savingSubject}
                     >
-                      <option value="">بدون مستوى</option>
-                      <option value="مستوى أول">مستوى أول</option>
-                      <option value="مستوى ثاني">مستوى ثاني</option>
+                      <option value="">بدون ترم</option>
+                      {SUB_LEVEL_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

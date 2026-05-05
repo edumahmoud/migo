@@ -94,8 +94,8 @@ export interface Subject {
   description?: string;
   color?: string;
   join_code?: string;
-  level?: string;      // الفرقة الأكاديمية (الفرقة الأولى، الفرقة الثانية...)
-  sub_level?: string;  // المستوى داخل الفرقة (مستوى أول، مستوى ثاني...)
+  level?: string;      // الفرقة / السنة الدراسية (الفرقة الأولى، الفرقة الثانية...)
+  sub_level?: string;  // المستوى / الترم الدراسي (الترم الأول، الترم الثاني)
   created_at: string;
   updated_at: string;
   // Joined data
