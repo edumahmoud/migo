@@ -40,18 +40,12 @@ export async function extractPdfTextClient(file: File): Promise<PdfExtractionRes
     // Dynamic import — only loads pdfjs-dist in the browser
     const pdfjsLib = await import('pdfjs-dist');
 
-    // Disable worker entirely — for text-only extraction we don't need it.
-    // This avoids all worker-related errors (CDN fetch failures, CORS, etc.)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+    // Use worker from our own /public directory (copied from node_modules/pdfjs-dist)
+    // CDN doesn't host v5.6.205, and empty workerSrc causes an error.
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({
-      data: new Uint8Array(arrayBuffer),
-      // Explicitly disable worker — runs on main thread (fine for text extraction)
-      useWorkerFetch: false,
-      isEvalSupported: false,
-      useSystemFonts: true,
-    }).promise;
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
 
     const numPages = pdf.numPages;
     const textParts: string[] = [];
