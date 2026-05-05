@@ -16,6 +16,19 @@ export interface PdfExtractionResult {
   pages: number;
 }
 
+// Cached worker path (computed once)
+let _workerPath: string | null = null;
+
+/**
+ * Resolve the pdfjs-dist worker path for Node.js server-side usage.
+ * v5 requires a valid worker source even in Node.js — we use the legacy worker.
+ */
+function getWorkerPath(): string {
+  if (_workerPath) return _workerPath;
+  _workerPath = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
+  return _workerPath;
+}
+
 /**
  * Extract text from a PDF buffer using pdfjs-dist v5.
  * Dynamically imports the legacy build for server-side Node.js usage.
@@ -30,8 +43,8 @@ export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResul
     throw new Error('pdfjs-dist module is not available. Ensure pdfjs-dist is installed.');
   }
 
-  // Disable worker for server-side usage (workers are browser-only)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+  // Set the worker source for Node.js (v5 requires this even server-side)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = getWorkerPath();
 
   // Set CMap URL for proper character mapping (critical for Arabic, CJK, etc.)
   const cMapUrl = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'cmaps') + path.sep;
@@ -73,19 +86,65 @@ export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResul
         disableCombineTextItems: false,
       });
 
-      // Combine text items, preserving spatial ordering
-      // Text items are ordered by their position in the PDF content stream
-      const pageText = textContent.items
-        .filter((item): item is { str: string; dir: string; transform: number[]; width: number; height: number; fontName: string; hasEOL: boolean } => 'str' in item)
-        .map((item) => {
-          let str = item.str;
-          // Add a newline if the item has an end-of-line marker
-          if (item.hasEOL) {
-            str += '\n';
-          }
-          return str;
-        })
-        .join(' ');
+      // Build text with proper line reconstruction based on Y-position
+      // This handles RTL Arabic text better than simple string joining
+      interface TextItem {
+        str: string;
+        dir: string;
+        transform: number[];
+        width: number;
+        height: number;
+        fontName: string;
+        hasEOL: boolean;
+      }
+
+      const items = textContent.items
+        .filter((item): item is TextItem => 'str' in item && typeof item.str === 'string');
+
+      if (items.length === 0) {
+        pageTexts.push('');
+        continue;
+      }
+
+      // Group items by approximate Y position (same line) then sort by X position
+      // For RTL, we sort by X descending within each line
+      const LINE_THRESHOLD = 3; // pixels tolerance for same line
+      const lines: TextItem[][] = [];
+      let currentLine: TextItem[] = [items[0]];
+      let lastY = items[0].transform[5]; // Y position from transform matrix
+
+      for (let i = 1; i < items.length; i++) {
+        const item = items[i];
+        const y = item.transform[5];
+
+        if (Math.abs(y - lastY) < LINE_THRESHOLD) {
+          // Same line
+          currentLine.push(item);
+        } else {
+          // New line
+          lines.push(currentLine);
+          currentLine = [item];
+          lastY = y;
+        }
+      }
+      lines.push(currentLine); // Don't forget the last line
+
+      // For each line, sort items by X position
+      // RTL text: sort descending by X (right-to-left reading order)
+      // LTR text: sort ascending by X (left-to-right reading order)
+      const pageText = lines.map(line => {
+        // Detect direction: if most items have 'rtl' direction, sort RTL
+        const rtlCount = line.filter(item => item.dir === 'rtl').length;
+        const isRtl = rtlCount > line.length / 2;
+
+        const sorted = [...line].sort((a, b) => {
+          const xA = a.transform[4]; // X position
+          const xB = b.transform[4];
+          return isRtl ? xB - xA : xA - xB; // RTL: descending, LTR: ascending
+        });
+
+        return sorted.map(item => item.str).join(isRtl ? '' : ' ');
+      }).join('\n');
 
       pageTexts.push(pageText);
     } catch {
