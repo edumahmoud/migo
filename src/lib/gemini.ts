@@ -1,44 +1,44 @@
 /**
- * Gemini AI Service
+ * AI Service — Powered by Groq
  *
- * Centralized service for Google Gemini API interactions.
+ * Centralized service for AI interactions using Groq's ultra-fast inference.
  * Used by:
  *   - /api/gemini/summary  → Text/PDF summarization
  *   - /api/gemini/quiz     → Quiz generation from content
  *   - /api/gemini/evaluate → Fill-in-the-blank answer evaluation
  *
- * Model strategy (May 2026):
- *   Primary:  gemini-2.5-flash   → latest, best quality, may have region limits
- *   Fallback: gemini-2.0-flash   → stable, widely available, good free-tier quota
- *   Fallback: gemini-2.0-flash-lite → lighter, separate quota pool
+ * Model strategy:
+ *   Primary:  llama-3.3-70b-versatile → best quality for Arabic, separate quota
+ *   Fallback: llama-3.1-8b-instant    → fast, lightweight, separate quota
+ *   Fallback: llama3-70b-8192         → older but stable
  *
- * Note: gemini-1.5-flash and gemini-1.5-flash-8b are deprecated/removed.
+ * Groq is 10-100x faster than Gemini/OpenAI for inference, making it ideal
+ * for real-time educational tools like summarization and quiz generation.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 // -------------------------------------------------------
 // Singleton client
 // -------------------------------------------------------
-let _genAI: GoogleGenerativeAI | null = null;
+let _groq: Groq | null = null;
 
-function getClient(): GoogleGenerativeAI {
-  if (!_genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
+function getClient(): Groq {
+  if (!_groq) {
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is not configured in environment variables');
+      throw new Error('GROQ_API_KEY is not configured in environment variables');
     }
-    _genAI = new GoogleGenerativeAI(apiKey);
+    _groq = new Groq({ apiKey });
   }
-  return _genAI;
+  return _groq;
 }
 
 // -------------------------------------------------------
 // Model selection — try primary, fall back to alternatives
-// Updated May 2026: removed deprecated 1.5 models, added 2.5
 // -------------------------------------------------------
-const PRIMARY_MODEL = 'gemini-2.5-flash';
-const FALLBACK_MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+const PRIMARY_MODEL = 'llama-3.3-70b-versatile';
+const FALLBACK_MODELS = ['llama-3.1-8b-instant', 'llama3-70b-8192'];
 
 async function callWithFallback<T>(fn: (modelId: string) => Promise<T>): Promise<T> {
   const modelsToTry = [PRIMARY_MODEL, ...FALLBACK_MODELS];
@@ -46,25 +46,28 @@ async function callWithFallback<T>(fn: (modelId: string) => Promise<T>): Promise
 
   for (const modelId of modelsToTry) {
     try {
-      console.log(`[Gemini] Trying model: ${modelId}`);
+      console.log(`[Groq] Trying model: ${modelId}`);
       const result = await fn(modelId);
-      console.log(`[Gemini] Success with model: ${modelId}`);
+      console.log(`[Groq] Success with model: ${modelId}`);
       return result;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.warn(`[Gemini] Model ${modelId} failed:`, errMsg.substring(0, 200));
+      console.warn(`[Groq] Model ${modelId} failed:`, errMsg.substring(0, 200));
       lastError = err;
 
-      // If it's a rate limit or auth error, try the next model
-      // (different models may have separate quota pools)
-      if (errMsg.includes('API_KEY') || errMsg.includes('401') || errMsg.includes('403')) {
-        // Auth errors won't be fixed by trying a different model
+      // Auth errors won't be fixed by trying a different model
+      if (errMsg.includes('401') || errMsg.includes('invalid_api_key') || errMsg.includes('Incorrect API key')) {
         throw err;
       }
 
-      // 429 / quota errors: try next model (it might have its own quota)
-      // "User location not supported": try next model (it might be available)
-      // 404 / model not found: try next model
+      // 403 Forbidden — account issue, won't be fixed by model change
+      if (errMsg.includes('403') && !errMsg.includes('model')) {
+        throw err;
+      }
+
+      // Rate limit / 429 — try next model (different quota pool)
+      // 404 / model not found — try next model
+      // 503 / overloaded — try next model
       // Continue trying...
     }
   }
@@ -72,15 +75,46 @@ async function callWithFallback<T>(fn: (modelId: string) => Promise<T>): Promise
   // All models failed — throw the last error with a helpful message
   const lastErrMsg = lastError instanceof Error ? lastError.message : String(lastError);
 
-  if (lastErrMsg.includes('429') || lastErrMsg.includes('quota') || lastErrMsg.includes('RESOURCE_EXHAUSTED')) {
-    throw new Error('تم تجاوز حصة الذكاء الاصطناعي. يرجى تفعيل الفوترة في Google AI Studio أو الانتظار حتى يتم تجديد الحصة');
+  if (lastErrMsg.includes('429') || lastErrMsg.includes('rate_limit') || lastErrMsg.includes('Rate limit')) {
+    throw new Error('تم تجاوز حصة الذكاء الاصطناعي. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى');
   }
 
-  if (lastErrMsg.includes('User location is not supported')) {
-    throw new Error('خدمة الذكاء الاصطناعي غير متاحة في منطقتك الحالية. يرجى استخدام VPN أو التواصل مع الإدارة');
+  if (lastErrMsg.includes('403') || lastErrMsg.includes('Forbidden')) {
+    throw new Error('مفتاح API غير صالح أو الحساب معطل. يرجى التواصل مع الإدارة');
+  }
+
+  if (lastErrMsg.includes('insufficient_quota') || lastErrMsg.includes('billing')) {
+    throw new Error('حصة الذكاء الاصطناعي نفدت. يرجى التواصل مع الإدارة لتحديث الباقة');
   }
 
   throw lastError;
+}
+
+// -------------------------------------------------------
+// Helper: Call Groq Chat API with a system + user prompt
+// -------------------------------------------------------
+async function groqChat(
+  modelId: string,
+  systemPrompt: string,
+  userPrompt: string,
+  options?: { temperature?: number; maxTokens?: number }
+): Promise<string> {
+  const groq = getClient();
+  const completion = await groq.chat.completions.create({
+    model: modelId,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: options?.temperature ?? 0.4,
+    max_tokens: options?.maxTokens ?? 4096,
+  });
+
+  const text = completion.choices[0]?.message?.content;
+  if (!text || text.trim().length === 0) {
+    throw new Error('AI returned an empty response');
+  }
+  return text;
 }
 
 // -------------------------------------------------------
@@ -88,36 +122,12 @@ async function callWithFallback<T>(fn: (modelId: string) => Promise<T>): Promise
 // -------------------------------------------------------
 export async function generateSummary(content: string): Promise<string> {
   return callWithFallback(async (modelId) => {
-    const genAI = getClient();
-    const model = genAI.getGenerativeModel({ model: modelId });
-
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: `أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي للطلاب العرب. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومنظم باستخدام نقاط واضحة وعناوين فرعية باللغة العربية.
-
-قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط لطلاب الجامعات. اجعل التلخيص منظماً باستخدام نقاط واضحة وعناوين فرعية. المحتوى:
-
-${content}`,
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 4096,
-      },
-    });
-
-    const response = result.response;
-    const text = response.text();
-    if (!text || text.trim().length === 0) {
-      throw new Error('Gemini returned an empty summary');
-    }
-    return text;
+    return groqChat(
+      modelId,
+      'أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي للطلاب العرب. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومنظم باستخدام نقاط واضحة وعناوين فرعية باللغة العربية. اجعل التلخيص منظماً باستخدام نقاط واضحة وعناوين فرعية.',
+      `قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط لطلاب الجامعات:\n\n${content}`,
+      { temperature: 0.4, maxTokens: 4096 }
+    );
   });
 }
 
@@ -134,16 +144,9 @@ export interface QuizQuestion {
 
 export async function generateQuiz(content: string): Promise<QuizQuestion[]> {
   return callWithFallback(async (modelId) => {
-    const genAI = getClient();
-    const model = genAI.getGenerativeModel({ model: modelId });
-
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: `أنت مساعد تعليمي متخصص في إنشاء اختبارات تعليمية. تقوم بإنشاء اختبارات شاملة باللغة العربية بتنسيق JSON فقط.
+    const text = await groqChat(
+      modelId,
+      `أنت مساعد تعليمي متخصص في إنشاء اختبارات تعليمية. تقوم بإنشاء اختبارات شاملة باللغة العربية بتنسيق JSON فقط.
 
 يجب أن يكون الرد بتنسيق JSON فقط ويحتوي على مصفوفة من الكائنات تحت اسم "questions":
 - للـ mcq: { "type": "mcq", "question": "...", "options": ["خيار1", "خيار2", "خيار3", "خيار4"], "correctAnswer": "الخيار الصحيح" }
@@ -151,26 +154,10 @@ export async function generateQuiz(content: string): Promise<QuizQuestion[]> {
 - للـ completion: { "type": "completion", "question": "سؤال يحتوي على ____", "correctAnswer": "الإجابة النموذجية" }
 - للـ matching: { "type": "matching", "question": "عنوان السؤال", "pairs": [{"key": "المصطلح", "value": "التعريف"}] }
 
-أنشئ 6 أسئلة متنوعة تغطي الأنواع الأربعة. تأكد أن الرد JSON صالح فقط بدون أي نص إضافي.
-
-بناءً على المحتوى التالي، قم بإنشاء اختبار شامل مكون من 6 أسئلة متنوعة:
-
-${content}`,
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.6,
-        maxOutputTokens: 4096,
-      },
-    });
-
-    const response = result.response;
-    const text = response.text();
-    if (!text || text.trim().length === 0) {
-      throw new Error('Gemini returned an empty quiz response');
-    }
+أنشئ 6 أسئلة متنوعة تغطي الأنواع الأربعة. تأكد أن الرد JSON صالح فقط بدون أي نص إضافي.`,
+      `بناءً على المحتوى التالي، قم بإنشاء اختبار شامل مكون من 6 أسئلة متنوعة:\n\n${content}`,
+      { temperature: 0.6, maxTokens: 4096 }
+    );
 
     // Parse JSON from response
     let questions: QuizQuestion[];
@@ -208,34 +195,13 @@ export async function evaluateCompletionAnswer(
   }
 
   return callWithFallback(async (modelId) => {
-    const genAI = getClient();
-    const model = genAI.getGenerativeModel({ model: modelId });
+    const text = await groqChat(
+      modelId,
+      'أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية. ترد بكلمة واحدة فقط: "true" أو "false".',
+      `السؤال: ${question}\nالإجابة النموذجية: ${correctAnswer}\nإجابة الطالب: ${studentAnswer}\n\nهل إجابة الطالب صحيحة معنوياً؟`,
+      { temperature: 0.1, maxTokens: 10 }
+    );
 
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: `أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية مقارنة بالإجابة النموذجية لسؤال "أكمل". لا تشدد على التطابق الحرفي، ركز على المعنى. ترد بكلمة واحدة فقط: "true" إذا كانت صحيحة، أو "false" إذا كانت خاطئة.
-
-السؤال: ${question}
-الإجابة النموذجية: ${correctAnswer}
-إجابة الطالب: ${studentAnswer}
-
-هل إجابة الطالب صحيحة معنوياً؟ رد بـ true أو false فقط.`,
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 10,
-      },
-    });
-
-    const response = result.response;
-    const text = response.text().trim().toLowerCase();
-    return text.includes('true');
+    return text.trim().toLowerCase().includes('true');
   });
 }

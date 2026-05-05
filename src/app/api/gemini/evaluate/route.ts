@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Evaluate using Gemini API with timeout
+    // Evaluate using AI (Groq) with timeout
     const evalPromise = evaluateCompletionAnswer(
       sanitizedQuestion,
       sanitizedCorrectAnswer,

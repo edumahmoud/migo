@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate summary using Gemini API with timeout
+    // Generate summary using AI (Groq) with timeout
     console.log('[Summary API] Generating summary for user:', authResult.user.id, 'content length:', sanitizedContent.length);
     const summaryPromise = generateSummary(sanitizedContent);
     const timeoutPromise = new Promise<never>((_, reject) =>

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate quiz using Gemini API with timeout
+    // Generate quiz using AI (Groq) with timeout
     console.log('[Quiz API] Generating quiz for user:', authResult.user.id);
     const quizPromise = generateQuiz(sanitizedContent);
     const timeoutPromise = new Promise<never>((_, reject) =>
