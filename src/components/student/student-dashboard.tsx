@@ -588,6 +588,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         const { data: { session } } = await supabase.auth.getSession();
         const token = session?.access_token || '';
 
+        if (!token) {
+          throw new Error('انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى');
+        }
+
+        let originalContent = '';
+        let summaryContent = '';
+
         // Step 1: Get content (text or extract from PDF on server)
         if (inputMode === 'file' && capturedFile) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
@@ -598,6 +605,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
 
+          console.log('[Summary] Sending PDF to API...');
           const summaryRes = await fetch('/api/gemini/summary', {
             method: 'POST',
             headers: {
@@ -608,105 +616,82 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           });
 
           const summaryData = await summaryRes.json();
+          console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error);
+
           if (!summaryRes.ok || !summaryData.success) {
             throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
           }
 
-          const summaryContent = summaryData.data?.summary;
-          if (!summaryContent) {
-            throw new Error('لم يتم إنشاء محتوى الملخص');
-          }
-          // The API now returns the extracted text alongside the summary,
-          // eliminating the need for a second request to /api/gemini/extract-pdf
-          const originalContent = summaryData.data?.extractedText || `[ملف PDF: ${capturedFile.name}]`;
-
-          // Save summary to supabase
-          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-
-          const { data: insertedSummary, error: summaryError } = await supabase
-            .from('summaries')
-            .insert({
-              user_id: profile.id,
-              title,
-              original_content: originalContent,
-              summary_content: summaryContent,
-            })
-            .select()
-            .single();
-
-          if (summaryError) {
-            console.error('[Summary] Insert failed:', summaryError.message, summaryError.code);
-            throw new Error(summaryError.message);
-          }
-
-          // Generate quiz in background (non-blocking)
-          // Use originalContent (the extracted PDF text) as the quiz source
-          generateQuizInBackground(token, originalContent, title, insertedSummary.id, pendingId);
+          summaryContent = summaryData.data?.summary || '';
+          originalContent = summaryData.data?.extractedText || `[ملف PDF: ${capturedFile.name}]`;
         } else {
           // Text mode
-          const content = capturedText;
+          originalContent = capturedText;
 
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
 
+          console.log('[Summary] Sending text to API, length:', originalContent.length);
           const summaryRes = await fetch('/api/gemini/summary', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify({ content: originalContent }),
             signal: abortController.signal,
           });
 
           const summaryData = await summaryRes.json();
+          console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error);
+
           if (!summaryRes.ok || !summaryData.success) {
             throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
           }
 
-          const summaryContent = summaryData.data?.summary;
-          if (!summaryContent) {
-            throw new Error('لم يتم إنشاء محتوى الملخص');
-          }
-
-          // Save summary to supabase
-          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-
-          const { data: insertedSummary, error: summaryError } = await supabase
-            .from('summaries')
-            .insert({
-              user_id: profile.id,
-              title,
-              original_content: content,
-              summary_content: summaryContent,
-            })
-            .select()
-            .single();
-
-          if (summaryError) {
-            console.error('[Summary] Insert failed:', summaryError.message, summaryError.code);
-            throw new Error(summaryError.message);
-          }
-
-          // Generate quiz in background (non-blocking)
-          generateQuizInBackground(token, content, title, insertedSummary.id, pendingId);
+          summaryContent = summaryData.data?.summary || '';
         }
+
+        if (!summaryContent) {
+          throw new Error('لم يتم إنشاء محتوى الملخص — رد الذكاء الاصطناعي فارغ');
+        }
+
+        // Save summary to supabase
+        setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
+
+        console.log('[Summary] Saving to DB, user:', profile.id, 'title:', title);
+        const { data: insertedSummary, error: summaryError } = await supabase
+          .from('summaries')
+          .insert({
+            user_id: profile.id,
+            title,
+            original_content: originalContent,
+            summary_content: summaryContent,
+          })
+          .select()
+          .single();
+
+        if (summaryError) {
+          console.error('[Summary] Insert failed:', summaryError.message, summaryError.code, summaryError.details);
+          throw new Error(`فشل حفظ الملخص: ${summaryError.message}`);
+        }
+
+        console.log('[Summary] Saved successfully:', insertedSummary.id);
+
+        // Generate quiz in background (non-blocking)
+        generateQuizInBackground(token, originalContent, title, insertedSummary.id, pendingId);
 
         toast.success(`تم إنشاء ملخص "${title}" بنجاح`);
         fetchSummaries();
       } catch (err) {
-        console.error('Background summary error:', err);
+        console.error('[Summary] Background error:', err);
 
         if (err instanceof DOMException && err.name === 'AbortError') {
-          // User cancelled — no error toast needed (already shown in UI)
+          // User cancelled
         } else if (err instanceof Error) {
           const msg = err.message;
-          if (msg.includes('تجاوز') || msg.includes('quota') || msg.includes('429')) {
-            toast.error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
-          } else {
-            toast.error(msg);
-          }
+          toast.error(msg, { duration: 8000, id: 'summary-error' });
         } else {
-          toast.error(`فشل إنشاء ملخص "${title}"`);
+          toast.error(`فشل إنشاء ملخص "${title}"`, { duration: 8000, id: 'summary-error' });
         }
       } finally {
         removePendingSummary(pendingId);
