@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import ZAI from 'z-ai-web-dev-sdk';
+import { generateSummary } from '@/lib/gemini';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
 async function getAuthenticatedUserId(request: NextRequest): Promise<string | null> {
@@ -12,7 +12,6 @@ async function getAuthenticatedUserId(request: NextRequest): Promise<string | nu
   }
 
   if (!token) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const authCookie = request.cookies.get('sb-access-token')?.value;
     if (authCookie) {
       try {
@@ -81,29 +80,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: 'assistant',
-          content: 'أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي للطلاب العرب. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومorganized باستخدام نقاط واضحة وعناوين فرعية باللغة العربية.'
-        },
-        {
-          role: 'user',
-          content: `قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط لطلاب الجامعات. اجعل التلخيص منظماً باستخدام نقاط واضحة وعناوين فرعية. المحتوى:\n\n${sanitizedContent}`
-        }
-      ],
-      thinking: { type: 'disabled' }
-    });
-
-    const summary = completion.choices[0]?.message?.content;
-    
-    if (!summary) {
-      return NextResponse.json(
-        { success: false, error: 'فشل في إنشاء الملخص' },
-        { status: 500, headers: rateLimitHeaders }
-      );
-    }
+    // Generate summary using Gemini API
+    const summary = await generateSummary(sanitizedContent);
 
     return NextResponse.json(
       { success: true, data: { summary } },

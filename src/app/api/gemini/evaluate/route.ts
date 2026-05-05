@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import ZAI from 'z-ai-web-dev-sdk';
+import { evaluateCompletionAnswer } from '@/lib/gemini';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
 async function getAuthenticatedUserId(request: NextRequest): Promise<string | null> {
@@ -12,7 +12,6 @@ async function getAuthenticatedUserId(request: NextRequest): Promise<string | nu
   }
 
   if (!token) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const authCookie = request.cookies.get('sb-access-token')?.value;
     if (authCookie) {
       try {
@@ -55,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { question, correctAnswer, studentAnswer } = body;
-    
+
     if (!question || !correctAnswer || !studentAnswer) {
       return NextResponse.json(
         { success: false, error: 'جميع الحقول مطلوبة' },
@@ -91,31 +90,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // First check for exact match
-    if (sanitizedStudentAnswer.toLowerCase() === sanitizedCorrectAnswer.toLowerCase()) {
-      return NextResponse.json(
-        { success: true, data: { isCorrect: true } },
-        { headers: rateLimitHeaders }
-      );
-    }
-
-    const zai = await ZAI.create();
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: 'assistant',
-          content: 'أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية مقارنة بالإجابة النموذجية لسؤال "أكمل". لا تشدد على التطابق الحرفي، ركز على المعنى. ترد بكلمة واحدة فقط: "true" إذا كانت صحيحة، أو "false" إذا كانت خاطئة.'
-        },
-        {
-          role: 'user',
-          content: `السؤال: ${sanitizedQuestion}\nالإجابة النموذجية: ${sanitizedCorrectAnswer}\nإجابة الطالب: ${sanitizedStudentAnswer}\n\nهل إجابة الطالب صحيحة معنوياً؟ رد بـ true أو false فقط.`
-        }
-      ],
-      thinking: { type: 'disabled' }
-    });
-
-    const response = completion.choices[0]?.message?.content?.trim().toLowerCase() || '';
-    const isCorrect = response.includes('true');
+    // Evaluate using Gemini API (includes exact-match fast path)
+    const isCorrect = await evaluateCompletionAnswer(
+      sanitizedQuestion,
+      sanitizedCorrectAnswer,
+      sanitizedStudentAnswer
+    );
 
     return NextResponse.json(
       { success: true, data: { isCorrect } },
