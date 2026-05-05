@@ -1,28 +1,29 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import {
   ChevronLeft,
   Printer,
-  ChevronDown,
-  ChevronUp,
   FileText,
   Loader2,
   XCircle,
   BookOpen,
   Sparkles,
+  Trash2,
+  RefreshCw,
+  ClipboardList,
+  Copy,
+  CheckCircle2,
+  AlertTriangle,
+  Play,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
-import type { Summary } from '@/lib/types';
+import { toast } from 'sonner';
+import type { Summary, Quiz } from '@/lib/types';
 
 // -------------------------------------------------------
 // Props
@@ -30,6 +31,7 @@ import type { Summary } from '@/lib/types';
 interface SummaryViewProps {
   summaryId: string;
   onBack: () => void;
+  onViewQuiz?: (quizId: string) => void;
 }
 
 // -------------------------------------------------------
@@ -48,12 +50,22 @@ const staggerContainer = {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function SummaryView({ summaryId, onBack }: SummaryViewProps) {
+export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryViewProps) {
   // ─── State ───
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [originalOpen, setOriginalOpen] = useState(false);
+
+  // ─── Action states ───
+  const [regenerating, setRegenerating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [generatingQuiz, setGeneratingQuiz] = useState(false);
+  const [regeneratingQuiz, setRegeneratingQuiz] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // ─── Related quiz ───
+  const [relatedQuiz, setRelatedQuiz] = useState<Quiz | null>(null);
 
   // -------------------------------------------------------
   // Fetch summary
@@ -62,18 +74,35 @@ export default function SummaryView({ summaryId, onBack }: SummaryViewProps) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fetchError } = await supabase
-        .from('summaries')
-        .select('*')
-        .eq('id', summaryId)
-        .single();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
 
-      if (fetchError || !data) {
-        setError('لم يتم العثور على الملخص');
-        return;
+      // Try server-side API first (bypasses RLS)
+      const res = await fetch('/api/summaries', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        const found = (data as Summary[])?.find((s) => s.id === summaryId);
+        if (found) {
+          setSummary(found);
+        } else {
+          setError('لم يتم العثور على الملخص');
+        }
+      } else {
+        // Fallback to direct query
+        const { data, error: fetchError } = await supabase
+          .from('summaries')
+          .select('*')
+          .eq('id', summaryId)
+          .single();
+
+        if (fetchError || !data) {
+          setError('لم يتم العثور على الملخص');
+          return;
+        }
+        setSummary(data as Summary);
       }
-
-      setSummary(data as Summary);
     } catch {
       setError('حدث خطأ أثناء تحميل الملخص');
     } finally {
@@ -81,9 +110,198 @@ export default function SummaryView({ summaryId, onBack }: SummaryViewProps) {
     }
   }, [summaryId]);
 
+  // -------------------------------------------------------
+  // Fetch related quiz
+  // -------------------------------------------------------
+  const fetchRelatedQuiz = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const res = await fetch(`/api/quizzes?summaryId=${summaryId}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        const quizzes = data as Quiz[];
+        if (quizzes && quizzes.length > 0) {
+          setRelatedQuiz(quizzes[0]); // Most recent quiz for this summary
+        } else {
+          setRelatedQuiz(null);
+        }
+      }
+    } catch {
+      // Non-critical
+    }
+  }, [summaryId]);
+
   useEffect(() => {
     fetchSummary();
-  }, [fetchSummary]);
+    fetchRelatedQuiz();
+  }, [fetchSummary, fetchRelatedQuiz]);
+
+  // -------------------------------------------------------
+  // Get auth headers helper
+  // -------------------------------------------------------
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token || '';
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    };
+  };
+
+  // -------------------------------------------------------
+  // Re-generate summary
+  // -------------------------------------------------------
+  const handleRegenerateSummary = async () => {
+    setRegenerating(true);
+    try {
+      const res = await fetch('/api/summaries', {
+        method: 'PUT',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ summaryId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSummary(data.data as Summary);
+        toast.success('تم إعادة توليد الملخص بنجاح');
+      } else {
+        toast.error(data.error || 'فشل إعادة توليد الملخص');
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء إعادة التلخيص');
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Delete summary
+  // -------------------------------------------------------
+  const handleDeleteSummary = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/summaries', {
+        method: 'DELETE',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ summaryId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success('تم حذف الملخص بنجاح');
+        onBack();
+      } else {
+        toast.error(data.error || 'فشل حذف الملخص');
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء حذف الملخص');
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Generate quiz from summary
+  // -------------------------------------------------------
+  const handleGenerateQuiz = async () => {
+    setGeneratingQuiz(true);
+    try {
+      // Generate quiz using the summary content
+      const content = summary?.summary_content || summary?.original_content || '';
+      const quizRes = await fetch('/api/gemini/quiz', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ content }),
+      });
+      const quizData = await quizRes.json();
+
+      if (!quizRes.ok || !quizData.success) {
+        toast.error(quizData.error || 'فشل إنشاء الاختبار');
+        return;
+      }
+
+      // Save the quiz
+      const saveRes = await fetch('/api/quizzes', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({
+          title: `اختبار: ${summary?.title || 'ملخص'}`,
+          questions: quizData.data.questions,
+          summaryId,
+        }),
+      });
+
+      if (saveRes.ok) {
+        const saveData = await saveRes.json();
+        setRelatedQuiz(saveData.data as Quiz);
+        toast.success('تم إنشاء الاختبار بنجاح');
+      } else {
+        toast.error('فشل حفظ الاختبار');
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء إنشاء الاختبار');
+    } finally {
+      setGeneratingQuiz(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Re-generate quiz
+  // -------------------------------------------------------
+  const handleRegenerateQuiz = async () => {
+    if (!relatedQuiz) return;
+    setRegeneratingQuiz(true);
+    try {
+      const res = await fetch('/api/quizzes', {
+        method: 'PUT',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ quizId: relatedQuiz.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRelatedQuiz(data.data as Quiz);
+        toast.success('تم إعادة إنشاء الاختبار بنجاح');
+      } else {
+        toast.error(data.error || 'فشل إعادة إنشاء الاختبار');
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء إعادة إنشاء الاختبار');
+    } finally {
+      setRegeneratingQuiz(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Copy content
+  // -------------------------------------------------------
+  const handleCopyContent = async () => {
+    if (!summary?.summary_content) return;
+    try {
+      await navigator.clipboard.writeText(summary.summary_content);
+      setCopied(true);
+      toast.success('تم نسخ المحتوى');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = summary.summary_content;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-9999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        setCopied(true);
+        toast.success('تم نسخ المحتوى');
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        toast.error('فشل نسخ المحتوى');
+      }
+      document.body.removeChild(textArea);
+    }
+  };
 
   // -------------------------------------------------------
   // Print handler
@@ -152,7 +370,23 @@ export default function SummaryView({ summaryId, onBack }: SummaryViewProps) {
             ملخص دراسي
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 gap-1.5">
+          {/* Copy button */}
+          <Button
+            onClick={handleCopyContent}
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 print:hidden"
+            title="نسخ المحتوى"
+          >
+            {copied ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">{copied ? 'تم النسخ' : 'نسخ'}</span>
+          </Button>
+          {/* Print button */}
           <Button
             onClick={handlePrint}
             variant="outline"
@@ -170,58 +404,211 @@ export default function SummaryView({ summaryId, onBack }: SummaryViewProps) {
         <Card className="border-emerald-200 bg-white shadow-sm print:shadow-none print:border-none">
           <CardContent className="p-6 sm:p-8">
             {/* Decorative header */}
-            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-emerald-100 print:hidden">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
-                <Sparkles className="h-5 w-5 text-emerald-600" />
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-emerald-100 print:hidden">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
+                  <Sparkles className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-emerald-700">الملخص</h2>
+                  <p className="text-xs text-emerald-600/70">تم إنشاؤه بواسطة الذكاء الاصطناعي</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-sm font-bold text-emerald-700">الملخص</h2>
-                <p className="text-xs text-emerald-600/70">تم إنشاؤه بواسطة الذكاء الاصطناعي</p>
-              </div>
+              {/* Re-summarize button */}
+              <Button
+                onClick={handleRegenerateSummary}
+                disabled={regenerating}
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                title="إعادة التلخيص"
+              >
+                {regenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">{regenerating ? 'جاري الإعادة...' : 'إعادة التلخيص'}</span>
+              </Button>
             </div>
 
             {/* Markdown content with RTL typography */}
-            <div className="prose-summary">
-              <ReactMarkdown>{summary.summary_content}</ReactMarkdown>
-            </div>
+            {regenerating ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                <p className="text-sm text-muted-foreground">جاري إعادة توليد الملخص...</p>
+              </div>
+            ) : (
+              <div className="prose-summary">
+                <ReactMarkdown>{summary.summary_content}</ReactMarkdown>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Original content expandable section */}
+      {/* Quiz Section */}
       <motion.div variants={fadeInUp}>
-        <Collapsible open={originalOpen} onOpenChange={setOriginalOpen}>
-          <Card className="border-teal-200 bg-teal-50/30 shadow-sm print:hidden">
-            <CollapsibleTrigger asChild>
-              <button className="flex w-full items-center justify-between p-4 text-right hover:bg-teal-50/50 transition-colors rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-100">
-                    <FileText className="h-4 w-4 text-teal-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-teal-700">المحتوى الأصلي</p>
-                    <p className="text-xs text-teal-600/70">النص المُدخل قبل التلخيص</p>
-                  </div>
+        <Card className="border-teal-200 bg-white shadow-sm print:hidden">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-100">
+                  <ClipboardList className="h-5 w-5 text-teal-600" />
                 </div>
-                <motion.div
-                  animate={{ rotate: originalOpen ? 180 : 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <ChevronDown className="h-5 w-5 text-teal-600" />
-                </motion.div>
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="border-t border-teal-200 px-4 pb-4 pt-3">
-                <div className="max-h-80 overflow-y-auto rounded-lg bg-white border border-teal-100 p-4 custom-scrollbar">
-                  <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                    {summary.original_content}
+                <div>
+                  <h2 className="text-sm font-bold text-teal-700">الاختبار</h2>
+                  <p className="text-xs text-teal-600/70">
+                    {relatedQuiz
+                      ? `${relatedQuiz.questions?.length || 0} سؤال`
+                      : 'أنشئ اختباراً من هذا الملخص'}
                   </p>
                 </div>
               </div>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+              {relatedQuiz && (
+                <Button
+                  onClick={handleRegenerateQuiz}
+                  disabled={regeneratingQuiz}
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                  title="إعادة إنشاء الاختبار"
+                >
+                  {regeneratingQuiz ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">{regeneratingQuiz ? 'جاري الإعادة...' : 'إعادة إنشاء'}</span>
+                </Button>
+              )}
+            </div>
+
+            {relatedQuiz ? (
+              <div className="space-y-3">
+                {/* Quiz info */}
+                <div className="flex items-center gap-4 p-3 rounded-lg bg-teal-50/70 border border-teal-100">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-teal-800">{relatedQuiz.title}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-xs text-teal-600">
+                        {relatedQuiz.questions?.length || 0} سؤال
+                      </span>
+                      <span className="text-xs text-teal-400">•</span>
+                      <span className="text-xs text-teal-600">
+                        {relatedQuiz.questions?.filter(q => q.type === 'mcq').length || 0} اختيار من متعدد
+                      </span>
+                      <span className="text-xs text-teal-400">•</span>
+                      <span className="text-xs text-teal-600">
+                        {relatedQuiz.questions?.filter(q => q.type === 'boolean').length || 0} صح/خطأ
+                      </span>
+                      <span className="text-xs text-teal-400">•</span>
+                      <span className="text-xs text-teal-600">
+                        {relatedQuiz.questions?.filter(q => q.type === 'completion').length || 0} أكمل الفراغ
+                      </span>
+                      <span className="text-xs text-teal-400">•</span>
+                      <span className="text-xs text-teal-600">
+                        {relatedQuiz.questions?.filter(q => q.type === 'matching').length || 0} مطابقة
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => onViewQuiz?.(relatedQuiz.id)}
+                    className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white"
+                    size="sm"
+                  >
+                    <Play className="h-4 w-4" />
+                    ابدأ الاختبار
+                  </Button>
+                </div>
+              </div>
+            ) : generatingQuiz ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+                <p className="text-sm text-muted-foreground">جاري إنشاء الاختبار...</p>
+                <p className="text-xs text-muted-foreground/60">قد يستغرق هذا بضع ثوانٍ</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-6 gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-50">
+                  <ClipboardList className="h-6 w-6 text-teal-400" />
+                </div>
+                <p className="text-sm text-muted-foreground">لم يتم إنشاء اختبار بعد</p>
+                <Button
+                  onClick={handleGenerateQuiz}
+                  disabled={generatingQuiz}
+                  className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white"
+                  size="sm"
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  إنشاء اختبار
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Delete Section */}
+      <motion.div variants={fadeInUp} className="print:hidden">
+        {!deleteConfirmOpen ? (
+          <div className="flex items-center justify-between rounded-xl border border-rose-100 bg-rose-50/30 p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100">
+                <Trash2 className="h-4 w-4 text-rose-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-rose-700">حذف الملخص</p>
+                <p className="text-xs text-rose-600/70">سيتم حذف الملخص والاختبار المرتبط به نهائياً</p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setDeleteConfirmOpen(true)}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-rose-300 text-rose-600 hover:bg-rose-50"
+            >
+              <Trash2 className="h-4 w-4" />
+              حذف
+            </Button>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-rose-300 bg-rose-50 p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100">
+                <AlertTriangle className="h-4 w-4 text-rose-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-rose-700">تأكيد الحذف</p>
+                <p className="text-xs text-rose-600/70">هل أنت متأكد من حذف ملخص "{summary.title}"؟ لا يمكن التراجع عن هذا الإجراء.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mr-12">
+              <Button
+                onClick={handleDeleteSummary}
+                disabled={deleting}
+                size="sm"
+                className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {deleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                {deleting ? 'جاري الحذف...' : 'نعم، احذف'}
+              </Button>
+              <Button
+                onClick={() => setDeleteConfirmOpen(false)}
+                variant="outline"
+                size="sm"
+                className="border-rose-200 text-rose-600 hover:bg-rose-50"
+                disabled={deleting}
+              >
+                إلغاء
+              </Button>
+            </div>
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
