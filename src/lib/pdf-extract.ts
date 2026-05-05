@@ -6,6 +6,7 @@
  * modern PDF handling, and is actively maintained.
  *
  * Uses the legacy build for Node.js server-side rendering.
+ * Falls back to pdf-parse if pdfjs-dist fails.
  */
 
 import path from 'path';
@@ -16,24 +17,32 @@ export interface PdfExtractionResult {
   pages: number;
 }
 
-// Cached worker path (computed once)
-let _workerPath: string | null = null;
-
-/**
- * Resolve the pdfjs-dist worker path for Node.js server-side usage.
- * v5 requires a valid worker source even in Node.js — we use the legacy worker.
- */
-function getWorkerPath(): string {
-  if (_workerPath) return _workerPath;
-  _workerPath = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
-  return _workerPath;
-}
-
 /**
  * Extract text from a PDF buffer using pdfjs-dist v5.
  * Dynamically imports the legacy build for server-side Node.js usage.
+ * Falls back to pdf-parse if pdfjs-dist fails.
  */
 export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResult> {
+  // Try pdfjs-dist first (better Arabic support)
+  try {
+    return await extractWithPdfjs(buffer);
+  } catch (pdfjsErr) {
+    console.warn('[PDF] pdfjs-dist extraction failed, trying pdf-parse fallback:', pdfjsErr instanceof Error ? pdfjsErr.message : String(pdfjsErr));
+
+    // Fallback to pdf-parse
+    try {
+      return await extractWithPdfParse(buffer);
+    } catch (parseErr) {
+      // If both fail, throw the original pdfjs-dist error (it has better error categorization)
+      throw pdfjsErr;
+    }
+  }
+}
+
+/**
+ * Extract text using pdfjs-dist v5 (primary method).
+ */
+async function extractWithPdfjs(buffer: Buffer): Promise<PdfExtractionResult> {
   let pdfjsLib: typeof import('pdfjs-dist');
 
   try {
@@ -43,8 +52,20 @@ export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResul
     throw new Error('pdfjs-dist module is not available. Ensure pdfjs-dist is installed.');
   }
 
-  // Set the worker source for Node.js (v5 requires this even server-side)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = getWorkerPath();
+  // Set the worker source — use file:// URL for compatibility with Next.js runtime
+  // pdfjs-dist v5 requires a worker even in Node.js server-side
+  const workerPath = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
+  const workerUrl = 'file://' + workerPath;
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+  } catch {
+    // If file:// URL fails, try the bare file path
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = workerPath;
+    } catch {
+      // Last resort — leave empty and hope for the best
+    }
+  }
 
   // Set CMap URL for proper character mapping (critical for Arabic, CJK, etc.)
   const cMapUrl = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'cmaps') + path.sep;
@@ -166,6 +187,29 @@ export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResul
 }
 
 /**
+ * Extract text using pdf-parse (fallback method).
+ * pdf-parse is older but works without worker configuration.
+ */
+async function extractWithPdfParse(buffer: Buffer): Promise<PdfExtractionResult> {
+  let pdfParse: (data: Buffer) => Promise<{ text: string; numpages: number }>;
+
+  try {
+    const mod = await import('pdf-parse');
+    pdfParse = mod.default || mod;
+  } catch {
+    throw new Error('pdf-parse fallback is not available');
+  }
+
+  const result = await pdfParse(buffer);
+
+  if (!result.text || !result.text.trim()) {
+    throw new Error('NO_TEXT_EXTRACTED');
+  }
+
+  return { text: result.text, pages: result.numpages };
+}
+
+/**
  * Validate a file from a FormData request for PDF processing.
  * Returns the File object or an error response.
  */
@@ -226,6 +270,13 @@ export function getPdfErrorMessage(error: unknown): { message: string; status: n
     return {
       message: 'الملف محمي بكلمة مرور. يرجى رفع ملف غير محمي',
       status: 400,
+    };
+  }
+
+  if (errMsg.includes('workerSrc') || errMsg.includes('worker')) {
+    return {
+      message: 'خطأ في إعداد معالج PDF. يرجى إعادة المحاولة أو استخدام نص مباشر',
+      status: 500,
     };
   }
 
