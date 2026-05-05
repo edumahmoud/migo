@@ -40,6 +40,10 @@ function getClient(): Groq {
 const PRIMARY_MODEL = 'llama-3.3-70b-versatile';
 const FALLBACK_MODELS = ['qwen/qwen3-32b', 'llama-3.1-8b-instant'];
 
+async function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function callWithFallback<T>(fn: (modelId: string) => Promise<T>): Promise<T> {
   const modelsToTry = [PRIMARY_MODEL, ...FALLBACK_MODELS];
   let lastError: unknown = null;
@@ -65,18 +69,47 @@ async function callWithFallback<T>(fn: (modelId: string) => Promise<T>): Promise
         throw err;
       }
 
-      // Rate limit / 429 — try next model (different quota pool)
-      // 404 / model not found — try next model
-      // 503 / overloaded — try next model
+      // Rate limit / 429 — wait briefly before trying next model (different quota pool)
+      if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('Rate limit')) {
+        console.log('[Groq] Rate limited, waiting 3s before trying next model...');
+        await sleep(3000);
+      }
+
+      // 503 / overloaded — wait briefly
+      if (errMsg.includes('503') || errMsg.includes('overloaded') || errMsg.includes('service_unavailable')) {
+        console.log('[Groq] Service overloaded, waiting 2s before trying next model...');
+        await sleep(2000);
+      }
+
+      // 404 / model not found — try next model immediately
       // Continue trying...
     }
   }
 
-  // All models failed — throw the last error with a helpful message
+  // ─── All models failed on first pass — retry ONCE with longer delay ───
   const lastErrMsg = lastError instanceof Error ? lastError.message : String(lastError);
+  const isRateLimited = lastErrMsg.includes('429') || lastErrMsg.includes('rate_limit') || lastErrMsg.includes('Rate limit');
 
-  if (lastErrMsg.includes('429') || lastErrMsg.includes('rate_limit') || lastErrMsg.includes('Rate limit')) {
-    throw new Error('تم تجاوز حصة الذكاء الاصطناعي. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى');
+  if (isRateLimited) {
+    console.log('[Groq] All models rate limited, waiting 10s then retrying...');
+    await sleep(10000);
+
+    // Retry with the fastest model (llama-3.1-8b-instant) as it's most likely to succeed
+    const retryModel = 'llama-3.1-8b-instant';
+    try {
+      console.log(`[Groq] Retry with ${retryModel}...`);
+      const result = await fn(retryModel);
+      console.log(`[Groq] Retry succeeded with ${retryModel}`);
+      return result;
+    } catch (retryErr) {
+      const retryErrMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+      console.warn(`[Groq] Retry also failed:`, retryErrMsg.substring(0, 200));
+
+      if (retryErrMsg.includes('429') || retryErrMsg.includes('rate_limit')) {
+        throw new Error('تم تجاوز حصة الذكاء الاصطناعي. يرجى الانتظار دقيقة ثم المحاولة مرة أخرى');
+      }
+      throw retryErr;
+    }
   }
 
   if (lastErrMsg.includes('403') || lastErrMsg.includes('Forbidden')) {
