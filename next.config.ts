@@ -9,10 +9,6 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
-  // pdf-parse uses eval('require') to bypass webpack, so it MUST be listed here.
-  // This tells Next.js not to bundle it (its dynamic internal require can't be bundled)
-  // but ensures Vercel includes it in node_modules for runtime resolution.
-  serverExternalPackages: ['pdf-parse'],
   allowedDevOrigins: [
     '.space.z.ai',
     '.z.ai',

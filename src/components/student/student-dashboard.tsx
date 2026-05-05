@@ -48,6 +48,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject } from '@/lib/types';
+import { extractPdfTextClient } from '@/lib/pdf-client';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 
@@ -660,24 +661,37 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         let summaryContent = '';
         let savedSummaryId = '';
 
-        // Step 1: Get content (text or extract from PDF on server)
+        // Step 1: Get content (text or extract from PDF in browser)
         if (inputMode === 'file' && capturedFile) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
-          // Send PDF to server for extraction + summarization + save in one request
-          const formData = new FormData();
-          formData.append('file', capturedFile);
-          formData.append('title', title);
+          // Extract PDF text CLIENT-SIDE using pdfjs-dist (works perfectly in browsers)
+          console.log('[Summary] Extracting PDF text in browser...');
+          try {
+            const pdfResult = await extractPdfTextClient(capturedFile);
+            originalContent = pdfResult.text;
+            console.log('[Summary] PDF text extracted client-side, length:', originalContent.length, 'pages:', pdfResult.pages);
+          } catch (pdfErr) {
+            const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
+            console.error('[Summary] Client-side PDF extraction failed:', errMsg);
+            throw new Error(errMsg || 'فشل في قراءة ملف PDF');
+          }
 
+          if (!originalContent.trim()) {
+            throw new Error('لم يتم العثور على نص في الملف. تأكد أن الملف ليس ممسوحاً ضوئياً');
+          }
+
+          // Now send extracted TEXT to server for summarization (same as text mode)
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
 
-          console.log('[Summary] Sending PDF to API...');
+          console.log('[Summary] Sending extracted text to API, length:', originalContent.length);
           const summaryRes = await fetch('/api/gemini/summary', {
             method: 'POST',
             headers: {
+              'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
-            body: formData,
+            body: JSON.stringify({ content: originalContent, title }),
             signal: abortController.signal,
           });
 
@@ -689,13 +703,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           }
 
           summaryContent = summaryData.data?.summary || '';
-          originalContent = summaryData.data?.extractedText || `[ملف PDF: ${capturedFile.name}]`;
           savedSummaryId = summaryData.data?.summaryId || '';
 
           // Check if server saved the summary
           if (!summaryData.data?.saved) {
             console.warn('[Summary] Server did not save summary, attempting client-side fallback...');
-            // Fallback: try client-side insert
             setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
             const { data: insertedSummary, error: summaryError } = await supabase
               .from('summaries')

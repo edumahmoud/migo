@@ -2,19 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateSummary } from '@/lib/gemini';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
-import { extractPdfText, validatePdfFile, getPdfErrorMessage } from '@/lib/pdf-extract';
 import { supabaseServer } from '@/lib/supabase-server';
 
 /**
  * POST /api/gemini/summary
  *
- * Two modes:
- * 1. JSON body { content: string, title?: string } — summarize text directly
- * 2. FormData with 'file' field + optional 'title' — extract PDF text on server then summarize
+ * Accepts text content as JSON, generates an AI summary, and saves it to the database.
+ * PDF text extraction now happens CLIENT-SIDE (see src/lib/pdf-client.ts),
+ * so this endpoint only handles text input.
  *
- * After generating the summary, it is SAVED directly to the database
- * using the service role key (bypasses RLS). This ensures the summary
- * is persisted even if the client-side insert would fail due to RLS issues.
+ * Request body: { content: string, title?: string }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,53 +30,20 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = authResult.user.id;
-    const contentType = request.headers.get('content-type') || '';
-    let rawContent = '';
-    let title = '';
 
-    if (contentType.includes('multipart/form-data')) {
-      // ─── PDF file mode ───
-      const formData = await request.formData();
-      const validation = validatePdfFile(formData);
+    // Use centralized validation for content-type and body size
+    const validationError = validateRequest(request, { largeBody: true });
+    if (validationError) return validationError;
 
-      if ('error' in validation) {
-        return validation.error;
-      }
+    const body = await request.json();
+    const rawContent = body.content;
+    const title = body.title || 'ملخص';
 
-      const file = validation.file;
-      title = (formData.get('title') as string) || file.name.replace(/\.pdf$/i, '');
-
-      console.log('[Summary API] Processing PDF file:', file.name, 'size:', file.size, 'user:', userId);
-
-      try {
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const { text } = await extractPdfText(buffer);
-        rawContent = text;
-        console.log('[Summary API] PDF text extracted, length:', rawContent.length);
-      } catch (pdfErr) {
-        console.error('[Summary API] PDF extraction error:', pdfErr);
-        const { message, status } = getPdfErrorMessage(pdfErr);
-        return NextResponse.json(
-          { success: false, error: message },
-          { status, headers: rateLimitHeaders }
-        );
-      }
-    } else {
-      // ─── Text mode ───
-      // Use centralized validation for content-type and body size
-      const validationError = validateRequest(request, { largeBody: true });
-      if (validationError) return validationError;
-
-      const body = await request.json();
-      rawContent = body.content;
-      title = body.title || 'ملخص';
-
-      if (!rawContent || typeof rawContent !== 'string' || rawContent.trim().length === 0) {
-        return NextResponse.json(
-          { success: false, error: 'المحتوى مطلوب' },
-          { status: 400, headers: rateLimitHeaders }
-        );
-      }
+    if (!rawContent || typeof rawContent !== 'string' || rawContent.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'المحتوى مطلوب' },
+        { status: 400, headers: rateLimitHeaders }
+      );
     }
 
     // Sanitize and limit content length
@@ -101,9 +65,6 @@ export async function POST(request: NextRequest) {
     console.log('[Summary API] Summary generated successfully, length:', summary.length);
 
     // ─── SAVE SUMMARY TO DATABASE (server-side, bypasses RLS) ───
-    // This is the critical fix: instead of relying on the client to insert
-    // (which fails silently due to RLS), we save on the server using the
-    // service role key. This guarantees the summary is persisted.
     console.log('[Summary API] Saving summary to DB for user:', userId, 'title:', title);
     const { data: savedSummary, error: dbError } = await supabaseServer
       .from('summaries')
