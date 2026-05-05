@@ -155,7 +155,10 @@ export async function POST(request: NextRequest) {
           .eq('id', subjectId)
           .single();
 
-        if (!subject || (subject.teacher_id !== authResult.user.id && authResult.user.role !== 'admin' && authResult.user.role !== 'superadmin')) {
+        const isCreateOwner = subject?.teacher_id === authResult.user.id;
+        const isCreateAdmin = authResult.role === 'admin' || authResult.role === 'superadmin';
+
+        if (!subject || (!isCreateOwner && !isCreateAdmin)) {
           // Also check co-teacher
           const { data: coTeacher } = await supabaseServer
             .from('subject_teachers')
@@ -198,24 +201,37 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'معرف الفريق مطلوب' }, { status: 400 });
         }
 
-        // Verify the teacher owns the subject this team belongs to
-        const { data: teamInfo } = await supabaseServer
+        console.log('[Teams API] Update request:', { teamId, name, level, color, userId: authResult.user.id, role: authResult.role });
+
+        // Verify the team exists and get its subject_id
+        const { data: teamInfo, error: teamInfoError } = await supabaseServer
           .from('subject_teams')
           .select('subject_id')
           .eq('id', teamId)
           .single();
 
-        if (!teamInfo) {
+        if (teamInfoError || !teamInfo) {
+          console.error('[Teams API] Team lookup error:', teamInfoError);
           return NextResponse.json({ error: 'المجموعة غير موجودة' }, { status: 404 });
         }
 
-        const { data: subject } = await supabaseServer
+        // Verify the teacher owns the subject this team belongs to
+        const { data: subject, error: subjectError } = await supabaseServer
           .from('subjects')
           .select('teacher_id')
           .eq('id', teamInfo.subject_id)
           .single();
 
-        if (!subject || (subject.teacher_id !== authResult.user.id && authResult.user.role !== 'admin' && authResult.user.role !== 'superadmin')) {
+        if (subjectError) {
+          console.error('[Teams API] Subject lookup error:', subjectError);
+        }
+
+        const isOwner = subject?.teacher_id === authResult.user.id;
+        const isAdmin = authResult.role === 'admin' || authResult.role === 'superadmin';
+
+        console.log('[Teams API] Ownership check:', { subjectTeacherId: subject?.teacher_id, userId: authResult.user.id, isOwner, isAdmin });
+
+        if (!subject || (!isOwner && !isAdmin)) {
           // Also check co-teacher
           const { data: coTeacher } = await supabaseServer
             .from('subject_teachers')
@@ -225,6 +241,7 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
           if (!coTeacher) {
+            console.warn('[Teams API] Unauthorized update attempt by:', authResult.user.id);
             return NextResponse.json({ error: 'غير مصرح بتعديل هذه المجموعة' }, { status: 403 });
           }
         }
@@ -233,6 +250,8 @@ export async function POST(request: NextRequest) {
         if (name !== undefined) updates.name = name.trim();
         if (level !== undefined) updates.level = level?.trim() || null;
         if (color !== undefined) updates.color = color;
+
+        console.log('[Teams API] Applying updates:', updates);
 
         const { data: team, error } = await supabaseServer
           .from('subject_teams')
@@ -245,14 +264,16 @@ export async function POST(request: NextRequest) {
           if (error.code === '23505') {
             return NextResponse.json({ error: 'يوجد مجموعة بنفس الاسم في هذا المقرر' }, { status: 409 });
           }
-          console.error('[Teams API] Update error:', error);
+          console.error('[Teams API] Update DB error:', error);
           return NextResponse.json({ error: 'فشل تحديث المجموعة' }, { status: 500 });
         }
 
         if (!team) {
+          console.error('[Teams API] Update returned null team for id:', teamId);
           return NextResponse.json({ error: 'فشل تحديث المجموعة - لم يتم العثور على البيانات' }, { status: 500 });
         }
 
+        console.log('[Teams API] Update successful for team:', teamId);
         return NextResponse.json({ team });
       }
 
@@ -276,7 +297,10 @@ export async function POST(request: NextRequest) {
             .eq('id', teamToDelete.subject_id)
             .single();
 
-          if (!subject || (subject.teacher_id !== authResult.user.id && authResult.user.role !== 'admin' && authResult.user.role !== 'superadmin')) {
+          const isDeleteOwner = subject?.teacher_id === authResult.user.id;
+          const isDeleteAdmin = authResult.role === 'admin' || authResult.role === 'superadmin';
+
+          if (!subject || (!isDeleteOwner && !isDeleteAdmin)) {
             const { data: coTeacher } = await supabaseServer
               .from('subject_teachers')
               .select('teacher_id')

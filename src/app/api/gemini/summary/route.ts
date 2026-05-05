@@ -1,40 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { generateSummary } from '@/lib/gemini';
+import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
-
-async function getAuthenticatedUserId(request: NextRequest): Promise<string | null> {
-  let token = '';
-
-  const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.substring(7);
-  }
-
-  if (!token) {
-    const authCookie = request.cookies.get('sb-access-token')?.value;
-    if (authCookie) {
-      try {
-        const parsed = JSON.parse(authCookie);
-        token = parsed?.access_token || authCookie;
-      } catch {
-        token = authCookie;
-      }
-    }
-  }
-
-  if (!token) return null;
-
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    const { data: { user } } = await supabase.auth.getUser(token);
-    return user?.id || null;
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,6 +18,10 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: rateLimitHeaders }
       );
     }
+
+    // Authentication — use the centralized auth helper for consistency
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
 
     const body = await request.json();
     const rawContent = body.content;
@@ -71,28 +42,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Authentication check
-    const userId = await getAuthenticatedUserId(request);
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'يرجى تسجيل الدخول أولاً' },
-        { status: 401, headers: rateLimitHeaders }
-      );
-    }
-
     // Generate summary using Gemini API with timeout
+    console.log('[Summary API] Generating summary for user:', authResult.user.id, 'content length:', sanitizedContent.length);
     const summaryPromise = generateSummary(sanitizedContent);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى')), 60000)
+      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى')), 90000)
     );
     const summary = await Promise.race([summaryPromise, timeoutPromise]);
+    console.log('[Summary API] Summary generated successfully, length:', summary.length);
 
     return NextResponse.json(
       { success: true, data: { summary } },
       { headers: rateLimitHeaders }
     );
   } catch (error: unknown) {
-    console.error('Summary generation error:', error);
+    console.error('[Summary API] Error:', error);
 
     // Provide user-friendly error messages for common Gemini API errors
     const errMsg = error instanceof Error ? error.message : String(error);
@@ -104,7 +68,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (errMsg.includes('API_KEY') || errMsg.includes('401') || errMsg.includes('403')) {
+    if (errMsg.includes('API_KEY') || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key not valid')) {
       return NextResponse.json(
         { success: false, error: 'خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة' },
         { status: 503 }
@@ -121,6 +85,13 @@ export async function POST(request: NextRequest) {
     if (errMsg.includes('not configured')) {
       return NextResponse.json(
         { success: false, error: 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة' },
+        { status: 503 }
+      );
+    }
+
+    if (errMsg.includes('model') || errMsg.includes('not found') || errMsg.includes('not available')) {
+      return NextResponse.json(
+        { success: false, error: 'نموذج الذكاء الاصطناعي غير متاح حالياً. يرجى المحاولة لاحقاً' },
         { status: 503 }
       );
     }

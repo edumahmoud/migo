@@ -1,40 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { evaluateCompletionAnswer } from '@/lib/gemini';
+import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
-
-async function getAuthenticatedUserId(request: NextRequest): Promise<string | null> {
-  let token = '';
-
-  const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.substring(7);
-  }
-
-  if (!token) {
-    const authCookie = request.cookies.get('sb-access-token')?.value;
-    if (authCookie) {
-      try {
-        const parsed = JSON.parse(authCookie);
-        token = parsed?.access_token || authCookie;
-      } catch {
-        token = authCookie;
-      }
-    }
-  }
-
-  if (!token) return null;
-
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    const { data: { user } } = await supabase.auth.getUser(token);
-    return user?.id || null;
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,6 +18,10 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: rateLimitHeaders }
       );
     }
+
+    // Authentication — use centralized auth helper
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
 
     const body = await request.json();
     const { question, correctAnswer, studentAnswer } = body;
@@ -81,15 +52,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Authentication check
-    const userId = await getAuthenticatedUserId(request);
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'يرجى تسجيل الدخول أولاً' },
-        { status: 401, headers: rateLimitHeaders }
-      );
-    }
-
     // Evaluate using Gemini API with timeout
     const evalPromise = evaluateCompletionAnswer(
       sanitizedQuestion,
@@ -106,7 +68,7 @@ export async function POST(request: NextRequest) {
       { headers: rateLimitHeaders }
     );
   } catch (error: unknown) {
-    console.error('Evaluation error:', error);
+    console.error('[Evaluate API] Error:', error);
 
     const errMsg = error instanceof Error ? error.message : String(error);
 

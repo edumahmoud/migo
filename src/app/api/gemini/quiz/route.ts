@@ -1,40 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { generateQuiz } from '@/lib/gemini';
+import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
-
-async function getAuthenticatedUserId(request: NextRequest): Promise<string | null> {
-  let token = '';
-
-  const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.substring(7);
-  }
-
-  if (!token) {
-    const authCookie = request.cookies.get('sb-access-token')?.value;
-    if (authCookie) {
-      try {
-        const parsed = JSON.parse(authCookie);
-        token = parsed?.access_token || authCookie;
-      } catch {
-        token = authCookie;
-      }
-    }
-  }
-
-  if (!token) return null;
-
-  try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    const { data: { user } } = await supabase.auth.getUser(token);
-    return user?.id || null;
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,6 +18,10 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: rateLimitHeaders }
       );
     }
+
+    // Authentication — use centralized auth helper
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
 
     const body = await request.json();
     const rawContent = body.content;
@@ -71,28 +42,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Authentication check
-    const userId = await getAuthenticatedUserId(request);
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'يرجى تسجيل الدخول أولاً' },
-        { status: 401, headers: rateLimitHeaders }
-      );
-    }
-
     // Generate quiz using Gemini API with timeout
+    console.log('[Quiz API] Generating quiz for user:', authResult.user.id);
     const quizPromise = generateQuiz(sanitizedContent);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 60000)
+      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 90000)
     );
     const questions = await Promise.race([quizPromise, timeoutPromise]);
+    console.log('[Quiz API] Quiz generated successfully, questions:', questions.length);
 
     return NextResponse.json(
       { success: true, data: { questions } },
       { headers: rateLimitHeaders }
     );
   } catch (error: unknown) {
-    console.error('Quiz generation error:', error);
+    console.error('[Quiz API] Error:', error);
 
     const errMsg = error instanceof Error ? error.message : String(error);
 

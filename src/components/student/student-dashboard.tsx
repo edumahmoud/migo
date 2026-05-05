@@ -52,13 +52,18 @@ import UserLink from '@/components/shared/user-link';
 
 // -------------------------------------------------------
 // PDF.js worker setup - lazy loaded to avoid server-side DOMMatrix error
+// For pdfjs-dist v5+, worker files use .mjs extension and
+// CDN URLs may not match. We disable the worker for reliability
+// (slightly slower but avoids worker-loading failures).
 // -------------------------------------------------------
 let pdfjsLib: typeof import('pdfjs-dist') | null = null;
 
 async function getPdfjsLib() {
   if (!pdfjsLib) {
     pdfjsLib = await import('pdfjs-dist');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    // Disable worker to avoid CDN version mismatch issues in pdfjs-dist v5+
+    // The worker is optional — PDF.js falls back to main-thread processing.
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
   }
   return pdfjsLib;
 }
@@ -497,21 +502,33 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // PDF text extraction
   // -------------------------------------------------------
   const extractTextFromPDF = async (file: File): Promise<string> => {
-    const lib = await getPdfjsLib();
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await lib.getDocument({ data: arrayBuffer }).promise;
-    const pages: string[] = [];
+    try {
+      const lib = await getPdfjsLib();
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await lib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+      const pages: string[] = [];
 
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item) => ('str' in item ? item.str : ''))
-        .join(' ');
-      pages.push(pageText);
+      for (let i = 1; i <= pdf.numPages; i++) {
+        try {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          const pageText = textContent.items
+            .map((item) => ('str' in item ? item.str : ''))
+            .join(' ');
+          if (pageText.trim()) {
+            pages.push(pageText);
+          }
+        } catch (pageErr) {
+          console.warn(`PDF page ${i} extraction failed:`, pageErr);
+          // Continue with remaining pages
+        }
+      }
+
+      return pages.join('\n\n');
+    } catch (err) {
+      console.error('PDF loading failed:', err);
+      throw err;
     }
-
-    return pages.join('\n\n');
   };
 
   // -------------------------------------------------------
