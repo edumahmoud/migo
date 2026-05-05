@@ -1,18 +1,19 @@
 /**
  * PDF Text Extraction Utility
  *
- * Uses pdf-parse for PDF text extraction. pdf-parse bundles its own
- * pdfjs v1.10.100 internally and is self-contained.
+ * Uses pdf-parse for PDF text extraction.
  *
- * CRITICAL for Vercel serverless:
- * - pdf-parse MUST be in serverExternalPackages (prevents broken webpack bundling)
- * - pdf-parse files MUST be in outputFileTracingIncludes (ensures they're deployed)
- * - pdf-parse MUST be loaded via createRequire() (avoids ESM module.parent bug)
- * - createResolve MUST use process.cwd() as base (import.meta.url fails in Vercel)
+ * CRITICAL: pdf-parse MUST be in serverExternalPackages in next.config.ts
+ * because its internal dynamic require(`./pdf.js/${version}/build/pdf.js`)
+ * cannot be bundled by webpack/turbopack.
+ *
+ * Loading strategy:
+ * - eval('require') bypasses webpack static analysis so the bundler
+ *   doesn't try (and fail) to resolve pdf-parse's dynamic internals.
+ * - serverExternalPackages ensures Vercel includes pdf-parse in node_modules.
+ * - At runtime, Node.js resolves pdf-parse from node_modules normally.
  */
 
-import { createRequire } from 'module';
-import path from 'path';
 import { NextResponse } from 'next/server';
 
 export interface PdfExtractionResult {
@@ -22,69 +23,47 @@ export interface PdfExtractionResult {
 
 // Singleton for pdf-parse module
 let _pdfParse: ((data: Buffer) => Promise<{ text: string; numpages: number }>) | null = null;
-let _loadError: string | null = null;
 
 /**
- * Load pdf-parse using multiple fallback methods.
+ * Load pdf-parse using eval('require') to bypass webpack/turbopack.
+ * This is the ORIGINAL approach that was working before pdfjs-dist was introduced.
  *
- * In Vercel serverless:
- * - import.meta.url points to /var/task/.next/server/chunks/xxx.js
- * - node_modules is at /var/task/node_modules/
- * - createRequire(import.meta.url) resolves from the chunks dir, which works
- *   because Node.js walks up to find node_modules
- * - createRequire(process.cwd() + '/package.json') resolves from project root
- *   which is more direct and reliable
- *
- * In local dev:
- * - Both methods work fine
+ * Why eval('require')?
+ * - webpack/turbopack can't see the require, so they don't try to bundle pdf-parse
+ * - serverExternalPackages in next.config.ts tells Vercel to include it in node_modules
+ * - At runtime, Node.js resolves it normally from node_modules
  */
 function loadPdfParse() {
   if (_pdfParse) return _pdfParse;
 
-  // Method 1: createRequire from process.cwd() (most reliable in Vercel)
   try {
-    const cwdRequire = createRequire(path.join(process.cwd(), 'package.json'));
-    const mod = cwdRequire('pdf-parse');
-    if (mod && typeof mod === 'function') {
-      _pdfParse = mod;
-      console.log('[PDF] pdf-parse loaded via createRequire(process.cwd)');
+    // eslint-disable-next-line no-eval
+    const pdfParse = eval('require')('pdf-parse');
+    if (pdfParse && typeof pdfParse === 'function') {
+      _pdfParse = pdfParse;
+      console.log('[PDF] pdf-parse loaded successfully via eval(require)');
+      return _pdfParse;
+    }
+    console.error('[PDF] pdf-parse loaded but is not a function:', typeof pdfParse);
+  } catch (err) {
+    console.error('[PDF] eval(require)("pdf-parse") failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  // Fallback: try createRequire (in case eval is blocked)
+  try {
+    const { createRequire } = require('module');
+    const req = createRequire(process.cwd() + '/package.json');
+    const pdfParse = req('pdf-parse');
+    if (pdfParse && typeof pdfParse === 'function') {
+      _pdfParse = pdfParse;
+      console.log('[PDF] pdf-parse loaded via createRequire fallback');
       return _pdfParse;
     }
   } catch (err) {
-    console.warn('[PDF] Method 1 (createRequire from cwd) failed:', err instanceof Error ? err.message : String(err));
+    console.error('[PDF] createRequire fallback failed:', err instanceof Error ? err.message : String(err));
   }
 
-  // Method 2: createRequire from import.meta.url
-  try {
-    const urlRequire = createRequire(import.meta.url);
-    const mod = urlRequire('pdf-parse');
-    if (mod && typeof mod === 'function') {
-      _pdfParse = mod;
-      console.log('[PDF] pdf-parse loaded via createRequire(import.meta.url)');
-      return _pdfParse;
-    }
-  } catch (err) {
-    console.warn('[PDF] Method 2 (createRequire from import.meta.url) failed:', err instanceof Error ? err.message : String(err));
-  }
-
-  // Method 3: Try global require (works in some Next.js setups)
-  try {
-    // @ts-ignore - require might be available in some Next.js contexts
-    if (typeof require === 'function') {
-      // @ts-ignore
-      const mod = require('pdf-parse');
-      if (mod && typeof mod === 'function') {
-        _pdfParse = mod;
-        console.log('[PDF] pdf-parse loaded via global require');
-        return _pdfParse;
-      }
-    }
-  } catch (err) {
-    console.warn('[PDF] Method 3 (global require) failed:', err instanceof Error ? err.message : String(err));
-  }
-
-  _loadError = 'All methods to load pdf-parse failed';
-  console.error('[PDF]', _loadError, '- process.cwd():', process.cwd());
+  console.error('[PDF] All methods to load pdf-parse failed. cwd:', process.cwd());
   return null;
 }
 
@@ -92,12 +71,11 @@ function loadPdfParse() {
  * Extract text from a PDF buffer using pdf-parse.
  */
 export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResult> {
-  console.log('[PDF] Starting extraction, buffer size:', buffer.length, 'cwd:', process.cwd());
+  console.log('[PDF] Starting extraction, buffer size:', buffer.length);
 
   const pdfParse = loadPdfParse();
 
   if (!pdfParse) {
-    console.error('[PDF] pdf-parse module is not available. Load error:', _loadError);
     throw new Error('pdf-parse module is not available');
   }
 

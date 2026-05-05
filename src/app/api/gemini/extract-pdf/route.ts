@@ -6,7 +6,7 @@ import { extractPdfText, validatePdfFile, getPdfErrorMessage } from '@/lib/pdf-e
  * POST /api/gemini/extract-pdf
  *
  * Accepts a PDF file as multipart/form-data, extracts text server-side
- * using pdfjs-dist, and returns the extracted text.
+ * using pdf-parse, and returns the extracted text.
  */
 export async function POST(request: NextRequest) {
   try {

@@ -9,18 +9,10 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
-  // pdf-parse MUST be external — its internal dynamic require('./pdf.js/${version}/build/pdf.js')
-  // cannot be bundled by webpack. We load it via createRequire() at runtime.
-  serverExternalPackages: ['pdf-parse', 'pdfjs-dist'],
-  // CRITICAL for Vercel: Ensure pdf-parse's ENTIRE directory is included in
-  // the serverless function. Vercel's file tracing only detects statically
-  // imported files, but pdf-parse loads its internal pdf.js dynamically.
-  // Without this, the module exists but its internal files are missing.
-  outputFileTracingIncludes: {
-    // Include pdf-parse in all routes that use PDF extraction
-    '/api/gemini/summary': ['./node_modules/pdf-parse/**/*'],
-    '/api/gemini/extract-pdf': ['./node_modules/pdf-parse/**/*'],
-  },
+  // pdf-parse uses eval('require') to bypass webpack, so it MUST be listed here.
+  // This tells Next.js not to bundle it (its dynamic internal require can't be bundled)
+  // but ensures Vercel includes it in node_modules for runtime resolution.
+  serverExternalPackages: ['pdf-parse'],
   allowedDevOrigins: [
     '.space.z.ai',
     '.z.ai',
