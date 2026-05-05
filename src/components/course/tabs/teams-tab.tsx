@@ -17,6 +17,11 @@ import {
   Check,
   X,
   AlertCircle,
+  Download,
+  FileSpreadsheet,
+  ClipboardList,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -45,6 +50,7 @@ import {
 } from '@/components/ui/accordion';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile } from '@/lib/types';
+import * as XLSX from 'xlsx';
 
 // -------------------------------------------------------
 // Types
@@ -110,66 +116,57 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   const [autoTeamCount, setAutoTeamCount] = useState(2);
   const [saving, setSaving] = useState(false);
 
-  // -------------------------------------------------------
-  // Data fetching
-  // -------------------------------------------------------
-  const fetchTeams = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch(`/api/teams?action=list&subjectId=${subjectId}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.teams) {
-        setTeams(data.teams);
-        // Fetch members for each team
-        for (const team of data.teams) {
-          fetchMembers(team.id);
-        }
-      }
-    } catch (err) {
-      console.error('Fetch teams error:', err);
-    }
-  }, [subjectId]);
+  // Export state
+  const [exportOpen, setExportOpen] = useState(false);
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
 
-  const fetchMembers = useCallback(async (teamId: string) => {
+  // -------------------------------------------------------
+  // Data fetching — single optimized function
+  // -------------------------------------------------------
+  const fetchAllData = useCallback(async () => {
+    setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
-      const res = await fetch(`/api/teams?action=members&teamId=${teamId}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.members) {
-        setMembers(prev => ({ ...prev, [teamId]: data.members }));
-      }
-    } catch (err) {
-      console.error('Fetch members error:', err);
-    }
-  }, []);
+      const headers = { 'Authorization': `Bearer ${token}` };
 
-  const fetchUnassigned = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const res = await fetch(`/api/teams?action=unassigned&subjectId=${subjectId}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.students) {
-        setUnassigned(data.students);
+      // Fetch teams list
+      const teamsRes = await fetch(`/api/teams?action=list&subjectId=${subjectId}`, { headers });
+      const teamsData = await teamsRes.json();
+
+      if (teamsData.teams && teamsData.teams.length > 0) {
+        setTeams(teamsData.teams);
+
+        // Fetch members for all teams in parallel
+        const memberResults = await Promise.all(
+          teamsData.teams.map(async (team: Team) => {
+            const res = await fetch(`/api/teams?action=members&teamId=${team.id}`, { headers });
+            const data = await res.json();
+            return { teamId: team.id, members: data.members || [] };
+          })
+        );
+
+        const membersMap: Record<string, TeamMember[]> = {};
+        memberResults.forEach(r => { membersMap[r.teamId] = r.members; });
+        setMembers(membersMap);
+      } else {
+        setTeams([]);
       }
+
+      // Fetch unassigned students
+      const unassignedRes = await fetch(`/api/teams?action=unassigned&subjectId=${subjectId}`, { headers });
+      const unassignedData = await unassignedRes.json();
+      setUnassigned(unassignedData.students || []);
     } catch (err) {
-      console.error('Fetch unassigned error:', err);
+      console.error('Fetch teams data error:', err);
     } finally {
       setLoading(false);
     }
   }, [subjectId]);
 
   useEffect(() => {
-    fetchTeams().then(() => fetchUnassigned());
-  }, [fetchTeams, fetchUnassigned]);
+    fetchAllData();
+  }, [fetchAllData]);
 
   // -------------------------------------------------------
   // CRUD operations
@@ -201,7 +198,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         setFormName('');
         setFormLevel('');
         setFormColor('#6366f1');
-        fetchTeams().then(() => fetchUnassigned());
+        fetchAllData();
       } else {
         toast.error(data.error || 'فشل إنشاء المجموعة');
       }
@@ -239,7 +236,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         setFormName('');
         setFormLevel('');
         setFormColor('#6366f1');
-        fetchTeams();
+        fetchAllData();
       } else {
         toast.error(data.error || 'فشل تحديث المجموعة');
       }
@@ -263,7 +260,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       const data = await res.json();
       if (data.success) {
         toast.success('تم حذف المجموعة');
-        fetchTeams().then(() => fetchUnassigned());
+        fetchAllData();
       } else {
         toast.error(data.error || 'فشل حذف المجموعة');
       }
@@ -284,8 +281,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       const data = await res.json();
       if (data.success) {
         toast.success('تمت إضافة العضو');
-        fetchMembers(teamId);
-        fetchUnassigned();
+        fetchAllData();
       } else {
         toast.error(data.error || 'فشل إضافة العضو');
       }
@@ -306,8 +302,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       const data = await res.json();
       if (data.success) {
         toast.success('تمت إزالة العضو');
-        fetchMembers(teamId);
-        fetchUnassigned();
+        fetchAllData();
       } else {
         toast.error(data.error || 'فشل إزالة العضو');
       }
@@ -330,7 +325,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       if (data.success) {
         toast.success(`تم توزيع ${data.assignedCount} طالب على ${data.teamCount} مجموعة`);
         setAutoAssignOpen(false);
-        fetchTeams().then(() => fetchUnassigned());
+        fetchAllData();
       } else {
         toast.error(data.error || 'فشل التوزيع التلقائي');
       }
@@ -346,6 +341,124 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     setFormName(team.name);
     setFormLevel(team.level || '');
     setFormColor(team.color);
+  };
+
+  // -------------------------------------------------------
+  // Export to Excel
+  // -------------------------------------------------------
+  const handleExportAll = () => {
+    if (teams.length === 0) {
+      toast.error('لا توجد مجموعات للتنزيل');
+      return;
+    }
+    try {
+      const wb = XLSX.utils.book_new();
+
+      teams.forEach((team) => {
+        const teamMembers = members[team.id] || [];
+        const sheetData = teamMembers.map((member, idx) => ({
+          '#': idx + 1,
+          'الاسم': member.user ? formatNameWithTitle(member.user) : 'مستخدم',
+          'البريد الإلكتروني': member.user?.email || '',
+          'تاريخ الانضمام': member.joined_at ? new Date(member.joined_at).toLocaleDateString('ar-SA') : '',
+        }));
+
+        // Add team info header row
+        const headerRow = {
+          '#': '',
+          'الاسم': `المجموعة: ${team.name}${team.level ? ' | المستوى: ' + team.level : ''}`,
+          'البريد الإلكتروني': `عدد الأعضاء: ${teamMembers.length}`,
+          'تاريخ الانضمام': '',
+        };
+
+        const ws = XLSX.utils.json_to_sheet([headerRow, ...sheetData]);
+
+        // Set column widths
+        ws['!cols'] = [
+          { wch: 5 },   // #
+          { wch: 30 },  // الاسم
+          { wch: 35 },  // البريد
+          { wch: 15 },  // التاريخ
+        ];
+
+        // Sheet name must be <= 31 chars and no special chars
+        const sheetName = team.name.replace(/[\\/\?\*\[\]]/g, '').substring(0, 31) || 'Sheet';
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+
+      XLSX.writeFile(wb, `المجموعات_${new Date().toLocaleDateString('ar-SA')}.xlsx`);
+      toast.success('تم تنزيل الملف بنجاح');
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error('حدث خطأ أثناء تنزيل الملف');
+    }
+  };
+
+  const handleExportSelected = () => {
+    if (selectedTeamIds.size === 0) {
+      toast.error('يرجى تحديد مجموعة واحدة على الأقل');
+      return;
+    }
+    try {
+      const wb = XLSX.utils.book_new();
+      const selectedTeams = teams.filter(t => selectedTeamIds.has(t.id));
+
+      selectedTeams.forEach((team) => {
+        const teamMembers = members[team.id] || [];
+        const sheetData = teamMembers.map((member, idx) => ({
+          '#': idx + 1,
+          'الاسم': member.user ? formatNameWithTitle(member.user) : 'مستخدم',
+          'البريد الإلكتروني': member.user?.email || '',
+          'تاريخ الانضمام': member.joined_at ? new Date(member.joined_at).toLocaleDateString('ar-SA') : '',
+        }));
+
+        const headerRow = {
+          '#': '',
+          'الاسم': `المجموعة: ${team.name}${team.level ? ' | المستوى: ' + team.level : ''}`,
+          'البريد الإلكتروني': `عدد الأعضاء: ${teamMembers.length}`,
+          'تاريخ الانضمام': '',
+        };
+
+        const ws = XLSX.utils.json_to_sheet([headerRow, ...sheetData]);
+        ws['!cols'] = [
+          { wch: 5 },
+          { wch: 30 },
+          { wch: 35 },
+          { wch: 15 },
+        ];
+
+        const sheetName = team.name.replace(/[\\/\?\*\[\]]/g, '').substring(0, 31) || 'Sheet';
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+
+      XLSX.writeFile(wb, `مجموعات_محددة_${new Date().toLocaleDateString('ar-SA')}.xlsx`);
+      toast.success(`تم تنزيل ${selectedTeamIds.size} مجموعة بنجاح`);
+      setExportOpen(false);
+      setSelectedTeamIds(new Set());
+    } catch (err) {
+      console.error('Export selected error:', err);
+      toast.error('حدث خطأ أثناء تنزيل الملف');
+    }
+  };
+
+  const toggleTeamSelection = (teamId: string) => {
+    setSelectedTeamIds(prev => {
+      const next = new Set(prev);
+      if (next.has(teamId)) {
+        next.delete(teamId);
+      } else {
+        next.add(teamId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedTeamIds.size === teams.length) {
+      setSelectedTeamIds(new Set());
+    } else {
+      setSelectedTeamIds(new Set(teams.map(t => t.id)));
+    }
   };
 
   // -------------------------------------------------------
@@ -605,7 +718,27 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             قسّم طلاب المقرر إلى مجموعات ومستويات
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Export dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2" disabled={teams.length === 0}>
+                <Download className="h-4 w-4" />
+                تنزيل Excel
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportAll}>
+                <FileSpreadsheet className="h-4 w-4 ml-2" />
+                تنزيل كل المجموعات
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSelectedTeamIds(new Set()); setExportOpen(true); }}>
+                <CheckSquare className="h-4 w-4 ml-2" />
+                تحديد مجموعات
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             size="sm"
@@ -692,6 +825,77 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
           </div>
         </div>
       )}
+
+      {/* ============================================ */}
+      {/* EXPORT: Select Teams Dialog                  */}
+      {/* ============================================ */}
+      <Dialog open={exportOpen} onOpenChange={(open) => { if (!open) { setExportOpen(false); setSelectedTeamIds(new Set()); } }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+              تحديد مجموعات للتنزيل
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {/* Select all toggle */}
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 w-full rounded-lg border p-3 hover:bg-muted/50 transition-colors text-sm font-medium"
+            >
+              {selectedTeamIds.size === teams.length ? (
+                <CheckSquare className="h-4 w-4 text-emerald-600 shrink-0" />
+              ) : (
+                <Square className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+              تحديد الكل
+            </button>
+
+            <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
+              {teams.map((team) => {
+                const teamMembers = members[team.id] || [];
+                const isSelected = selectedTeamIds.has(team.id);
+                return (
+                  <button
+                    key={team.id}
+                    onClick={() => toggleTeamSelection(team.id)}
+                    className="flex items-center justify-between gap-3 w-full p-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      {isSelected ? (
+                        <CheckSquare className="h-4 w-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <Square className="h-4 w-4 text-muted-foreground shrink-0" />
+                      )}
+                      <div className="w-3 h-8 rounded-full" style={{ backgroundColor: team.color }} />
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{team.name}</p>
+                        {team.level && <p className="text-xs text-muted-foreground">{team.level}</p>}
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {team.member_count || teamMembers.length} عضو
+                    </Badge>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setExportOpen(false); setSelectedTeamIds(new Set()); }}>
+              إلغاء
+            </Button>
+            <Button
+              onClick={handleExportSelected}
+              disabled={selectedTeamIds.size === 0}
+              className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+            >
+              <Download className="h-4 w-4" />
+              تنزيل ({selectedTeamIds.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialogs */}
       {renderTeamFormDialog()}

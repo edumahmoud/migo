@@ -25,6 +25,7 @@ import {
   LogOut,
   GraduationCap,
   Calendar,
+  ClipboardList,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -81,7 +82,7 @@ const TABS: TabConfig[] = [
   { id: 'assignments', label: 'المهام', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'chat', label: 'المحادثة', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'students', label: 'الطلاب', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
-  { id: 'teams', label: 'المجموعات', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
+  { id: 'teams', label: 'المجموعات', icon: <ClipboardList className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
 ];
 
 // -------------------------------------------------------
