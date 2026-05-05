@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
@@ -1109,7 +1109,29 @@ function MatchingQuestion({
   if (!question.pairs) return null;
 
   const keys = question.pairs.map((p) => p.key);
-  const values = question.pairs.map((p) => p.value);
+
+  // Shuffle values so they don't appear in the same order as keys
+  // Uses Fisher-Yates shuffle — ensures the order is DIFFERENT from the original
+  const values = useMemo(() => {
+    const original = question.pairs!.map((p) => p.value);
+    if (original.length <= 1) return original;
+
+    // Shuffle until the order is different from the original
+    let shuffled: string[];
+    let attempts = 0;
+    do {
+      shuffled = [...original];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      attempts++;
+    } while (
+      shuffled.every((v, i) => v === original[i]) && attempts < 10
+    );
+
+    return shuffled;
+  }, [question.pairs]);
 
   // Track which values are already matched
   const matchedValuesSet = new Set(Object.values(matchedPairs));
