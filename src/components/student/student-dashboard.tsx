@@ -541,7 +541,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         }
       } catch (err) {
         console.error('PDF extraction error:', err);
-        toast.error('حدث خطأ أثناء قراءة ملف PDF');
+        toast.error('حدث خطأ أثناء قراءة ملف PDF. تأكد أن الملف ليس محمياً أو ممسوحاً ضوئياً');
         setSummaryStep('input');
         return;
       }
@@ -554,86 +554,118 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     }
 
     setCreatingSummary(true);
+    setSummaryStep('processing');
 
     try {
       // Get auth token for API requests
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
 
-      // 1. Generate summary
-      const summaryRes = await fetch('/api/gemini/summary', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content }),
-      });
+      // AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s overall timeout
 
-      const summaryData = await summaryRes.json();
-      if (!summaryData.success) {
-        throw new Error(summaryData.error || 'فشل في إنشاء الملخص');
-      }
-
-      const summaryContent = summaryData.data.summary;
-
-      // 2. Generate quiz
-      const quizRes = await fetch('/api/gemini/quiz', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content }),
-      });
-
-      const quizData = await quizRes.json();
-      let quizQuestions: unknown[] = [];
-      if (quizData.success && quizData.data?.questions) {
-        quizQuestions = quizData.data.questions;
-      }
-
-      // 3. Save summary to supabase
-      const { data: insertedSummary, error: summaryError } = await supabase
-        .from('summaries')
-        .insert({
-          user_id: profile.id,
-          title,
-          original_content: content,
-          summary_content: summaryContent,
-        })
-        .select()
-        .single();
-
-      if (summaryError) {
-        throw new Error(summaryError.message);
-      }
-
-      // 4. Save quiz to supabase (if generated)
-      if (quizQuestions.length > 0 && insertedSummary) {
-        await supabase.from('quizzes').insert({
-          user_id: profile.id,
-          title: `اختبار: ${title}`,
-          questions: quizQuestions,
-          summary_id: insertedSummary.id,
+      try {
+        // 1. Generate summary
+        const summaryRes = await fetch('/api/gemini/summary', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content }),
+          signal: controller.signal,
         });
+
+        const summaryData = await summaryRes.json();
+        if (!summaryData.success) {
+          throw new Error(summaryData.error || 'فشل في إنشاء الملخص');
+        }
+
+        const summaryContent = summaryData.data.summary;
+
+        // 2. Generate quiz (non-blocking - don't fail if quiz fails)
+        let quizQuestions: unknown[] = [];
+        try {
+          const quizRes = await fetch('/api/gemini/quiz', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ content }),
+            signal: controller.signal,
+          });
+
+          const quizData = await quizRes.json();
+          if (quizData.success && quizData.data?.questions) {
+            quizQuestions = quizData.data.questions;
+          }
+        } catch (quizErr) {
+          console.warn('Quiz generation failed (non-critical):', quizErr);
+        }
+
+        // 3. Save summary to supabase
+        const { data: insertedSummary, error: summaryError } = await supabase
+          .from('summaries')
+          .insert({
+            user_id: profile.id,
+            title,
+            original_content: content,
+            summary_content: summaryContent,
+          })
+          .select()
+          .single();
+
+        if (summaryError) {
+          throw new Error(summaryError.message);
+        }
+
+        // 4. Save quiz to supabase (if generated)
+        if (quizQuestions.length > 0 && insertedSummary) {
+          await supabase.from('quizzes').insert({
+            user_id: profile.id,
+            title: `اختبار: ${title}`,
+            questions: quizQuestions,
+            summary_id: insertedSummary.id,
+          });
+        }
+
+        toast.success(quizQuestions.length > 0
+          ? 'تم إنشاء الملخص والاختبار بنجاح'
+          : 'تم إنشاء الملخص بنجاح'
+        );
+
+        // Reset form
+        setSummaryTitle('');
+        setSummaryText('');
+        setSummaryFile(null);
+        setSummaryInputMode('text');
+        setNewSummaryOpen(false);
+
+        // Refresh data
+        fetchSummaries();
+        fetchQuizzes();
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      toast.success('تم إنشاء الملخص والاختبار بنجاح');
-
-      // Reset form
-      setSummaryTitle('');
-      setSummaryText('');
-      setSummaryFile(null);
-      setSummaryInputMode('text');
-      setNewSummaryOpen(false);
-
-      // Refresh data
-      fetchSummaries();
-      fetchQuizzes();
     } catch (err) {
       console.error('Create summary error:', err);
-      toast.error(err instanceof Error ? err.message : 'حدث خطأ أثناء إنشاء الملخص');
+
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast.error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى');
+      } else if (err instanceof Error) {
+        const msg = err.message;
+        if (msg.includes('تجاوز') || msg.includes('quota') || msg.includes('429')) {
+          toast.error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
+        } else if (msg.includes('غير مفعلة') || msg.includes('تكوين')) {
+          toast.error('خدمة الذكاء الاصطناعي غير مفعلة حالياً. تواصل مع الإدارة');
+        } else {
+          toast.error(msg);
+        }
+      } else {
+        toast.error('حدث خطأ أثناء إنشاء الملخص');
+      }
     } finally {
       setCreatingSummary(false);
       setSummaryStep('input');
@@ -1374,8 +1406,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <div className="flex items-center gap-3">
                       <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
                       <div>
-                        <p className="text-sm font-medium text-emerald-700">جاري استخراج النص من الملف...</p>
-                        <p className="text-xs text-emerald-600/70 mt-0.5">يرجى الانتظار</p>
+                        <p className="text-sm font-medium text-emerald-700">
+                          {summaryInputMode === 'file' ? 'جاري استخراج النص وتوليد الملخص...' : 'جاري توليد الملخص بالذكاء الاصطناعي...'}
+                        </p>
+                        <p className="text-xs text-emerald-600/70 mt-0.5">قد يستغرق هذا بعض الوقت، يرجى الانتظار</p>
                       </div>
                     </div>
                   </motion.div>

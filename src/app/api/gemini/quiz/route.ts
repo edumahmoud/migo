@@ -80,15 +80,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate quiz using Gemini API
-    const questions = await generateQuiz(sanitizedContent);
+    // Generate quiz using Gemini API with timeout
+    const quizPromise = generateQuiz(sanitizedContent);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 60000)
+    );
+    const questions = await Promise.race([quizPromise, timeoutPromise]);
 
     return NextResponse.json(
       { success: true, data: { questions } },
       { headers: rateLimitHeaders }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Quiz generation error:', error);
+
+    const errMsg = error instanceof Error ? error.message : String(error);
+
+    if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+      return NextResponse.json(
+        { success: false, error: 'تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة' },
+        { status: 429 }
+      );
+    }
+
+    if (errMsg.includes('API_KEY') || errMsg.includes('401') || errMsg.includes('403')) {
+      return NextResponse.json(
+        { success: false, error: 'خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة' },
+        { status: 503 }
+      );
+    }
+
+    if (errMsg.includes('مهلة') || errMsg.includes('timeout') || errMsg.includes('timed out')) {
+      return NextResponse.json(
+        { success: false, error: 'انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى' },
+        { status: 504 }
+      );
+    }
+
+    if (errMsg.includes('not configured')) {
+      return NextResponse.json(
+        { success: false, error: 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة' },
+        { status: 503 }
+      );
+    }
+
     return safeErrorResponse('حدث خطأ أثناء إنشاء الاختبار');
   }
 }

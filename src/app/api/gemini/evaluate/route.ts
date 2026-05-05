@@ -90,19 +90,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Evaluate using Gemini API (includes exact-match fast path)
-    const isCorrect = await evaluateCompletionAnswer(
+    // Evaluate using Gemini API with timeout
+    const evalPromise = evaluateCompletionAnswer(
       sanitizedQuestion,
       sanitizedCorrectAnswer,
       sanitizedStudentAnswer
     );
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('انتهت مهلة التقييم')), 30000)
+    );
+    const isCorrect = await Promise.race([evalPromise, timeoutPromise]);
 
     return NextResponse.json(
       { success: true, data: { isCorrect } },
       { headers: rateLimitHeaders }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Evaluation error:', error);
+
+    const errMsg = error instanceof Error ? error.message : String(error);
+
+    if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED')) {
+      // On quota error, fall back to exact match
+      return NextResponse.json(
+        { success: true, data: { isCorrect: false, fallback: true } },
+        { headers: getRateLimitHeaders(0, 60000) }
+      );
+    }
+
+    if (errMsg.includes('not configured')) {
+      return NextResponse.json(
+        { success: false, error: 'خدمة الذكاء الاصطناعي غير مفعلة حالياً' },
+        { status: 503 }
+      );
+    }
+
     return safeErrorResponse('حدث خطأ أثناء تقييم الإجابة');
   }
 }
