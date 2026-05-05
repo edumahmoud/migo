@@ -607,13 +607,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             signal: abortController.signal,
           });
 
-          if (!summaryRes.ok) {
-            throw new Error(`فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
-          }
-
           const summaryData = await summaryRes.json();
-          if (!summaryData.success) {
-            throw new Error(summaryData.error || 'فشل في إنشاء الملخص');
+          if (!summaryRes.ok || !summaryData.success) {
+            throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
           }
 
           const summaryContent = summaryData.data?.summary;
@@ -662,13 +658,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             signal: abortController.signal,
           });
 
-          if (!summaryRes.ok) {
-            throw new Error(`فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
-          }
-
           const summaryData = await summaryRes.json();
-          if (!summaryData.success) {
-            throw new Error(summaryData.error || 'فشل في إنشاء الملخص');
+          if (!summaryRes.ok || !summaryData.success) {
+            throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
           }
 
           const summaryContent = summaryData.data?.summary;

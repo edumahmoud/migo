@@ -6,6 +6,13 @@
  *   - /api/gemini/summary  → Text/PDF summarization
  *   - /api/gemini/quiz     → Quiz generation from content
  *   - /api/gemini/evaluate → Fill-in-the-blank answer evaluation
+ *
+ * Model strategy (May 2026):
+ *   Primary:  gemini-2.5-flash   → latest, best quality, may have region limits
+ *   Fallback: gemini-2.0-flash   → stable, widely available, good free-tier quota
+ *   Fallback: gemini-2.0-flash-lite → lighter, separate quota pool
+ *
+ * Note: gemini-1.5-flash and gemini-1.5-flash-8b are deprecated/removed.
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -28,33 +35,49 @@ function getClient(): GoogleGenerativeAI {
 
 // -------------------------------------------------------
 // Model selection — try primary, fall back to alternatives
-// gemini-2.0-flash works on free tier; if it fails, we
-// fall back to gemini-1.5-flash which is always available.
+// Updated May 2026: removed deprecated 1.5 models, added 2.5
 // -------------------------------------------------------
-const PRIMARY_MODEL = 'gemini-2.0-flash';
-const FALLBACK_MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+const PRIMARY_MODEL = 'gemini-2.5-flash';
+const FALLBACK_MODELS = ['gemini-2.0-flash', 'gemini-2.0-flash-lite'];
 
-async function callWithFallback(fn: (modelId: string) => Promise<string>): Promise<string> {
+async function callWithFallback<T>(fn: (modelId: string) => Promise<T>): Promise<T> {
   const modelsToTry = [PRIMARY_MODEL, ...FALLBACK_MODELS];
   let lastError: unknown = null;
 
   for (const modelId of modelsToTry) {
     try {
-      return await fn(modelId);
+      console.log(`[Gemini] Trying model: ${modelId}`);
+      const result = await fn(modelId);
+      console.log(`[Gemini] Success with model: ${modelId}`);
+      return result;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.warn(`[Gemini] Model ${modelId} failed:`, errMsg);
+      console.warn(`[Gemini] Model ${modelId} failed:`, errMsg.substring(0, 200));
       lastError = err;
 
-      // If it's a rate limit or auth error, don't bother trying other models
-      if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED')) {
-        throw err;
-      }
+      // If it's a rate limit or auth error, try the next model
+      // (different models may have separate quota pools)
       if (errMsg.includes('API_KEY') || errMsg.includes('401') || errMsg.includes('403')) {
+        // Auth errors won't be fixed by trying a different model
         throw err;
       }
-      // For model-not-found or overload errors, try the next model
+
+      // 429 / quota errors: try next model (it might have its own quota)
+      // "User location not supported": try next model (it might be available)
+      // 404 / model not found: try next model
+      // Continue trying...
     }
+  }
+
+  // All models failed — throw the last error with a helpful message
+  const lastErrMsg = lastError instanceof Error ? lastError.message : String(lastError);
+
+  if (lastErrMsg.includes('429') || lastErrMsg.includes('quota') || lastErrMsg.includes('RESOURCE_EXHAUSTED')) {
+    throw new Error('تم تجاوز حصة الذكاء الاصطناعي. يرجى تفعيل الفوترة في Google AI Studio أو الانتظار حتى يتم تجديد الحصة');
+  }
+
+  if (lastErrMsg.includes('User location is not supported')) {
+    throw new Error('خدمة الذكاء الاصطناعي غير متاحة في منطقتك الحالية. يرجى استخدام VPN أو التواصل مع الإدارة');
   }
 
   throw lastError;
