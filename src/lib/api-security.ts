@@ -16,27 +16,35 @@ const rateLimitMap = new Map<string, RateLimitEntry>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX_REQUESTS = 10;
 
-/** Check rate limit by IP. Returns { allowed, remaining, retryAfterMs } */
-export function checkRateLimit(request: NextRequest): {
+/**
+ * Check rate limit by a composite key (user ID if available, otherwise IP).
+ * This prevents users on shared networks (e.g., school labs) from blocking each other.
+ *
+ * Pass a `userId` after authentication to rate-limit per user instead of per IP.
+ * Falls back to IP-based limiting for unauthenticated requests.
+ */
+export function checkRateLimit(request: NextRequest, userId?: string): {
   allowed: boolean;
   remaining: number;
   retryAfterMs: number;
 } {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  // Prefer user-specific key; fall back to IP for anonymous requests
+  const key = userId ? `user:${userId}` : `ip:${ip}`;
   const now = Date.now();
 
   // Clean up expired entries periodically
   if (rateLimitMap.size > 1000) {
-    for (const [key, entry] of rateLimitMap.entries()) {
+    for (const [k, entry] of rateLimitMap.entries()) {
       if (now > entry.resetTime) {
-        rateLimitMap.delete(key);
+        rateLimitMap.delete(k);
       }
     }
   }
 
-  const entry = rateLimitMap.get(ip);
+  const entry = rateLimitMap.get(key);
   if (!entry || now > entry.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
     return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, retryAfterMs: 0 };
   }
 

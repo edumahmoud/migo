@@ -780,6 +780,9 @@ CREATE POLICY "Users can create own summaries" ON public.summaries
   FOR INSERT WITH CHECK (user_id = auth.uid());
 CREATE POLICY "Users can delete own summaries" ON public.summaries
   FOR DELETE USING (user_id = auth.uid());
+CREATE POLICY "Users can update own summaries" ON public.summaries
+  FOR UPDATE USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
 -- ===== SUBJECTS =====
 CREATE POLICY "Teachers can view own subjects" ON public.subjects

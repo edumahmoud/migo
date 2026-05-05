@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
+  // Exclude pdf-parse from bundling so it's resolved at runtime via require()
+  // This avoids the fragile eval('require') hack in API routes
+  serverExternalPackages: ['pdf-parse'],
   allowedDevOrigins: [
     '.space.z.ai',
     '.z.ai',

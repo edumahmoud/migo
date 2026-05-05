@@ -9,8 +9,12 @@ export async function POST(request: NextRequest) {
     const validationError = validateRequest(request, { largeBody: true });
     if (validationError) return validationError;
 
-    // Rate limiting
-    const rateLimit = checkRateLimit(request);
+    // Authentication — do auth before rate limit so we can rate-limit per user
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
+
+    // Rate limiting — per user if authenticated, per IP otherwise
+    const rateLimit = checkRateLimit(request, authResult.success ? authResult.user.id : undefined);
     const rateLimitHeaders = getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs);
     if (!rateLimit.allowed) {
       return NextResponse.json(
@@ -18,10 +22,6 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: rateLimitHeaders }
       );
     }
-
-    // Authentication — use centralized auth helper
-    const authResult = await authenticateRequest(request);
-    if (!authResult.success) return authErrorResponse(authResult);
 
     const body = await request.json();
     const rawContent = body.content;

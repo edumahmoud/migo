@@ -353,6 +353,7 @@ export interface ApiResponse<T = unknown> {
 
 export interface GenerateSummaryResponse {
   summary: string;
+  extractedText?: string;
 }
 
 export interface GenerateQuizResponse {

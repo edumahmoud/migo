@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateSummary } from '@/lib/gemini';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
-import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse } from '@/lib/api-security';
+import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
+import { extractPdfText, validatePdfFile, getPdfErrorMessage } from '@/lib/pdf-extract';
 
 /**
  * POST /api/gemini/summary
@@ -14,8 +15,12 @@ import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse 
  */
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    const rateLimit = checkRateLimit(request);
+    // Auth check first (before rate limit, so we can rate-limit per user)
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
+
+    // Rate limiting — per user if authenticated, per IP otherwise
+    const rateLimit = checkRateLimit(request, authResult.success ? authResult.user.id : undefined);
     const rateLimitHeaders = getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs);
     if (!rateLimit.allowed) {
       return NextResponse.json(
@@ -24,71 +29,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auth check
-    const authResult = await authenticateRequest(request);
-    if (!authResult.success) return authErrorResponse(authResult);
-
     const contentType = request.headers.get('content-type') || '';
     let rawContent = '';
 
     if (contentType.includes('multipart/form-data')) {
       // ─── PDF file mode ───
       const formData = await request.formData();
-      const file = formData.get('file');
+      const validation = validatePdfFile(formData);
 
-      if (!file || !(file instanceof File)) {
-        return NextResponse.json(
-          { success: false, error: 'يرجى اختيار ملف PDF' },
-          { status: 400, headers: rateLimitHeaders }
-        );
+      if ('error' in validation) {
+        return validation.error;
       }
 
-      if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-        return NextResponse.json(
-          { success: false, error: 'يجب أن يكون الملف بصيغة PDF' },
-          { status: 400, headers: rateLimitHeaders }
-        );
-      }
-
-      if (file.size > 20 * 1024 * 1024) {
-        return NextResponse.json(
-          { success: false, error: 'حجم الملف كبير جداً (الحد الأقصى 20 ميجابايت)' },
-          { status: 400, headers: rateLimitHeaders }
-        );
-      }
+      const file = validation.file;
 
       console.log('[Summary API] Processing PDF file:', file.name, 'size:', file.size, 'user:', authResult.user.id);
 
       try {
         const buffer = Buffer.from(await file.arrayBuffer());
-        // Use eval('require') to bypass Turbopack static analysis
-        // pdf-parse is a CommonJS module that Turbopack can't resolve with import()
-        const pdfParse = eval('require')('pdf-parse');
-        const data = await pdfParse(buffer);
-        rawContent = data.text || '';
-
-        if (!rawContent.trim()) {
-          return NextResponse.json(
-            { success: false, error: 'لم يتم العثور على نص في الملف. تأكد أن الملف ليس ممسوحاً ضوئياً' },
-            { status: 400, headers: rateLimitHeaders }
-          );
-        }
+        const { text } = await extractPdfText(buffer);
+        rawContent = text;
         console.log('[Summary API] PDF text extracted, length:', rawContent.length);
       } catch (pdfErr) {
         console.error('[Summary API] PDF extraction error:', pdfErr);
+        const { message, status } = getPdfErrorMessage(pdfErr);
         return NextResponse.json(
-          { success: false, error: 'توجد مشكلة في قراءة ملف PDF. تأكد أن الملف ليس محمياً أو تالفاً' },
-          { status: 400, headers: rateLimitHeaders }
+          { success: false, error: message },
+          { status, headers: rateLimitHeaders }
         );
       }
     } else {
       // ─── Text mode ───
-      if (!contentType.includes('application/json')) {
-        return NextResponse.json(
-          { success: false, error: 'يجب أن يكون نوع المحتوى application/json أو multipart/form-data' },
-          { status: 415 }
-        );
-      }
+      // Use centralized validation for content-type and body size
+      const validationError = validateRequest(request, { largeBody: true });
+      if (validationError) return validationError;
 
       const body = await request.json();
       rawContent = body.content;
@@ -120,7 +94,15 @@ export async function POST(request: NextRequest) {
     console.log('[Summary API] Summary generated successfully, length:', summary.length);
 
     return NextResponse.json(
-      { success: true, data: { summary } },
+      {
+        success: true,
+        data: {
+          summary,
+          // Return the raw extracted text so the client can save it as original_content
+          // without making a second request to /api/gemini/extract-pdf
+          extractedText: rawContent,
+        },
+      },
       { headers: rateLimitHeaders }
     );
   } catch (error: unknown) {

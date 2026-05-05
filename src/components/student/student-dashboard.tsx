@@ -57,8 +57,9 @@ interface PendingSummary {
   id: string;
   title: string;
   mode: 'text' | 'file';
-  status: 'extracting' | 'summarizing' | 'saving';
+  status: 'extracting' | 'summarizing' | 'saving' | 'cancelled';
   startedAt: number;
+  abortController: AbortController;
 }
 
 // -------------------------------------------------------
@@ -502,6 +503,21 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   };
 
   // -------------------------------------------------------
+  // Cancel a pending summary (abort fetch + remove tracker)
+  // -------------------------------------------------------
+  const cancelPendingSummary = (id: string) => {
+    setPendingSummaries(prev => prev.map(s => {
+      if (s.id === id) {
+        s.abortController.abort();
+        return { ...s, status: 'cancelled' as const };
+      }
+      return s;
+    }));
+    // Remove after a brief delay so the user sees the "cancelled" state
+    setTimeout(() => removePendingSummary(id), 800);
+  };
+
+  // -------------------------------------------------------
   // Create summary handler — runs in background
   // The user can close the modal and navigate freely.
   // A small banner shows progress at the top of the summaries section.
@@ -526,14 +542,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
     }
 
-    // Create a pending summary tracker
+    // Create a pending summary tracker with AbortController for cancellation
     const pendingId = `pending-${Date.now()}`;
+    const abortController = new AbortController();
     const pending: PendingSummary = {
       id: pendingId,
       title,
       mode: summaryInputMode,
       status: 'extracting',
       startedAt: Date.now(),
+      abortController,
     };
     setPendingSummaries(prev => [...prev, pending]);
 
@@ -553,8 +571,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
     // Run the rest in the background (no await — fire and track)
     const processInBackground = async () => {
-      let content = '';
-
       try {
         // Get auth token
         const { data: { session } } = await supabase.auth.getSession();
@@ -576,6 +592,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               'Authorization': `Bearer ${token}`,
             },
             body: formData,
+            signal: abortController.signal,
           });
 
           const summaryData = await summaryRes.json();
@@ -584,22 +601,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           }
 
           const summaryContent = summaryData.data.summary;
-
-          // Also extract the text separately for the original_content field
-          const extractRes = await fetch('/api/gemini/extract-pdf', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-            body: formData, // Note: FormData can be sent again
-          });
-          let originalContent = '';
-          try {
-            const extractData = await extractRes.json();
-            if (extractData.success) {
-              originalContent = extractData.data.text;
-            }
-          } catch { /* non-critical */ }
+          // The API now returns the extracted text alongside the summary,
+          // eliminating the need for a second request to /api/gemini/extract-pdf
+          const originalContent = summaryData.data.extractedText || `[ملف PDF: ${summaryFile.name}]`;
 
           // Save summary to supabase
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
@@ -609,7 +613,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             .insert({
               user_id: profile.id,
               title,
-              original_content: originalContent || `[ملف PDF: ${summaryFile.name}]`,
+              original_content: originalContent,
               summary_content: summaryContent,
             })
             .select()
@@ -620,10 +624,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           }
 
           // Generate quiz in background (non-blocking)
-          generateQuizInBackground(token, content || originalContent, title, insertedSummary.id, pendingId);
+          // Use originalContent (the extracted PDF text) as the quiz source
+          generateQuizInBackground(token, originalContent, title, insertedSummary.id, pendingId);
         } else {
           // Text mode
-          content = summaryText.trim();
+          const content = summaryText.trim();
 
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
 
@@ -634,6 +639,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({ content }),
+            signal: abortController.signal,
           });
 
           const summaryData = await summaryRes.json();
@@ -671,7 +677,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         console.error('Background summary error:', err);
 
         if (err instanceof DOMException && err.name === 'AbortError') {
-          toast.error(`انتهت مهلة إنشاء ملخص "${title}"`);
+          // User cancelled — no error toast needed (already shown in UI)
         } else if (err instanceof Error) {
           const msg = err.message;
           if (msg.includes('تجاوز') || msg.includes('quota') || msg.includes('429')) {
@@ -1145,13 +1151,27 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 <div className="p-3 border-b bg-emerald-50/50">
                   {pendingSummaries.map(ps => (
                     <div key={ps.id} className="flex items-center gap-2 text-xs text-emerald-700 py-1">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {ps.status !== 'cancelled' ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <XCircle className="h-3.5 w-3.5 text-rose-400" />
+                      )}
                       <span className="font-medium">{ps.title}</span>
                       <span className="text-emerald-600/70">
                         {ps.status === 'extracting' && '• استخراج النص...'}
                         {ps.status === 'summarizing' && '• توليد الملخص...'}
                         {ps.status === 'saving' && '• حفظ...'}
+                        {ps.status === 'cancelled' && '• تم الإلغاء'}
                       </span>
+                      {ps.status !== 'cancelled' && ps.status !== 'saving' && (
+                        <button
+                          onClick={() => cancelPendingSummary(ps.id)}
+                          className="mr-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
+                        >
+                          <XCircle className="h-3 w-3" />
+                          إلغاء
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1273,7 +1293,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {ps.status === 'extracting' && '• استخراج النص...'}
                 {ps.status === 'summarizing' && '• توليد الملخص...'}
                 {ps.status === 'saving' && '• حفظ...'}
+                {ps.status === 'cancelled' && '• تم الإلغاء'}
               </span>
+              {ps.status !== 'cancelled' && ps.status !== 'saving' && (
+                <button
+                  onClick={() => cancelPendingSummary(ps.id)}
+                  className="mr-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
+                  title="إلغاء"
+                >
+                  <XCircle className="h-3 w-3" />
+                  إلغاء
+                </button>
+              )}
             </div>
           ))}
         </motion.div>
