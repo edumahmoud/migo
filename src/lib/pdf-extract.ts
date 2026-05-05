@@ -1,21 +1,18 @@
 /**
  * PDF Text Extraction Utility
  *
- * Uses pdf-parse EXCLUSIVELY for PDF text extraction.
- * pdf-parse bundles its own pdfjs v1.10.100 internally and works
- * reliably in ALL environments: local dev, Vercel serverless, Docker.
+ * Uses pdf-parse for PDF text extraction. pdf-parse bundles its own
+ * pdfjs v1.10.100 internally and is self-contained.
  *
- * Key requirements:
- * - pdf-parse MUST be listed in next.config.ts serverExternalPackages
- *   to prevent webpack from bundling it (which breaks its internal
- *   dynamic require() calls).
- * - pdf-parse MUST be loaded via createRequire() instead of ESM dynamic
- *   import(). The package checks `module.parent` to decide whether to run
- *   in debug mode. ESM dynamic import() sets module.parent to undefined,
- *   triggering the debug path and causing ENOENT errors.
+ * CRITICAL for Vercel serverless:
+ * - pdf-parse MUST be in serverExternalPackages (prevents broken webpack bundling)
+ * - pdf-parse files MUST be in outputFileTracingIncludes (ensures they're deployed)
+ * - pdf-parse MUST be loaded via createRequire() (avoids ESM module.parent bug)
+ * - createResolve MUST use process.cwd() as base (import.meta.url fails in Vercel)
  */
 
 import { createRequire } from 'module';
+import path from 'path';
 import { NextResponse } from 'next/server';
 
 export interface PdfExtractionResult {
@@ -23,39 +20,84 @@ export interface PdfExtractionResult {
   pages: number;
 }
 
-// Singleton: load pdf-parse once via createRequire and cache it.
-// Using a singleton avoids re-creating the require function on every call
-// and ensures module.parent is set correctly.
+// Singleton for pdf-parse module
 let _pdfParse: ((data: Buffer) => Promise<{ text: string; numpages: number }>) | null = null;
+let _loadError: string | null = null;
 
-function getPdfParse() {
+/**
+ * Load pdf-parse using multiple fallback methods.
+ *
+ * In Vercel serverless:
+ * - import.meta.url points to /var/task/.next/server/chunks/xxx.js
+ * - node_modules is at /var/task/node_modules/
+ * - createRequire(import.meta.url) resolves from the chunks dir, which works
+ *   because Node.js walks up to find node_modules
+ * - createRequire(process.cwd() + '/package.json') resolves from project root
+ *   which is more direct and reliable
+ *
+ * In local dev:
+ * - Both methods work fine
+ */
+function loadPdfParse() {
   if (_pdfParse) return _pdfParse;
 
+  // Method 1: createRequire from process.cwd() (most reliable in Vercel)
   try {
-    const require = createRequire(import.meta.url);
-    _pdfParse = require('pdf-parse');
-    console.log('[PDF] pdf-parse loaded successfully via createRequire');
-    return _pdfParse;
+    const cwdRequire = createRequire(path.join(process.cwd(), 'package.json'));
+    const mod = cwdRequire('pdf-parse');
+    if (mod && typeof mod === 'function') {
+      _pdfParse = mod;
+      console.log('[PDF] pdf-parse loaded via createRequire(process.cwd)');
+      return _pdfParse;
+    }
   } catch (err) {
-    console.error('[PDF] Failed to load pdf-parse via createRequire:', err);
-    return null;
+    console.warn('[PDF] Method 1 (createRequire from cwd) failed:', err instanceof Error ? err.message : String(err));
   }
+
+  // Method 2: createRequire from import.meta.url
+  try {
+    const urlRequire = createRequire(import.meta.url);
+    const mod = urlRequire('pdf-parse');
+    if (mod && typeof mod === 'function') {
+      _pdfParse = mod;
+      console.log('[PDF] pdf-parse loaded via createRequire(import.meta.url)');
+      return _pdfParse;
+    }
+  } catch (err) {
+    console.warn('[PDF] Method 2 (createRequire from import.meta.url) failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  // Method 3: Try global require (works in some Next.js setups)
+  try {
+    // @ts-ignore - require might be available in some Next.js contexts
+    if (typeof require === 'function') {
+      // @ts-ignore
+      const mod = require('pdf-parse');
+      if (mod && typeof mod === 'function') {
+        _pdfParse = mod;
+        console.log('[PDF] pdf-parse loaded via global require');
+        return _pdfParse;
+      }
+    }
+  } catch (err) {
+    console.warn('[PDF] Method 3 (global require) failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  _loadError = 'All methods to load pdf-parse failed';
+  console.error('[PDF]', _loadError, '- process.cwd():', process.cwd());
+  return null;
 }
 
 /**
  * Extract text from a PDF buffer using pdf-parse.
- *
- * pdf-parse bundles its own pdfjs v1.10.100, so it doesn't require any
- * external worker configuration, CMap files, or font files. The entire
- * library is self-contained and works in all Node.js environments.
  */
 export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResult> {
-  console.log('[PDF] Starting extraction, buffer size:', buffer.length);
+  console.log('[PDF] Starting extraction, buffer size:', buffer.length, 'cwd:', process.cwd());
 
-  const pdfParse = getPdfParse();
+  const pdfParse = loadPdfParse();
 
   if (!pdfParse) {
-    console.error('[PDF] pdf-parse module is not available');
+    console.error('[PDF] pdf-parse module is not available. Load error:', _loadError);
     throw new Error('pdf-parse module is not available');
   }
 
@@ -70,16 +112,13 @@ export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResul
     console.log('[PDF] Extraction successful, text length:', result.text.length, 'pages:', result.numpages);
     return { text: result.text, pages: result.numpages };
   } catch (err) {
-    // Re-throw our custom errors as-is
     if (err instanceof Error && err.message === 'NO_TEXT_EXTRACTED') {
       throw err;
     }
 
-    // Log the actual error for debugging
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error('[PDF] pdf-parse extraction failed:', errMsg);
 
-    // Wrap in a recognizable error
     if (errMsg.includes('password') || errMsg.includes('encrypted') || errMsg.includes('Password')) {
       throw new Error('password protected or encrypted PDF');
     }
@@ -93,7 +132,6 @@ export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResul
 
 /**
  * Validate a file from a FormData request for PDF processing.
- * Returns the File object or an error response.
  */
 export function validatePdfFile(formData: FormData): { file: File } | { error: NextResponse } {
   const file = formData.get('file');
@@ -155,7 +193,7 @@ export function getPdfErrorMessage(error: unknown): { message: string; status: n
     };
   }
 
-  if (errMsg.includes('module is not available') || errMsg.includes('pdf-parse')) {
+  if (errMsg.includes('module is not available')) {
     return {
       message: 'خدمة قراءة PDF غير متوفرة حالياً. يرجى المحاولة لاحقاً',
       status: 503,

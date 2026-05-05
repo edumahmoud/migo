@@ -9,12 +9,18 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
-  // Both PDF libraries must be external packages — prevent webpack from
-  // bundling them. They use dynamic require() internally which breaks
-  // when bundled. pdf-parse is the primary extractor (bundles its own
-  // pdfjs v1.10.100). pdfjs-dist is kept external in case it's needed
-  // in the future but is NOT used in the current extraction logic.
+  // pdf-parse MUST be external — its internal dynamic require('./pdf.js/${version}/build/pdf.js')
+  // cannot be bundled by webpack. We load it via createRequire() at runtime.
   serverExternalPackages: ['pdf-parse', 'pdfjs-dist'],
+  // CRITICAL for Vercel: Ensure pdf-parse's ENTIRE directory is included in
+  // the serverless function. Vercel's file tracing only detects statically
+  // imported files, but pdf-parse loads its internal pdf.js dynamically.
+  // Without this, the module exists but its internal files are missing.
+  outputFileTracingIncludes: {
+    // Include pdf-parse in all routes that use PDF extraction
+    '/api/gemini/summary': ['./node_modules/pdf-parse/**/*'],
+    '/api/gemini/extract-pdf': ['./node_modules/pdf-parse/**/*'],
+  },
   allowedDevOrigins: [
     '.space.z.ai',
     '.z.ai',
