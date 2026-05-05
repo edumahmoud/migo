@@ -17,6 +17,8 @@ import {
   PenLine,
   ArrowLeftRight,
   Lightbulb,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -111,6 +113,10 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   const [explainingIdx, setExplainingIdx] = useState<number | null>(null);
   const [explanations, setExplanations] = useState<Record<number, string>>({});
 
+  // ─── Timer state ───
+  const [timeLeft, setTimeLeft] = useState<number | null>(null); // seconds remaining
+  const [timerWarning, setTimerWarning] = useState(false);
+
   // -------------------------------------------------------
   // Fetch quiz
   // -------------------------------------------------------
@@ -165,6 +171,104 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   useEffect(() => {
     fetchQuiz();
   }, [fetchQuiz]);
+
+  // ─── Timer countdown ───
+  // Starts when quiz is loaded and has a duration.
+  // Persists start time in sessionStorage so refresh doesn't reset the timer.
+  useEffect(() => {
+    if (!quiz?.duration || showResults || alreadyTaken) return;
+
+    const storageKey = `quiz-start-${quizId}`;
+    const durationSec = quiz.duration * 60; // convert minutes to seconds
+
+    // Get or set the start time
+    let startTime: number;
+    const stored = sessionStorage.getItem(storageKey);
+    if (stored) {
+      startTime = parseInt(stored, 10);
+    } else {
+      startTime = Date.now();
+      sessionStorage.setItem(storageKey, startTime.toString());
+    }
+
+    // Calculate remaining time
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const remaining = Math.max(0, durationSec - elapsed);
+    setTimeLeft(remaining);
+
+    if (remaining <= 0) {
+      // Time already expired
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [quiz?.duration, quizId, showResults, alreadyTaken]);
+
+  // ─── Auto-submit when time runs out ───
+  useEffect(() => {
+    if (timeLeft === 0 && !showResults && !alreadyTaken) {
+      toast.error('انتهى وقت الاختبار!');
+      // Use a direct approach instead of handleFinishQuiz to avoid stale closure
+      if (!quiz) return;
+
+      const allAnswers = [...userAnswers];
+      if (currentQuestion && !allAnswers.find(a => a.questionIndex === currentIdx)) {
+        let answerValue: string | Record<string, string> = '';
+        if (currentQuestion.type === 'matching') {
+          answerValue = matchedPairs;
+        } else if (currentQuestion.type === 'completion') {
+          answerValue = completionInput.trim();
+        } else {
+          answerValue = selectedOption || '';
+        }
+        allAnswers.push({
+          questionIndex: currentIdx,
+          type: currentQuestion.type,
+          answer: answerValue,
+          isCorrect,
+        });
+      }
+      for (let i = 0; i < (quiz.questions?.length || 0); i++) {
+        if (!allAnswers.find(a => a.questionIndex === i)) {
+          const q = quiz.questions[i];
+          allAnswers.push({ questionIndex: i, type: q.type, answer: '', isCorrect: false });
+        }
+      }
+      allAnswers.sort((a, b) => a.questionIndex - b.questionIndex);
+      const finalScore = allAnswers.filter(a => a.isCorrect).length;
+      setUserAnswers(allAnswers);
+      saveScore(finalScore, allAnswers);
+      setShowResults(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft]);
+
+  // ─── Timer warning ───
+  useEffect(() => {
+    if (timeLeft !== null && timeLeft <= 60 && timeLeft > 0) {
+      setTimerWarning(true);
+    } else {
+      setTimerWarning(false);
+    }
+  }, [timeLeft]);
+
+  // ─── Clear timer storage on finish ───
+  useEffect(() => {
+    if (showResults) {
+      sessionStorage.removeItem(`quiz-start-${quizId}`);
+    }
+  }, [showResults, quizId]);
 
   // -------------------------------------------------------
   // Current question
@@ -420,6 +524,57 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   };
 
   // -------------------------------------------------------
+  // Finish quiz (auto-submit when time runs out)
+  // -------------------------------------------------------
+  const handleFinishQuiz = useCallback(() => {
+    if (!quiz || showResults) return;
+
+    // Build answers for all questions including the current one
+    const allAnswers = [...userAnswers];
+
+    // Add current question answer if not already saved
+    if (currentQuestion && !allAnswers.find(a => a.questionIndex === currentIdx)) {
+      let answerValue: string | Record<string, string> = '';
+      if (currentQuestion.type === 'matching') {
+        answerValue = matchedPairs;
+      } else if (currentQuestion.type === 'completion') {
+        answerValue = completionInput.trim();
+      } else {
+        answerValue = selectedOption || '';
+      }
+
+      allAnswers.push({
+        questionIndex: currentIdx,
+        type: currentQuestion.type,
+        answer: answerValue,
+        isCorrect,
+      });
+    }
+
+    // Fill in empty answers for any unanswered questions
+    for (let i = 0; i < totalQuestions; i++) {
+      if (!allAnswers.find(a => a.questionIndex === i)) {
+        const q = quiz.questions[i];
+        allAnswers.push({
+          questionIndex: i,
+          type: q.type,
+          answer: '',
+          isCorrect: false,
+        });
+      }
+    }
+
+    // Sort by question index
+    allAnswers.sort((a, b) => a.questionIndex - b.questionIndex);
+
+    const finalScore = allAnswers.filter(a => a.isCorrect).length;
+    setUserAnswers(allAnswers);
+    saveScore(finalScore, allAnswers);
+    setShowResults(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quiz, userAnswers, currentIdx, currentQuestion, isCorrect, matchedPairs, completionInput, selectedOption, totalQuestions, showResults]);
+
+  // -------------------------------------------------------
   // Retry quiz
   // -------------------------------------------------------
   const handleRetry = () => {
@@ -428,6 +583,9 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     setUserAnswers([]);
     setShowResults(false);
     setShowReview(false);
+    // Clear timer so it restarts on retry
+    sessionStorage.removeItem(`quiz-start-${quizId}`);
+    setTimeLeft(null);
   };
 
   // -------------------------------------------------------
@@ -681,6 +839,19 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
               السؤال {currentIdx + 1} من {totalQuestions}
             </p>
           </div>
+          {/* Timer display */}
+          {timeLeft !== null && !showResults && (
+            <div className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold tabular-nums transition-all ${
+              timerWarning
+                ? 'bg-rose-100 text-rose-700 animate-pulse'
+                : timeLeft <= 300
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-emerald-100 text-emerald-700'
+            }`}>
+              <Clock className="h-4 w-4" />
+              {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{(timeLeft % 60).toString().padStart(2, '0')}
+            </div>
+          )}
         </div>
 
         {/* Progress bar */}
