@@ -172,6 +172,40 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     fetchQuiz();
   }, [fetchQuiz]);
 
+  // ─── Load saved answer when navigating between questions ───
+  useEffect(() => {
+    if (!quiz) return;
+    const savedAnswer = userAnswers.find(a => a.questionIndex === currentIdx);
+    const q = quiz.questions?.[currentIdx];
+    if (!q) return;
+
+    if (savedAnswer) {
+      setAnswered(true);
+      setIsCorrect(savedAnswer.isCorrect);
+      if (q.type === 'mcq' || q.type === 'boolean') {
+        setSelectedOption(savedAnswer.answer as string);
+        setCompletionInput('');
+        setMatchedPairs({});
+      } else if (q.type === 'completion') {
+        setCompletionInput(savedAnswer.answer as string);
+        setSelectedOption(null);
+        setMatchedPairs({});
+      } else if (q.type === 'matching') {
+        setMatchedPairs(savedAnswer.answer as Record<string, string>);
+        setMatchingFeedback(savedAnswer.isCorrect ? 'correct' : 'incorrect');
+        setSelectedOption(null);
+        setCompletionInput('');
+      }
+      setEvaluatingCompletion(false);
+      setSelectedKey(null);
+      setSelectedValue(null);
+    } else {
+      resetQuestionState();
+    }
+  // Only trigger on currentIdx change, not userAnswers changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIdx]);
+
   // ─── Timer countdown ───
   // Starts when quiz is loaded and has a duration.
   // Persists start time in sessionStorage so refresh doesn't reset the timer.
@@ -276,6 +310,39 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   const currentQuestion: QuizQuestion | null = quiz?.questions?.[currentIdx] ?? null;
   const totalQuestions = quiz?.questions?.length ?? 0;
   const progressPct = totalQuestions > 0 ? ((currentIdx + 1) / totalQuestions) * 100 : 0;
+
+  // -------------------------------------------------------
+  // Load saved answer for a question (when navigating back)
+  // -------------------------------------------------------
+  const loadSavedAnswer = useCallback((idx: number) => {
+    const savedAnswer = userAnswers.find(a => a.questionIndex === idx);
+    const q = quiz?.questions?.[idx];
+    if (!q) return;
+
+    if (savedAnswer) {
+      setAnswered(true);
+      setIsCorrect(savedAnswer.isCorrect);
+      if (q.type === 'mcq' || q.type === 'boolean') {
+        setSelectedOption(savedAnswer.answer as string);
+      } else if (q.type === 'completion') {
+        setCompletionInput(savedAnswer.answer as string);
+      } else if (q.type === 'matching') {
+        setMatchedPairs(savedAnswer.answer as Record<string, string>);
+        setMatchingFeedback(savedAnswer.isCorrect ? 'correct' : 'incorrect');
+      }
+    } else {
+      // No saved answer — reset state
+      setAnswered(false);
+      setIsCorrect(false);
+      setSelectedOption(null);
+      setCompletionInput('');
+      setEvaluatingCompletion(false);
+      setSelectedKey(null);
+      setSelectedValue(null);
+      setMatchedPairs({});
+      setMatchingFeedback(null);
+    }
+  }, [userAnswers, quiz]);
 
   // -------------------------------------------------------
   // Reset question state
@@ -457,8 +524,14 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
 
     // Next question or finish
     if (currentIdx < totalQuestions - 1) {
-      resetQuestionState();
       setCurrentIdx((prev) => prev + 1);
+      // Load the next question's saved state or reset
+      const nextIdx = currentIdx + 1;
+      const nextSaved = userAnswers.find(a => a.questionIndex === nextIdx);
+      if (!nextSaved) {
+        resetQuestionState();
+      }
+      // Will be handled by useEffect on currentIdx change
     } else {
       // Calculate final score and show results
       const finalAnswers = [...userAnswers, newAnswer];
@@ -959,11 +1032,15 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                         <>
                           <XCircle className="h-5 w-5 shrink-0" />
                           <span className="text-sm font-medium">إجابة خاطئة</span>
-                          {currentQuestion.type !== 'matching' && currentQuestion.correctAnswer && (
+                          {currentQuestion.type === 'matching' && currentQuestion.pairs ? (
+                            <span className="block text-sm text-rose-600 mt-1">
+                              الإجابة الصحيحة: {currentQuestion.pairs.map(p => `${p.key} ↔ ${p.value}`).join(' ، ')}
+                            </span>
+                          ) : currentQuestion.correctAnswer ? (
                             <span className="block text-sm text-rose-600 mt-1">
                               الإجابة الصحيحة: {currentQuestion.correctAnswer}
                             </span>
-                          )}
+                          ) : null}
                         </>
                       )}
                     </motion.div>
@@ -1006,31 +1083,47 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                   </>
                 )}
 
-                {/* Next / Finish button */}
-                {answered && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-start"
-                  >
+                {/* Previous / Next / Finish buttons */}
+                <div className="flex items-center gap-3">
+                  {/* Previous button */}
+                  {currentIdx > 0 && (
                     <Button
-                      onClick={handleNext}
-                      className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                      onClick={() => {
+                        setCurrentIdx(prev => prev - 1);
+                      }}
+                      variant="outline"
+                      className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                     >
-                      {currentIdx < totalQuestions - 1 ? (
-                        <>
-                          السؤال التالي
-                          <ArrowRight className="h-4 w-4" />
-                        </>
-                      ) : (
-                        <>
-                          إنهاء الاختبار
-                          <Trophy className="h-4 w-4" />
-                        </>
-                      )}
+                      <ChevronLeft className="h-4 w-4" />
+                      السؤال السابق
                     </Button>
-                  </motion.div>
-                )}
+                  )}
+
+                  {/* Next / Finish button */}
+                  {answered && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <Button
+                        onClick={handleNext}
+                        className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                      >
+                        {currentIdx < totalQuestions - 1 ? (
+                          <>
+                            السؤال التالي
+                            <ArrowRight className="h-4 w-4" />
+                          </>
+                        ) : (
+                          <>
+                            إنهاء الاختبار
+                            <Trophy className="h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           )}

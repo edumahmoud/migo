@@ -188,7 +188,10 @@ export async function generateQuiz(content: string, questionTypes?: { mcq?: numb
 6. في أسئلة Matching، استخدم 4 أزواج على الأقل
 7. تأكد أن جميع الإجابات صحيحة بناءً على المحتوى المقدم
 8. احرص على صحة المعلومات العلمية في الأسئلة والإجابات
-9. تأكد أن الرد JSON صالح فقط بدون أي نص إضافي`,
+9. تأكد أن الرد JSON صالح فقط بدون أي نص إضافي
+10. لا تكرر نفس السؤال أو نفس فكرة السؤال — كل سؤال يجب أن يكون فريداً ومختلفاً
+11. في أسئلة MCQ، لا تكرر نفس الخيار أكثر من مرة — كل خيار يجب أن يكون مختلفاً تماماً
+12. في أسئلة Matching، لا تكرر نفس العنصر في key أو value — كل عنصر يجب أن يظهر مرة واحدة فقط`,
       `بناءً على المحتوى التالي، قم بإنشاء اختبار شامل مكون من ${totalCount} سؤال بالتوزيع المحدد:\n\n${content}`,
       { temperature: 0.5, maxTokens: 4096 }
     );
@@ -211,7 +214,59 @@ export async function generateQuiz(content: string, questionTypes?: { mcq?: numb
       throw new Error('تنسيق الأسئلة غير صحيح');
     }
 
-    return questions;
+    // ─── Deduplicate questions and options ───
+    // Remove questions with identical text (case-insensitive)
+    const seenQuestions = new Set<string>();
+    const dedupedQuestions: QuizQuestion[] = [];
+
+    for (const q of questions) {
+      const normalizedQ = q.question.trim().toLowerCase();
+      if (seenQuestions.has(normalizedQ)) {
+        console.warn('[Quiz] Skipping duplicate question:', q.question);
+        continue;
+      }
+      seenQuestions.add(normalizedQ);
+
+      // For MCQ, deduplicate options
+      if (q.type === 'mcq' && q.options) {
+        const uniqueOptions = [...new Set(q.options)];
+        if (uniqueOptions.length < q.options.length) {
+          console.warn('[Quiz] Deduped MCQ options from', q.options.length, 'to', uniqueOptions.length);
+        }
+        q.options = uniqueOptions;
+        // If correctAnswer was removed, skip this question
+        if (q.correctAnswer && !uniqueOptions.includes(q.correctAnswer)) {
+          console.warn('[Quiz] Skipping question with missing correctAnswer after dedup');
+          seenQuestions.delete(normalizedQ);
+          continue;
+        }
+      }
+
+      // For matching, deduplicate keys and values
+      if (q.type === 'matching' && q.pairs) {
+        const seenKeys = new Set<string>();
+        const seenValues = new Set<string>();
+        const uniquePairs = q.pairs.filter(p => {
+          if (seenKeys.has(p.key) || seenValues.has(p.value)) return false;
+          seenKeys.add(p.key);
+          seenValues.add(p.value);
+          return true;
+        });
+        if (uniquePairs.length < q.pairs.length) {
+          console.warn('[Quiz] Deduped matching pairs from', q.pairs.length, 'to', uniquePairs.length);
+        }
+        q.pairs = uniquePairs;
+        if (q.pairs.length < 2) {
+          console.warn('[Quiz] Skipping matching question with too few unique pairs');
+          seenQuestions.delete(normalizedQ);
+          continue;
+        }
+      }
+
+      dedupedQuestions.push(q);
+    }
+
+    return dedupedQuestions;
   });
 }
 
