@@ -108,13 +108,17 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthRes
  */
 export async function getUserRole(userId: string): Promise<UserRole | null> {
   try {
-    const { data: profile } = await supabaseServer
+    const { data: profile, error } = await supabaseServer
       .from('users')
       .select('role')
       .eq('id', userId)
       .single();
+    if (error) {
+      console.error('[Auth] getUserRole DB error:', error.message);
+    }
     return (profile?.role as UserRole) || null;
-  } catch {
+  } catch (err) {
+    console.error('[Auth] getUserRole exception:', err);
     return null;
   }
 }
@@ -166,6 +170,7 @@ export async function requireTeacher(request: NextRequest): Promise<AuthResponse
   if (!authResult.success) return authResult;
 
   const role = await getUserRole(authResult.user.id);
+  console.log('[Auth] requireTeacher check:', { userId: authResult.user.id, role, hasRole: !!role });
   if (!role || (role !== 'teacher' && role !== 'admin' && role !== 'superadmin')) {
     return {
       success: false,

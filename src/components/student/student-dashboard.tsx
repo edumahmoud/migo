@@ -51,21 +51,14 @@ import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 
 // -------------------------------------------------------
-// PDF.js worker setup - lazy loaded to avoid server-side DOMMatrix error
-// For pdfjs-dist v5+, worker files use .mjs extension and
-// CDN URLs may not match. We disable the worker for reliability
-// (slightly slower but avoids worker-loading failures).
+// Summary background processing type
 // -------------------------------------------------------
-let pdfjsLib: typeof import('pdfjs-dist') | null = null;
-
-async function getPdfjsLib() {
-  if (!pdfjsLib) {
-    pdfjsLib = await import('pdfjs-dist');
-    // Disable worker to avoid CDN version mismatch issues in pdfjs-dist v5+
-    // The worker is optional — PDF.js falls back to main-thread processing.
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-  }
-  return pdfjsLib;
+interface PendingSummary {
+  id: string;
+  title: string;
+  mode: 'text' | 'file';
+  status: 'extracting' | 'summarizing' | 'saving';
+  startedAt: number;
 }
 
 // -------------------------------------------------------
@@ -176,6 +169,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
   // ─── Deleting summary state ───
   const [deletingSummaryId, setDeletingSummaryId] = useState<string | null>(null);
+
+  // ─── Background summary processing state ───
+  const [pendingSummaries, setPendingSummaries] = useState<PendingSummary[]>([]);
 
   // ─── Deleting teacher link ───
   const [deletingLinkId, setDeletingLinkId] = useState<string | null>(null);
@@ -499,40 +495,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   };
 
   // -------------------------------------------------------
-  // PDF text extraction
+  // Remove pending summary from tracker
   // -------------------------------------------------------
-  const extractTextFromPDF = async (file: File): Promise<string> => {
-    try {
-      const lib = await getPdfjsLib();
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await lib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-      const pages: string[] = [];
-
-      for (let i = 1; i <= pdf.numPages; i++) {
-        try {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items
-            .map((item) => ('str' in item ? item.str : ''))
-            .join(' ');
-          if (pageText.trim()) {
-            pages.push(pageText);
-          }
-        } catch (pageErr) {
-          console.warn(`PDF page ${i} extraction failed:`, pageErr);
-          // Continue with remaining pages
-        }
-      }
-
-      return pages.join('\n\n');
-    } catch (err) {
-      console.error('PDF loading failed:', err);
-      throw err;
-    }
+  const removePendingSummary = (id: string) => {
+    setPendingSummaries(prev => prev.filter(s => s.id !== id));
   };
 
   // -------------------------------------------------------
-  // Create summary handler
+  // Create summary handler — runs in background
+  // The user can close the modal and navigate freely.
+  // A small banner shows progress at the top of the summaries section.
   // -------------------------------------------------------
   const handleCreateSummary = async () => {
     const title = summaryTitle.trim();
@@ -541,151 +513,211 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       return;
     }
 
-    let content = '';
-
-    if (summaryInputMode === 'file') {
+    // For text mode, validate content upfront
+    if (summaryInputMode === 'text') {
+      if (!summaryText.trim()) {
+        toast.error('يرجى إدخال المحتوى أو لصقه');
+        return;
+      }
+    } else {
       if (!summaryFile) {
         toast.error('يرجى اختيار ملف PDF');
         return;
       }
-      try {
-        setSummaryStep('processing');
-        content = await extractTextFromPDF(summaryFile);
-        if (!content.trim()) {
-          toast.error('لم يتم العثور على نص في الملف');
-          setSummaryStep('input');
-          return;
-        }
-      } catch (err) {
-        console.error('PDF extraction error:', err);
-        toast.error('حدث خطأ أثناء قراءة ملف PDF. تأكد أن الملف ليس محمياً أو ممسوحاً ضوئياً');
-        setSummaryStep('input');
-        return;
-      }
-    } else {
-      content = summaryText.trim();
-      if (!content) {
-        toast.error('يرجى إدخال المحتوى أو لصقه');
-        return;
-      }
     }
 
-    setCreatingSummary(true);
-    setSummaryStep('processing');
+    // Create a pending summary tracker
+    const pendingId = `pending-${Date.now()}`;
+    const pending: PendingSummary = {
+      id: pendingId,
+      title,
+      mode: summaryInputMode,
+      status: 'extracting',
+      startedAt: Date.now(),
+    };
+    setPendingSummaries(prev => [...prev, pending]);
 
-    try {
-      // Get auth token for API requests
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+    // Reset form & close modal immediately
+    setSummaryTitle('');
+    setSummaryText('');
+    setSummaryFile(null);
+    setSummaryInputMode('text');
+    setNewSummaryOpen(false);
+    setSummaryStep('input');
+    setCreatingSummary(false);
 
-      // AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s overall timeout
+    toast.info(summaryInputMode === 'file'
+      ? 'جاري استخراج النص وتوليد الملخص في الخلفية...'
+      : 'جاري توليد الملخص في الخلفية...'
+    );
+
+    // Run the rest in the background (no await — fire and track)
+    const processInBackground = async () => {
+      let content = '';
 
       try {
-        // 1. Generate summary
-        const summaryRes = await fetch('/api/gemini/summary', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ content }),
-          signal: controller.signal,
-        });
+        // Get auth token
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token || '';
 
-        const summaryData = await summaryRes.json();
-        if (!summaryData.success) {
-          throw new Error(summaryData.error || 'فشل في إنشاء الملخص');
-        }
+        // Step 1: Get content (text or extract from PDF on server)
+        if (summaryInputMode === 'file' && summaryFile) {
+          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
-        const summaryContent = summaryData.data.summary;
+          // Send PDF to server for extraction + summarization in one request
+          const formData = new FormData();
+          formData.append('file', summaryFile);
 
-        // 2. Generate quiz (non-blocking - don't fail if quiz fails)
-        let quizQuestions: unknown[] = [];
-        try {
-          const quizRes = await fetch('/api/gemini/quiz', {
+          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
+
+          const summaryRes = await fetch('/api/gemini/summary', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+            body: formData,
+          });
+
+          const summaryData = await summaryRes.json();
+          if (!summaryData.success) {
+            throw new Error(summaryData.error || 'فشل في إنشاء الملخص');
+          }
+
+          const summaryContent = summaryData.data.summary;
+
+          // Also extract the text separately for the original_content field
+          const extractRes = await fetch('/api/gemini/extract-pdf', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+            body: formData, // Note: FormData can be sent again
+          });
+          let originalContent = '';
+          try {
+            const extractData = await extractRes.json();
+            if (extractData.success) {
+              originalContent = extractData.data.text;
+            }
+          } catch { /* non-critical */ }
+
+          // Save summary to supabase
+          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
+
+          const { data: insertedSummary, error: summaryError } = await supabase
+            .from('summaries')
+            .insert({
+              user_id: profile.id,
+              title,
+              original_content: originalContent || `[ملف PDF: ${summaryFile.name}]`,
+              summary_content: summaryContent,
+            })
+            .select()
+            .single();
+
+          if (summaryError) {
+            throw new Error(summaryError.message);
+          }
+
+          // Generate quiz in background (non-blocking)
+          generateQuizInBackground(token, content || originalContent, title, insertedSummary.id, pendingId);
+        } else {
+          // Text mode
+          content = summaryText.trim();
+
+          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
+
+          const summaryRes = await fetch('/api/gemini/summary', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
             body: JSON.stringify({ content }),
-            signal: controller.signal,
           });
 
-          const quizData = await quizRes.json();
-          if (quizData.success && quizData.data?.questions) {
-            quizQuestions = quizData.data.questions;
+          const summaryData = await summaryRes.json();
+          if (!summaryData.success) {
+            throw new Error(summaryData.error || 'فشل في إنشاء الملخص');
           }
-        } catch (quizErr) {
-          console.warn('Quiz generation failed (non-critical):', quizErr);
+
+          const summaryContent = summaryData.data.summary;
+
+          // Save summary to supabase
+          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
+
+          const { data: insertedSummary, error: summaryError } = await supabase
+            .from('summaries')
+            .insert({
+              user_id: profile.id,
+              title,
+              original_content: content,
+              summary_content: summaryContent,
+            })
+            .select()
+            .single();
+
+          if (summaryError) {
+            throw new Error(summaryError.message);
+          }
+
+          // Generate quiz in background (non-blocking)
+          generateQuizInBackground(token, content, title, insertedSummary.id, pendingId);
         }
 
-        // 3. Save summary to supabase
-        const { data: insertedSummary, error: summaryError } = await supabase
-          .from('summaries')
-          .insert({
-            user_id: profile.id,
-            title,
-            original_content: content,
-            summary_content: summaryContent,
-          })
-          .select()
-          .single();
-
-        if (summaryError) {
-          throw new Error(summaryError.message);
-        }
-
-        // 4. Save quiz to supabase (if generated)
-        if (quizQuestions.length > 0 && insertedSummary) {
-          await supabase.from('quizzes').insert({
-            user_id: profile.id,
-            title: `اختبار: ${title}`,
-            questions: quizQuestions,
-            summary_id: insertedSummary.id,
-          });
-        }
-
-        toast.success(quizQuestions.length > 0
-          ? 'تم إنشاء الملخص والاختبار بنجاح'
-          : 'تم إنشاء الملخص بنجاح'
-        );
-
-        // Reset form
-        setSummaryTitle('');
-        setSummaryText('');
-        setSummaryFile(null);
-        setSummaryInputMode('text');
-        setNewSummaryOpen(false);
-
-        // Refresh data
+        toast.success(`تم إنشاء ملخص "${title}" بنجاح`);
         fetchSummaries();
-        fetchQuizzes();
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    } catch (err) {
-      console.error('Create summary error:', err);
+      } catch (err) {
+        console.error('Background summary error:', err);
 
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        toast.error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى');
-      } else if (err instanceof Error) {
-        const msg = err.message;
-        if (msg.includes('تجاوز') || msg.includes('quota') || msg.includes('429')) {
-          toast.error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
-        } else if (msg.includes('غير مفعلة') || msg.includes('تكوين')) {
-          toast.error('خدمة الذكاء الاصطناعي غير مفعلة حالياً. تواصل مع الإدارة');
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          toast.error(`انتهت مهلة إنشاء ملخص "${title}"`);
+        } else if (err instanceof Error) {
+          const msg = err.message;
+          if (msg.includes('تجاوز') || msg.includes('quota') || msg.includes('429')) {
+            toast.error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
+          } else {
+            toast.error(msg);
+          }
         } else {
-          toast.error(msg);
+          toast.error(`فشل إنشاء ملخص "${title}"`);
         }
-      } else {
-        toast.error('حدث خطأ أثناء إنشاء الملخص');
+      } finally {
+        removePendingSummary(pendingId);
       }
-    } finally {
-      setCreatingSummary(false);
-      setSummaryStep('input');
+    };
+
+    // Fire and forget — runs in background
+    processInBackground();
+  };
+
+  // -------------------------------------------------------
+  // Generate quiz in background (completely non-blocking)
+  // -------------------------------------------------------
+  const generateQuizInBackground = async (token: string, content: string, title: string, summaryId: string, pendingId: string) => {
+    try {
+      const quizRes = await fetch('/api/gemini/quiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ content }),
+      });
+
+      const quizData = await quizRes.json();
+      if (quizData.success && quizData.data?.questions) {
+        await supabase.from('quizzes').insert({
+          user_id: profile.id,
+          title: `اختبار: ${title}`,
+          questions: quizData.data.questions,
+          summary_id: summaryId,
+        });
+        fetchQuizzes();
+        toast.success(`تم إنشاء اختبار لملخص "${title}"`);
+      }
+    } catch (quizErr) {
+      console.warn('Quiz generation failed (non-critical):', quizErr);
     }
   };
 
@@ -1108,7 +1140,23 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               </button>
             </div>
             <div className="max-h-80 overflow-y-auto custom-scrollbar">
-              {summaries.length === 0 ? (
+              {/* Pending summaries banner */}
+              {pendingSummaries.length > 0 && (
+                <div className="p-3 border-b bg-emerald-50/50">
+                  {pendingSummaries.map(ps => (
+                    <div key={ps.id} className="flex items-center gap-2 text-xs text-emerald-700 py-1">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span className="font-medium">{ps.title}</span>
+                      <span className="text-emerald-600/70">
+                        {ps.status === 'extracting' && '• استخراج النص...'}
+                        {ps.status === 'summarizing' && '• توليد الملخص...'}
+                        {ps.status === 'saving' && '• حفظ...'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {summaries.length === 0 && pendingSummaries.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground text-sm">
                   لا توجد ملخصات بعد
                 </div>
@@ -1209,8 +1257,30 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         </button>
       </motion.div>
 
+      {/* Pending summaries progress */}
+      {pendingSummaries.length > 0 && (
+        <motion.div variants={itemVariants} className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+            <span className="text-sm font-medium text-emerald-700">
+              جاري إنشاء {pendingSummaries.length} ملخص...
+            </span>
+          </div>
+          {pendingSummaries.map(ps => (
+            <div key={ps.id} className="flex items-center gap-2 text-xs text-emerald-700 py-1 mr-6">
+              <span className="font-medium">{ps.title}</span>
+              <span className="text-emerald-600/70">
+                {ps.status === 'extracting' && '• استخراج النص...'}
+                {ps.status === 'summarizing' && '• توليد الملخص...'}
+                {ps.status === 'saving' && '• حفظ...'}
+              </span>
+            </div>
+          ))}
+        </motion.div>
+      )}
+
       {/* Summaries grid */}
-      {summaries.length === 0 ? (
+      {summaries.length === 0 && pendingSummaries.length === 0 ? (
         <motion.div
           variants={itemVariants}
           className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16"
@@ -1281,9 +1351,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => {
-              if (!creatingSummary) setNewSummaryOpen(false);
-            }}
+            onClick={() => setNewSummaryOpen(false)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
@@ -1301,9 +1369,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   ملخص جديد
                 </h3>
                 <button
-                  onClick={() => {
-                    if (!creatingSummary) setNewSummaryOpen(false);
-                  }}
+                  onClick={() => setNewSummaryOpen(false)}
                   className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
                 >
                   <X className="h-4 w-4" />
@@ -1321,7 +1387,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     onChange={(e) => setSummaryTitle(e.target.value)}
                     placeholder="مثال: ملخص الفصل الثالث - الفيزياء"
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
-                    disabled={creatingSummary}
                     dir="rtl"
                   />
                 </div>
@@ -1332,7 +1397,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSummaryInputMode('text')}
-                      disabled={creatingSummary}
+  
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'text'
                           ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
@@ -1344,7 +1409,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </button>
                     <button
                       onClick={() => setSummaryInputMode('file')}
-                      disabled={creatingSummary}
+  
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'file'
                           ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
@@ -1369,7 +1434,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       placeholder="الصق المحتوى الدراسي هنا..."
                       rows={6}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors resize-none"
-                      disabled={creatingSummary}
+  
                       dir="rtl"
                     />
                   </div>
@@ -1387,11 +1452,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       accept=".pdf"
                       onChange={(e) => setSummaryFile(e.target.files?.[0] || null)}
                       className="hidden"
-                      disabled={creatingSummary}
+  
                     />
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={creatingSummary}
+  
                       className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-6 transition-colors hover:border-emerald-400 hover:bg-emerald-50/50"
                     >
                       {summaryFile ? (
@@ -1413,51 +1478,25 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   </div>
                 )}
 
-                {/* Processing indicator */}
-                {summaryStep === 'processing' && creatingSummary && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-lg border border-emerald-200 bg-emerald-50 p-4"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-                      <div>
-                        <p className="text-sm font-medium text-emerald-700">
-                          {summaryInputMode === 'file' ? 'جاري استخراج النص وتوليد الملخص...' : 'جاري توليد الملخص بالذكاء الاصطناعي...'}
-                        </p>
-                        <p className="text-xs text-emerald-600/70 mt-0.5">قد يستغرق هذا بعض الوقت، يرجى الانتظار</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
+                {/* Processing indicator - removed, processing happens in background */}
               </div>
 
               {/* Modal footer */}
               <div className="flex items-center gap-3 border-t p-5">
                 <button
                   onClick={handleCreateSummary}
-                  disabled={creatingSummary}
-                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
                 >
-                  {creatingSummary ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      جاري الإنشاء...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4" />
-                      إنشاء الملخص
-                    </>
-                  )}
+                  <>
+                    <CheckCircle2 className="h-4 w-4" />
+                    إنشاء الملخص
+                  </>
                 </button>
                 <button
                   onClick={() => {
-                    if (!creatingSummary) setNewSummaryOpen(false);
+                    setNewSummaryOpen(false);
                   }}
-                  disabled={creatingSummary}
-                  className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
+                  className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
                 >
                   إلغاء
                 </button>
