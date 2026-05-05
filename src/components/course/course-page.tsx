@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft,
@@ -473,7 +474,11 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         {courseTab === 'assignments' && <AssignmentsTab {...commonProps} />}
         {courseTab === 'chat' && <ChatTab {...commonProps} />}
         {courseTab === 'students' && role === 'teacher' && <StudentsTab {...commonProps} />}
-        {courseTab === 'teams' && role === 'teacher' && <TeamsTab subjectId={subject.id} profile={profile} />}
+        {courseTab === 'teams' && role === 'teacher' && (
+          <SectionErrorBoundary name="المجموعات">
+            <TeamsTab subjectId={subject.id} profile={profile} />
+          </SectionErrorBoundary>
+        )}
       </Suspense>
     );
   };

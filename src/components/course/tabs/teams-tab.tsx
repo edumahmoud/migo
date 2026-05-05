@@ -358,7 +358,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         const teamMembers = members[team.id] || [];
         const sheetData = teamMembers.map((member, idx) => ({
           '#': idx + 1,
-          'الاسم': member.user ? formatNameWithTitle(member.user) : 'مستخدم',
+          'الاسم': member.user ? formatNameWithTitle(member.user.name, member.user.role, member.user.title_id, member.user.gender) : 'مستخدم',
           'البريد الإلكتروني': member.user?.email || '',
           'تاريخ الانضمام': member.joined_at ? new Date(member.joined_at).toLocaleDateString('ar-SA') : '',
         }));
@@ -407,7 +407,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         const teamMembers = members[team.id] || [];
         const sheetData = teamMembers.map((member, idx) => ({
           '#': idx + 1,
-          'الاسم': member.user ? formatNameWithTitle(member.user) : 'مستخدم',
+          'الاسم': member.user ? formatNameWithTitle(member.user.name, member.user.role, member.user.title_id, member.user.gender) : 'مستخدم',
           'البريد الإلكتروني': member.user?.email || '',
           'تاريخ الانضمام': member.joined_at ? new Date(member.joined_at).toLocaleDateString('ar-SA') : '',
         }));
@@ -583,8 +583,8 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             unassigned.map(student => (
               <div key={student.id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
                 <div className="flex items-center gap-3">
-                  <UserAvatar profile={student} size="sm" />
-                  <span className="text-sm font-medium">{formatNameWithTitle(student)}</span>
+                  <UserAvatar name={student.name || 'مستخدم'} avatarUrl={student.avatar_url} size="sm" />
+                  <span className="text-sm font-medium">{formatNameWithTitle(student.name, student.role, student.title_id, student.gender)}</span>
                 </div>
                 <Button
                   size="sm"
@@ -680,8 +680,8 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                   teamMembers.map((member) => (
                     <div key={member.id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-3">
-                        <UserAvatar profile={member.user} size="sm" />
-                        <span className="text-sm">{member.user ? formatNameWithTitle(member.user) : 'مستخدم'}</span>
+                        <UserAvatar name={member.user?.name || 'مستخدم'} avatarUrl={member.user?.avatar_url} size="sm" />
+                        <span className="text-sm">{member.user ? formatNameWithTitle(member.user.name, member.user.role, member.user.title_id, member.user.gender) : 'مستخدم'}</span>
                       </div>
                       <Button
                         size="sm"
