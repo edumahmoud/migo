@@ -958,11 +958,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
         } catch { /* ignore */ }
 
-        // Generate quiz in background (non-blocking) — delay 15s to avoid rate limiting
-        // Summary + Quiz back-to-back often triggers Groq rate limits
+        // Generate quiz in background (non-blocking) — delay 5s to let things settle
         setTimeout(() => {
           generateQuizInBackground(token, originalContent, title, savedSummaryId, pendingId);
-        }, 15000);
+        }, 5000);
 
         toast.success(`تم إنشاء ملخص "${title}" بنجاح`);
         // Also refresh from server to get the authoritative version
@@ -973,61 +972,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         if (err instanceof DOMException && err.name === 'AbortError') {
           // User cancelled
         } else if (err instanceof Error) {
-          const msg = err.message;
-          // If rate limited, auto-retry once after 20 seconds
-          if (msg.includes('تجاوز حصة') || msg.includes('rate_limit') || msg.includes('429')) {
-            toast.loading('تم تجاوز الحصة، سيتم إعادة المحاولة تلقائياً...', { duration: 5000, id: 'summary-retry' });
-            setTimeout(async () => {
-              try {
-                console.log('[Summary] Auto-retrying after rate limit...');
-                const retryToken = await waitForSession(5000);
-                if (!retryToken) return;
-
-                const retryRes = await fetch('/api/gemini/summary', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${retryToken}`,
-                  },
-                  body: JSON.stringify({ content: originalContent, title }),
-                });
-                const retryData = await retryRes.json();
-                if (retryRes.ok && retryData.success) {
-                  const retrySummaryContent = retryData.data?.summary || '';
-                  const retrySavedId = retryData.data?.summaryId || '';
-
-                  if (!retrySavedId && retrySummaryContent) {
-                    const { data: inserted, error: insertErr } = await supabase
-                      .from('summaries')
-                      .insert({ user_id: profile.id, title, original_content: originalContent, summary_content: retrySummaryContent })
-                      .select().single();
-                    if (!insertErr && inserted) {
-                      const newSum: Summary = { id: inserted.id, user_id: profile.id, title, original_content: originalContent, summary_content: retrySummaryContent, created_at: new Date().toISOString() };
-                      setSummaries(prev => [newSum, ...prev]);
-                      try { const c = localStorage.getItem(`summaries_${profile.id}`); const e = c ? JSON.parse(c) as Summary[] : []; localStorage.setItem(`summaries_${profile.id}`, JSON.stringify([newSum, ...e])); } catch {}
-                      toast.success(`تم إنشاء ملخص "${title}" بنجاح بعد إعادة المحاولة`, { id: 'summary-retry' });
-                      // Delayed quiz generation
-                      setTimeout(() => { generateQuizInBackground(retryToken, originalContent, title, inserted.id, pendingId); }, 15000);
-                    }
-                  } else if (retrySavedId) {
-                    const newSum: Summary = { id: retrySavedId, user_id: profile.id, title, original_content: originalContent, summary_content: retrySummaryContent, created_at: new Date().toISOString() };
-                    setSummaries(prev => [newSum, ...prev]);
-                    try { const c = localStorage.getItem(`summaries_${profile.id}`); const e = c ? JSON.parse(c) as Summary[] : []; localStorage.setItem(`summaries_${profile.id}`, JSON.stringify([newSum, ...e])); } catch {}
-                    toast.success(`تم إنشاء ملخص "${title}" بنجاح بعد إعادة المحاولة`, { id: 'summary-retry' });
-                    setTimeout(() => { generateQuizInBackground(retryToken, originalContent, title, retrySavedId, pendingId); }, 15000);
-                  }
-                  fetchSummaries();
-                } else {
-                  toast.error(retryData.error || 'فشلت إعادة المحاولة', { duration: 8000, id: 'summary-retry' });
-                }
-              } catch (retryErr) {
-                console.error('[Summary] Auto-retry failed:', retryErr);
-                toast.error('فشلت إعادة المحاولة التلقائية', { duration: 8000, id: 'summary-retry' });
-              }
-            }, 20000);
-          } else {
-            toast.error(msg, { duration: 8000, id: 'summary-error' });
-          }
+          toast.error(err.message, { duration: 8000, id: 'summary-error' });
         } else {
           toast.error(`فشل إنشاء ملخص "${title}"`, { duration: 8000, id: 'summary-error' });
         }
