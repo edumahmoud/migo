@@ -30,6 +30,7 @@ import {
   TrendingUp,
   XCircle,
   AlertTriangle,
+  ListChecks,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AppSidebar from '@/components/shared/app-sidebar';
@@ -191,6 +192,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [confirmIncomingAcceptAllOpen, setConfirmIncomingAcceptAllOpen] = useState(false);
   const [confirmIncomingRejectAllOpen, setConfirmIncomingRejectAllOpen] = useState(false);
   const [incomingPanelOpen, setIncomingPanelOpen] = useState(false);
+
+  // ─── Quiz config modal ───
+  const [quizConfigOpen, setQuizConfigOpen] = useState(false);
+  const [quizConfigSummaryId, setQuizConfigSummaryId] = useState<string | null>(null);
+  const [quizConfigSummaryTitle, setQuizConfigSummaryTitle] = useState('');
+  const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
+  const [quizAnswerMode, setQuizAnswerMode] = useState<'during' | 'after'>('after');
+  const [creatingQuizFromSummary, setCreatingQuizFromSummary] = useState(false);
 
   // ─── Teacher detail modal ───
   const [selectedTeacher, setSelectedTeacher] = useState<UserProfile | null>(null);
@@ -862,6 +871,108 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   };
 
   // -------------------------------------------------------
+  // Create quiz from summary (with config modal)
+  // -------------------------------------------------------
+  const handleCreateQuizFromSummary = async () => {
+    if (!quizConfigSummaryId) return;
+
+    const totalQ = quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching;
+    if (totalQ === 0) {
+      toast.error('يرجى اختيار نوع سؤال واحد على الأقل');
+      return;
+    }
+
+    setCreatingQuizFromSummary(true);
+    try {
+      // 1. Get the summary content
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
+      const summaryRes = await fetch('/api/summaries', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      let content = '';
+      if (summaryRes.ok) {
+        const { data } = await summaryRes.json();
+        const found = (data as Summary[])?.find((s) => s.id === quizConfigSummaryId);
+        if (found) {
+          content = found.summary_content || found.original_content || '';
+        }
+      }
+
+      if (!content) {
+        // Fallback to local state
+        const localSummary = summaries.find((s) => s.id === quizConfigSummaryId);
+        content = localSummary?.summary_content || localSummary?.original_content || '';
+      }
+
+      if (!content) {
+        toast.error('لم يتم العثور على محتوى الملخص');
+        return;
+      }
+
+      // 2. Call quiz generation API with config
+      const quizRes = await fetch('/api/gemini/quiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ content, questionTypes: quizConfigTypes }),
+      });
+      const quizData = await quizRes.json();
+
+      if (!quizRes.ok || !quizData.success) {
+        toast.error(quizData.error || 'فشل إنشاء الاختبار');
+        return;
+      }
+
+      // 3. Save the quiz
+      const saveRes = await fetch('/api/quizzes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: `اختبار: ${quizConfigSummaryTitle}`,
+          questions: quizData.data.questions,
+          summaryId: quizConfigSummaryId,
+          show_results: quizAnswerMode === 'after' ? false : true,
+        }),
+      });
+
+      if (saveRes.ok) {
+        toast.success('تم إنشاء الاختبار بنجاح');
+        fetchQuizzes();
+        setQuizConfigOpen(false);
+        setQuizConfigSummaryId(null);
+      } else {
+        // Fallback: try client-side insert
+        const { error } = await supabase.from('quizzes').insert({
+          user_id: profile.id,
+          title: `اختبار: ${quizConfigSummaryTitle}`,
+          questions: quizData.data.questions,
+          summary_id: quizConfigSummaryId,
+          show_results: quizAnswerMode === 'after' ? false : true,
+        });
+        if (!error) {
+          toast.success('تم إنشاء الاختبار بنجاح');
+          fetchQuizzes();
+          setQuizConfigOpen(false);
+          setQuizConfigSummaryId(null);
+        } else {
+          toast.error('فشل حفظ الاختبار');
+        }
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء إنشاء الاختبار');
+    } finally {
+      setCreatingQuizFromSummary(false);
+    }
+  };
+
+  // -------------------------------------------------------
   // Link teacher handler (two-step: search then confirm)
   // -------------------------------------------------------
   const getAuthHeaders = async () => {
@@ -1464,6 +1575,22 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   )}
                 </button>
 
+                {/* Create Quiz button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setQuizConfigSummaryId(summary.id);
+                    setQuizConfigSummaryTitle(summary.title);
+                    setQuizConfigTypes({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
+                    setQuizAnswerMode('after');
+                    setQuizConfigOpen(true);
+                  }}
+                  className="absolute top-3 left-12 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-teal-50 hover:text-teal-600"
+                  title="إنشاء اختبار"
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                </button>
+
                 <button
                   onClick={() => setViewingSummaryId(summary.id)}
                   className="w-full text-right"
@@ -1487,6 +1614,131 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           ))}
         </motion.div>
       )}
+
+      {/* Quiz Config Modal */}
+      <AnimatePresence>
+        {quizConfigOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, pointerEvents: 'none' as const }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            onClick={() => setQuizConfigOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
+              dir="rtl"
+            >
+              {/* Modal header */}
+              <div className="flex items-center justify-between border-b p-5">
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-teal-600" />
+                  إنشاء اختبار
+                </h3>
+                <button
+                  onClick={() => setQuizConfigOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Modal body */}
+              <div className="p-5 space-y-5">
+                {/* Summary title */}
+                <div className="rounded-lg bg-teal-50/70 border border-teal-100 p-3">
+                  <p className="text-xs text-teal-600 mb-1">الملخص</p>
+                  <p className="text-sm font-medium text-teal-800 truncate">{quizConfigSummaryTitle}</p>
+                </div>
+
+                {/* Question types */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-foreground">أنواع الأسئلة وعددها</label>
+                  {([
+                    { key: 'mcq' as const, label: 'اختيار من متعدد', icon: <ListChecks className="h-4 w-4" /> },
+                    { key: 'boolean' as const, label: 'صح أو خطأ', icon: <CheckCircle2 className="h-4 w-4" /> },
+                    { key: 'completion' as const, label: 'أكمل الجملة', icon: <Type className="h-4 w-4" /> },
+                    { key: 'matching' as const, label: 'توصيل', icon: <Link2 className="h-4 w-4" /> },
+                  ]).map((qt) => (
+                    <div key={qt.key} className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        {qt.icon}
+                        {qt.label}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.max(0, prev[qt.key] - 1) }))}
+                          className="flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted transition-colors"
+                        >
+                          -
+                        </button>
+                        <span className="w-8 text-center text-sm font-bold text-foreground">{quizConfigTypes[qt.key]}</span>
+                        <button
+                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.min(5, prev[qt.key] + 1) }))}
+                          className="flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Answer display mode */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">عرض الإجابات</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setQuizAnswerMode('after')}
+                      className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
+                        quizAnswerMode === 'after'
+                          ? 'border-teal-500 bg-teal-50 text-teal-700'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      بعد الاختبار
+                    </button>
+                    <button
+                      onClick={() => setQuizAnswerMode('during')}
+                      className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
+                        quizAnswerMode === 'during'
+                          ? 'border-teal-500 bg-teal-50 text-teal-700'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      أثناء الاختبار
+                    </button>
+                  </div>
+                </div>
+
+                {/* Create button */}
+                <button
+                  onClick={handleCreateQuizFromSummary}
+                  disabled={creatingQuizFromSummary || (quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching === 0)}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {creatingQuizFromSummary ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      جاري الإنشاء...
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardList className="h-4 w-4" />
+                      إنشاء الاختبار
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* New Summary Modal */}
       <AnimatePresence>

@@ -3,17 +3,25 @@ import { generateQuiz } from '@/lib/gemini';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
+/**
+ * POST /api/gemini/quiz
+ *
+ * Generate a quiz from content with optional configuration.
+ *
+ * Body: {
+ *   content: string,
+ *   questionTypes?: { mcq?: number, boolean?: number, completion?: number, matching?: number },
+ *   totalQuestions?: number,
+ * }
+ */
 export async function POST(request: NextRequest) {
   try {
-    // Content-Type and size validation
     const validationError = validateRequest(request, { largeBody: true });
     if (validationError) return validationError;
 
-    // Authentication — do auth before rate limit so we can rate-limit per user
     const authResult = await authenticateRequest(request);
     if (!authResult.success) return authErrorResponse(authResult);
 
-    // Rate limiting — per user if authenticated, per IP otherwise
     const rateLimit = checkRateLimit(request, authResult.success ? authResult.user.id : undefined);
     const rateLimitHeaders = getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs);
     if (!rateLimit.allowed) {
@@ -25,6 +33,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const rawContent = body.content;
+    const questionTypes = body.questionTypes as { mcq?: number; boolean?: number; completion?: number; matching?: number } | undefined;
 
     if (!rawContent || typeof rawContent !== 'string' || rawContent.trim().length === 0) {
       return NextResponse.json(
@@ -33,7 +42,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sanitize and limit content length
     const sanitizedContent = sanitizeString(rawContent, 50000);
     if (sanitizedContent.length === 0) {
       return NextResponse.json(
@@ -43,8 +51,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate quiz using AI (Groq) with timeout
-    console.log('[Quiz API] Generating quiz for user:', authResult.user.id);
-    const quizPromise = generateQuiz(sanitizedContent);
+    console.log('[Quiz API] Generating quiz for user:', authResult.user.id, 'config:', questionTypes);
+    const quizPromise = generateQuiz(sanitizedContent, questionTypes);
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 90000)
     );

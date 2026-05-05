@@ -1,16 +1,14 @@
 /**
  * PDF Text Extraction Utility
  *
- * Centralized PDF text extraction that works reliably across
- * all deployment environments (local, Vercel, Docker, etc.).
+ * Centralized PDF text extraction using pdfjs-dist (v5).
+ * pdfjs-dist v5 provides better CMap support (critical for Arabic/RTL text),
+ * modern PDF handling, and is actively maintained.
  *
- * Uses a multi-strategy approach:
- *  1. Direct require() — works when pdf-parse is in serverExternalPackages
- *  2. eval('require') — fallback for Turbopack dev mode
- *  3. Dynamic import() — fallback for ESM-first environments
+ * Uses the legacy build for Node.js server-side rendering.
  */
 
-import type { NextRequest } from 'next/server';
+import path from 'path';
 import { NextResponse } from 'next/server';
 
 export interface PdfExtractionResult {
@@ -19,44 +17,93 @@ export interface PdfExtractionResult {
 }
 
 /**
- * Extract text from a PDF buffer using pdf-parse.
- * Tries multiple loading strategies for maximum compatibility.
+ * Extract text from a PDF buffer using pdfjs-dist v5.
+ * Dynamically imports the legacy build for server-side Node.js usage.
  */
 export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResult> {
-  // Strategy 1: Direct require (works with serverExternalPackages in next.config)
-  let pdfParse: ((buf: Buffer) => Promise<{ text: string; numpages: number }>) | null = null;
+  let pdfjsLib: typeof import('pdfjs-dist');
 
   try {
-    pdfParse = require('pdf-parse');
+    // Dynamic import of the legacy build for Node.js server-side usage
+    pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   } catch {
-    // Strategy 2: eval('require') to bypass Turbopack static analysis in dev
+    throw new Error('pdfjs-dist module is not available. Ensure pdfjs-dist is installed.');
+  }
+
+  // Disable worker for server-side usage (workers are browser-only)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+
+  // Set CMap URL for proper character mapping (critical for Arabic, CJK, etc.)
+  const cMapUrl = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'cmaps') + path.sep;
+
+  let doc: Awaited<ReturnType<typeof pdfjsLib.getDocument>['promise']>;
+
+  try {
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(buffer),
+      useSystemFonts: true,
+      disableFontFace: true,
+      cMapUrl,
+      cMapPacked: true,
+    });
+
+    doc = await loadingTask.promise;
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+
+    // Re-throw with recognizable error patterns for getPdfErrorMessage
+    if (errMsg.includes('password') || errMsg.includes('encrypted') || errMsg.includes('Password')) {
+      throw new Error('password protected or encrypted PDF');
+    }
+    if (errMsg.includes('Invalid PDF') || errMsg.includes('Invalid document')) {
+      throw new Error('Invalid PDF structure');
+    }
+
+    throw new Error(`Failed to load PDF: ${errMsg}`);
+  }
+
+  const numPages = doc.numPages;
+  const pageTexts: string[] = [];
+
+  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
     try {
-      // eslint-disable-next-line no-eval
-      pdfParse = eval('require')('pdf-parse');
+      const page = await doc.getPage(pageNum);
+      const textContent = await page.getTextContent({
+        normalizeWhitespace: true,
+        disableCombineTextItems: false,
+      });
+
+      // Combine text items, preserving spatial ordering
+      // Text items are ordered by their position in the PDF content stream
+      const pageText = textContent.items
+        .filter((item): item is { str: string; dir: string; transform: number[]; width: number; height: number; fontName: string; hasEOL: boolean } => 'str' in item)
+        .map((item) => {
+          let str = item.str;
+          // Add a newline if the item has an end-of-line marker
+          if (item.hasEOL) {
+            str += '\n';
+          }
+          return str;
+        })
+        .join(' ');
+
+      pageTexts.push(pageText);
     } catch {
-      // Strategy 3: Dynamic import (ESM fallback)
-      try {
-        const mod = await import('pdf-parse');
-        pdfParse = mod.default || mod;
-      } catch {
-        throw new Error('pdf-parse module is not available. Ensure pdf-parse is installed and listed in serverExternalPackages.');
-      }
+      // If a single page fails, add empty text and continue with other pages
+      pageTexts.push('');
     }
   }
 
-  if (!pdfParse || typeof pdfParse !== 'function') {
-    throw new Error('pdf-parse module loaded but is not a function');
-  }
+  // Clean up the document
+  doc.destroy();
 
-  const data = await pdfParse(buffer);
-  const text = data.text || '';
-  const pages = data.numpages || 0;
+  const text = pageTexts.join('\n\n');
 
   if (!text.trim()) {
     throw new Error('NO_TEXT_EXTRACTED');
   }
 
-  return { text, pages };
+  return { text, pages: numPages };
 }
 
 /**

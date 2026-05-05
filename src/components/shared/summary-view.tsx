@@ -18,6 +18,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Play,
+  ListChecks,
+  Type,
+  Link2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -63,6 +66,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   const [generatingQuiz, setGeneratingQuiz] = useState(false);
   const [regeneratingQuiz, setRegeneratingQuiz] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // ─── Quiz config states ───
+  const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
+  const [quizAnswerMode, setQuizAnswerMode] = useState<'during' | 'after'>('after');
+  const [showQuizConfig, setShowQuizConfig] = useState(false);
 
   // ─── Related quiz ───
   const [relatedQuiz, setRelatedQuiz] = useState<Quiz | null>(null);
@@ -203,17 +211,16 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   };
 
   // -------------------------------------------------------
-  // Generate quiz from summary
+  // Generate quiz from summary (with config)
   // -------------------------------------------------------
   const handleGenerateQuiz = async () => {
     setGeneratingQuiz(true);
     try {
-      // Generate quiz using the summary content
       const content = summary?.summary_content || summary?.original_content || '';
       const quizRes = await fetch('/api/gemini/quiz', {
         method: 'POST',
         headers: await getAuthHeaders(),
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, questionTypes: quizConfigTypes }),
       });
       const quizData = await quizRes.json();
 
@@ -230,6 +237,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
           title: `اختبار: ${summary?.title || 'ملخص'}`,
           questions: quizData.data.questions,
           summaryId,
+          show_results: quizAnswerMode === 'after' ? false : true,
         }),
       });
 
@@ -237,6 +245,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
         const saveData = await saveRes.json();
         setRelatedQuiz(saveData.data as Quiz);
         toast.success('تم إنشاء الاختبار بنجاح');
+        setShowQuizConfig(false);
       } else {
         toast.error('فشل حفظ الاختبار');
       }
@@ -528,6 +537,89 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
                 <p className="text-sm text-muted-foreground">جاري إنشاء الاختبار...</p>
                 <p className="text-xs text-muted-foreground/60">قد يستغرق هذا بضع ثوانٍ</p>
               </div>
+            ) : showQuizConfig ? (
+              <div className="space-y-4">
+                {/* Question types */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">أنواع الأسئلة وعددها</label>
+                  {([
+                    { key: 'mcq' as const, label: 'اختيار من متعدد', icon: <ListChecks className="h-4 w-4" /> },
+                    { key: 'boolean' as const, label: 'صح أو خطأ', icon: <CheckCircle2 className="h-4 w-4" /> },
+                    { key: 'completion' as const, label: 'أكمل الجملة', icon: <Type className="h-4 w-4" /> },
+                    { key: 'matching' as const, label: 'توصيل', icon: <Link2 className="h-4 w-4" /> },
+                  ]).map((qt) => (
+                    <div key={qt.key} className="flex items-center justify-between gap-3 rounded-lg border bg-card p-2.5">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        {qt.icon}
+                        {qt.label}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.max(0, prev[qt.key] - 1) }))}
+                          className="flex h-6 w-6 items-center justify-center rounded border text-muted-foreground hover:bg-muted transition-colors text-xs"
+                        >
+                          -
+                        </button>
+                        <span className="w-6 text-center text-sm font-bold text-foreground">{quizConfigTypes[qt.key]}</span>
+                        <button
+                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.min(5, prev[qt.key] + 1) }))}
+                          className="flex h-6 w-6 items-center justify-center rounded border text-muted-foreground hover:bg-muted transition-colors text-xs"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Answer display mode */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">عرض الإجابات</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setQuizAnswerMode('after')}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
+                        quizAnswerMode === 'after'
+                          ? 'border-teal-500 bg-teal-50 text-teal-700'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      بعد الاختبار
+                    </button>
+                    <button
+                      onClick={() => setQuizAnswerMode('during')}
+                      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
+                        quizAnswerMode === 'during'
+                          ? 'border-teal-500 bg-teal-50 text-teal-700'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      أثناء الاختبار
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm / Cancel */}
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleGenerateQuiz}
+                    disabled={generatingQuiz || (quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching === 0)}
+                    className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white"
+                    size="sm"
+                  >
+                    <ClipboardList className="h-4 w-4" />
+                    تأكيد الإنشاء
+                  </Button>
+                  <Button
+                    onClick={() => setShowQuizConfig(false)}
+                    variant="outline"
+                    size="sm"
+                    className="border-teal-300 text-teal-700 hover:bg-teal-50"
+                  >
+                    إلغاء
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-50">
@@ -535,7 +627,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
                 </div>
                 <p className="text-sm text-muted-foreground">لم يتم إنشاء اختبار بعد</p>
                 <Button
-                  onClick={handleGenerateQuiz}
+                  onClick={() => {
+                    setQuizConfigTypes({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
+                    setQuizAnswerMode('after');
+                    setShowQuizConfig(true);
+                  }}
                   disabled={generatingQuiz}
                   className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white"
                   size="sm"

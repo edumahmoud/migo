@@ -16,6 +16,7 @@ import {
   ListChecks,
   PenLine,
   ArrowLeftRight,
+  Lightbulb,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -105,6 +106,10 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   const [savingScore, setSavingScore] = useState(false);
   const [alreadyTaken, setAlreadyTaken] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
+
+  // ─── Explain wrong answer state ───
+  const [explainingIdx, setExplainingIdx] = useState<number | null>(null);
+  const [explanations, setExplanations] = useState<Record<number, string>>({});
 
   // -------------------------------------------------------
   // Fetch quiz
@@ -764,32 +769,70 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
 
                 {/* Feedback indicator */}
                 {answered && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex items-center gap-2 rounded-lg p-3 ${
-                      isCorrect
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-rose-50 text-rose-700'
-                    }`}
-                  >
-                    {isCorrect ? (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex items-center gap-2 rounded-lg p-3 ${
+                        isCorrect
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-rose-50 text-rose-700'
+                      }`}
+                    >
+                      {isCorrect ? (
+                        <>
+                          <CheckCircle2 className="h-5 w-5 shrink-0" />
+                          <span className="text-sm font-medium">إجابة صحيحة!</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-5 w-5 shrink-0" />
+                          <span className="text-sm font-medium">إجابة خاطئة</span>
+                          {currentQuestion.type !== 'matching' && currentQuestion.correctAnswer && (
+                            <span className="block text-sm text-rose-600 mt-1">
+                              الإجابة الصحيحة: {currentQuestion.correctAnswer}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </motion.div>
+
+                    {/* Explain wrong answer button */}
+                    {answered && !isCorrect && (
                       <>
-                        <CheckCircle2 className="h-5 w-5 shrink-0" />
-                        <span className="text-sm font-medium">إجابة صحيحة!</span>
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="h-5 w-5 shrink-0" />
-                        <span className="text-sm font-medium">إجابة خاطئة</span>
-                        {currentQuestion.type !== 'matching' && currentQuestion.correctAnswer && (
-                          <span className="block text-sm text-rose-600 mt-1">
-                            الإجابة الصحيحة: {currentQuestion.correctAnswer}
-                          </span>
+                        <button
+                          onClick={async () => {
+                            if (explainingIdx === currentIdx) return;
+                            setExplainingIdx(currentIdx);
+                            try {
+                              const { data: { session } } = await supabase.auth.getSession();
+                              const token = session?.access_token || '';
+                              const answerStr = currentQuestion.type === 'matching' ? JSON.stringify(matchedPairs) : (currentQuestion.type === 'completion' ? completionInput : selectedOption || '');
+                              const res = await fetch('/api/gemini/explain', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                                body: JSON.stringify({ question: currentQuestion.question, correctAnswer: currentQuestion.correctAnswer || '', studentAnswer: answerStr, questionType: currentQuestion.type }),
+                              });
+                              const data = await res.json();
+                              if (data.success) {
+                                setExplanations(prev => ({ ...prev, [currentIdx]: data.data.explanation }));
+                              }
+                            } catch { toast.error('حدث خطأ'); }
+                            finally { setExplainingIdx(null); }
+                          }}
+                          className="mt-2 flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:underline"
+                        >
+                          {explainingIdx === currentIdx ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lightbulb className="h-3 w-3" />}
+                          لماذا خطأ؟
+                        </button>
+                        {explanations[currentIdx] && (
+                          <div className="mt-2 rounded-lg bg-rose-50/50 border border-rose-100 p-3 text-sm text-rose-800 leading-relaxed">
+                            {explanations[currentIdx]}
+                          </div>
                         )}
                       </>
                     )}
-                  </motion.div>
+                  </>
                 )}
 
                 {/* Next / Finish button */}
@@ -1241,6 +1284,9 @@ interface ReviewQuestionCardProps {
 }
 
 function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardProps) {
+  const [explaining, setExplaining] = useState(false);
+  const [explanation, setExplanation] = useState<string | null>(null);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -1304,6 +1350,52 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                 </p>
               )}
             </div>
+          )}
+
+          {/* Explain wrong answer button */}
+          {userAnswer && !userAnswer.isCorrect && (
+            <>
+              <button
+                onClick={async () => {
+                  if (explaining) return;
+                  setExplaining(true);
+                  try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const token = session?.access_token || '';
+                    const answerStr = question.type === 'matching'
+                      ? JSON.stringify(userAnswer.answer)
+                      : String(userAnswer.answer || '');
+                    const res = await fetch('/api/gemini/explain', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                      body: JSON.stringify({
+                        question: question.question,
+                        correctAnswer: question.correctAnswer || '',
+                        studentAnswer: answerStr,
+                        questionType: question.type,
+                      }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setExplanation(data.data.explanation);
+                    }
+                  } catch {
+                    toast.error('حدث خطأ');
+                  } finally {
+                    setExplaining(false);
+                  }
+                }}
+                className="flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:underline"
+              >
+                {explaining ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lightbulb className="h-3 w-3" />}
+                لماذا خطأ؟
+              </button>
+              {explanation && (
+                <div className="mt-2 rounded-lg bg-rose-50/50 border border-rose-100 p-3 text-sm text-rose-800 leading-relaxed">
+                  {explanation}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

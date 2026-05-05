@@ -154,8 +154,21 @@ export interface QuizQuestion {
   pairs?: { key: string; value: string }[];
 }
 
-export async function generateQuiz(content: string): Promise<QuizQuestion[]> {
+export async function generateQuiz(content: string, questionTypes?: { mcq?: number; boolean?: number; completion?: number; matching?: number }): Promise<QuizQuestion[]> {
   return callWithFallback(async (modelId) => {
+    // Build question type configuration
+    const mcqCount = questionTypes?.mcq ?? 2;
+    const booleanCount = questionTypes?.boolean ?? 2;
+    const completionCount = questionTypes?.completion ?? 2;
+    const matchingCount = questionTypes?.matching ?? 2;
+    const totalCount = mcqCount + booleanCount + completionCount + matchingCount;
+
+    const typeConfig = [];
+    if (mcqCount > 0) typeConfig.push(`${mcqCount} اختيار من متعدد (mcq)`);
+    if (booleanCount > 0) typeConfig.push(`${booleanCount} صح أو خطأ (boolean)`);
+    if (completionCount > 0) typeConfig.push(`${completionCount} أكمل الفراغ (completion)`);
+    if (matchingCount > 0) typeConfig.push(`${matchingCount} مطابقة (matching)`);
+
     const text = await groqChat(
       modelId,
       `أنت مساعد تعليمي متخصص في إنشاء اختبارات تعليمية شاملة باللغة العربية. تقوم بإنشاء اختبارات بتنسيق JSON فقط.
@@ -167,7 +180,7 @@ export async function generateQuiz(content: string): Promise<QuizQuestion[]> {
 - للـ matching: { "type": "matching", "question": "عنوان السؤال", "pairs": [{"key": "المصطلح", "value": "التعريف"}] }
 
 قواعد إنشاء الأسئلة:
-1. أنشئ 8 أسئلة متنوعة تغطي الأنواع الأربعة (2 mcq, 2 boolean, 2 completion, 2 matching)
+1. أنشئ ${totalCount} سؤال بالتوزيع التالي: ${typeConfig.join('، ')}
 2. تأكد أن الأسئلة تغطي مختلف جوانب المحتوى ولا تركز على جزء واحد
 3. اجعل الأسئلة واضحة ومحددة بدون غموض
 4. في أسئلة MCQ، اجعل الخيارات متقاربة في الصحة لزيادة التحدي
@@ -176,7 +189,7 @@ export async function generateQuiz(content: string): Promise<QuizQuestion[]> {
 7. تأكد أن جميع الإجابات صحيحة بناءً على المحتوى المقدم
 8. احرص على صحة المعلومات العلمية في الأسئلة والإجابات
 9. تأكد أن الرد JSON صالح فقط بدون أي نص إضافي`,
-      `بناءً على المحتوى التالي، قم بإنشاء اختبار شامل مكون من 8 أسئلة متنوعة:\n\n${content}`,
+      `بناءً على المحتوى التالي، قم بإنشاء اختبار شامل مكون من ${totalCount} سؤال بالتوزيع المحدد:\n\n${content}`,
       { temperature: 0.5, maxTokens: 4096 }
     );
 
@@ -224,5 +237,37 @@ export async function evaluateCompletionAnswer(
     );
 
     return text.trim().toLowerCase().includes('true');
+  });
+}
+
+// -------------------------------------------------------
+// Explain wrong answer
+// -------------------------------------------------------
+export async function explainWrongAnswer(
+  question: string,
+  correctAnswer: string,
+  studentAnswer: string,
+  questionType: string
+): Promise<string> {
+  return callWithFallback(async (modelId) => {
+    return groqChat(
+      modelId,
+      `أنت معلم ذكي ومتمرس. يقوم طالب بالإجابة على سؤال بشكل خاطئ، ومطلوب منك شرح سبب الخطأ وتوضيح الإجابة الصحيحة بأسلوب تعليمي مبسط ومشجع.
+
+قواعد الشرح:
+1. ابدأ بذكر أن الإجابة خاطئة بلطف
+2. اشرح لماذا إجابة الطالب خاطئة (الفكرة اللي التبست عليه)
+3. اشرح الإجابة الصحيحة بالتفصيل مع ذكر السبب
+4. استخدم أمثلة أو تشبيهات بسيطة لو مناسب
+5. كن مشجعاً ومحفزاً - الهدف التعلم مش التوبيخ
+6. اجعل الشرح مختصر (3-5 أسطر) ومفيد`,
+      `نوع السؤال: ${questionType}
+السؤال: ${question}
+الإجابة الصحيحة: ${correctAnswer}
+إجابة الطالب: ${studentAnswer}
+
+اشرح سبب الخطأ ووضح الإجابة الصحيحة:`,
+      { temperature: 0.4, maxTokens: 512 }
+    );
   });
 }
