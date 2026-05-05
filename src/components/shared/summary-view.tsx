@@ -83,7 +83,15 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      let token = session?.access_token || '';
+
+      // If session not yet hydrated, wait briefly and retry (critical on mobile)
+      if (!token) {
+        console.warn('[fetchSummary] No token yet, waiting for session...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const { data: { session: retrySession } } = await supabase.auth.getSession();
+        token = retrySession?.access_token || '';
+      }
 
       // Try server-side API first (bypasses RLS)
       const res = await fetch('/api/summaries', {
@@ -97,6 +105,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
         } else {
           setError('لم يتم العثور على الملخص');
         }
+      } else if (res.status === 401 && !token) {
+        // Auth not ready yet — retry via auth state change listener
+        console.warn('[fetchSummary] Auth not ready, will retry on auth state change');
+        setError('جاري تحميل الجلسة...');
       } else {
         // Fallback to direct query
         const { data, error: fetchError } = await supabase
@@ -145,6 +157,23 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   useEffect(() => {
     fetchSummary();
     fetchRelatedQuiz();
+  }, [fetchSummary, fetchRelatedQuiz]);
+
+  // ─── Re-fetch summary when auth session becomes available (mobile fix) ───
+  useEffect(() => {
+    let cancelled = false;
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (cancelled) return;
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
+        console.log('[SummaryView] Session ready, re-fetching summary...');
+        fetchSummary();
+        fetchRelatedQuiz();
+      }
+    });
+    return () => {
+      cancelled = true;
+      authListener?.subscription?.unsubscribe();
+    };
   }, [fetchSummary, fetchRelatedQuiz]);
 
   // -------------------------------------------------------

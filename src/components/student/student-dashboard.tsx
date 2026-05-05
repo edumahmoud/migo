@@ -212,15 +212,27 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // -------------------------------------------------------
   const fetchSummaries = useCallback(async () => {
     try {
-      // Use server-side API to fetch summaries (bypasses RLS issues)
+      // Wait for auth session to be available (critical on mobile where session hydration is slower)
       const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      let token = session?.access_token || '';
+
+      // If session not yet hydrated, wait briefly and retry
+      if (!token) {
+        console.warn('[fetchSummaries] No token yet, waiting for session...');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const { data: { session: retrySession } } = await supabase.auth.getSession();
+        token = retrySession?.access_token || '';
+      }
+
       const res = await fetch('/api/summaries', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
       if (res.ok) {
         const { data } = await res.json();
         setSummaries((data as Summary[]) || []);
+      } else if (res.status === 401 && !token) {
+        // Auth not ready yet — don't clear existing summaries, just log
+        console.warn('[fetchSummaries] Auth not ready, will retry on auth state change');
       } else {
         // Fallback to direct Supabase query (might fail due to RLS)
         console.warn('[fetchSummaries] Server API failed, trying direct query...');
@@ -472,6 +484,24 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // ─── Re-fetch summaries when auth session becomes available ───
+  // On mobile, session hydration can be slow, so we listen for auth state changes
+  // and retry fetching if we didn't have a token on the first attempt.
+  useEffect(() => {
+    let cancelled = false;
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (cancelled) return;
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
+        console.log('[Auth] Session ready, re-fetching summaries...');
+        fetchSummaries();
+      }
+    });
+    return () => {
+      cancelled = true;
+      authListener?.subscription?.unsubscribe();
+    };
+  }, [fetchSummaries]);
 
   // -------------------------------------------------------
   // Realtime subscriptions
@@ -1559,14 +1589,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           {summaries.map((summary) => (
             <motion.div key={summary.id} variants={itemVariants} {...cardHover}>
               <div className="group relative rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
-                {/* Delete button */}
+                {/* Delete button — always visible on mobile, hover-only on desktop */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDeleteSummary(summary.id);
                   }}
                   disabled={deletingSummaryId === summary.id}
-                  className="absolute top-3 left-3 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-50 hover:text-rose-600"
+                  className="absolute top-3 left-3 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-rose-50 hover:text-rose-600"
                 >
                   {deletingSummaryId === summary.id ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1575,7 +1605,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   )}
                 </button>
 
-                {/* Create Quiz button */}
+                {/* Create Quiz button — always visible on mobile, hover-only on desktop */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1585,7 +1615,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     setQuizAnswerMode('after');
                     setQuizConfigOpen(true);
                   }}
-                  className="absolute top-3 left-12 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:bg-teal-50 hover:text-teal-600"
+                  className="absolute top-3 left-12 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-teal-50 hover:text-teal-600"
                   title="إنشاء اختبار"
                 >
                   <ClipboardList className="h-3.5 w-3.5" />
