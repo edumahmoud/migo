@@ -33,8 +33,9 @@ export async function extractPdfTextClient(file: File): Promise<PdfExtractionRes
     // Dynamic import — only loads pdfjs-dist in the browser
     const pdfjsLib = await import('pdfjs-dist');
 
-    // Configure worker from CDN (works in all browsers)
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    // Configure worker — served from our own /public directory
+    // (CDN URLs are unreliable for specific versions like 5.6.205)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
