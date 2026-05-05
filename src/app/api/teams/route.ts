@@ -198,6 +198,37 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'معرف الفريق مطلوب' }, { status: 400 });
         }
 
+        // Verify the teacher owns the subject this team belongs to
+        const { data: teamInfo } = await supabaseServer
+          .from('subject_teams')
+          .select('subject_id')
+          .eq('id', teamId)
+          .single();
+
+        if (!teamInfo) {
+          return NextResponse.json({ error: 'المجموعة غير موجودة' }, { status: 404 });
+        }
+
+        const { data: subject } = await supabaseServer
+          .from('subjects')
+          .select('teacher_id')
+          .eq('id', teamInfo.subject_id)
+          .single();
+
+        if (!subject || (subject.teacher_id !== authResult.user.id && authResult.user.role !== 'admin' && authResult.user.role !== 'superadmin')) {
+          // Also check co-teacher
+          const { data: coTeacher } = await supabaseServer
+            .from('subject_teachers')
+            .select('teacher_id')
+            .eq('subject_id', teamInfo.subject_id)
+            .eq('teacher_id', authResult.user.id)
+            .maybeSingle();
+
+          if (!coTeacher) {
+            return NextResponse.json({ error: 'غير مصرح بتعديل هذه المجموعة' }, { status: 403 });
+          }
+        }
+
         const updates: Record<string, unknown> = {};
         if (name !== undefined) updates.name = name.trim();
         if (level !== undefined) updates.level = level?.trim() || null;
@@ -211,8 +242,15 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (error) {
+          if (error.code === '23505') {
+            return NextResponse.json({ error: 'يوجد مجموعة بنفس الاسم في هذا المقرر' }, { status: 409 });
+          }
           console.error('[Teams API] Update error:', error);
-          return NextResponse.json({ error: 'فشل تحديث الفريق' }, { status: 500 });
+          return NextResponse.json({ error: 'فشل تحديث المجموعة' }, { status: 500 });
+        }
+
+        if (!team) {
+          return NextResponse.json({ error: 'فشل تحديث المجموعة - لم يتم العثور على البيانات' }, { status: 500 });
         }
 
         return NextResponse.json({ team });
@@ -224,6 +262,34 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'معرف الفريق مطلوب' }, { status: 400 });
         }
 
+        // Verify the teacher owns the subject this team belongs to
+        const { data: teamToDelete } = await supabaseServer
+          .from('subject_teams')
+          .select('subject_id')
+          .eq('id', teamId)
+          .single();
+
+        if (teamToDelete) {
+          const { data: subject } = await supabaseServer
+            .from('subjects')
+            .select('teacher_id')
+            .eq('id', teamToDelete.subject_id)
+            .single();
+
+          if (!subject || (subject.teacher_id !== authResult.user.id && authResult.user.role !== 'admin' && authResult.user.role !== 'superadmin')) {
+            const { data: coTeacher } = await supabaseServer
+              .from('subject_teachers')
+              .select('teacher_id')
+              .eq('subject_id', teamToDelete.subject_id)
+              .eq('teacher_id', authResult.user.id)
+              .maybeSingle();
+
+            if (!coTeacher) {
+              return NextResponse.json({ error: 'غير مصرح بحذف هذه المجموعة' }, { status: 403 });
+            }
+          }
+        }
+
         const { error } = await supabaseServer
           .from('subject_teams')
           .delete()
@@ -231,7 +297,7 @@ export async function POST(request: NextRequest) {
 
         if (error) {
           console.error('[Teams API] Delete error:', error);
-          return NextResponse.json({ error: 'فشل حذف الفريق' }, { status: 500 });
+          return NextResponse.json({ error: 'فشل حذف المجموعة' }, { status: 500 });
         }
 
         return NextResponse.json({ success: true });
