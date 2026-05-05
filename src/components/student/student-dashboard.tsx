@@ -202,16 +202,41 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Data fetching
   // -------------------------------------------------------
   const fetchSummaries = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('summaries')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching summaries:', error);
-    } else {
-      setSummaries((data as Summary[]) || []);
+    try {
+      // Use server-side API to fetch summaries (bypasses RLS issues)
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const res = await fetch('/api/summaries', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        setSummaries((data as Summary[]) || []);
+      } else {
+        // Fallback to direct Supabase query (might fail due to RLS)
+        console.warn('[fetchSummaries] Server API failed, trying direct query...');
+        const { data, error } = await supabase
+          .from('summaries')
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('created_at', { ascending: false });
+        if (error) {
+          console.error('Error fetching summaries (fallback):', error);
+        } else {
+          setSummaries((data as Summary[]) || []);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching summaries:', err);
+      // Fallback to direct Supabase query
+      const { data, error } = await supabase
+        .from('summaries')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        setSummaries((data as Summary[]) || []);
+      }
     }
   }, [profile.id]);
 
@@ -594,14 +619,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
         let originalContent = '';
         let summaryContent = '';
+        let savedSummaryId = '';
 
         // Step 1: Get content (text or extract from PDF on server)
         if (inputMode === 'file' && capturedFile) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
-          // Send PDF to server for extraction + summarization in one request
+          // Send PDF to server for extraction + summarization + save in one request
           const formData = new FormData();
           formData.append('file', capturedFile);
+          formData.append('title', title);
 
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
 
@@ -616,7 +643,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           });
 
           const summaryData = await summaryRes.json();
-          console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error);
+          console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error, 'saved:', summaryData.data?.saved);
 
           if (!summaryRes.ok || !summaryData.success) {
             throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
@@ -624,6 +651,30 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
           summaryContent = summaryData.data?.summary || '';
           originalContent = summaryData.data?.extractedText || `[ملف PDF: ${capturedFile.name}]`;
+          savedSummaryId = summaryData.data?.summaryId || '';
+
+          // Check if server saved the summary
+          if (!summaryData.data?.saved) {
+            console.warn('[Summary] Server did not save summary, attempting client-side fallback...');
+            // Fallback: try client-side insert
+            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
+            const { data: insertedSummary, error: summaryError } = await supabase
+              .from('summaries')
+              .insert({
+                user_id: profile.id,
+                title,
+                original_content: originalContent,
+                summary_content: summaryContent,
+              })
+              .select()
+              .single();
+
+            if (summaryError) {
+              console.error('[Summary] Client-side insert also failed:', summaryError.message);
+              throw new Error(`فشل حفظ الملخص: ${summaryError.message}`);
+            }
+            savedSummaryId = insertedSummary.id;
+          }
         } else {
           // Text mode
           originalContent = capturedText;
@@ -637,48 +688,55 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ content: originalContent }),
+            body: JSON.stringify({ content: originalContent, title }),
             signal: abortController.signal,
           });
 
           const summaryData = await summaryRes.json();
-          console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error);
+          console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error, 'saved:', summaryData.data?.saved);
 
           if (!summaryRes.ok || !summaryData.success) {
             throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
           }
 
           summaryContent = summaryData.data?.summary || '';
+          savedSummaryId = summaryData.data?.summaryId || '';
+
+          // Check if server saved the summary
+          if (!summaryData.data?.saved) {
+            console.warn('[Summary] Server did not save summary, attempting client-side fallback...');
+            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
+            const { data: insertedSummary, error: summaryError } = await supabase
+              .from('summaries')
+              .insert({
+                user_id: profile.id,
+                title,
+                original_content: originalContent,
+                summary_content: summaryContent,
+              })
+              .select()
+              .single();
+
+            if (summaryError) {
+              console.error('[Summary] Client-side insert also failed:', summaryError.message);
+              throw new Error(`فشل حفظ الملخص: ${summaryError.message}`);
+            }
+            savedSummaryId = insertedSummary.id;
+          }
         }
 
         if (!summaryContent) {
           throw new Error('لم يتم إنشاء محتوى الملخص — رد الذكاء الاصطناعي فارغ');
         }
 
-        // Save summary to supabase
-        setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-
-        console.log('[Summary] Saving to DB, user:', profile.id, 'title:', title);
-        const { data: insertedSummary, error: summaryError } = await supabase
-          .from('summaries')
-          .insert({
-            user_id: profile.id,
-            title,
-            original_content: originalContent,
-            summary_content: summaryContent,
-          })
-          .select()
-          .single();
-
-        if (summaryError) {
-          console.error('[Summary] Insert failed:', summaryError.message, summaryError.code, summaryError.details);
-          throw new Error(`فشل حفظ الملخص: ${summaryError.message}`);
+        if (!savedSummaryId) {
+          throw new Error('فشل حفظ الملخص — لم يتم استلام معرف الملخص من الخادم');
         }
 
-        console.log('[Summary] Saved successfully:', insertedSummary.id);
+        console.log('[Summary] Saved successfully, id:', savedSummaryId);
 
         // Generate quiz in background (non-blocking)
-        generateQuizInBackground(token, originalContent, title, insertedSummary.id, pendingId);
+        generateQuizInBackground(token, originalContent, title, savedSummaryId, pendingId);
 
         toast.success(`تم إنشاء ملخص "${title}" بنجاح`);
         fetchSummaries();
@@ -718,14 +776,36 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
       const quizData = await quizRes.json();
       if (quizData.success && quizData.data?.questions) {
-        await supabase.from('quizzes').insert({
-          user_id: profile.id,
-          title: `اختبار: ${title}`,
-          questions: quizData.data.questions,
-          summary_id: summaryId,
+        // Use server-side API to save quiz (bypasses RLS)
+        const saveRes = await fetch('/api/quizzes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: `اختبار: ${title}`,
+            questions: quizData.data.questions,
+            summaryId,
+          }),
         });
-        fetchQuizzes();
-        toast.success(`تم إنشاء اختبار لملخص "${title}"`);
+        if (saveRes.ok) {
+          fetchQuizzes();
+          toast.success(`تم إنشاء اختبار لملخص "${title}"`);
+        } else {
+          // Fallback: try client-side insert
+          console.warn('[Quiz] Server save failed, trying client-side...');
+          const { error } = await supabase.from('quizzes').insert({
+            user_id: profile.id,
+            title: `اختبار: ${title}`,
+            questions: quizData.data.questions,
+            summary_id: summaryId,
+          });
+          if (!error) {
+            fetchQuizzes();
+            toast.success(`تم إنشاء اختبار لملخص "${title}"`);
+          }
+        }
       }
     } catch (quizErr) {
       console.warn('Quiz generation failed (non-critical):', quizErr);
@@ -738,15 +818,44 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const handleDeleteSummary = async (summaryId: string) => {
     setDeletingSummaryId(summaryId);
     try {
-      const { error } = await supabase.from('summaries').delete().eq('id', summaryId);
-      if (error) {
-        toast.error('حدث خطأ أثناء حذف الملخص');
-      } else {
+      // Use server-side API to delete (bypasses RLS issues)
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const res = await fetch('/api/summaries', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ summaryId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
         toast.success('تم حذف الملخص بنجاح');
         fetchSummaries();
+      } else {
+        // Fallback to direct Supabase delete
+        const { error } = await supabase.from('summaries').delete().eq('id', summaryId);
+        if (error) {
+          toast.error(data.error || 'حدث خطأ أثناء حذف الملخص');
+        } else {
+          toast.success('تم حذف الملخص بنجاح');
+          fetchSummaries();
+        }
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      // Fallback to direct Supabase delete
+      try {
+        const { error } = await supabase.from('summaries').delete().eq('id', summaryId);
+        if (error) {
+          toast.error('حدث خطأ أثناء حذف الملخص');
+        } else {
+          toast.success('تم حذف الملخص بنجاح');
+          fetchSummaries();
+        }
+      } catch {
+        toast.error('حدث خطأ غير متوقع');
+      }
     } finally {
       setDeletingSummaryId(null);
     }
