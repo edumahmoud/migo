@@ -8,9 +8,9 @@
  *   - /api/gemini/evaluate → Fill-in-the-blank answer evaluation
  *
  * Model strategy:
- *   Primary:  llama-3.3-70b-versatile → best quality for Arabic, separate quota
- *   Fallback: llama-3.1-8b-instant    → fast, lightweight, separate quota
- *   Fallback: llama3-70b-8192         → older but stable
+ *   Primary:  llama-3.3-70b-versatile → best quality for Arabic
+ *   Fallback: qwen/qwen3-32b          → excellent understanding & writing
+ *   Fallback: llama-3.1-8b-instant    → ultra-fast, lightweight
  *
  * Groq is 10-100x faster than Gemini/OpenAI for inference, making it ideal
  * for real-time educational tools like summarization and quiz generation.
@@ -38,7 +38,7 @@ function getClient(): Groq {
 // Model selection — try primary, fall back to alternatives
 // -------------------------------------------------------
 const PRIMARY_MODEL = 'llama-3.3-70b-versatile';
-const FALLBACK_MODELS = ['llama-3.1-8b-instant', 'llama3-70b-8192'];
+const FALLBACK_MODELS = ['qwen/qwen3-32b', 'llama-3.1-8b-instant'];
 
 async function callWithFallback<T>(fn: (modelId: string) => Promise<T>): Promise<T> {
   const modelsToTry = [PRIMARY_MODEL, ...FALLBACK_MODELS];
