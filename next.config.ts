@@ -11,6 +11,23 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
   // Exclude pdfjs-dist from bundling so it's resolved at runtime
   serverExternalPackages: ['pdfjs-dist'],
+  // Ensure pdfjs-dist worker, cmaps, and standard fonts are included in
+  // Vercel serverless deployments. Output file tracing only includes files
+  // that are statically imported; the worker and cmaps are loaded dynamically
+  // at runtime and would be missed without explicit inclusion.
+  // Key = route pattern, value = array of file globs relative to project root.
+  outputFileTracingIncludes: {
+    '/api/gemini/summary': [
+      './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
+      './node_modules/pdfjs-dist/cmaps/**/*',
+      './node_modules/pdfjs-dist/standard_fonts/**/*',
+    ],
+    '/api/gemini/extract-pdf': [
+      './node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs',
+      './node_modules/pdfjs-dist/cmaps/**/*',
+      './node_modules/pdfjs-dist/standard_fonts/**/*',
+    ],
+  },
   allowedDevOrigins: [
     '.space.z.ai',
     '.z.ai',

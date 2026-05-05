@@ -5,16 +5,49 @@
  * pdfjs-dist v5 provides better CMap support (critical for Arabic/RTL text),
  * modern PDF handling, and is actively maintained.
  *
- * Uses the legacy build for Node.js server-side rendering.
- * Falls back to pdf-parse if pdfjs-dist fails.
+ * Key design decisions:
+ * - Uses the legacy build for Node.js server-side rendering
+ * - Does NOT override GlobalWorkerOptions.workerSrc — pdfjs-dist v5 detects
+ *   Node.js automatically, disables the web Worker, and uses a "fake worker"
+ *   that dynamically imports the worker module relative to itself. Overriding
+ *   workerSrc with an absolute path breaks this in Vercel/serverless where
+ *   process.cwd()/node_modules doesn't exist.
+ * - CMap URL is resolved using require.resolve instead of process.cwd() for
+ *   the same reason — the module location is reliable in all environments.
+ * - Falls back to pdf-parse (loaded via createRequire to avoid the ESM
+ *   module.parent bug) if pdfjs-dist fails.
  */
 
 import path from 'path';
+import { createRequire } from 'module';
 import { NextResponse } from 'next/server';
 
 export interface PdfExtractionResult {
   text: string;
   pages: number;
+}
+
+/**
+ * Resolve the CMap directory path in a way that works in all environments
+ * (local dev, Vercel serverless, Docker, etc.).
+ *
+ * We resolve the path relative to the pdfjs-dist module itself, NOT relative
+ * to process.cwd(). The cmaps directory is at node_modules/pdfjs-dist/cmaps/.
+ */
+function resolveCMapUrl(): string {
+  try {
+    // require.resolve finds the actual file path regardless of cwd
+    const pdfModulePath = require.resolve('pdfjs-dist/legacy/build/pdf.mjs');
+    // pdfModulePath = .../node_modules/pdfjs-dist/legacy/build/pdf.mjs
+    // cmaps are at  .../node_modules/pdfjs-dist/cmaps/
+    const cMapDir = path.resolve(path.dirname(pdfModulePath), '..', '..', 'cmaps');
+    return cMapDir + path.sep;
+  } catch {
+    // Fallback: try process.cwd() based path (works in local dev)
+    const fallback = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'cmaps') + path.sep;
+    console.warn('[PDF] Could not resolve pdfjs-dist module path for CMap URL, using fallback:', fallback);
+    return fallback;
+  }
 }
 
 /**
@@ -33,6 +66,7 @@ export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResul
     try {
       return await extractWithPdfParse(buffer);
     } catch (parseErr) {
+      console.error('[PDF] pdf-parse fallback also failed:', parseErr instanceof Error ? parseErr.message : String(parseErr));
       // If both fail, throw the original pdfjs-dist error (it has better error categorization)
       throw pdfjsErr;
     }
@@ -41,6 +75,17 @@ export async function extractPdfText(buffer: Buffer): Promise<PdfExtractionResul
 
 /**
  * Extract text using pdfjs-dist v5 (primary method).
+ *
+ * CRITICAL: Do NOT set GlobalWorkerOptions.workerSrc!
+ * In pdfjs-dist v5, when running in Node.js (isNodeJS === true):
+ *   1. #isWorkerDisabled is automatically set to true
+ *   2. workerSrc defaults to "./pdf.worker.mjs" (relative to pdf.mjs)
+ *   3. The fake worker uses import(workerSrc) which resolves correctly
+ *      because it's relative to the module, not process.cwd()
+ *
+ * Overriding workerSrc with an absolute file:// URL breaks this mechanism
+ * in Vercel/serverless environments where process.cwd()/node_modules doesn't
+ * exist at the expected path.
  */
 async function extractWithPdfjs(buffer: Buffer): Promise<PdfExtractionResult> {
   let pdfjsLib: typeof import('pdfjs-dist');
@@ -48,27 +93,18 @@ async function extractWithPdfjs(buffer: Buffer): Promise<PdfExtractionResult> {
   try {
     // Dynamic import of the legacy build for Node.js server-side usage
     pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  } catch {
+  } catch (importErr) {
+    console.error('[PDF] Failed to import pdfjs-dist:', importErr);
     throw new Error('pdfjs-dist module is not available. Ensure pdfjs-dist is installed.');
   }
 
-  // Set the worker source — use file:// URL for compatibility with Next.js runtime
-  // pdfjs-dist v5 requires a worker even in Node.js server-side
-  const workerPath = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
-  const workerUrl = 'file://' + workerPath;
-  try {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
-  } catch {
-    // If file:// URL fails, try the bare file path
-    try {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = workerPath;
-    } catch {
-      // Last resort — leave empty and hope for the best
-    }
-  }
+  // DO NOT set GlobalWorkerOptions.workerSrc!
+  // pdfjs-dist v5 auto-detects Node.js and uses the fake worker with
+  // relative import("./pdf.worker.mjs") which resolves correctly.
+  // Setting it to an absolute path breaks in serverless environments.
 
-  // Set CMap URL for proper character mapping (critical for Arabic, CJK, etc.)
-  const cMapUrl = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'cmaps') + path.sep;
+  // Resolve CMap URL relative to the module (not process.cwd())
+  const cMapUrl = resolveCMapUrl();
 
   let doc: Awaited<ReturnType<typeof pdfjsLib.getDocument>['promise']>;
 
@@ -84,6 +120,8 @@ async function extractWithPdfjs(buffer: Buffer): Promise<PdfExtractionResult> {
     doc = await loadingTask.promise;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
+
+    console.error('[PDF] pdfjs-dist getDocument failed:', errMsg);
 
     // Re-throw with recognizable error patterns for getPdfErrorMessage
     if (errMsg.includes('password') || errMsg.includes('encrypted') || errMsg.includes('Password')) {
@@ -168,8 +206,9 @@ async function extractWithPdfjs(buffer: Buffer): Promise<PdfExtractionResult> {
       }).join('\n');
 
       pageTexts.push(pageText);
-    } catch {
+    } catch (pageErr) {
       // If a single page fails, add empty text and continue with other pages
+      console.warn(`[PDF] Failed to extract text from page ${pageNum}:`, pageErr instanceof Error ? pageErr.message : String(pageErr));
       pageTexts.push('');
     }
   }
@@ -188,25 +227,35 @@ async function extractWithPdfjs(buffer: Buffer): Promise<PdfExtractionResult> {
 
 /**
  * Extract text using pdf-parse (fallback method).
- * pdf-parse is older but works without worker configuration.
+ *
+ * CRITICAL: pdf-parse must be loaded via createRequire() instead of
+ * dynamic import(). The pdf-parse package checks `module.parent` to decide
+ * whether to run in debug mode (which tries to read a test PDF file).
+ * When loaded via ESM dynamic import(), module.parent is undefined, which
+ * triggers the debug path and causes an ENOENT error.
+ * Using createRequire() properly sets module.parent and avoids this bug.
  */
 async function extractWithPdfParse(buffer: Buffer): Promise<PdfExtractionResult> {
-  let pdfParse: (data: Buffer) => Promise<{ text: string; numpages: number }>;
-
   try {
-    const mod = await import('pdf-parse');
-    pdfParse = mod.default || mod;
-  } catch {
-    throw new Error('pdf-parse fallback is not available');
+    // Use createRequire to load pdf-parse as CommonJS (avoids module.parent bug)
+    const require = createRequire(import.meta.url);
+    const pdfParse: (data: Buffer) => Promise<{ text: string; numpages: number }> = require('pdf-parse');
+
+    const result = await pdfParse(buffer);
+
+    if (!result.text || !result.text.trim()) {
+      throw new Error('NO_TEXT_EXTRACTED');
+    }
+
+    return { text: result.text, pages: result.numpages };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    // Re-throw with more context
+    if (errMsg.includes('ENOENT') || errMsg.includes('test/data')) {
+      throw new Error('pdf-parse fallback module is misconfigured');
+    }
+    throw err;
   }
-
-  const result = await pdfParse(buffer);
-
-  if (!result.text || !result.text.trim()) {
-    throw new Error('NO_TEXT_EXTRACTED');
-  }
-
-  return { text: result.text, pages: result.numpages };
 }
 
 /**
@@ -273,9 +322,23 @@ export function getPdfErrorMessage(error: unknown): { message: string; status: n
     };
   }
 
-  if (errMsg.includes('workerSrc') || errMsg.includes('worker')) {
+  if (errMsg.includes('workerSrc') || errMsg.includes('worker') || errMsg.includes('fake worker')) {
     return {
       message: 'خطأ في إعداد معالج PDF. يرجى إعادة المحاولة أو استخدام نص مباشر',
+      status: 500,
+    };
+  }
+
+  if (errMsg.includes('module is not available') || errMsg.includes('pdfjs-dist')) {
+    return {
+      message: 'خدمة قراءة PDF غير متوفرة حالياً. يرجى المحاولة لاحقاً',
+      status: 503,
+    };
+  }
+
+  if (errMsg.includes('ENOENT') || errMsg.includes('Cannot find module')) {
+    return {
+      message: 'خطأ في تحميل مكونات PDF. يرجى إعادة المحاولة',
       status: 500,
     };
   }

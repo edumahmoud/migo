@@ -47,9 +47,17 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error: unknown) {
-    console.error('[Extract PDF API] Error:', error);
+    console.error('[Extract PDF API] Unexpected error:', error);
+    // Distinguish between auth errors and other unexpected errors
+    const errMsg = error instanceof Error ? error.message : String(error);
+    if (errMsg.includes('auth') || errMsg.includes('token') || errMsg.includes('Unauthorized')) {
+      return NextResponse.json(
+        { success: false, error: 'يرجى تسجيل الدخول مرة أخرى' },
+        { status: 401 }
+      );
+    }
     return NextResponse.json(
-      { success: false, error: 'توجد مشكلة في قراءة ملف PDF. تأكد أن الملف ليس محمياً أو تالفاً' },
+      { success: false, error: 'حدث خطأ غير متوقع أثناء معالجة الملف. يرجى المحاولة مرة أخرى' },
       { status: 500 }
     );
   }
