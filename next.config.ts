@@ -9,11 +9,12 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
-  // pdfjs-dist is kept as serverExternalPackage so Next.js doesn't try to bundle it
-  // (which would cause issues with its Worker references and large size).
-  // The primary PDF extraction method is pdf-parse (which bundles its own pdfjs),
-  // and pdfjs-dist is only used as a secondary fallback for better Arabic support.
-  serverExternalPackages: ['pdfjs-dist'],
+  // Both PDF libraries must be external packages — prevent webpack from
+  // bundling them. They use dynamic require() internally which breaks
+  // when bundled. pdf-parse is the primary extractor (bundles its own
+  // pdfjs v1.10.100). pdfjs-dist is kept external in case it's needed
+  // in the future but is NOT used in the current extraction logic.
+  serverExternalPackages: ['pdf-parse', 'pdfjs-dist'],
   allowedDevOrigins: [
     '.space.z.ai',
     '.z.ai',
