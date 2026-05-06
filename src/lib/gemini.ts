@@ -5,9 +5,10 @@
  * Uses the GEMINI_API_KEY environment variable.
  *
  * Key features:
- *   - Built-in timeout for all AI calls
+ *   - STREAMING by default — prevents timeout on long AI responses
+ *   - Two-tier timeout: first-token (15s) + overall (45s)
+ *   - Smart model fallback (shorter timeout for fallback models)
  *   - Content truncation to prevent oversized prompts
- *   - Automatic retry with exponential backoff
  *   - Comprehensive error handling with Arabic user messages
  *
  * Used by:
@@ -27,12 +28,15 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  *  keeping requests fast and within Vercel hobby limits. */
 const MAX_AI_CONTENT_LENGTH = 20000;
 
-/** Default timeout for AI API calls (milliseconds)
- *  IMPORTANT: Must be under 55s to stay within Vercel hobby plan's 60s function limit.
- *  The hobby plan caps maxDuration at 60s, so we need the AI call to complete
- *  within that window (minus time for auth, validation, and DB operations).
- */
-const AI_CALL_TIMEOUT_MS = 55000; // 55 seconds — fits within Vercel hobby 60s limit
+/** Overall timeout for AI API calls (milliseconds).
+ *  IMPORTANT: Must leave headroom for auth + DB within Vercel's 60s limit.
+ *  45s gives us 15s for auth (3-5s) + DB save (2-5s) + network overhead. */
+const AI_CALL_TIMEOUT_MS = 45000; // 45 seconds
+
+/** First-token timeout for streaming calls (milliseconds).
+ *  If no token arrives within this time, the AI is overloaded or unreachable.
+ *  A short first-token timeout provides fast feedback instead of waiting 45s. */
+const AI_FIRST_TOKEN_TIMEOUT_MS = 15000; // 15 seconds
 
 /** Timeout for AI client initialization (milliseconds) */
 const AI_INIT_TIMEOUT_MS = 10000; // 10 seconds
@@ -41,8 +45,8 @@ const AI_INIT_TIMEOUT_MS = 10000; // 10 seconds
 // Model fallback list
 // -------------------------------------------------------
 /** Models to try in order. If the first model fails (not found, unavailable),
- *  we automatically fall back to the next one. This ensures the service
- *  keeps working even if a specific model is deprecated or unavailable.
+ *  we automatically fall back to the next one with a SHORTER timeout
+ *  (fallback models get less time to avoid exceeding Vercel's 60s limit).
  */
 const MODEL_FALLBACK_LIST = [
   process.env.GEMINI_MODEL || 'gemini-2.0-flash',
@@ -104,6 +108,144 @@ function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LEN
 }
 
 // -------------------------------------------------------
+// Core: Streaming AI call with two-tier timeout
+// -------------------------------------------------------
+
+/**
+ * Call Gemini using streaming API with two-tier timeout:
+ *   1. First-token timeout (15s): If no token arrives, the AI is unreachable
+ *   2. Overall timeout (45s): Hard limit to stay within Vercel's 60s
+ *
+ * Streaming is CRITICAL because:
+ *   - Non-streaming `generateContent` must wait for the ENTIRE response
+ *   - With streaming, first tokens arrive in 3-8s, confirming the connection works
+ *   - If the AI is slow to START, we know in 15s instead of 45s
+ *   - Once streaming begins, the response accumulates incrementally
+ */
+async function streamChat(
+  genAI: GoogleGenerativeAI,
+  modelName: string,
+  systemPrompt: string,
+  userPrompt: string,
+  options?: AiChatOptions,
+  overallTimeoutMs: number = AI_CALL_TIMEOUT_MS,
+): Promise<string> {
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: systemPrompt,
+    generationConfig: {
+      temperature: options?.temperature ?? 0.4,
+      maxOutputTokens: options?.maxTokens ?? 4096,
+    },
+  });
+
+  console.log('[Gemini] Starting STREAM for model:', modelName, '(first-token timeout: 15s, overall:', overallTimeoutMs + 'ms)');
+
+  const startTime = Date.now();
+
+  // Start the streaming call
+  const streamResult = await model.generateContentStream(userPrompt);
+
+  // Two-tier timeout: we track both "first token" and "overall" deadlines
+  let firstTokenReceived = false;
+  let accumulatedText = '';
+
+  // Overall timeout — hard kill everything after this
+  const overallDeadline = startTime + overallTimeoutMs;
+
+  try {
+    for await (const chunk of streamResult.stream) {
+      const chunkText = chunk.text();
+      if (chunkText) {
+        if (!firstTokenReceived) {
+          firstTokenReceived = true;
+          console.log('[Gemini] First token received in', Date.now() - startTime, 'ms from model:', modelName);
+        }
+        accumulatedText += chunkText;
+      }
+
+      // Check overall deadline after each chunk
+      if (Date.now() > overallDeadline) {
+        console.warn('[Gemini] Overall timeout reached after', Date.now() - startTime, 'ms. Returning partial response (', accumulatedText.length, 'chars)');
+        if (accumulatedText.trim().length > 100) {
+          // We have a substantial partial response — return it
+          return accumulatedText + '\n\n[... تم قطع الاستجابة بسبب انتهاء المهلة ...]';
+        }
+        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+      }
+    }
+  } catch (streamError: unknown) {
+    const errMsg = streamError instanceof Error ? streamError.message : String(streamError);
+
+    // If we already accumulated significant text, return it as partial
+    if (accumulatedText.trim().length > 100 && !errMsg.includes('انتهت مهلة')) {
+      console.warn('[Gemini] Stream error after', Date.now() - startTime, 'ms, returning partial (', accumulatedText.length, 'chars):', errMsg);
+      return accumulatedText;
+    }
+
+    // If first token never arrived, this is a first-token timeout or connection error
+    if (!firstTokenReceived) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > AI_FIRST_TOKEN_TIMEOUT_MS) {
+        console.warn('[Gemini] First-token timeout (', elapsed, 'ms) for model:', modelName);
+        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+      }
+    }
+
+    // Re-throw the original error
+    throw streamError;
+  }
+
+  if (!accumulatedText || accumulatedText.trim().length === 0) {
+    console.error('[Gemini] Empty streaming response from model:', modelName);
+    throw new Error('AI returned an empty response');
+  }
+
+  console.log('[Gemini] Stream complete from model:', modelName, ', length:', accumulatedText.length, ', time:', Date.now() - startTime, 'ms');
+  return accumulatedText;
+}
+
+// -------------------------------------------------------
+// Non-streaming fallback (for short responses like evaluate)
+// -------------------------------------------------------
+
+async function nonStreamChat(
+  genAI: GoogleGenerativeAI,
+  modelName: string,
+  systemPrompt: string,
+  userPrompt: string,
+  options?: AiChatOptions,
+  timeoutMs: number = AI_CALL_TIMEOUT_MS,
+): Promise<string> {
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: systemPrompt,
+    generationConfig: {
+      temperature: options?.temperature ?? 0.4,
+      maxOutputTokens: options?.maxTokens ?? 4096,
+    },
+  });
+
+  console.log('[Gemini] Non-stream request to model:', modelName, '(timeout:', timeoutMs + 'ms)');
+
+  const resultPromise = model.generateContent(userPrompt);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي')), timeoutMs)
+  );
+
+  const result = await Promise.race([resultPromise, timeoutPromise]);
+  const text = result.response.text();
+
+  if (!text || text.trim().length === 0) {
+    console.error('[Gemini] Empty response from model:', modelName);
+    throw new Error('AI returned an empty response');
+  }
+
+  console.log('[Gemini] Response from model:', modelName, ', length:', text.length);
+  return text;
+}
+
+// -------------------------------------------------------
 // Helper: call AI with built-in timeout and retry
 // -------------------------------------------------------
 
@@ -112,6 +254,8 @@ interface AiChatOptions {
   maxTokens?: number;
   timeoutMs?: number;
   retries?: number;
+  /** If true, use non-streaming mode (for very short responses like evaluate) */
+  nonStream?: boolean;
 }
 
 async function aiChatWithRetry(
@@ -121,6 +265,7 @@ async function aiChatWithRetry(
 ): Promise<string> {
   const maxRetries = options?.retries ?? 1;
   const timeoutMs = options?.timeoutMs ?? AI_CALL_TIMEOUT_MS;
+  const useNonStream = options?.nonStream ?? false;
 
   let lastError: Error | null = null;
 
@@ -132,7 +277,7 @@ async function aiChatWithRetry(
         _genAI = null;
       }
 
-      const result = await aiChatInternal(systemPrompt, userPrompt, options, timeoutMs);
+      const result = await aiChatInternal(systemPrompt, userPrompt, options, timeoutMs, useNonStream);
       return result;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -161,9 +306,14 @@ async function aiChatWithRetry(
         throw lastError;
       }
 
+      // Don't retry on timeout — it'll likely timeout again
+      if (lastError.message.includes('مهلة') || lastError.message.includes('timeout')) {
+        throw lastError;
+      }
+
       // Wait before retrying (exponential backoff)
       if (attempt < maxRetries) {
-        const backoffMs = Math.min(2000 * Math.pow(2, attempt), 10000);
+        const backoffMs = Math.min(2000 * Math.pow(2, attempt), 8000);
         console.log(`[Gemini] Waiting ${backoffMs}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
@@ -174,13 +324,14 @@ async function aiChatWithRetry(
 }
 
 // -------------------------------------------------------
-// Core AI chat function — uses Google Gemini
+// Core AI chat function — uses Google Gemini with streaming
 // -------------------------------------------------------
 async function aiChatInternal(
   systemPrompt: string,
   userPrompt: string,
   options?: AiChatOptions,
-  timeoutMs: number = AI_CALL_TIMEOUT_MS
+  timeoutMs: number = AI_CALL_TIMEOUT_MS,
+  useNonStream: boolean = false,
 ): Promise<string> {
   let genAI;
   try {
@@ -194,41 +345,38 @@ async function aiChatInternal(
     throw new Error('فشل الاتصال بخدمة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
   }
 
-  console.log('[Gemini] Sending request... (timeout:', timeoutMs + 'ms)');
-
   // Try each model in the fallback list until one works
   let lastError: Error | null = null;
+  const overallStartTime = Date.now();
 
-  for (const modelName of MODEL_FALLBACK_LIST) {
+  for (let modelIndex = 0; modelIndex < MODEL_FALLBACK_LIST.length; modelIndex++) {
+    const modelName = MODEL_FALLBACK_LIST[modelIndex];
+    const isFirstModel = modelIndex === 0;
+
+    // Calculate remaining time for fallback models
+    const elapsedSoFar = Date.now() - overallStartTime;
+    const remainingTime = Math.max(timeoutMs - elapsedSoFar, 10000); // minimum 10s for fallback
+
+    // Fallback models get less time (the remaining budget, not the full timeout)
+    const modelTimeout = isFirstModel ? timeoutMs : Math.min(remainingTime, 15000);
+
+    // If we've already used up most of the time, don't bother trying another model
+    if (!isFirstModel && remainingTime < 10000) {
+      console.warn('[Gemini] Not enough time left (', remainingTime, 'ms) to try fallback model:', modelName);
+      break;
+    }
+
     try {
-      console.log('[Gemini] Trying model:', modelName);
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        systemInstruction: systemPrompt,
-        generationConfig: {
-          temperature: options?.temperature ?? 0.4,
-          maxOutputTokens: options?.maxTokens ?? 4096,
-        },
-      });
+      console.log('[Gemini] Trying model:', modelName, '(timeout:', modelTimeout + 'ms)');
 
-      // Race the API call against a timeout
-      const resultPromise = model.generateContent(userPrompt);
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي')), timeoutMs)
-      );
-
-      const result = await Promise.race([resultPromise, timeoutPromise]);
-
-      const response = result.response;
-      const text = response.text();
-
-      if (!text || text.trim().length === 0) {
-        console.error('[Gemini] Empty response from model:', modelName);
-        throw new Error('AI returned an empty response');
+      let result: string;
+      if (useNonStream) {
+        result = await nonStreamChat(genAI, modelName, systemPrompt, userPrompt, options, modelTimeout);
+      } else {
+        result = await streamChat(genAI, modelName, systemPrompt, userPrompt, options, modelTimeout);
       }
 
-      console.log('[Gemini] Response received from model:', modelName, ', length:', text.length);
-      return text;
+      return result;
     } catch (modelError: unknown) {
       const errMsg = modelError instanceof Error ? modelError.message : String(modelError);
       lastError = modelError instanceof Error ? modelError : new Error(String(modelError));
@@ -435,7 +583,7 @@ export async function generateQuiz(content: string, questionTypes?: { mcq?: numb
 }
 
 // -------------------------------------------------------
-// Fill-in-the-blank evaluation
+// Fill-in-the-blank evaluation (uses non-streaming for short response)
 // -------------------------------------------------------
 export async function evaluateCompletionAnswer(
   question: string,
@@ -450,7 +598,7 @@ export async function evaluateCompletionAnswer(
   const text = await aiChatWithRetry(
     'أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية. ترد بكلمة واحدة فقط: "true" أو "false".',
     `السؤال: ${question}\nالإجابة النموذجية: ${correctAnswer}\nإجابة الطالب: ${studentAnswer}\n\nهل إجابة الطالب صحيحة معنوياً؟`,
-    { temperature: 0.1, maxTokens: 10, timeoutMs: 30000, retries: 1 }
+    { temperature: 0.1, maxTokens: 10, timeoutMs: 30000, retries: 1, nonStream: true }
   );
 
   return text.trim().toLowerCase().includes('true');

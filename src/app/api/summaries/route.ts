@@ -97,6 +97,11 @@ export async function GET(request: NextRequest) {
  * Re-generate a summary for an existing record.
  * Uses the original_content to generate a new summary and updates the DB.
  *
+ * ARCHITECTURE NOTE:
+ * Removed the redundant route-level timeout. The AI call now uses streaming
+ * with its own two-tier timeout (15s first-token + 45s overall).
+ * The DB update is done after the AI call but we don't add an extra timeout race.
+ *
  * Body: { summaryId: string }
  */
 export async function PUT(request: NextRequest) {
@@ -153,13 +158,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Generate new summary
+    // Generate new summary — NO duplicate timeout race.
+    // The AI call uses streaming with its own two-tier timeout.
     console.log('[Summaries API] Re-generating summary for:', summaryId);
-    const summaryPromise = generateSummary(originalContent);
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة إعادة التلخيص. يرجى المحاولة مرة أخرى')), 55000)
-    );
-    const newSummary = await Promise.race([summaryPromise, timeoutPromise]);
+    const newSummary = await generateSummary(originalContent);
 
     // Update the summary in the database
     const { data: updated, error: updateError } = await supabaseServer

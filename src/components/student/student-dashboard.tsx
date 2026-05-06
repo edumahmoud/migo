@@ -808,15 +808,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // Run the rest in the background (no await — fire and track)
     const processInBackground = async () => {
       // ─── Client-side timeout for the entire process ───
-      // Must be slightly longer than server-side timeout (55s) + DB operations.
-      // On Vercel hobby, the function is killed at 60s, so the client should
-      // timeout at ~70s to give the server time to return its own error.
+      // Server now uses streaming AI (45s max) + short DB timeout (5s).
+      // With streaming, first token arrives in 3-8s, and most responses
+      // complete within 30-40s. The 55s client timeout gives the server
+      // time to return its own error while not leaving the user waiting too long.
       const clientTimeoutId = setTimeout(() => {
         if (!abortController.signal.aborted) {
-          console.warn('[Summary] Client-side timeout (70s) — aborting...');
+          console.warn('[Summary] Client-side timeout (55s) — aborting...');
           abortController.abort();
         }
-      }, 70000);
+      }, 55000);
 
       try {
         // Get auth token with robust retry (mobile session hydration can be slow)
@@ -874,30 +875,32 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summaryContent = summaryData.data?.summary || '';
           savedSummaryId = summaryData.data?.summaryId || '';
 
-          // Check if server saved the summary (Bug Fix #2: add timeout to Supabase ops)
-          if (!summaryData.data?.saved) {
-            console.warn('[Summary] Server did not save summary, attempting client-side fallback...');
+          // Server uses streaming + short DB timeout. If saved=false, do client-side fallback.
+          if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
+            console.warn('[Summary] Server did not save summary (or timed out), attempting client-side fallback...');
             setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-            const insertPromise = supabase
-              .from('summaries')
-              .insert({
-                user_id: profile.id,
-                title,
-                original_content: originalContent,
-                summary_content: summaryContent,
-              })
-              .select()
-              .single();
-            const insertTimeout = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('انتهت مهلة حفظ الملخص')), 30000)
-            );
-            const { data: insertedSummary, error: summaryError } = await Promise.race([insertPromise, insertTimeout]);
+            try {
+              const { data: insertedSummary, error: summaryError } = await supabase
+                .from('summaries')
+                .insert({
+                  user_id: profile.id,
+                  title,
+                  original_content: originalContent,
+                  summary_content: summaryContent,
+                })
+                .select()
+                .single();
 
-            if (summaryError) {
-              console.error('[Summary] Client-side insert also failed:', summaryError.message);
-              throw new Error(`فشل حفظ الملخص: ${summaryError.message}`);
+              if (summaryError) {
+                console.error('[Summary] Client-side insert also failed:', summaryError.message);
+                // Don't throw — we still have the summary text, just won't be persisted
+              } else {
+                savedSummaryId = insertedSummary.id;
+              }
+            } catch (insertErr) {
+              console.error('[Summary] Client-side insert exception:', insertErr);
+              // Don't throw — we still have the summary text
             }
-            savedSummaryId = insertedSummary.id;
           }
         } else {
           // Text mode
@@ -926,30 +929,32 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summaryContent = summaryData.data?.summary || '';
           savedSummaryId = summaryData.data?.summaryId || '';
 
-          // Check if server saved the summary (Bug Fix #2: add timeout to Supabase ops)
-          if (!summaryData.data?.saved) {
-            console.warn('[Summary] Server did not save summary, attempting client-side fallback...');
+          // Server uses streaming + short DB timeout. If saved=false, do client-side fallback.
+          if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
+            console.warn('[Summary] Server did not save summary (or timed out), attempting client-side fallback...');
             setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-            const insertPromise = supabase
-              .from('summaries')
-              .insert({
-                user_id: profile.id,
-                title,
-                original_content: originalContent,
-                summary_content: summaryContent,
-              })
-              .select()
-              .single();
-            const insertTimeout = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('انتهت مهلة حفظ الملخص')), 30000)
-            );
-            const { data: insertedSummary, error: summaryError } = await Promise.race([insertPromise, insertTimeout]);
+            try {
+              const { data: insertedSummary, error: summaryError } = await supabase
+                .from('summaries')
+                .insert({
+                  user_id: profile.id,
+                  title,
+                  original_content: originalContent,
+                  summary_content: summaryContent,
+                })
+                .select()
+                .single();
 
-            if (summaryError) {
-              console.error('[Summary] Client-side insert also failed:', summaryError.message);
-              throw new Error(`فشل حفظ الملخص: ${summaryError.message}`);
+              if (summaryError) {
+                console.error('[Summary] Client-side insert also failed:', summaryError.message);
+                // Don't throw — we still have the summary text, just won't be persisted
+              } else {
+                savedSummaryId = insertedSummary.id;
+              }
+            } catch (insertErr) {
+              console.error('[Summary] Client-side insert exception:', insertErr);
+              // Don't throw — we still have the summary text
             }
-            savedSummaryId = insertedSummary.id;
           }
         }
 
@@ -957,26 +962,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           throw new Error('لم يتم إنشاء محتوى الملخص — رد الذكاء الاصطناعي فارغ');
         }
 
-        if (!savedSummaryId) {
-          throw new Error('فشل حفظ الملخص — لم يتم استلام معرف الملخص من الخادم');
-        }
-
-        console.log('[Summary] Saved successfully, id:', savedSummaryId);
-
-        // ─── Post-save verification using the new ?id= endpoint ───
-        // On mobile, network issues can cause false positives. Verify the save.
-        // Bug Fix #2: Add timeout and abort signal to verification fetch
-        try {
-          const verifyRes = await fetch(`/api/summaries?id=${encodeURIComponent(savedSummaryId)}`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-            signal: AbortSignal.timeout(15000), // 15s timeout for verification
-          });
-          if (verifyRes.ok) {
-            console.log('[Summary] Post-save verification passed ✓');
-          } else if (verifyRes.status === 404) {
-            // Summary not found in DB! Try re-insert via client-side
-            console.warn('[Summary] Post-save verification failed — summary not found in DB! Attempting re-insert...');
-            const reInsertPromise = supabase
+        // Note: savedSummaryId might be empty if the server's DB save timed out.
+        // In that case, the server saves in background. We still show the summary
+        // to the user and try client-side insert below.
+        if (savedSummaryId) {
+          console.log('[Summary] Saved successfully, id:', savedSummaryId);
+        } else {
+          console.warn('[Summary] No summaryId from server — will save client-side');
+          // Last resort: try client-side insert
+          try {
+            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
+            const { data: inserted, error: insertErr } = await supabase
               .from('summaries')
               .insert({
                 user_id: profile.id,
@@ -986,19 +982,50 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               })
               .select()
               .single();
-            const reInsertTimeout = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('انتهت مهلة إعادة الحفظ')), 30000)
-            );
-            const { data: reInserted, error: reInsertError } = await Promise.race([reInsertPromise, reInsertTimeout]);
-            if (reInsertError) {
-              console.error('[Summary] Re-insert also failed:', reInsertError.message);
+            if (!insertErr && inserted) {
+              savedSummaryId = inserted.id;
+              console.log('[Summary] Client-side fallback save succeeded, id:', savedSummaryId);
             } else {
-              savedSummaryId = reInserted.id;
-              console.log('[Summary] Re-insert succeeded, new id:', savedSummaryId);
+              console.error('[Summary] Client-side fallback save failed:', insertErr?.message);
             }
+          } catch (fallbackErr) {
+            console.error('[Summary] Client-side fallback save error:', fallbackErr);
           }
-        } catch (verifyErr) {
-          console.warn('[Summary] Post-save verification error (non-critical):', verifyErr);
+        }
+
+        // ─── Post-save verification (only if we have an ID) ───
+        if (savedSummaryId) {
+          try {
+            const verifyRes = await fetch(`/api/summaries?id=${encodeURIComponent(savedSummaryId)}`, {
+              headers: { 'Authorization': `Bearer ${token}` },
+              signal: AbortSignal.timeout(10000), // 10s timeout for verification
+            });
+            if (verifyRes.ok) {
+              console.log('[Summary] Post-save verification passed ✓');
+            } else if (verifyRes.status === 404) {
+              console.warn('[Summary] Post-save verification: not found, re-inserting...');
+              try {
+                const { data: reInserted, error: reInsertError } = await supabase
+                  .from('summaries')
+                  .insert({
+                    user_id: profile.id,
+                    title,
+                    original_content: originalContent,
+                    summary_content: summaryContent,
+                  })
+                  .select()
+                  .single();
+                if (!reInsertError && reInserted) {
+                  savedSummaryId = reInserted.id;
+                  console.log('[Summary] Re-insert succeeded, new id:', savedSummaryId);
+                }
+              } catch (e) {
+                console.warn('[Summary] Re-insert failed:', e);
+              }
+            }
+          } catch (verifyErr) {
+            console.warn('[Summary] Post-save verification error (non-critical):', verifyErr);
+          }
         }
 
         // Add summary to local state IMMEDIATELY so it shows even before fetchSummaries
