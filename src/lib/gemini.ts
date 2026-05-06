@@ -30,6 +30,107 @@ import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // -------------------------------------------------------
+// Custom Error Classes for AI Provider Errors
+// -------------------------------------------------------
+
+/**
+ * Error codes for AI provider errors.
+ * These codes allow route handlers to properly classify errors
+ * regardless of whether the message is in Arabic or English.
+ */
+export type AiErrorCode =
+  | 'RATE_LIMIT'        // 429 / rate_limit / RESOURCE_EXHAUSTED / quota
+  | 'AUTH_ERROR'        // 401 / 403 / API_KEY invalid
+  | 'TIMEOUT'           // timeout / timed out
+  | 'NOT_CONFIGURED'    // API key not set
+  | 'MODEL_ERROR'       // model not found / not available
+  | 'CONNECTION_ERROR'  // ECONNRESET / socket hang up / aborted
+  | 'EMPTY_RESPONSE'    // AI returned empty
+  | 'UNKNOWN';          // Unclassified error
+
+/**
+ * Custom error class for AI provider errors.
+ * Contains both a machine-readable `code` and an Arabic `userMessage`.
+ *
+ * IMPORTANT: Route handlers should check `error.code` (or use `isAiError()`)
+ * instead of pattern-matching on error messages, because messages can be
+ * in Arabic and won't match English patterns like "429" or "rate_limit".
+ */
+export class AiProviderError extends Error {
+  code: AiErrorCode;
+  userMessage: string;
+  provider: 'groq' | 'gemini' | 'unknown';
+
+  constructor(code: AiErrorCode, userMessage: string, provider: 'groq' | 'gemini' | 'unknown' = 'unknown', originalError?: unknown) {
+    super(`[${code}] ${userMessage}`);
+    this.name = 'AiProviderError';
+    this.code = code;
+    this.userMessage = userMessage;
+    this.provider = provider;
+    // Preserve the original error for debugging
+    if (originalError instanceof Error) {
+      this.cause = originalError;
+    }
+  }
+}
+
+/** Type guard: check if an error is an AiProviderError */
+export function isAiError(error: unknown): error is AiProviderError {
+  return error instanceof AiProviderError;
+}
+
+/**
+ * Classify an error from an AI provider API call into an AiProviderError.
+ * This function translates raw API errors (which can be English HTTP errors,
+ * SDK-specific messages, or Arabic messages) into structured errors with
+ * both a code and a user-friendly Arabic message.
+ */
+function classifyAiError(
+  error: unknown,
+  provider: 'groq' | 'gemini',
+): AiProviderError {
+  const errMsg = error instanceof Error ? error.message : String(error);
+
+  // Rate limit patterns (English API errors)
+  if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('Rate limit') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota')) {
+    return new AiProviderError('RATE_LIMIT', 'تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة', provider, error);
+  }
+
+  // Auth/key errors
+  if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('API key not valid') || errMsg.includes('Incorrect API key')) {
+    return new AiProviderError('AUTH_ERROR', 'خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة', provider, error);
+  }
+
+  // Timeout errors (both English and Arabic)
+  if (errMsg.includes('timeout') || errMsg.includes('timed out') || errMsg.includes('ETIMEDOUT') || errMsg.includes('مهلة') || errMsg.includes('انتهت مهلة')) {
+    return new AiProviderError('TIMEOUT', 'انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى', provider, error);
+  }
+
+  // Not configured
+  if (errMsg.includes('NOT_CONFIGURED') || errMsg.includes('غير مفعلة') || errMsg.includes('not configured')) {
+    return new AiProviderError('NOT_CONFIGURED', 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة', provider, error);
+  }
+
+  // Model errors
+  if (errMsg.includes('not found') || errMsg.includes('not available') || errMsg.includes('model')) {
+    return new AiProviderError('MODEL_ERROR', 'نموذج الذكاء الاصطناعي غير متاح حالياً. يرجى المحاولة لاحقاً', provider, error);
+  }
+
+  // Connection errors
+  if (errMsg.includes('ECONNRESET') || errMsg.includes('socket hang up') || errMsg.includes('aborted') || errMsg.includes('ECONNREFUSED') || errMsg.includes('fetch failed')) {
+    return new AiProviderError('CONNECTION_ERROR', 'انتهت مهلة الخادم. قد يكون المحتوى كبيراً جداً، جرب تلخيص محتوى أقصر', provider, error);
+  }
+
+  // Empty response
+  if (errMsg.includes('empty response') || errMsg.includes('Empty response') || errMsg.includes('Empty streaming response')) {
+    return new AiProviderError('EMPTY_RESPONSE', 'لم يتمكن الذكاء الاصطناعي من إنشاء رد. يرجى المحاولة مرة أخرى', provider, error);
+  }
+
+  // Unknown
+  return new AiProviderError('UNKNOWN', `حدث خطأ أثناء الاتصال بالذكاء الاصطناعي: ${errMsg.substring(0, 150)}`, provider, error);
+}
+
+// -------------------------------------------------------
 // Constants
 // -------------------------------------------------------
 
@@ -81,7 +182,7 @@ function getGroqClient(): Groq {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     console.warn('[Groq] GROQ_API_KEY not set — Groq will be skipped');
-    throw new Error('GROQ_NOT_CONFIGURED');
+    throw new AiProviderError('NOT_CONFIGURED', 'Groq غير مفعلة حالياً. يرجى التواصل مع الإدارة', 'groq');
   }
 
   _groqClient = new Groq({ apiKey });
@@ -100,7 +201,7 @@ function getGeminiClient(): GoogleGenerativeAI {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.warn('[Gemini] GEMINI_API_KEY not set — Gemini will be skipped');
-    throw new Error('GEMINI_NOT_CONFIGURED');
+    throw new AiProviderError('NOT_CONFIGURED', 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة', 'gemini');
   }
 
   _genAI = new GoogleGenerativeAI(apiKey);
@@ -411,23 +512,26 @@ async function tryGroq(
       return await groqStreamChat(systemPrompt, userPrompt, options, timeoutMs);
     }
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : String(error);
-
-    // If Groq is not configured, don't throw — let Gemini handle it
-    if (errMsg === 'GROQ_NOT_CONFIGURED') {
-      console.warn('[Groq] Not configured, falling back to Gemini');
+    // If it's already an AiProviderError (e.g., NOT_CONFIGURED), pass it through
+    if (isAiError(error)) {
+      console.warn('[Groq] AiProviderError:', error.code, '— falling back to Gemini');
+      // Reset Groq client on connection errors
+      if (error.code === 'CONNECTION_ERROR') {
+        _groqClient = null;
+      }
       throw error;
     }
 
-    // Log the error for diagnostics but throw to trigger fallback
-    console.warn('[Groq] Failed:', errMsg, '— falling back to Gemini');
+    // Classify the raw error
+    const classified = classifyAiError(error, 'groq');
+    console.warn('[Groq] Failed:', classified.code, '-', error instanceof Error ? error.message : String(error), '— falling back to Gemini');
 
     // Reset Groq client on connection errors
-    if (errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
+    if (classified.code === 'CONNECTION_ERROR') {
       _groqClient = null;
     }
 
-    throw error;
+    throw classified;
   }
 }
 
@@ -446,15 +550,15 @@ async function tryGemini(
   try {
     genAI = getGeminiClient();
   } catch (initError) {
-    const errMsg = initError instanceof Error ? initError.message : String(initError);
-    if (errMsg === 'GEMINI_NOT_CONFIGURED') {
-      throw new Error('خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة');
+    // initError is already an AiProviderError from getGeminiClient
+    if (isAiError(initError)) {
+      throw initError;
     }
-    throw new Error('فشل الاتصال بخدمة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+    throw new AiProviderError('NOT_CONFIGURED', 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة', 'gemini', initError);
   }
 
   // Try each Gemini model in the fallback list
-  let lastError: Error | null = null;
+  let lastError: AiProviderError | null = null;
   const overallStartTime = Date.now();
 
   for (let modelIndex = 0; modelIndex < GEMINI_MODEL_FALLBACK_LIST.length; modelIndex++) {
@@ -482,39 +586,29 @@ async function tryGemini(
 
       return result;
     } catch (modelError: unknown) {
-      const errMsg = modelError instanceof Error ? modelError.message : String(modelError);
-      lastError = modelError instanceof Error ? modelError : new Error(String(modelError));
-      console.warn('[Gemini] Model', modelName, 'failed:', errMsg);
+      // Classify the error using our centralized classifier
+      const classified = isAiError(modelError) ? modelError : classifyAiError(modelError, 'gemini');
+      lastError = classified;
+      console.warn('[Gemini] Model', modelName, 'failed:', classified.code, '-', classified.userMessage);
 
       // Reset singleton on auth/connection errors
-      if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
+      if (classified.code === 'AUTH_ERROR' || classified.code === 'CONNECTION_ERROR') {
         _genAI = null;
       }
 
-      // Don't fall back for these errors — they apply to all models
-      if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota')) {
-        throw new Error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
-      }
-      if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('API key not valid') || errMsg.includes('Incorrect API key')) {
-        throw new Error('خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة');
-      }
-      if (errMsg.includes('مهلة') || errMsg.includes('timeout') || errMsg.includes('ETIMEDOUT') || errMsg.includes('timed out') || errMsg.includes('ECONNRESET')) {
-        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+      // Don't fall back to other models for these errors — they apply to all models
+      if (classified.code === 'RATE_LIMIT' || classified.code === 'AUTH_ERROR' || classified.code === 'TIMEOUT' || classified.code === 'NOT_CONFIGURED') {
+        throw classified;
       }
 
-      // For model-specific errors, try the next model
-      if (errMsg.includes('not found') || errMsg.includes('not available') || errMsg.includes('model') || errMsg.includes('empty response')) {
-        console.warn('[Gemini] Model', modelName, 'unavailable, trying next fallback...');
-        continue;
-      }
-
-      console.warn('[Gemini] Unknown error from model', modelName, ', trying next fallback...');
+      // For model-specific errors (MODEL_ERROR, EMPTY_RESPONSE, UNKNOWN), try the next model
+      console.warn('[Gemini] Model', modelName, 'unavailable, trying next fallback...');
       continue;
     }
   }
 
   console.error('[Gemini] All models failed. Last error:', lastError?.message);
-  throw lastError || new Error('فشل الاتصال بالذكاء الاصطناعي بعد تجربة جميع النماذج');
+  throw lastError || new AiProviderError('UNKNOWN', 'فشل الاتصال بالذكاء الاصطناعي بعد تجربة جميع النماذج', 'gemini');
 }
 
 // -------------------------------------------------------
@@ -549,18 +643,13 @@ async function aiChatWithFailover(
     const result = await tryGroq(systemPrompt, userPrompt, options, groqTimeoutMs, useNonStream);
     return result;
   } catch (groqError: unknown) {
-    const groqErrMsg = groqError instanceof Error ? groqError.message : String(groqError);
+    const groqCode = isAiError(groqError) ? groqError.code : 'UNKNOWN';
+    const groqMsg = isAiError(groqError) ? groqError.userMessage : (groqError instanceof Error ? groqError.message : String(groqError));
 
-    // IMPORTANT: Even if Groq is rate-limited, we still fall back to Gemini.
+    // IMPORTANT: We ALWAYS fall back to Gemini, even on rate limits.
     // Groq and Gemini have SEPARATE rate limits, so a Groq rate limit
-    // does NOT mean Gemini will also be rate-limited. Previous version
-    // incorrectly blocked fallback on Groq rate limits, causing the
-    // "تم تجاوز حد الطلبات" error to show even when Gemini was available.
-    if (groqErrMsg.includes('rate_limit') || groqErrMsg.includes('429') || groqErrMsg.includes('Rate limit')) {
-      console.warn('[Groq] Rate limited — falling back to Gemini (separate quota)');
-    }
-
-    console.warn('[Groq] Failed after', Date.now() - startTime, 'ms:', groqErrMsg);
+    // does NOT mean Gemini will also be rate-limited.
+    console.warn('[Groq] Failed after', Date.now() - startTime, 'ms, code:', groqCode, '— falling back to Gemini');
 
     // Calculate remaining time for Gemini fallback
     const elapsed = Date.now() - startTime;
@@ -574,10 +663,16 @@ async function aiChatWithFailover(
       console.log('[AI] Gemini fallback succeeded in', Date.now() - startTime, 'ms total');
       return result;
     } catch (geminiError: unknown) {
-      const geminiErrMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
-      console.error('[AI] Both providers failed. Groq:', groqErrMsg, '| Gemini:', geminiErrMsg);
+      const geminiCode = isAiError(geminiError) ? geminiError.code : 'UNKNOWN';
+      const geminiMsg = isAiError(geminiError) ? geminiError.userMessage : (geminiError instanceof Error ? geminiError.message : String(geminiError));
+      console.error('[AI] Both providers failed. Groq:', groqCode, groqMsg, '| Gemini:', geminiCode, geminiMsg);
 
-      // Throw the Gemini error (last attempt) with context
+      // If both providers hit rate limits, give a more specific message
+      if (groqCode === 'RATE_LIMIT' && geminiCode === 'RATE_LIMIT') {
+        throw new AiProviderError('RATE_LIMIT', 'تم تجاوز حد الطلبات لجميع مزودي الذكاء الاصطناعي. يرجى المحاولة بعد دقيقتين', 'unknown', geminiError);
+      }
+
+      // Throw the Gemini error (last attempt) — it's already an AiProviderError
       throw geminiError;
     }
   }
@@ -609,33 +704,12 @@ async function aiChatWithRetry(
       return result;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`[AI] Attempt ${attempt + 1} failed:`, lastError.message);
+      const errorCode = isAiError(error) ? error.code : 'UNKNOWN';
+      console.error(`[AI] Attempt ${attempt + 1} failed, code: ${errorCode}:`, lastError.message);
 
-      // Don't retry on rate limits or auth errors
-      if (
-        lastError.message.includes('429') ||
-        lastError.message.includes('rate_limit') ||
-        lastError.message.includes('RESOURCE_EXHAUSTED') ||
-        lastError.message.includes('401') ||
-        lastError.message.includes('403') ||
-        lastError.message.includes('API key') ||
-        lastError.message.includes('API_KEY')
-      ) {
-        throw lastError;
-      }
-
-      // Don't retry on empty response
-      if (lastError.message.includes('empty response')) {
-        throw lastError;
-      }
-
-      // Don't retry on "not configured" errors
-      if (lastError.message.includes('غير مفعلة') || lastError.message.includes('not configured')) {
-        throw lastError;
-      }
-
-      // Don't retry on timeout
-      if (lastError.message.includes('مهلة') || lastError.message.includes('timeout')) {
+      // Don't retry on these error codes — they won't change on retry
+      const noRetryCodes: AiErrorCode[] = ['RATE_LIMIT', 'AUTH_ERROR', 'NOT_CONFIGURED', 'TIMEOUT', 'EMPTY_RESPONSE'];
+      if (noRetryCodes.includes(errorCode as AiErrorCode)) {
         throw lastError;
       }
 
@@ -648,7 +722,11 @@ async function aiChatWithRetry(
     }
   }
 
-  throw lastError || new Error('فشل الاتصال بالذكاء الاصطناعي بعد عدة محاولات');
+  // If lastError is an AiProviderError, throw it directly (preserves userMessage)
+  if (isAiError(lastError)) {
+    throw lastError;
+  }
+  throw lastError || new AiProviderError('UNKNOWN', 'فشل الاتصال بالذكاء الاصطناعي بعد عدة محاولات', 'unknown');
 }
 
 // -------------------------------------------------------

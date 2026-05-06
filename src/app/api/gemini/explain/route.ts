@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { explainWrongAnswer } from '@/lib/gemini';
+import { explainWrongAnswer, isAiError } from '@/lib/gemini';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
@@ -53,15 +53,29 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error('[Explain API] Error:', error);
 
-    const errMsg = error instanceof Error ? error.message : String(error);
-
-    if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('rate_limit')) {
+    // ─── Handle AiProviderError (structured errors from our AI service) ───
+    if (isAiError(error)) {
+      const statusMap: Record<string, number> = {
+        'RATE_LIMIT': 429,
+        'AUTH_ERROR': 503,
+        'TIMEOUT': 504,
+        'NOT_CONFIGURED': 503,
+        'MODEL_ERROR': 503,
+        'CONNECTION_ERROR': 504,
+        'EMPTY_RESPONSE': 502,
+        'UNKNOWN': 500,
+      };
+      const status = statusMap[error.code] || 500;
+      console.error('[Explain API] AiProviderError:', error.code, error.provider, error.userMessage);
       return NextResponse.json(
-        { success: false, error: 'تم تجاوز حد الطلبات. يرجى المحاولة بعد دقيقة' },
-        { status: 429 }
+        { success: false, error: error.userMessage },
+        { status }
       );
     }
 
+    // Fallback for unstructured errors
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('[Explain API] Unhandled error:', errMsg);
     return safeErrorResponse('حدث خطأ أثناء شرح الإجابة');
   }
 }

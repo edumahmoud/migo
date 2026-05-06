@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { evaluateCompletionAnswer } from '@/lib/gemini';
+import { evaluateCompletionAnswer, isAiError } from '@/lib/gemini';
 
 // Allow up to 60 seconds for AI evaluation
 export const maxDuration = 60;
@@ -74,23 +74,35 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error('[Evaluate API] Error:', error);
 
+    // ─── Handle AiProviderError (structured errors from our AI service) ───
+    if (isAiError(error)) {
+      // On rate limit, fall back to exact match (return false with fallback flag)
+      if (error.code === 'RATE_LIMIT') {
+        return NextResponse.json(
+          { success: true, data: { isCorrect: false, fallback: true } },
+          { headers: getRateLimitHeaders(0, 60000) }
+        );
+      }
+      const statusMap: Record<string, number> = {
+        'AUTH_ERROR': 503,
+        'TIMEOUT': 504,
+        'NOT_CONFIGURED': 503,
+        'MODEL_ERROR': 503,
+        'CONNECTION_ERROR': 504,
+        'EMPTY_RESPONSE': 502,
+        'UNKNOWN': 500,
+      };
+      const status = statusMap[error.code] || 500;
+      console.error('[Evaluate API] AiProviderError:', error.code, error.provider, error.userMessage);
+      return NextResponse.json(
+        { success: false, error: error.userMessage },
+        { status }
+      );
+    }
+
+    // Fallback for unstructured errors
     const errMsg = error instanceof Error ? error.message : String(error);
-
-    if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED')) {
-      // On quota error, fall back to exact match
-      return NextResponse.json(
-        { success: true, data: { isCorrect: false, fallback: true } },
-        { headers: getRateLimitHeaders(0, 60000) }
-      );
-    }
-
-    if (errMsg.includes('not configured')) {
-      return NextResponse.json(
-        { success: false, error: 'خدمة الذكاء الاصطناعي غير مفعلة حالياً' },
-        { status: 503 }
-      );
-    }
-
+    console.error('[Evaluate API] Unhandled error:', errMsg);
     return safeErrorResponse('حدث خطأ أثناء تقييم الإجابة');
   }
 }

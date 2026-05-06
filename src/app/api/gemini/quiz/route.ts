@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
 export const maxDuration = 60;
 export const runtime = 'nodejs';
-import { generateQuiz } from '@/lib/gemini';
+import { generateQuiz, isAiError } from '@/lib/gemini';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
@@ -70,36 +70,29 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error('[Quiz API] Error:', error);
 
+    // ─── Handle AiProviderError (structured errors from our AI service) ───
+    if (isAiError(error)) {
+      const statusMap: Record<string, number> = {
+        'RATE_LIMIT': 429,
+        'AUTH_ERROR': 503,
+        'TIMEOUT': 504,
+        'NOT_CONFIGURED': 503,
+        'MODEL_ERROR': 503,
+        'CONNECTION_ERROR': 504,
+        'EMPTY_RESPONSE': 502,
+        'UNKNOWN': 500,
+      };
+      const status = statusMap[error.code] || 500;
+      console.error('[Quiz API] AiProviderError:', error.code, error.provider, error.userMessage);
+      return NextResponse.json(
+        { success: false, error: error.userMessage },
+        { status }
+      );
+    }
+
+    // Fallback for unstructured errors
     const errMsg = error instanceof Error ? error.message : String(error);
-
-    if (errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('RESOURCE_EXHAUSTED')) {
-      return NextResponse.json(
-        { success: false, error: 'تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة' },
-        { status: 429 }
-      );
-    }
-
-    if (errMsg.includes('API_KEY') || errMsg.includes('401') || errMsg.includes('403')) {
-      return NextResponse.json(
-        { success: false, error: 'خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة' },
-        { status: 503 }
-      );
-    }
-
-    if (errMsg.includes('مهلة') || errMsg.includes('timeout') || errMsg.includes('timed out')) {
-      return NextResponse.json(
-        { success: false, error: 'انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى' },
-        { status: 504 }
-      );
-    }
-
-    if (errMsg.includes('not configured')) {
-      return NextResponse.json(
-        { success: false, error: 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة' },
-        { status: 503 }
-      );
-    }
-
+    console.error('[Quiz API] Unhandled error:', errMsg);
     return safeErrorResponse('حدث خطأ أثناء إنشاء الاختبار');
   }
 }
