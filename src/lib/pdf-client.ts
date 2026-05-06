@@ -16,9 +16,9 @@ export interface PdfExtractionResult {
 }
 
 /** Max chars to send to the AI (matches server-side sanitizeString limit)
- *  30K chars ≈ 8K tokens, well within GLM-4-Plus context window.
- *  Previous 200K limit caused timeouts. */
-const MAX_TEXT_LENGTH = 30000;
+ *  20K chars ≈ 5K tokens — keeps AI calls fast and within Vercel hobby 60s limit.
+ *  Previous 30K limit caused timeouts on Vercel hobby plan. */
+const MAX_TEXT_LENGTH = 20000;
 
 /**
  * Extract text from a PDF File in the browser.

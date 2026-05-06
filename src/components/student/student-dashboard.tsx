@@ -808,15 +808,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // Run the rest in the background (no await — fire and track)
     const processInBackground = async () => {
       // ─── Client-side timeout for the entire process ───
-      // If the AI call takes longer than 120s on the client side, abort.
-      // The server has its own 90s timeout, but network issues on mobile
-      // can cause the client to hang indefinitely without this.
+      // Must be slightly longer than server-side timeout (55s) + DB operations.
+      // On Vercel hobby, the function is killed at 60s, so the client should
+      // timeout at ~70s to give the server time to return its own error.
       const clientTimeoutId = setTimeout(() => {
         if (!abortController.signal.aborted) {
-          console.warn('[Summary] Client-side timeout (120s) — aborting...');
+          console.warn('[Summary] Client-side timeout (70s) — aborting...');
           abortController.abort();
         }
-      }, 120000);
+      }, 70000);
 
       try {
         // Get auth token with robust retry (mobile session hydration can be slow)

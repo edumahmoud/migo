@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Allow up to 120 seconds for AI generation
-export const maxDuration = 120;
+// IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
+export const maxDuration = 60;
 export const runtime = 'nodejs';
 import { generateQuiz } from '@/lib/gemini';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sanitizedContent = sanitizeString(rawContent, 50000);
+    const sanitizedContent = sanitizeString(rawContent, 20000);
     if (sanitizedContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى غير صالح بعد التنظيف' },
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     console.log('[Quiz API] Generating quiz for user:', authResult.user.id, 'config:', questionTypes);
     const quizPromise = generateQuiz(sanitizedContent, questionTypes);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 90000)
+      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 55000)
     );
     const questions = await Promise.race([quizPromise, timeoutPromise]);
     console.log('[Quiz API] Quiz generated successfully, questions:', questions.length);

@@ -23,15 +23,32 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Constants
 // -------------------------------------------------------
 
-/** Maximum content length to send to the AI (chars). ~30K chars ≈ 8K tokens,
- *  well within Gemini context window. */
-const MAX_AI_CONTENT_LENGTH = 30000;
+/** Maximum content length to send to the AI (chars). ~20K chars ≈ 5K tokens,
+ *  keeping requests fast and within Vercel hobby limits. */
+const MAX_AI_CONTENT_LENGTH = 20000;
 
-/** Default timeout for AI API calls (milliseconds) */
-const AI_CALL_TIMEOUT_MS = 90000; // 90 seconds — Gemini can be slow for large content
+/** Default timeout for AI API calls (milliseconds)
+ *  IMPORTANT: Must be under 55s to stay within Vercel hobby plan's 60s function limit.
+ *  The hobby plan caps maxDuration at 60s, so we need the AI call to complete
+ *  within that window (minus time for auth, validation, and DB operations).
+ */
+const AI_CALL_TIMEOUT_MS = 55000; // 55 seconds — fits within Vercel hobby 60s limit
 
 /** Timeout for AI client initialization (milliseconds) */
 const AI_INIT_TIMEOUT_MS = 10000; // 10 seconds
+
+// -------------------------------------------------------
+// Model fallback list
+// -------------------------------------------------------
+/** Models to try in order. If the first model fails (not found, unavailable),
+ *  we automatically fall back to the next one. This ensures the service
+ *  keeps working even if a specific model is deprecated or unavailable.
+ */
+const MODEL_FALLBACK_LIST = [
+  process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+];
 
 // -------------------------------------------------------
 // Google Gemini Singleton client
@@ -179,61 +196,76 @@ async function aiChatInternal(
 
   console.log('[Gemini] Sending request... (timeout:', timeoutMs + 'ms)');
 
-  // Use Gemini 2.0 Flash for fast responses (configurable via env)
-  const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    systemInstruction: systemPrompt,
-    generationConfig: {
-      temperature: options?.temperature ?? 0.4,
-      maxOutputTokens: options?.maxTokens ?? 4096,
-    },
-  });
+  // Try each model in the fallback list until one works
+  let lastError: Error | null = null;
 
-  // Race the API call against a timeout
-  const resultPromise = model.generateContent(userPrompt);
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي')), timeoutMs)
-  );
+  for (const modelName of MODEL_FALLBACK_LIST) {
+    try {
+      console.log('[Gemini] Trying model:', modelName);
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt,
+        generationConfig: {
+          temperature: options?.temperature ?? 0.4,
+          maxOutputTokens: options?.maxTokens ?? 4096,
+        },
+      });
 
-  let result;
-  try {
-    result = await Promise.race([resultPromise, timeoutPromise]);
-  } catch (apiError: unknown) {
-    console.error('[Gemini] API call failed:', apiError);
-    const errMsg = apiError instanceof Error ? apiError.message : String(apiError);
+      // Race the API call against a timeout
+      const resultPromise = model.generateContent(userPrompt);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي')), timeoutMs)
+      );
 
-    // Reset singleton on auth/connection errors so subsequent calls retry
-    if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
-      _genAI = null;
-    }
+      const result = await Promise.race([resultPromise, timeoutPromise]);
 
-    // Re-throw with user-friendly Arabic messages
-    if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota')) {
-      throw new Error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
+      const response = result.response;
+      const text = response.text();
+
+      if (!text || text.trim().length === 0) {
+        console.error('[Gemini] Empty response from model:', modelName);
+        throw new Error('AI returned an empty response');
+      }
+
+      console.log('[Gemini] Response received from model:', modelName, ', length:', text.length);
+      return text;
+    } catch (modelError: unknown) {
+      const errMsg = modelError instanceof Error ? modelError.message : String(modelError);
+      lastError = modelError instanceof Error ? modelError : new Error(String(modelError));
+      console.warn('[Gemini] Model', modelName, 'failed:', errMsg);
+
+      // Reset singleton on auth/connection errors so subsequent calls retry
+      if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
+        _genAI = null;
+      }
+
+      // Don't fall back for these errors — they apply to all models
+      if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota')) {
+        throw new Error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
+      }
+      if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('API key not valid') || errMsg.includes('Incorrect API key')) {
+        throw new Error('خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة');
+      }
+      if (errMsg.includes('مهلة') || errMsg.includes('timeout') || errMsg.includes('ETIMEDOUT') || errMsg.includes('timed out') || errMsg.includes('ECONNRESET')) {
+        // Timeout — don't fall back to another model (it'll likely timeout too)
+        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+      }
+
+      // For model-specific errors (not found, not available), try the next model
+      if (errMsg.includes('not found') || errMsg.includes('not available') || errMsg.includes('model') || errMsg.includes('empty response')) {
+        console.warn('[Gemini] Model', modelName, 'unavailable, trying next fallback...');
+        continue; // Try the next model in the list
+      }
+
+      // For unknown errors, try the next model as a fallback
+      console.warn('[Gemini] Unknown error from model', modelName, ', trying next fallback...');
+      continue;
     }
-    if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('API key not valid') || errMsg.includes('Incorrect API key')) {
-      throw new Error('خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة');
-    }
-    if (errMsg.includes('مهلة') || errMsg.includes('timeout') || errMsg.includes('ETIMEDOUT') || errMsg.includes('timed out') || errMsg.includes('ECONNRESET')) {
-      throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
-    }
-    if (errMsg.includes('not found') || errMsg.includes('not available') || errMsg.includes('model')) {
-      throw new Error('نموذج الذكاء الاصطناعي غير متاح حالياً. يرجى المحاولة لاحقاً');
-    }
-    throw new Error(`فشل الاتصال بالذكاء الاصطناعي: ${errMsg.substring(0, 150)}`);
   }
 
-  const response = result.response;
-  const text = response.text();
-
-  if (!text || text.trim().length === 0) {
-    console.error('[Gemini] Empty response received');
-    throw new Error('AI returned an empty response');
-  }
-
-  console.log('[Gemini] Response received, length:', text.length);
-  return text;
+  // All models failed
+  console.error('[Gemini] All models failed. Last error:', lastError?.message);
+  throw lastError || new Error('فشل الاتصال بالذكاء الاصطناعي بعد تجربة جميع النماذج');
 }
 
 // -------------------------------------------------------
@@ -274,7 +306,7 @@ export async function generateSummary(content: string): Promise<string> {
 9. إذا كان النص يحتوي على معادلات أو رموز رياضية، اكتبها بشكل صحيح
 10. اجعل التلخيص شاملاً بحيث يغطي جميع الأفكار الرئيسية`,
     `قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط ومنظم لطلاب الجامعات. احرص على استخراج جميع المعلومات الهامة بشكل صحيح ودقيق:\n\n${truncatedContent}`,
-    { temperature: 0.3, maxTokens: 4096, timeoutMs: AI_CALL_TIMEOUT_MS, retries: 1 }
+    { temperature: 0.3, maxTokens: 4096, timeoutMs: AI_CALL_TIMEOUT_MS, retries: 0 }
   );
 }
 

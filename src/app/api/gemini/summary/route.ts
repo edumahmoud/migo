@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateSummary } from '@/lib/gemini';
 
-// Allow up to 120 seconds for AI generation (Vercel default is 10s on hobby)
-export const maxDuration = 120;
+// IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
+// The AI call timeout (55s) + auth/validation (~3s) must fit within this.
+// On Pro plan, this can be increased to 120 or 300.
+export const maxDuration = 60;
 // Force Node.js runtime (Edge runtime has 30s limit)
 export const runtime = 'nodejs';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
@@ -58,9 +60,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sanitize and limit content length (30K chars — Gemini handles this well;
-    // larger content was causing timeouts. Client-side truncation also applies.)
-    const sanitizedContent = sanitizeString(rawContent, 30000);
+    // Sanitize and limit content length (20K chars — keeps AI calls fast
+    // and within Vercel hobby plan's 60s function timeout)
+    const sanitizedContent = sanitizeString(rawContent, 20000);
     if (sanitizedContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى غير صالح بعد التنظيف' },
@@ -69,10 +71,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate summary using AI (Google Gemini) with timeout
+    // IMPORTANT: The timeout must be shorter than Vercel's function timeout (60s on hobby).
+    // generateSummary() has its own 55s timeout, but we add a 55s safety net here too.
     console.log('[Summary API] Generating summary for user:', userId, 'content length:', sanitizedContent.length);
     const summaryPromise = generateSummary(sanitizedContent);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى')), 90000)
+      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى')), 55000)
     );
     const summary = await Promise.race([summaryPromise, timeoutPromise]);
     console.log('[Summary API] Summary generated successfully, length:', summary.length);
@@ -166,6 +170,13 @@ export async function POST(request: NextRequest) {
 
     // Include the actual error in the response for debugging
     console.error('[Summary API] Unhandled error details:', errMsg);
+    // Check if this might be a Vercel function timeout (504 or empty response)
+    if (errMsg.includes('ECONNRESET') || errMsg.includes('socket hang up') || errMsg.includes('aborted')) {
+      return NextResponse.json(
+        { success: false, error: 'انتهت مهلة الخادم. قد يكون المحتوى كبيراً جداً، جرب تلخيص محتوى أقصر' },
+        { status: 504 }
+      );
+    }
     return NextResponse.json(
       { success: false, error: `حدث خطأ أثناء إنشاء الملخص: ${errMsg.substring(0, 200)}` },
       { status: 500 }

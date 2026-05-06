@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 
-// Allow up to 120 seconds for re-generation (Vercel default is 10s)
-export const maxDuration = 120;
+// IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
+export const maxDuration = 60;
 export const runtime = 'nodejs';
 import { supabaseServer } from '@/lib/supabase-server';
 import { generateSummary } from '@/lib/gemini';
@@ -145,7 +145,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const originalContent = sanitizeString(existing.original_content, 30000);
+    const originalContent = sanitizeString(existing.original_content, 20000);
     if (!originalContent || originalContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى الأصلي فارغ، لا يمكن إعادة التلخيص' },
@@ -157,7 +157,7 @@ export async function PUT(request: NextRequest) {
     console.log('[Summaries API] Re-generating summary for:', summaryId);
     const summaryPromise = generateSummary(originalContent);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة إعادة التلخيص. يرجى المحاولة مرة أخرى')), 90000)
+      setTimeout(() => reject(new Error('انتهت مهلة إعادة التلخيص. يرجى المحاولة مرة أخرى')), 55000)
     );
     const newSummary = await Promise.race([summaryPromise, timeoutPromise]);
 
