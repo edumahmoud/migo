@@ -687,17 +687,14 @@ async function tryGemini(
 // -------------------------------------------------------
 
 /**
- * Main AI chat function with automatic provider failover + circuit breaker.
+ * Main AI chat function — Groq ONLY (Gemini disabled).
  *
- * Flow (with circuit breaker):
- *   1. If Groq circuit is OPEN → Skip Groq, go straight to Gemini
- *   2. If Groq circuit is CLOSED/HALF_OPEN → Try Groq (primary)
- *   3. If Groq succeeds → Close circuit, return result
- *   4. If Groq fails → Record failure, try Gemini (fallback)
- *   5. If both fail → Return error to user
+ * Flow:
+ *   1. Try Groq directly with full timeout
+ *   2. If Groq fails → throw error to user
  *
- * The circuit breaker prevents wasting time on Groq when it's consistently down.
- * After 3 consecutive failures, Groq is skipped for 2 minutes.
+ * Gemini is completely disabled. No fallback.
+ * If Groq is rate-limited or down, the user gets an error immediately.
  */
 async function aiChatWithFailover(
   systemPrompt: string,
@@ -708,57 +705,17 @@ async function aiChatWithFailover(
   const useNonStream = options?.nonStream ?? false;
   const startTime = Date.now();
 
-  // ─── Step 1: Check Groq circuit breaker ───
-  if (isGroqCircuitOpen()) {
-    console.log('[Circuit Breaker] Groq circuit is OPEN — skipping Groq, going straight to Gemini');
-    // Give Gemini the full timeout since we're not wasting time on Groq
-    try {
-      const result = await tryGemini(systemPrompt, userPrompt, options, overallTimeoutMs, useNonStream);
-      return result;
-    } catch (geminiError: unknown) {
-      const geminiCode = isAiError(geminiError) ? geminiError.code : 'UNKNOWN';
-      const geminiMsg = isAiError(geminiError) ? geminiError.userMessage : (geminiError instanceof Error ? geminiError.message : String(geminiError));
-      console.error('[AI] Gemini failed (circuit was open, Groq skipped):', geminiCode, geminiMsg);
-      throw geminiError;
-    }
-  }
-
-  // ─── Step 2: Try Groq (PRIMARY) with shorter timeout ───
-  const groqTimeoutMs = Math.min(GROQ_TIMEOUT_MS, overallTimeoutMs);
+  // ─── Try Groq ONLY — no Gemini fallback ───
   try {
-    const result = await tryGroq(systemPrompt, userPrompt, options, groqTimeoutMs, useNonStream);
+    const result = await tryGroq(systemPrompt, userPrompt, options, overallTimeoutMs, useNonStream);
     recordGroqSuccess();
     return result;
   } catch (groqError: unknown) {
     const groqCode = isAiError(groqError) ? groqError.code : 'UNKNOWN';
     recordGroqFailure();
 
-    console.warn('[Groq] Failed after', Date.now() - startTime, 'ms, code:', groqCode, '— falling back to Gemini');
-
-    // Calculate remaining time for Gemini fallback
-    const elapsed = Date.now() - startTime;
-    const remainingTimeout = Math.max(overallTimeoutMs - elapsed, 15000); // minimum 15s for fallback
-    const fallbackOptions = { ...options, timeoutMs: remainingTimeout };
-
-    // ─── Step 3: Try Gemini (FALLBACK) ───
-    console.log('[AI] Falling back to Gemini with', remainingTimeout, 'ms remaining');
-    try {
-      const result = await tryGemini(systemPrompt, userPrompt, fallbackOptions, remainingTimeout, useNonStream);
-      console.log('[AI] Gemini fallback succeeded in', Date.now() - startTime, 'ms total');
-      return result;
-    } catch (geminiError: unknown) {
-      const geminiCode = isAiError(geminiError) ? geminiError.code : 'UNKNOWN';
-      const geminiMsg = isAiError(geminiError) ? geminiError.userMessage : (geminiError instanceof Error ? geminiError.message : String(geminiError));
-      console.error('[AI] Both providers failed. Groq:', groqCode, '| Gemini:', geminiCode, geminiMsg);
-
-      // If both providers hit rate limits, give a more specific message
-      if (groqCode === 'RATE_LIMIT' && geminiCode === 'RATE_LIMIT') {
-        throw new AiProviderError('RATE_LIMIT', 'تم تجاوز حد الطلبات لجميع مزودي الذكاء الاصطناعي. يرجى المحاولة بعد دقيقتين', 'unknown', geminiError);
-      }
-
-      // Throw the Gemini error (last attempt) — it's already an AiProviderError
-      throw geminiError;
-    }
+    console.error('[Groq] Failed after', Date.now() - startTime, 'ms, code:', groqCode);
+    throw groqError;
   }
 }
 
