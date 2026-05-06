@@ -1,7 +1,7 @@
 /**
  * AI Service — Groq Only
  *
- * Centralized AI service using Groq (Llama 3.1 70B) as the sole provider.
+ * Centralized AI service using Groq (Llama 3.3 70B) as the sole provider.
  * Groq offers ultra-fast inference via LPU hardware.
  *
  * Provider flow:
@@ -259,9 +259,9 @@ function recordGroqFailure(): void {
 // Provider configuration
 // -------------------------------------------------------
 
-/** Groq model to use. Llama 3.1 70B has 128K context window —
+/** Groq model to use. Llama 3.3 70B has 128K context window —
  *  handles 50K chars easily and produces good Arabic output. */
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 // -------------------------------------------------------
 // Groq Singleton client
