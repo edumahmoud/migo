@@ -107,10 +107,12 @@ CREATE TABLE public.summaries (
   title TEXT NOT NULL,
   original_content TEXT NOT NULL,
   summary_content TEXT NOT NULL,
+  subject_id UUID REFERENCES public.subjects(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_summaries_user ON public.summaries(user_id);
+CREATE INDEX idx_summaries_subject ON public.summaries(subject_id);
 
 -- =====================================================
 -- PART 4: SUBJECTS (يعتمد على: users)

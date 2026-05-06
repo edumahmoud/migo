@@ -24,9 +24,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // Constants
 // -------------------------------------------------------
 
-/** Maximum content length to send to the AI (chars). ~20K chars ≈ 5K tokens,
- *  keeping requests fast and within Vercel hobby limits. */
-const MAX_AI_CONTENT_LENGTH = 20000;
+/** Maximum content length to send to the AI (chars). FIX #4: Increased from 20K to 50K.
+ *  50K chars ≈ 12.5K tokens. The AI model supports up to 1M token input,
+ *  and with streaming + 45s timeout, most 50K char summaries complete in time.
+ *  Previous 20K limit was too restrictive for academic documents. */
+const MAX_AI_CONTENT_LENGTH = 50000;
 
 /** Overall timeout for AI API calls (milliseconds).
  *  IMPORTANT: Must leave headroom for auth + DB within Vercel's 60s limit.

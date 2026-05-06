@@ -63,6 +63,26 @@ export async function GET(request: NextRequest) {
     }
 
     // ─── Fetch all summaries for the user (existing behavior) ───
+    // FIX #7: If requesting another user's summaries (targetUserId !== userId),
+    // verify that the authenticated user has an approved teacher-student link.
+    if (targetUserId !== userId) {
+      // Check if the requesting user is a teacher with an approved link to the target student
+      const { data: linkData, error: linkError } = await supabaseServer
+        .from('teacher_student_links')
+        .select('status')
+        .eq('teacher_id', userId)
+        .eq('student_id', targetUserId)
+        .limit(1);
+
+      if (linkError || !linkData || linkData.length === 0 || linkData[0].status !== 'approved') {
+        console.warn('[Summaries API] Unauthorized access attempt:', userId, 'tried to access summaries of', targetUserId);
+        return NextResponse.json(
+          { success: false, error: 'غير مصرح بعرض ملخصات هذا المستخدم' },
+          { status: 403 }
+        );
+      }
+    }
+
     // Fetch summaries using service role key (bypasses RLS)
     const { data: summaries, error } = await supabaseServer
       .from('summaries')
@@ -150,7 +170,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const originalContent = sanitizeString(existing.original_content, 20000);
+    const originalContent = sanitizeString(existing.original_content, 50000);
     if (!originalContent || originalContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى الأصلي فارغ، لا يمكن إعادة التلخيص' },

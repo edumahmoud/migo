@@ -37,6 +37,7 @@ export interface Summary {
   title: string;
   original_content: string;
   summary_content: string;
+  subject_id?: string | null; // FIX #5: Optional link to subject
   created_at: string;
 }
 

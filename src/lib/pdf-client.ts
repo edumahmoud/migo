@@ -16,9 +16,11 @@ export interface PdfExtractionResult {
 }
 
 /** Max chars to send to the AI (matches server-side sanitizeString limit)
- *  20K chars ≈ 5K tokens — keeps AI calls fast and within Vercel hobby 60s limit.
- *  Previous 30K limit caused timeouts on Vercel hobby plan. */
-const MAX_TEXT_LENGTH = 20000;
+ *  FIX #4: Increased from 20K to 50K chars — allows summarizing longer PDFs.
+ *  50K chars ≈ 12.5K tokens. The AI model supports up to 1M token input,
+ *  and with streaming + 45s timeout, most 50K char summaries complete in time.
+ *  Previous 20K limit was too restrictive for academic documents. */
+const MAX_TEXT_LENGTH = 50000;
 
 /**
  * Extract text from a PDF File in the browser.

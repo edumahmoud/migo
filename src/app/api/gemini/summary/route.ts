@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const userId = authResult.user.id;
 
     // Parse JSON body with specific error handling
-    let body: { content?: string; title?: string };
+    let body: { content?: string; title?: string; subject_id?: string };
     try {
       body = await request.json();
     } catch {
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
 
     const rawContent = body.content;
     const title = body.title || 'ملخص';
+    const subjectId = body.subject_id || null; // FIX #5: Accept optional subject_id
 
     if (!rawContent || typeof rawContent !== 'string' || rawContent.trim().length === 0) {
       return NextResponse.json(
@@ -69,9 +70,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sanitize and limit content length (20K chars — keeps AI calls fast
-    // and within Vercel hobby plan's 60s function timeout)
-    const sanitizedContent = sanitizeString(rawContent, 20000);
+    // FIX #4: Sanitize and limit content length (50K chars — increased from 20K
+    // to allow summarizing longer academic documents). The AI model supports
+    // up to 1M token input, and with streaming + 45s timeout, most complete in time.
+    const sanitizedContent = sanitizeString(rawContent, 50000);
     if (sanitizedContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى غير صالح بعد التنظيف' },
@@ -111,6 +113,7 @@ export async function POST(request: NextRequest) {
           title,
           original_content: rawContent,
           summary_content: summary,
+          subject_id: subjectId, // FIX #5: Include subject_id in insert
         })
         .select()
         .single();
@@ -137,14 +140,14 @@ export async function POST(request: NextRequest) {
         // Fire the save in background so it still completes
         supabaseServer
           .from('summaries')
-          .insert({ user_id: userId, title, original_content: rawContent, summary_content: summary })
+          .insert({ user_id: userId, title, original_content: rawContent, summary_content: summary, subject_id: subjectId })
           .select()
           .single()
           .then(({ data, error }) => {
             if (error) console.error('[Summary API] Background save failed:', error.message);
             else console.log('[Summary API] Background save succeeded, id:', data?.id);
           })
-          .catch(err => console.error('[Summary API] Background save error:', err));
+          .catch((err: unknown) => console.error('[Summary API] Background save error:', err));
       } else {
         console.error('[Summary API] DB save error:', errMsg);
       }

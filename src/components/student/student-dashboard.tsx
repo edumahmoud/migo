@@ -165,8 +165,25 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   });
   // Ref to track current summaries for protection against wiping on refresh
   const summariesRef = useRef<Summary[]>(summaries); // Initialize with cached data
-  // Mutex ref to prevent concurrent fetchSummaries calls (race condition fix)
+
+  // ─── FIX #1: Fetch queue (replaces simple mutex) ───
+  // Instead of skipping duplicate fetch requests, we queue them.
+  // When a fetch is already in progress, we record that a re-fetch is needed
+  // and execute it after the current one finishes. This prevents data loss
+  // from dropped fetches during race conditions (e.g., auth event + mount).
   const fetchInProgressRef = useRef(false);
+  const fetchQueuedRef = useRef(false);
+
+  // ─── FIX #2: Fetch generation counter ───
+  // Each fetch gets a monotonically increasing generation number.
+  // safeSetSummaries only accepts results from the LATEST generation,
+  // so stale results from older fetches can't overwrite newer data.
+  // This also allows newer empty lists to replace older non-empty data.
+  const fetchGenerationRef = useRef(0);
+
+  // ─── FIX #8: Fallback polling for auto-update ───
+  // Poll every 60s as a fallback for Realtime disconnections
+  const POLL_INTERVAL_MS = 60000;
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
   const [linkedTeachers, setLinkedTeachers] = useState<UserProfile[]>([]);
@@ -260,22 +277,37 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   }, [summaries]);
 
   /**
-   * RADICAL FIX: Safe setter that NEVER allows empty data to replace existing data.
+   * FIX #2: Safe setter with generation-aware empty list acceptance.
    *
-   * Previous version had an escape hatch: hasValidSession=true allowed empty data through.
-   * This was the root cause of the bug — a race condition between concurrent fetches
-   * could return empty data with a valid session, wiping the user's summaries.
+   * Previous version NEVER allowed empty data to replace existing data.
+   * This caused a bug: when a user legitimately deletes all their summaries,
+   * a stale fetch result (non-empty, from before the delete) could arrive
+   * AFTER the legitimate empty result, re-adding the deleted summaries.
    *
-   * New rule: If we have summaries and a fetch returns empty, ALWAYS keep existing data.
-   * Empty state is only allowed when we've NEVER had data (first-time user).
+   * New approach: Use a fetch generation counter. Each fetch increments the
+   * generation. safeSetSummaries only accepts results from the CURRENT
+   * generation (or higher). This means:
+   *   - Stale results from older fetches are always rejected
+   *   - A newer empty list CAN replace older non-empty data (legitimate delete-all)
+   *   - A stale non-empty list CANNOT replace a newer empty list
    *
-   * The `force` parameter is used ONLY for user-initiated deletes that legitimately
-   * result in zero summaries.
+   * The `force` parameter bypasses generation checks for user-initiated actions.
    */
-  const safeSetSummaries = useCallback((newSummaries: Summary[], force: boolean = false) => {
-    if (!force && newSummaries.length === 0 && summariesRef.current.length > 0) {
-      console.warn('[safeSetSummaries] BLOCKED wipe of', summariesRef.current.length, 'summaries — keeping existing data');
-      return;
+  const safeSetSummaries = useCallback((newSummaries: Summary[], generation: number, force: boolean = false) => {
+    if (!force) {
+      // Reject stale results from older fetch generations
+      if (generation < fetchGenerationRef.current) {
+        console.warn('[safeSetSummaries] REJECTED stale result (gen', generation, '< current', fetchGenerationRef.current, ') — keeping existing data');
+        return;
+      }
+      // Accept newer results (even empty) since they come from a more recent fetch
+      // This fixes the case where a user deletes all summaries and the empty
+      // result should be accepted, but also prevents old fetches from overwriting
+      console.log('[safeSetSummaries] Accepting result from gen', generation, '(current:', fetchGenerationRef.current, '), count:', newSummaries.length);
+    }
+    // Update the generation ref to the latest accepted generation
+    if (generation > fetchGenerationRef.current) {
+      fetchGenerationRef.current = generation;
     }
     if (newSummaries.length > 0) {
       // Cache to localStorage on every successful non-empty update
@@ -283,6 +315,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(newSummaries));
         localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
       } catch { /* localStorage might be unavailable */ }
+    } else if (force) {
+      // Also clear cache when force-setting empty (e.g., after deleting all)
+      try {
+        localStorage.removeItem(`summaries_${profile.id}`);
+        localStorage.removeItem(`summaries_${profile.id}_ts`);
+      } catch { /* ignore */ }
     }
     setSummaries(newSummaries);
   }, [profile.id]);
@@ -333,7 +371,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           const parsed = JSON.parse(cached) as Summary[];
           if (parsed.length > 0) {
             console.log('[loadSummariesFromCache] Loaded', parsed.length, 'summaries from cache (age:', Math.round(age / 1000), 's)');
-            safeSetSummaries(parsed);
+            safeSetSummaries(parsed, 0, true); // force=true for cache load (generation=0, bypasses stale check)
             return;
           }
         }
@@ -345,17 +383,22 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   }, [profile.id, safeSetSummaries]);
 
   const fetchSummaries = useCallback(async () => {
-    // RADICAL FIX: Mutex to prevent concurrent fetches.
+    // ─── FIX #1: Fetch queue instead of simple mutex ───
     // On page refresh, fetchSummaries can be called simultaneously from:
     //   1. fetchAllData() useEffect
     //   2. Auth INITIAL_SESSION event listener
-    // If both run concurrently, a race condition can cause one fetch's empty
-    // result to overwrite the other fetch's valid data.
+    // With a simple mutex, the second call was just skipped (data lost).
+    // Now we QUEUE it: after the current fetch finishes, if a re-fetch was
+    // requested, we run it again to pick up the latest data.
     if (fetchInProgressRef.current) {
-      console.warn('[fetchSummaries] Fetch already in progress, skipping duplicate call');
+      console.warn('[fetchSummaries] Fetch already in progress, QUEUEING a re-fetch');
+      fetchQueuedRef.current = true;
       return;
     }
     fetchInProgressRef.current = true;
+
+    // ─── FIX #2: Assign a generation to this fetch ───
+    const thisGeneration = ++fetchGenerationRef.current;
 
     try {
       // Wait for auth session with progressive backoff (critical on mobile)
@@ -368,8 +411,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       if (res.ok) {
         const { data } = await res.json();
         const fetched = (data as Summary[]) || [];
-        // safeSetSummaries will NEVER allow empty data to replace existing data
-        safeSetSummaries(fetched);
+        // safeSetSummaries checks generation before accepting
+        safeSetSummaries(fetched, thisGeneration);
       } else {
         // API error (401, 500, etc.) — try direct Supabase query as fallback
         console.warn('[fetchSummaries] API returned', res.status, '— trying direct query...');
@@ -381,7 +424,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             .order('created_at', { ascending: false });
           if (!error && data) {
             const fetched = (data as Summary[]) || [];
-            safeSetSummaries(fetched);
+            safeSetSummaries(fetched, thisGeneration);
           } else {
             loadSummariesFromCache();
           }
@@ -400,7 +443,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           .order('created_at', { ascending: false });
         if (!error && data) {
           const fetched = (data as Summary[]) || [];
-          safeSetSummaries(fetched);
+          safeSetSummaries(fetched, thisGeneration);
         } else {
           loadSummariesFromCache();
         }
@@ -409,6 +452,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
     } finally {
       fetchInProgressRef.current = false;
+
+      // ─── FIX #1: Process queued fetch ───
+      // If another fetch was queued while we were running, execute it now.
+      // Use setTimeout to avoid stack overflow and let the UI update first.
+      if (fetchQueuedRef.current) {
+        fetchQueuedRef.current = false;
+        console.log('[fetchSummaries] Processing queued re-fetch');
+        setTimeout(() => fetchSummaries(), 100);
+      }
     }
   }, [profile.id, waitForSession, safeSetSummaries, loadSummariesFromCache]);
 
@@ -680,12 +732,65 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Realtime subscriptions
   // -------------------------------------------------------
   useEffect(() => {
+    // ─── FIX #6: Local upsert instead of full refetch on Realtime ───
+    // Previously, every Realtime event triggered a full `fetchSummaries()`.
+    // This caused unnecessary network requests and potential race conditions.
+    // Now we update local state directly based on the event payload,
+    // and only do a full refetch if we detect a gap (missing data).
     const summariesChannel = supabase
       .channel('summaries-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'summaries', filter: `user_id=eq.${profile.id}` },
-        () => { fetchSummaries(); }
+        (payload) => {
+          const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
+          const newRecord = payload.new as Summary | null;
+          const oldRecord = payload.old as { id: string } | null;
+
+          if (eventType === 'INSERT' && newRecord) {
+            // Add the new summary to local state (avoid duplicates)
+            setSummaries(prev => {
+              const exists = prev.some(s => s.id === newRecord.id);
+              if (exists) return prev;
+              const updated = [newRecord as Summary, ...prev];
+              // Cache the updated list
+              try {
+                localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(updated));
+                localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+              } catch { /* ignore */ }
+              return updated;
+            });
+          } else if (eventType === 'UPDATE' && newRecord) {
+            // Update the existing summary in local state
+            setSummaries(prev => {
+              const updated = prev.map(s => s.id === newRecord.id ? (newRecord as Summary) : s);
+              try {
+                localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(updated));
+                localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+              } catch { /* ignore */ }
+              return updated;
+            });
+          } else if (eventType === 'DELETE' && oldRecord) {
+            // Remove the summary from local state
+            setSummaries(prev => {
+              const updated = prev.filter(s => s.id !== oldRecord.id);
+              try {
+                if (updated.length > 0) {
+                  localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(updated));
+                  localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+                } else {
+                  localStorage.removeItem(`summaries_${profile.id}`);
+                  localStorage.removeItem(`summaries_${profile.id}_ts`);
+                }
+              } catch { /* ignore */ }
+              return updated;
+            });
+          } else {
+            // Unknown event type — fall back to full refetch
+            console.warn('[Realtime] Unknown summaries event, falling back to full refetch');
+            fetchSummaries();
+          }
+        }
       )
       .subscribe();
 
@@ -723,6 +828,41 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       supabase.removeChannel(linksChannel);
     };
   }, [profile.id, fetchSummaries, fetchQuizzes, fetchScores, fetchLinkedTeachers]);
+
+  // ─── FIX #8: Fallback polling for auto-update ───
+  // Supabase Realtime can silently disconnect (network issues, WebSocket drops).
+  // This polling mechanism ensures summaries stay up-to-date even if Realtime fails.
+  // We poll every POLL_INTERVAL_MS (60s) only when the dashboard is visible.
+  useEffect(() => {
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    const doPoll = () => {
+      // Only poll if the page is visible (don't waste resources in background tabs)
+      if (document.visibilityState === 'visible') {
+        console.log('[Poll] Fallback polling: refreshing summaries');
+        fetchSummaries();
+      }
+    };
+
+    // Start polling after initial data load completes
+    if (!loadingData) {
+      pollTimer = setInterval(doPoll, POLL_INTERVAL_MS);
+    }
+
+    // Also poll when the page becomes visible again (user returns to tab)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        // Refresh on visibility change (catches up on missed Realtime events)
+        fetchSummaries();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (pollTimer) clearInterval(pollTimer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [fetchSummaries, loadingData]);
 
   // -------------------------------------------------------
   // Section change handler
@@ -874,7 +1014,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ content: originalContent, title }),
+            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null }),
             signal: abortController.signal,
           });
 
@@ -888,32 +1028,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summaryContent = summaryData.data?.summary || '';
           savedSummaryId = summaryData.data?.summaryId || '';
 
-          // Server uses streaming + short DB timeout. If saved=false, do client-side fallback.
+          // ─── FIX #3: Removed client-side fallback insert ───
+          // The server already handles background saves if the primary DB save times out.
+          // Client-side inserts were causing DUPLICATE summaries because both the server's
+          // background save and the client's fallback insert could succeed independently.
+          // Now we trust the server to save, and if it doesn't, we rely on the Realtime
+          // subscription and polling to pick up the data later.
           if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
-            console.warn('[Summary] Server did not save summary (or timed out), attempting client-side fallback...');
-            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-            try {
-              const { data: insertedSummary, error: summaryError } = await supabase
-                .from('summaries')
-                .insert({
-                  user_id: profile.id,
-                  title,
-                  original_content: originalContent,
-                  summary_content: summaryContent,
-                })
-                .select()
-                .single();
-
-              if (summaryError) {
-                console.error('[Summary] Client-side insert also failed:', summaryError.message);
-                // Don't throw — we still have the summary text, just won't be persisted
-              } else {
-                savedSummaryId = insertedSummary.id;
-              }
-            } catch (insertErr) {
-              console.error('[Summary] Client-side insert exception:', insertErr);
-              // Don't throw — we still have the summary text
-            }
+            console.warn('[Summary] Server did not save summary immediately (background save in progress). Waiting for Realtime/polling to pick it up.');
           }
         } else {
           // Text mode
@@ -928,7 +1050,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ content: originalContent, title }),
+            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null }),
             signal: abortController.signal,
           });
 
@@ -942,32 +1064,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summaryContent = summaryData.data?.summary || '';
           savedSummaryId = summaryData.data?.summaryId || '';
 
-          // Server uses streaming + short DB timeout. If saved=false, do client-side fallback.
+          // ─── FIX #3: Removed client-side fallback insert (same as file mode) ───
           if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
-            console.warn('[Summary] Server did not save summary (or timed out), attempting client-side fallback...');
-            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-            try {
-              const { data: insertedSummary, error: summaryError } = await supabase
-                .from('summaries')
-                .insert({
-                  user_id: profile.id,
-                  title,
-                  original_content: originalContent,
-                  summary_content: summaryContent,
-                })
-                .select()
-                .single();
-
-              if (summaryError) {
-                console.error('[Summary] Client-side insert also failed:', summaryError.message);
-                // Don't throw — we still have the summary text, just won't be persisted
-              } else {
-                savedSummaryId = insertedSummary.id;
-              }
-            } catch (insertErr) {
-              console.error('[Summary] Client-side insert exception:', insertErr);
-              // Don't throw — we still have the summary text
-            }
+            console.warn('[Summary] Server did not save summary immediately (background save in progress). Waiting for Realtime/polling to pick it up.');
           }
         }
 
@@ -975,89 +1074,37 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           throw new Error('لم يتم إنشاء محتوى الملخص — رد الذكاء الاصطناعي فارغ');
         }
 
-        // Note: savedSummaryId might be empty if the server's DB save timed out.
-        // In that case, the server saves in background. We still show the summary
-        // to the user and try client-side insert below.
         if (savedSummaryId) {
           console.log('[Summary] Saved successfully, id:', savedSummaryId);
         } else {
-          console.warn('[Summary] No summaryId from server — will save client-side');
-          // Last resort: try client-side insert
-          try {
-            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-            const { data: inserted, error: insertErr } = await supabase
-              .from('summaries')
-              .insert({
-                user_id: profile.id,
-                title,
-                original_content: originalContent,
-                summary_content: summaryContent,
-              })
-              .select()
-              .single();
-            if (!insertErr && inserted) {
-              savedSummaryId = inserted.id;
-              console.log('[Summary] Client-side fallback save succeeded, id:', savedSummaryId);
-            } else {
-              console.error('[Summary] Client-side fallback save failed:', insertErr?.message);
-            }
-          } catch (fallbackErr) {
-            console.error('[Summary] Client-side fallback save error:', fallbackErr);
-          }
+          // ─── FIX #3: Removed client-side fallback insert ───
+          // Previously: if no savedSummaryId, the code tried 3 more client-side inserts.
+          // This caused duplicates when the server's background save also succeeded.
+          // Now we just wait — the server will complete the save in the background,
+          // and Realtime + polling will update the UI.
+          console.warn('[Summary] No summaryId from server yet — server is saving in background. Realtime/polling will update the UI.');
         }
 
-        // ─── Post-save verification (only if we have an ID) ───
-        if (savedSummaryId) {
-          try {
-            const verifyRes = await fetch(`/api/summaries?id=${encodeURIComponent(savedSummaryId)}`, {
-              headers: { 'Authorization': `Bearer ${token}` },
-              signal: AbortSignal.timeout(10000), // 10s timeout for verification
-            });
-            if (verifyRes.ok) {
-              console.log('[Summary] Post-save verification passed ✓');
-            } else if (verifyRes.status === 404) {
-              console.warn('[Summary] Post-save verification: not found, re-inserting...');
-              try {
-                const { data: reInserted, error: reInsertError } = await supabase
-                  .from('summaries')
-                  .insert({
-                    user_id: profile.id,
-                    title,
-                    original_content: originalContent,
-                    summary_content: summaryContent,
-                  })
-                  .select()
-                  .single();
-                if (!reInsertError && reInserted) {
-                  savedSummaryId = reInserted.id;
-                  console.log('[Summary] Re-insert succeeded, new id:', savedSummaryId);
-                }
-              } catch (e) {
-                console.warn('[Summary] Re-insert failed:', e);
-              }
-            }
-          } catch (verifyErr) {
-            console.warn('[Summary] Post-save verification error (non-critical):', verifyErr);
-          }
-        }
-
-        // Add summary to local state IMMEDIATELY so it shows even before fetchSummaries
+        // Add summary to local state IMMEDIATELY so it shows even before Realtime/polling
         const newSummary: Summary = {
-          id: savedSummaryId,
+          id: savedSummaryId || `temp-${Date.now()}`,
           user_id: profile.id,
           title,
           original_content: originalContent,
           summary_content: summaryContent,
+          subject_id: selectedSubjectId || null, // FIX #5: Include subject_id
           created_at: new Date().toISOString(),
         };
-        // Use safeSetSummaries to ensure consistent caching
-        const updatedSummaries = [newSummary, ...summariesRef.current.filter(s => s.id !== savedSummaryId)];
-        safeSetSummaries(updatedSummaries);
+        // Use safeSetSummaries with force=true for optimistic local update
+        const updatedSummaries = [newSummary, ...summariesRef.current.filter(s => s.id !== savedSummaryId && !s.id.startsWith('temp-'))];
+        safeSetSummaries(updatedSummaries, 0, true);
 
         // Generate quiz in background (non-blocking) — delay 5s to let things settle
-        setTimeout(() => {
-          generateQuizInBackground(token, originalContent, title, savedSummaryId, pendingId);
-        }, 5000);
+        if (savedSummaryId) {
+          setTimeout(() => {
+            generateQuizInBackground(token, originalContent, title, savedSummaryId, pendingId);
+          }, 5000);
+        }
 
         toast.success(`تم إنشاء ملخص "${title}" بنجاح`);
         // Also refresh from server to get the authoritative version
@@ -1170,7 +1217,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         // returns stale data (before the delete is committed), re-adding
         // the deleted summary to the UI temporarily.
         const remaining = summaries.filter(s => s.id !== summaryId);
-        safeSetSummaries(remaining, remaining.length === 0); // force=true if all deleted
+        safeSetSummaries(remaining, 0, remaining.length === 0); // force=true if all deleted
       } else {
         // Fallback to direct Supabase delete
         const { error } = await supabase.from('summaries').delete().eq('id', summaryId);
@@ -1179,7 +1226,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         } else {
           toast.success('تم حذف الملخص بنجاح');
           const remaining = summaries.filter(s => s.id !== summaryId);
-          safeSetSummaries(remaining, remaining.length === 0);
+          safeSetSummaries(remaining, 0, remaining.length === 0);
         }
       }
     } catch {
@@ -1191,7 +1238,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         } else {
           toast.success('تم حذف الملخص بنجاح');
           const remaining = summaries.filter(s => s.id !== summaryId);
-          safeSetSummaries(remaining, remaining.length === 0);
+          safeSetSummaries(remaining, 0, remaining.length === 0);
         }
       } catch {
         toast.error('حدث خطأ غير متوقع');
