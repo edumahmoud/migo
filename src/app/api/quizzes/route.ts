@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { supabaseServer } from '@/lib/supabase-server';
-import { generateQuiz, isAiError } from '@/lib/gemini';
+import { generateQuiz, isAiError } from '@/lib/ai';
 import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
 /**

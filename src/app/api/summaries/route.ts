@@ -5,7 +5,7 @@ import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 import { supabaseServer } from '@/lib/supabase-server';
-import { generateSummary, isAiError } from '@/lib/gemini';
+import { generateSummary, isAiError } from '@/lib/ai';
 import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
 /**

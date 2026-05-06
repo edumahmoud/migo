@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateSummary, isAiError, type AiProviderError } from '@/lib/gemini';
+import { generateSummary, isAiError, type AiProviderError } from '@/lib/ai';
 
 // IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
 // The AI call timeout (45s) + auth/validation (~3-5s) must fit within this.
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate summary using AI (Google Gemini) with STREAMING
+    // Generate summary using AI (Groq) with STREAMING
     // NO duplicate route-level timeout — the AI call has its own two-tier timeout:
     //   - First-token timeout: 15s (fast feedback if AI is unreachable)
     //   - Overall timeout: 45s (leaves 15s headroom for auth + DB)

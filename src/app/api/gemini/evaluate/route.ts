@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { evaluateCompletionAnswer, isAiError } from '@/lib/gemini';
+import { evaluateCompletionAnswer, isAiError } from '@/lib/ai';
 
 // Allow up to 60 seconds for AI evaluation
 export const maxDuration = 60;
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Evaluate using AI (Google Gemini) with timeout
+    // Evaluate using AI (Groq) with timeout
     const evalPromise = evaluateCompletionAnswer(
       sanitizedQuestion,
       sanitizedCorrectAnswer,

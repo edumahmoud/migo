@@ -1,23 +1,20 @@
 /**
- * AI Service — Groq (Primary) + Gemini (Fallback)
+ * AI Service — Groq Only
  *
- * Centralized AI service with a two-provider architecture:
- *   1. Groq (Llama 3.1 70B) — PRIMARY: ultra-fast inference via LPU hardware
- *   2. Gemini — FALLBACK: used when Groq fails (rate limit, timeout, errors)
+ * Centralized AI service using Groq (Llama 3.1 70B) as the sole provider.
+ * Groq offers ultra-fast inference via LPU hardware.
  *
- * Provider selection flow:
+ * Provider flow:
  *   Request → Groq → Success ✅ → Return
  *                    ↓ Failure (any error)
- *              Gemini → Success ✅ → Return
- *                        ↓ Failure
- *                    Error to user
+ *                Error to user
  *
  * Key features:
  *   - Groq streaming for fast first-token delivery
- *   - Gemini streaming as reliable fallback
- *   - Automatic provider failover on any error
+ *   - Groq non-streaming for short responses (evaluate)
  *   - Content truncation to prevent oversized prompts
  *   - Comprehensive error handling with Arabic user messages
+ *   - Circuit breaker to avoid wasting time when Groq is down
  *
  * Used by:
  *   - /api/gemini/summary  → Text/PDF summarization
@@ -27,7 +24,6 @@
  */
 
 import Groq from 'groq-sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // -------------------------------------------------------
 // Custom Error Classes for AI Provider Errors
@@ -39,7 +35,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
  * regardless of whether the message is in Arabic or English.
  */
 export type AiErrorCode =
-  | 'RATE_LIMIT'        // 429 / rate_limit / RESOURCE_EXHAUSTED / quota
+  | 'RATE_LIMIT'        // 429 / rate_limit / quota
   | 'AUTH_ERROR'        // 401 / 403 / API_KEY invalid
   | 'TIMEOUT'           // timeout / timed out
   | 'NOT_CONFIGURED'    // API key not set
@@ -59,9 +55,9 @@ export type AiErrorCode =
 export class AiProviderError extends Error {
   code: AiErrorCode;
   userMessage: string;
-  provider: 'groq' | 'gemini' | 'unknown';
+  provider: 'groq' | 'unknown';
 
-  constructor(code: AiErrorCode, userMessage: string, provider: 'groq' | 'gemini' | 'unknown' = 'unknown', originalError?: unknown) {
+  constructor(code: AiErrorCode, userMessage: string, provider: 'groq' | 'unknown' = 'unknown', originalError?: unknown) {
     super(`[${code}] ${userMessage}`);
     this.name = 'AiProviderError';
     this.code = code;
@@ -80,29 +76,54 @@ export function isAiError(error: unknown): error is AiProviderError {
 }
 
 /**
- * Classify an error from an AI provider API call into an AiProviderError.
+ * Classify an error from Groq API call into an AiProviderError.
  * This function translates raw API errors (which can be English HTTP errors,
  * SDK-specific messages, or Arabic messages) into structured errors with
  * both a code and a user-friendly Arabic message.
+ *
+ * ORDER MATTERS: More specific patterns must come before general ones.
+ * For example, "rate_limit" must be checked before "model" because
+ * Groq rate limit errors can include the word "model".
  */
 function classifyAiError(
   error: unknown,
-  provider: 'groq' | 'gemini',
+  provider: 'groq',
 ): AiProviderError {
   const errMsg = error instanceof Error ? error.message : String(error);
 
-  // Rate limit patterns (English API errors)
-  if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('Rate limit') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota')) {
+  // Rate limit patterns (most specific — check FIRST)
+  if (
+    errMsg.includes('429') ||
+    errMsg.includes('rate_limit') ||
+    errMsg.includes('Rate limit') ||
+    errMsg.includes('rate limit') ||
+    errMsg.includes('RESOURCE_EXHAUSTED') ||
+    errMsg.includes('quota') ||
+    errMsg.includes('Too many requests')
+  ) {
     return new AiProviderError('RATE_LIMIT', 'تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة', provider, error);
   }
 
   // Auth/key errors
-  if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('API key not valid') || errMsg.includes('Incorrect API key')) {
+  if (
+    errMsg.includes('401') ||
+    errMsg.includes('403') ||
+    errMsg.includes('API_KEY') ||
+    errMsg.includes('API key not valid') ||
+    errMsg.includes('Incorrect API key') ||
+    errMsg.includes('invalid x-api-key')
+  ) {
     return new AiProviderError('AUTH_ERROR', 'خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة', provider, error);
   }
 
   // Timeout errors (both English and Arabic)
-  if (errMsg.includes('timeout') || errMsg.includes('timed out') || errMsg.includes('ETIMEDOUT') || errMsg.includes('مهلة') || errMsg.includes('انتهت مهلة')) {
+  if (
+    errMsg.includes('timeout') ||
+    errMsg.includes('timed out') ||
+    errMsg.includes('ETIMEDOUT') ||
+    errMsg.includes('مهلة') ||
+    errMsg.includes('انتهت مهلة')
+  ) {
     return new AiProviderError('TIMEOUT', 'انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى', provider, error);
   }
 
@@ -111,14 +132,30 @@ function classifyAiError(
     return new AiProviderError('NOT_CONFIGURED', 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة', provider, error);
   }
 
-  // Model errors
-  if (errMsg.includes('not found') || errMsg.includes('not available') || errMsg.includes('model')) {
-    return new AiProviderError('MODEL_ERROR', 'نموذج الذكاء الاصطناعي غير متاح حالياً. يرجى المحاولة لاحقاً', provider, error);
+  // Connection errors (check BEFORE model errors — more specific)
+  if (
+    errMsg.includes('ECONNRESET') ||
+    errMsg.includes('socket hang up') ||
+    errMsg.includes('aborted') ||
+    errMsg.includes('ECONNREFUSED') ||
+    errMsg.includes('fetch failed') ||
+    errMsg.includes('network') ||
+    errMsg.includes('ENOTFOUND')
+  ) {
+    return new AiProviderError('CONNECTION_ERROR', 'انتهت مهلة الخادم. قد يكون المحتوى كبيراً جداً، جرب تلخيص محتوى أقصر', provider, error);
   }
 
-  // Connection errors
-  if (errMsg.includes('ECONNRESET') || errMsg.includes('socket hang up') || errMsg.includes('aborted') || errMsg.includes('ECONNREFUSED') || errMsg.includes('fetch failed')) {
-    return new AiProviderError('CONNECTION_ERROR', 'انتهت مهلة الخادم. قد يكون المحتوى كبيراً جداً، جرب تلخيص محتوى أقصر', provider, error);
+  // Model errors — SPECIFIC patterns only (avoid catching "model" in rate limit messages)
+  if (
+    errMsg.includes('model_not_found') ||
+    errMsg.includes('Model not found') ||
+    errMsg.includes('model not found') ||
+    errMsg.includes('does not exist') ||
+    errMsg.includes('not available') ||
+    errMsg.includes('currently loading') ||
+    errMsg.includes('not ready')
+  ) {
+    return new AiProviderError('MODEL_ERROR', 'نموذج الذكاء الاصطناعي غير متاح حالياً. يرجى المحاولة لاحقاً', provider, error);
   }
 
   // Empty response
@@ -134,8 +171,8 @@ function classifyAiError(
 // Constants
 // -------------------------------------------------------
 
-/** Maximum content length to send to the AI (chars). FIX #4: Increased from 20K to 50K.
- *  50K chars ≈ 12.5K tokens. Both Groq (128K context) and Gemini (1M+) support this. */
+/** Maximum content length to send to the AI (chars).
+ *  50K chars ≈ 12.5K tokens. Groq (128K context) supports this easily. */
 const MAX_AI_CONTENT_LENGTH = 50000;
 
 /** Overall timeout for AI API calls (milliseconds).
@@ -143,19 +180,10 @@ const MAX_AI_CONTENT_LENGTH = 50000;
  *  45s gives us 15s for auth (3-5s) + DB save (2-5s) + network overhead. */
 const AI_CALL_TIMEOUT_MS = 45000; // 45 seconds
 
-/** Groq-specific timeout (milliseconds).
- *  Groq is supposed to be ultra-fast (sub-second first token).
- *  If Groq doesn't respond within 8s, it's likely down or unreachable —
- *  fall back to Gemini quickly instead of waiting the full 45s.
- *  Reduced from 12s to 8s because Groq's LPU hardware responds in <500ms
- *  when healthy — anything over 8s means it's down. */
-const GROQ_TIMEOUT_MS = 8000; // 8 seconds
-
 /** First-token timeout for streaming calls (milliseconds).
  *  Groq typically returns first token in <500ms.
- *  Gemini typically returns first token in 3-8s.
- *  15s is a generous first-token timeout. */
-const AI_FIRST_TOKEN_TIMEOUT_MS = 15000; // 15 seconds
+ *  10s is a generous first-token timeout. */
+const AI_FIRST_TOKEN_TIMEOUT_MS = 10000; // 10 seconds
 
 // -------------------------------------------------------
 // Groq Circuit Breaker
@@ -164,11 +192,11 @@ const AI_FIRST_TOKEN_TIMEOUT_MS = 15000; // 15 seconds
 /**
  * Circuit breaker for Groq: if Groq fails multiple times in a row,
  * we "open" the circuit and skip Groq entirely for a cooldown period.
- * This prevents wasting 8+ seconds on every request when Groq is down.
+ * This prevents wasting time on every request when Groq is down.
  *
  * States:
- *   CLOSED  → Normal operation (try Groq first)
- *   OPEN    → Skip Groq entirely (go straight to Gemini)
+ *   CLOSED    → Normal operation (try Groq)
+ *   OPEN      → Skip Groq entirely (return error immediately)
  *   HALF_OPEN → Try Groq once to see if it's back
  *
  * After COOLDOWN_MS in OPEN state, we try once (HALF_OPEN).
@@ -235,13 +263,6 @@ function recordGroqFailure(): void {
  *  handles 50K chars easily and produces good Arabic output. */
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile';
 
-/** Gemini model fallback list. If the first model fails, try the next. */
-const GEMINI_MODEL_FALLBACK_LIST = [
-  process.env.GEMINI_MODEL || 'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-];
-
 // -------------------------------------------------------
 // Groq Singleton client
 // -------------------------------------------------------
@@ -252,32 +273,13 @@ function getGroqClient(): Groq {
 
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    console.warn('[Groq] GROQ_API_KEY not set — Groq will be skipped');
-    throw new AiProviderError('NOT_CONFIGURED', 'Groq غير مفعلة حالياً. يرجى التواصل مع الإدارة', 'groq');
+    console.warn('[Groq] GROQ_API_KEY not set');
+    throw new AiProviderError('NOT_CONFIGURED', 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة', 'groq');
   }
 
   _groqClient = new Groq({ apiKey });
   console.log('[Groq] Client initialized successfully');
   return _groqClient;
-}
-
-// -------------------------------------------------------
-// Gemini Singleton client
-// -------------------------------------------------------
-let _genAI: GoogleGenerativeAI | null = null;
-
-function getGeminiClient(): GoogleGenerativeAI {
-  if (_genAI) return _genAI;
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn('[Gemini] GEMINI_API_KEY not set — Gemini will be skipped');
-    throw new AiProviderError('NOT_CONFIGURED', 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة', 'gemini');
-  }
-
-  _genAI = new GoogleGenerativeAI(apiKey);
-  console.log('[Gemini] Client initialized successfully');
-  return _genAI;
 }
 
 // -------------------------------------------------------
@@ -436,123 +438,6 @@ async function groqNonStreamChat(
 }
 
 // -------------------------------------------------------
-// Gemini: Streaming chat call
-// -------------------------------------------------------
-
-async function geminiStreamChat(
-  genAI: GoogleGenerativeAI,
-  modelName: string,
-  systemPrompt: string,
-  userPrompt: string,
-  options?: AiChatOptions,
-  overallTimeoutMs: number = AI_CALL_TIMEOUT_MS,
-): Promise<string> {
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    systemInstruction: systemPrompt,
-    generationConfig: {
-      temperature: options?.temperature ?? 0.4,
-      maxOutputTokens: options?.maxTokens ?? 4096,
-    },
-  });
-
-  console.log('[Gemini] Starting STREAM for model:', modelName, '(timeout:', overallTimeoutMs + 'ms)');
-
-  const startTime = Date.now();
-  const streamResult = await model.generateContentStream(userPrompt);
-
-  let firstTokenReceived = false;
-  let accumulatedText = '';
-  const overallDeadline = startTime + overallTimeoutMs;
-
-  try {
-    for await (const chunk of streamResult.stream) {
-      const chunkText = chunk.text();
-      if (chunkText) {
-        if (!firstTokenReceived) {
-          firstTokenReceived = true;
-          console.log('[Gemini] First token received in', Date.now() - startTime, 'ms from model:', modelName);
-        }
-        accumulatedText += chunkText;
-      }
-
-      if (Date.now() > overallDeadline) {
-        console.warn('[Gemini] Overall timeout reached after', Date.now() - startTime, 'ms. Returning partial (', accumulatedText.length, 'chars)');
-        if (accumulatedText.trim().length > 100) {
-          return accumulatedText + '\n\n[... تم قطع الاستجابة بسبب انتهاء المهلة ...]';
-        }
-        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
-      }
-    }
-  } catch (streamError: unknown) {
-    const errMsg = streamError instanceof Error ? streamError.message : String(streamError);
-
-    if (accumulatedText.trim().length > 100 && !errMsg.includes('انتهت مهلة')) {
-      console.warn('[Gemini] Stream error after', Date.now() - startTime, 'ms, returning partial (', accumulatedText.length, 'chars):', errMsg);
-      return accumulatedText;
-    }
-
-    if (!firstTokenReceived) {
-      const elapsed = Date.now() - startTime;
-      if (elapsed > AI_FIRST_TOKEN_TIMEOUT_MS) {
-        console.warn('[Gemini] First-token timeout (', elapsed, 'ms) for model:', modelName);
-        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
-      }
-    }
-
-    throw streamError;
-  }
-
-  if (!accumulatedText || accumulatedText.trim().length === 0) {
-    console.error('[Gemini] Empty streaming response from model:', modelName);
-    throw new Error('AI returned an empty response');
-  }
-
-  console.log('[Gemini] Stream complete from model:', modelName, ', length:', accumulatedText.length, ', time:', Date.now() - startTime, 'ms');
-  return accumulatedText;
-}
-
-// -------------------------------------------------------
-// Gemini: Non-streaming chat call
-// -------------------------------------------------------
-
-async function geminiNonStreamChat(
-  genAI: GoogleGenerativeAI,
-  modelName: string,
-  systemPrompt: string,
-  userPrompt: string,
-  options?: AiChatOptions,
-  timeoutMs: number = AI_CALL_TIMEOUT_MS,
-): Promise<string> {
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    systemInstruction: systemPrompt,
-    generationConfig: {
-      temperature: options?.temperature ?? 0.4,
-      maxOutputTokens: options?.maxTokens ?? 4096,
-    },
-  });
-
-  console.log('[Gemini] Non-stream request to model:', modelName, '(timeout:', timeoutMs + 'ms)');
-
-  const resultPromise = model.generateContent(userPrompt);
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي')), timeoutMs)
-  );
-
-  const result = await Promise.race([resultPromise, timeoutPromise]);
-  const text = result.response.text();
-
-  if (!text || text.trim().length === 0) {
-    console.error('[Gemini] Empty response from model:', modelName);
-    throw new Error('AI returned an empty response');
-  }
-
-  console.log('[Gemini] Response from model:', modelName, ', length:', text.length);
-  return text;
-}
-
-// -------------------------------------------------------
 // Options interface
 // -------------------------------------------------------
 
@@ -566,7 +451,7 @@ interface AiChatOptions {
 }
 
 // -------------------------------------------------------
-// Core: Groq call (primary provider)
+// Core: Groq call
 // -------------------------------------------------------
 
 async function tryGroq(
@@ -576,6 +461,12 @@ async function tryGroq(
   timeoutMs: number = AI_CALL_TIMEOUT_MS,
   useNonStream: boolean = false,
 ): Promise<string> {
+  // Check circuit breaker first
+  if (isGroqCircuitOpen()) {
+    console.warn('[Groq] Circuit breaker is OPEN — skipping Groq');
+    throw new AiProviderError('CONNECTION_ERROR', 'خدمة الذكاء الاصطناعي غير متاحة حالياً. يرجى المحاولة بعد دقيقتين', 'groq');
+  }
+
   try {
     if (useNonStream) {
       return await groqNonStreamChat(systemPrompt, userPrompt, options, timeoutMs);
@@ -585,7 +476,7 @@ async function tryGroq(
   } catch (error: unknown) {
     // If it's already an AiProviderError (e.g., NOT_CONFIGURED), pass it through
     if (isAiError(error)) {
-      console.warn('[Groq] AiProviderError:', error.code, '— falling back to Gemini');
+      console.warn('[Groq] AiProviderError:', error.code);
       // Reset Groq client on connection errors
       if (error.code === 'CONNECTION_ERROR') {
         _groqClient = null;
@@ -595,7 +486,7 @@ async function tryGroq(
 
     // Classify the raw error
     const classified = classifyAiError(error, 'groq');
-    console.warn('[Groq] Failed:', classified.code, '-', error instanceof Error ? error.message : String(error), '— falling back to Gemini');
+    console.warn('[Groq] Failed:', classified.code, '-', error instanceof Error ? error.message : String(error));
 
     // Reset Groq client on connection errors
     if (classified.code === 'CONNECTION_ERROR') {
@@ -607,105 +498,26 @@ async function tryGroq(
 }
 
 // -------------------------------------------------------
-// Core: Gemini call (fallback provider)
-// -------------------------------------------------------
-
-async function tryGemini(
-  systemPrompt: string,
-  userPrompt: string,
-  options?: AiChatOptions,
-  timeoutMs: number = AI_CALL_TIMEOUT_MS,
-  useNonStream: boolean = false,
-): Promise<string> {
-  let genAI: GoogleGenerativeAI;
-  try {
-    genAI = getGeminiClient();
-  } catch (initError) {
-    // initError is already an AiProviderError from getGeminiClient
-    if (isAiError(initError)) {
-      throw initError;
-    }
-    throw new AiProviderError('NOT_CONFIGURED', 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة', 'gemini', initError);
-  }
-
-  // Try each Gemini model in the fallback list
-  let lastError: AiProviderError | null = null;
-  const overallStartTime = Date.now();
-
-  for (let modelIndex = 0; modelIndex < GEMINI_MODEL_FALLBACK_LIST.length; modelIndex++) {
-    const modelName = GEMINI_MODEL_FALLBACK_LIST[modelIndex];
-    const isFirstModel = modelIndex === 0;
-
-    const elapsedSoFar = Date.now() - overallStartTime;
-    const remainingTime = Math.max(timeoutMs - elapsedSoFar, 10000);
-    const modelTimeout = isFirstModel ? timeoutMs : Math.min(remainingTime, 15000);
-
-    if (!isFirstModel && remainingTime < 10000) {
-      console.warn('[Gemini] Not enough time left (', remainingTime, 'ms) to try fallback model:', modelName);
-      break;
-    }
-
-    try {
-      console.log('[Gemini] Trying model:', modelName, '(timeout:', modelTimeout + 'ms)');
-
-      let result: string;
-      if (useNonStream) {
-        result = await geminiNonStreamChat(genAI, modelName, systemPrompt, userPrompt, options, modelTimeout);
-      } else {
-        result = await geminiStreamChat(genAI, modelName, systemPrompt, userPrompt, options, modelTimeout);
-      }
-
-      return result;
-    } catch (modelError: unknown) {
-      // Classify the error using our centralized classifier
-      const classified = isAiError(modelError) ? modelError : classifyAiError(modelError, 'gemini');
-      lastError = classified;
-      console.warn('[Gemini] Model', modelName, 'failed:', classified.code, '-', classified.userMessage);
-
-      // Reset singleton on auth/connection errors
-      if (classified.code === 'AUTH_ERROR' || classified.code === 'CONNECTION_ERROR') {
-        _genAI = null;
-      }
-
-      // Don't fall back to other models for these errors — they apply to all models
-      if (classified.code === 'RATE_LIMIT' || classified.code === 'AUTH_ERROR' || classified.code === 'TIMEOUT' || classified.code === 'NOT_CONFIGURED') {
-        throw classified;
-      }
-
-      // For model-specific errors (MODEL_ERROR, EMPTY_RESPONSE, UNKNOWN), try the next model
-      console.warn('[Gemini] Model', modelName, 'unavailable, trying next fallback...');
-      continue;
-    }
-  }
-
-  console.error('[Gemini] All models failed. Last error:', lastError?.message);
-  throw lastError || new AiProviderError('UNKNOWN', 'فشل الاتصال بالذكاء الاصطناعي بعد تجربة جميع النماذج', 'gemini');
-}
-
-// -------------------------------------------------------
-// Core: AI chat with provider failover (Groq → Gemini)
+// Core: AI chat (Groq only)
 // -------------------------------------------------------
 
 /**
- * Main AI chat function — Groq ONLY (Gemini disabled).
+ * Main AI chat function — Groq ONLY.
  *
  * Flow:
- *   1. Try Groq directly with full timeout
- *   2. If Groq fails → throw error to user
- *
- * Gemini is completely disabled. No fallback.
- * If Groq is rate-limited or down, the user gets an error immediately.
+ *   1. Check circuit breaker
+ *   2. Try Groq with streaming (or non-streaming)
+ *   3. If Groq fails → throw error to user
  */
-async function aiChatWithFailover(
+async function aiChat(
   systemPrompt: string,
   userPrompt: string,
   options?: AiChatOptions,
 ): Promise<string> {
   const overallTimeoutMs = options?.timeoutMs ?? AI_CALL_TIMEOUT_MS;
   const useNonStream = options?.nonStream ?? false;
-  const startTime = Date.now();
 
-  // ─── Try Groq ONLY — no Gemini fallback ───
+  // ─── Try Groq ───
   try {
     const result = await tryGroq(systemPrompt, userPrompt, options, overallTimeoutMs, useNonStream);
     recordGroqSuccess();
@@ -714,13 +526,13 @@ async function aiChatWithFailover(
     const groqCode = isAiError(groqError) ? groqError.code : 'UNKNOWN';
     recordGroqFailure();
 
-    console.error('[Groq] Failed after', Date.now() - startTime, 'ms, code:', groqCode);
+    console.error('[Groq] Failed, code:', groqCode);
     throw groqError;
   }
 }
 
 // -------------------------------------------------------
-// Wrapper: AI chat with retry + failover
+// Wrapper: AI chat with retry
 // -------------------------------------------------------
 
 async function aiChatWithRetry(
@@ -736,12 +548,11 @@ async function aiChatWithRetry(
     try {
       if (attempt > 0) {
         console.log(`[AI] Retry attempt ${attempt}/${maxRetries}`);
-        // Reset clients on retry in case they're in a bad state
+        // Reset client on retry in case it's in a bad state
         _groqClient = null;
-        _genAI = null;
       }
 
-      const result = await aiChatWithFailover(systemPrompt, userPrompt, options);
+      const result = await aiChat(systemPrompt, userPrompt, options);
       return result;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));

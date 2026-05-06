@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
 export const maxDuration = 60;
 export const runtime = 'nodejs';
-import { generateQuiz, isAiError } from '@/lib/gemini';
+import { generateQuiz, isAiError } from '@/lib/ai';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate quiz using AI (Google Gemini) with timeout
+    // Generate quiz using AI (Groq) with timeout
     console.log('[Quiz API] Generating quiz for user:', authResult.user.id, 'config:', questionTypes);
     const quizPromise = generateQuiz(sanitizedContent, questionTypes);
     const timeoutPromise = new Promise<never>((_, reject) =>
