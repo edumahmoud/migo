@@ -415,6 +415,17 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       ch.topic.includes('notifications:')
     );
     notificationChannels.forEach((ch) => supabase.removeChannel(ch));
-    set({ subscription: null, refetchTimer: null, initialized: false, initializing: false });
+    // Reset ALL state — notifications, unreadCount, etc.
+    // Previous version didn't reset notifications/unreadCount, causing stale
+    // data to persist after sign-out and contaminate the next user's session
+    set({
+      notifications: [],
+      unreadCount: 0,
+      subscription: null,
+      refetchTimer: null,
+      initialized: false,
+      initializing: false,
+      currentUserId: null,
+    });
   },
 }));

@@ -368,6 +368,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           sessionCheckCleanup();
           sessionCheckCleanup = null;
         }
+        // Clean up notification store — stop polling + unsubscribe realtime
+        try {
+          const { useNotificationStore } = require('@/stores/notification-store');
+          useNotificationStore.getState().cleanup();
+        } catch { /* non-critical */ }
         set({ user: null, loading: false, banInfo: null });
       }
     });
@@ -620,6 +625,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Clean up subscriptions and intervals
     get().cleanup();
+
+    // Clean up notification store — unsubscribe realtime + stop polling timer
+    // This prevents ghost subscriptions and timers from running after sign-out
+    try {
+      const { useNotificationStore } = await import('@/stores/notification-store');
+      useNotificationStore.getState().cleanup();
+    } catch {
+      // Non-critical: notification store cleanup failure shouldn't block sign-out
+    }
 
     // End session tracking in the background (don't block UI)
     endSession().catch(() => {});

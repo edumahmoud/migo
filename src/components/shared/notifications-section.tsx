@@ -82,6 +82,12 @@ export default function NotificationsSection() {
     if (user?.id && !initialized) {
       initializeNotifications(user.id);
     }
+    // Cleanup on unmount to prevent ghost subscriptions
+    // Primary cleanup happens in auth-store signOut, this is a safety net
+    return () => {
+      // We don't cleanup here because this section unmounts/remounts on navigation
+      // The real cleanup happens in auth-store.ts signOut() and SIGNED_OUT handler
+    };
   }, [user?.id, initialized, initializeNotifications]);
 
   const handleNotificationClick = (notif: any) => {

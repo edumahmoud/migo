@@ -123,10 +123,15 @@ export default function NotificationBell() {
   const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore();
 
   // Initialize notifications from DB when component mounts
+  // Cleanup on unmount to prevent ghost subscriptions and polling timers
   useEffect(() => {
     if (user?.id && !initialized) {
       initializeNotifications(user.id);
     }
+    return () => {
+      // Don't cleanup here on every re-render — only on actual unmount
+      // The notification store's cleanup is called on sign-out via auth-store
+    };
   }, [user?.id, initialized, initializeNotifications]);
 
   // Calculate dropdown position when opened
