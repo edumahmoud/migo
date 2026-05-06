@@ -42,6 +42,13 @@ const MAX_AI_CONTENT_LENGTH = 50000;
  *  45s gives us 15s for auth (3-5s) + DB save (2-5s) + network overhead. */
 const AI_CALL_TIMEOUT_MS = 45000; // 45 seconds
 
+/** Groq-specific timeout (milliseconds).
+ *  Groq is supposed to be ultra-fast (sub-second first token).
+ *  If Groq doesn't respond within 12s, it's likely down or unreachable —
+ *  fall back to Gemini quickly instead of waiting the full 45s.
+ *  This leaves ~30s for Gemini to complete, which is more than enough. */
+const GROQ_TIMEOUT_MS = 12000; // 12 seconds
+
 /** First-token timeout for streaming calls (milliseconds).
  *  Groq typically returns first token in <500ms.
  *  Gemini typically returns first token in 3-8s.
@@ -530,29 +537,34 @@ async function aiChatWithFailover(
   userPrompt: string,
   options?: AiChatOptions,
 ): Promise<string> {
-  const timeoutMs = options?.timeoutMs ?? AI_CALL_TIMEOUT_MS;
+  const overallTimeoutMs = options?.timeoutMs ?? AI_CALL_TIMEOUT_MS;
   const useNonStream = options?.nonStream ?? false;
   const startTime = Date.now();
 
-  // ─── Step 1: Try Groq (PRIMARY) ───
+  // ─── Step 1: Try Groq (PRIMARY) with shorter timeout ───
+  // Use GROQ_TIMEOUT_MS (12s) instead of the full timeout so we
+  // quickly fall back to Gemini if Groq is unreachable.
+  const groqTimeoutMs = Math.min(GROQ_TIMEOUT_MS, overallTimeoutMs);
   try {
-    const result = await tryGroq(systemPrompt, userPrompt, options, timeoutMs, useNonStream);
+    const result = await tryGroq(systemPrompt, userPrompt, options, groqTimeoutMs, useNonStream);
     return result;
   } catch (groqError: unknown) {
     const groqErrMsg = groqError instanceof Error ? groqError.message : String(groqError);
 
-    // If Groq hit a rate limit, don't fall back to Gemini (it might also be limited)
-    // Instead, return the rate limit error immediately
+    // IMPORTANT: Even if Groq is rate-limited, we still fall back to Gemini.
+    // Groq and Gemini have SEPARATE rate limits, so a Groq rate limit
+    // does NOT mean Gemini will also be rate-limited. Previous version
+    // incorrectly blocked fallback on Groq rate limits, causing the
+    // "تم تجاوز حد الطلبات" error to show even when Gemini was available.
     if (groqErrMsg.includes('rate_limit') || groqErrMsg.includes('429') || groqErrMsg.includes('Rate limit')) {
-      console.warn('[Groq] Rate limited — NOT falling back to Gemini (to avoid cascading limits)');
-      throw new Error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
+      console.warn('[Groq] Rate limited — falling back to Gemini (separate quota)');
     }
 
     console.warn('[Groq] Failed after', Date.now() - startTime, 'ms:', groqErrMsg);
 
     // Calculate remaining time for Gemini fallback
     const elapsed = Date.now() - startTime;
-    const remainingTimeout = Math.max(timeoutMs - elapsed, 15000); // minimum 15s for fallback
+    const remainingTimeout = Math.max(overallTimeoutMs - elapsed, 15000); // minimum 15s for fallback
     const fallbackOptions = { ...options, timeoutMs: remainingTimeout };
 
     // ─── Step 2: Try Gemini (FALLBACK) ───
