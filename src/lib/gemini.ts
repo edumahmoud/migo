@@ -1,13 +1,21 @@
 /**
- * AI Service — Powered by Google Gemini API
+ * AI Service — Groq (Primary) + Gemini (Fallback)
  *
- * Centralized service for AI interactions using Google Generative AI.
- * Uses the GEMINI_API_KEY environment variable.
+ * Centralized AI service with a two-provider architecture:
+ *   1. Groq (Llama 3.1 70B) — PRIMARY: ultra-fast inference via LPU hardware
+ *   2. Gemini — FALLBACK: used when Groq fails (rate limit, timeout, errors)
+ *
+ * Provider selection flow:
+ *   Request → Groq → Success ✅ → Return
+ *                    ↓ Failure (any error)
+ *              Gemini → Success ✅ → Return
+ *                        ↓ Failure
+ *                    Error to user
  *
  * Key features:
- *   - STREAMING by default — prevents timeout on long AI responses
- *   - Two-tier timeout: first-token (15s) + overall (45s)
- *   - Smart model fallback (shorter timeout for fallback models)
+ *   - Groq streaming for fast first-token delivery
+ *   - Gemini streaming as reliable fallback
+ *   - Automatic provider failover on any error
  *   - Content truncation to prevent oversized prompts
  *   - Comprehensive error handling with Arabic user messages
  *
@@ -18,6 +26,7 @@
  *   - /api/gemini/explain  → Explain wrong answers
  */
 
+import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // -------------------------------------------------------
@@ -25,9 +34,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 // -------------------------------------------------------
 
 /** Maximum content length to send to the AI (chars). FIX #4: Increased from 20K to 50K.
- *  50K chars ≈ 12.5K tokens. The AI model supports up to 1M token input,
- *  and with streaming + 45s timeout, most 50K char summaries complete in time.
- *  Previous 20K limit was too restrictive for academic documents. */
+ *  50K chars ≈ 12.5K tokens. Both Groq (128K context) and Gemini (1M+) support this. */
 const MAX_AI_CONTENT_LENGTH = 50000;
 
 /** Overall timeout for AI API calls (milliseconds).
@@ -36,28 +43,47 @@ const MAX_AI_CONTENT_LENGTH = 50000;
 const AI_CALL_TIMEOUT_MS = 45000; // 45 seconds
 
 /** First-token timeout for streaming calls (milliseconds).
- *  If no token arrives within this time, the AI is overloaded or unreachable.
- *  A short first-token timeout provides fast feedback instead of waiting 45s. */
+ *  Groq typically returns first token in <500ms.
+ *  Gemini typically returns first token in 3-8s.
+ *  15s is a generous first-token timeout. */
 const AI_FIRST_TOKEN_TIMEOUT_MS = 15000; // 15 seconds
 
-/** Timeout for AI client initialization (milliseconds) */
-const AI_INIT_TIMEOUT_MS = 10000; // 10 seconds
+// -------------------------------------------------------
+// Provider configuration
+// -------------------------------------------------------
 
-// -------------------------------------------------------
-// Model fallback list
-// -------------------------------------------------------
-/** Models to try in order. If the first model fails (not found, unavailable),
- *  we automatically fall back to the next one with a SHORTER timeout
- *  (fallback models get less time to avoid exceeding Vercel's 60s limit).
- */
-const MODEL_FALLBACK_LIST = [
+/** Groq model to use. Llama 3.1 70B has 128K context window —
+ *  handles 50K chars easily and produces good Arabic output. */
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.1-70b-versatile';
+
+/** Gemini model fallback list. If the first model fails, try the next. */
+const GEMINI_MODEL_FALLBACK_LIST = [
   process.env.GEMINI_MODEL || 'gemini-2.0-flash',
   'gemini-1.5-flash',
   'gemini-1.5-pro',
 ];
 
 // -------------------------------------------------------
-// Google Gemini Singleton client
+// Groq Singleton client
+// -------------------------------------------------------
+let _groqClient: Groq | null = null;
+
+function getGroqClient(): Groq {
+  if (_groqClient) return _groqClient;
+
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    console.warn('[Groq] GROQ_API_KEY not set — Groq will be skipped');
+    throw new Error('GROQ_NOT_CONFIGURED');
+  }
+
+  _groqClient = new Groq({ apiKey });
+  console.log('[Groq] Client initialized successfully');
+  return _groqClient;
+}
+
+// -------------------------------------------------------
+// Gemini Singleton client
 // -------------------------------------------------------
 let _genAI: GoogleGenerativeAI | null = null;
 
@@ -66,8 +92,8 @@ function getGeminiClient(): GoogleGenerativeAI {
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.error('[Gemini] GEMINI_API_KEY environment variable is not set');
-    throw new Error('خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة');
+    console.warn('[Gemini] GEMINI_API_KEY not set — Gemini will be skipped');
+    throw new Error('GEMINI_NOT_CONFIGURED');
   }
 
   _genAI = new GoogleGenerativeAI(apiKey);
@@ -86,7 +112,7 @@ function getGeminiClient(): GoogleGenerativeAI {
 function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LENGTH): string {
   if (content.length <= maxLength) return content;
 
-  console.warn(`[Gemini] Content too large (${content.length} chars), truncating to ${maxLength} chars`);
+  console.warn(`[AI] Content too large (${content.length} chars), truncating to ${maxLength} chars`);
 
   // Try to truncate at a paragraph boundary
   const truncated = content.substring(0, maxLength);
@@ -110,21 +136,131 @@ function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LEN
 }
 
 // -------------------------------------------------------
-// Core: Streaming AI call with two-tier timeout
+// Groq: Streaming chat call
 // -------------------------------------------------------
 
-/**
- * Call Gemini using streaming API with two-tier timeout:
- *   1. First-token timeout (15s): If no token arrives, the AI is unreachable
- *   2. Overall timeout (45s): Hard limit to stay within Vercel's 60s
- *
- * Streaming is CRITICAL because:
- *   - Non-streaming `generateContent` must wait for the ENTIRE response
- *   - With streaming, first tokens arrive in 3-8s, confirming the connection works
- *   - If the AI is slow to START, we know in 15s instead of 45s
- *   - Once streaming begins, the response accumulates incrementally
- */
-async function streamChat(
+async function groqStreamChat(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: AiChatOptions,
+  overallTimeoutMs: number = AI_CALL_TIMEOUT_MS,
+): Promise<string> {
+  const client = getGroqClient();
+  const startTime = Date.now();
+  const overallDeadline = startTime + overallTimeoutMs;
+
+  console.log('[Groq] Starting STREAM for model:', GROQ_MODEL, '(timeout:', overallTimeoutMs + 'ms)');
+
+  const stream = await client.chat.completions.create({
+    model: GROQ_MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: options?.temperature ?? 0.4,
+    max_tokens: options?.maxTokens ?? 4096,
+    stream: true,
+  });
+
+  let firstTokenReceived = false;
+  let accumulatedText = '';
+
+  try {
+    for await (const chunk of stream) {
+      const chunkText = chunk.choices[0]?.delta?.content || '';
+      if (chunkText) {
+        if (!firstTokenReceived) {
+          firstTokenReceived = true;
+          console.log('[Groq] First token received in', Date.now() - startTime, 'ms');
+        }
+        accumulatedText += chunkText;
+      }
+
+      // Check overall deadline after each chunk
+      if (Date.now() > overallDeadline) {
+        console.warn('[Groq] Overall timeout reached after', Date.now() - startTime, 'ms. Returning partial (', accumulatedText.length, 'chars)');
+        if (accumulatedText.trim().length > 100) {
+          return accumulatedText + '\n\n[... تم قطع الاستجابة بسبب انتهاء المهلة ...]';
+        }
+        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+      }
+    }
+  } catch (streamError: unknown) {
+    const errMsg = streamError instanceof Error ? streamError.message : String(streamError);
+
+    // If we accumulated significant text, return it as partial
+    if (accumulatedText.trim().length > 100 && !errMsg.includes('انتهت مهلة')) {
+      console.warn('[Groq] Stream error after', Date.now() - startTime, 'ms, returning partial (', accumulatedText.length, 'chars):', errMsg);
+      return accumulatedText;
+    }
+
+    // If first token never arrived within timeout
+    if (!firstTokenReceived) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > AI_FIRST_TOKEN_TIMEOUT_MS) {
+        console.warn('[Groq] First-token timeout (', elapsed, 'ms)');
+        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+      }
+    }
+
+    throw streamError;
+  }
+
+  if (!accumulatedText || accumulatedText.trim().length === 0) {
+    console.error('[Groq] Empty streaming response');
+    throw new Error('AI returned an empty response');
+  }
+
+  console.log('[Groq] Stream complete, length:', accumulatedText.length, ', time:', Date.now() - startTime, 'ms');
+  return accumulatedText;
+}
+
+// -------------------------------------------------------
+// Groq: Non-streaming chat call (for short responses)
+// -------------------------------------------------------
+
+async function groqNonStreamChat(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: AiChatOptions,
+  timeoutMs: number = AI_CALL_TIMEOUT_MS,
+): Promise<string> {
+  const client = getGroqClient();
+
+  console.log('[Groq] Non-stream request to model:', GROQ_MODEL, '(timeout:', timeoutMs + 'ms)');
+
+  const resultPromise = client.chat.completions.create({
+    model: GROQ_MODEL,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: options?.temperature ?? 0.4,
+    max_tokens: options?.maxTokens ?? 4096,
+    stream: false,
+  });
+
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي')), timeoutMs)
+  );
+
+  const result = await Promise.race([resultPromise, timeoutPromise]);
+  const text = result.choices[0]?.message?.content || '';
+
+  if (!text || text.trim().length === 0) {
+    console.error('[Groq] Empty response from model:', GROQ_MODEL);
+    throw new Error('AI returned an empty response');
+  }
+
+  console.log('[Groq] Response length:', text.length);
+  return text;
+}
+
+// -------------------------------------------------------
+// Gemini: Streaming chat call
+// -------------------------------------------------------
+
+async function geminiStreamChat(
   genAI: GoogleGenerativeAI,
   modelName: string,
   systemPrompt: string,
@@ -141,18 +277,13 @@ async function streamChat(
     },
   });
 
-  console.log('[Gemini] Starting STREAM for model:', modelName, '(first-token timeout: 15s, overall:', overallTimeoutMs + 'ms)');
+  console.log('[Gemini] Starting STREAM for model:', modelName, '(timeout:', overallTimeoutMs + 'ms)');
 
   const startTime = Date.now();
-
-  // Start the streaming call
   const streamResult = await model.generateContentStream(userPrompt);
 
-  // Two-tier timeout: we track both "first token" and "overall" deadlines
   let firstTokenReceived = false;
   let accumulatedText = '';
-
-  // Overall timeout — hard kill everything after this
   const overallDeadline = startTime + overallTimeoutMs;
 
   try {
@@ -166,11 +297,9 @@ async function streamChat(
         accumulatedText += chunkText;
       }
 
-      // Check overall deadline after each chunk
       if (Date.now() > overallDeadline) {
-        console.warn('[Gemini] Overall timeout reached after', Date.now() - startTime, 'ms. Returning partial response (', accumulatedText.length, 'chars)');
+        console.warn('[Gemini] Overall timeout reached after', Date.now() - startTime, 'ms. Returning partial (', accumulatedText.length, 'chars)');
         if (accumulatedText.trim().length > 100) {
-          // We have a substantial partial response — return it
           return accumulatedText + '\n\n[... تم قطع الاستجابة بسبب انتهاء المهلة ...]';
         }
         throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
@@ -179,13 +308,11 @@ async function streamChat(
   } catch (streamError: unknown) {
     const errMsg = streamError instanceof Error ? streamError.message : String(streamError);
 
-    // If we already accumulated significant text, return it as partial
     if (accumulatedText.trim().length > 100 && !errMsg.includes('انتهت مهلة')) {
       console.warn('[Gemini] Stream error after', Date.now() - startTime, 'ms, returning partial (', accumulatedText.length, 'chars):', errMsg);
       return accumulatedText;
     }
 
-    // If first token never arrived, this is a first-token timeout or connection error
     if (!firstTokenReceived) {
       const elapsed = Date.now() - startTime;
       if (elapsed > AI_FIRST_TOKEN_TIMEOUT_MS) {
@@ -194,7 +321,6 @@ async function streamChat(
       }
     }
 
-    // Re-throw the original error
     throw streamError;
   }
 
@@ -208,10 +334,10 @@ async function streamChat(
 }
 
 // -------------------------------------------------------
-// Non-streaming fallback (for short responses like evaluate)
+// Gemini: Non-streaming chat call
 // -------------------------------------------------------
 
-async function nonStreamChat(
+async function geminiNonStreamChat(
   genAI: GoogleGenerativeAI,
   modelName: string,
   systemPrompt: string,
@@ -248,7 +374,7 @@ async function nonStreamChat(
 }
 
 // -------------------------------------------------------
-// Helper: call AI with built-in timeout and retry
+// Options interface
 // -------------------------------------------------------
 
 interface AiChatOptions {
@@ -260,30 +386,218 @@ interface AiChatOptions {
   nonStream?: boolean;
 }
 
+// -------------------------------------------------------
+// Core: Groq call (primary provider)
+// -------------------------------------------------------
+
+async function tryGroq(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: AiChatOptions,
+  timeoutMs: number = AI_CALL_TIMEOUT_MS,
+  useNonStream: boolean = false,
+): Promise<string> {
+  try {
+    if (useNonStream) {
+      return await groqNonStreamChat(systemPrompt, userPrompt, options, timeoutMs);
+    } else {
+      return await groqStreamChat(systemPrompt, userPrompt, options, timeoutMs);
+    }
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+
+    // If Groq is not configured, don't throw — let Gemini handle it
+    if (errMsg === 'GROQ_NOT_CONFIGURED') {
+      console.warn('[Groq] Not configured, falling back to Gemini');
+      throw error;
+    }
+
+    // Log the error for diagnostics but throw to trigger fallback
+    console.warn('[Groq] Failed:', errMsg, '— falling back to Gemini');
+
+    // Reset Groq client on connection errors
+    if (errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
+      _groqClient = null;
+    }
+
+    throw error;
+  }
+}
+
+// -------------------------------------------------------
+// Core: Gemini call (fallback provider)
+// -------------------------------------------------------
+
+async function tryGemini(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: AiChatOptions,
+  timeoutMs: number = AI_CALL_TIMEOUT_MS,
+  useNonStream: boolean = false,
+): Promise<string> {
+  let genAI: GoogleGenerativeAI;
+  try {
+    genAI = getGeminiClient();
+  } catch (initError) {
+    const errMsg = initError instanceof Error ? initError.message : String(initError);
+    if (errMsg === 'GEMINI_NOT_CONFIGURED') {
+      throw new Error('خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة');
+    }
+    throw new Error('فشل الاتصال بخدمة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+  }
+
+  // Try each Gemini model in the fallback list
+  let lastError: Error | null = null;
+  const overallStartTime = Date.now();
+
+  for (let modelIndex = 0; modelIndex < GEMINI_MODEL_FALLBACK_LIST.length; modelIndex++) {
+    const modelName = GEMINI_MODEL_FALLBACK_LIST[modelIndex];
+    const isFirstModel = modelIndex === 0;
+
+    const elapsedSoFar = Date.now() - overallStartTime;
+    const remainingTime = Math.max(timeoutMs - elapsedSoFar, 10000);
+    const modelTimeout = isFirstModel ? timeoutMs : Math.min(remainingTime, 15000);
+
+    if (!isFirstModel && remainingTime < 10000) {
+      console.warn('[Gemini] Not enough time left (', remainingTime, 'ms) to try fallback model:', modelName);
+      break;
+    }
+
+    try {
+      console.log('[Gemini] Trying model:', modelName, '(timeout:', modelTimeout + 'ms)');
+
+      let result: string;
+      if (useNonStream) {
+        result = await geminiNonStreamChat(genAI, modelName, systemPrompt, userPrompt, options, modelTimeout);
+      } else {
+        result = await geminiStreamChat(genAI, modelName, systemPrompt, userPrompt, options, modelTimeout);
+      }
+
+      return result;
+    } catch (modelError: unknown) {
+      const errMsg = modelError instanceof Error ? modelError.message : String(modelError);
+      lastError = modelError instanceof Error ? modelError : new Error(String(modelError));
+      console.warn('[Gemini] Model', modelName, 'failed:', errMsg);
+
+      // Reset singleton on auth/connection errors
+      if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
+        _genAI = null;
+      }
+
+      // Don't fall back for these errors — they apply to all models
+      if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota')) {
+        throw new Error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
+      }
+      if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('API key not valid') || errMsg.includes('Incorrect API key')) {
+        throw new Error('خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة');
+      }
+      if (errMsg.includes('مهلة') || errMsg.includes('timeout') || errMsg.includes('ETIMEDOUT') || errMsg.includes('timed out') || errMsg.includes('ECONNRESET')) {
+        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+      }
+
+      // For model-specific errors, try the next model
+      if (errMsg.includes('not found') || errMsg.includes('not available') || errMsg.includes('model') || errMsg.includes('empty response')) {
+        console.warn('[Gemini] Model', modelName, 'unavailable, trying next fallback...');
+        continue;
+      }
+
+      console.warn('[Gemini] Unknown error from model', modelName, ', trying next fallback...');
+      continue;
+    }
+  }
+
+  console.error('[Gemini] All models failed. Last error:', lastError?.message);
+  throw lastError || new Error('فشل الاتصال بالذكاء الاصطناعي بعد تجربة جميع النماذج');
+}
+
+// -------------------------------------------------------
+// Core: AI chat with provider failover (Groq → Gemini)
+// -------------------------------------------------------
+
+/**
+ * Main AI chat function with automatic provider failover.
+ *
+ * Flow:
+ *   1. Try Groq (primary) — ultra-fast inference
+ *   2. If Groq fails for ANY reason → Try Gemini (fallback)
+ *   3. If both fail → Return error to user
+ *
+ * This ensures the service is resilient: even if Groq is down,
+ * rate-limited, or misconfigured, Gemini picks up the load.
+ */
+async function aiChatWithFailover(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: AiChatOptions,
+): Promise<string> {
+  const timeoutMs = options?.timeoutMs ?? AI_CALL_TIMEOUT_MS;
+  const useNonStream = options?.nonStream ?? false;
+  const startTime = Date.now();
+
+  // ─── Step 1: Try Groq (PRIMARY) ───
+  try {
+    const result = await tryGroq(systemPrompt, userPrompt, options, timeoutMs, useNonStream);
+    return result;
+  } catch (groqError: unknown) {
+    const groqErrMsg = groqError instanceof Error ? groqError.message : String(groqError);
+
+    // If Groq hit a rate limit, don't fall back to Gemini (it might also be limited)
+    // Instead, return the rate limit error immediately
+    if (groqErrMsg.includes('rate_limit') || groqErrMsg.includes('429') || groqErrMsg.includes('Rate limit')) {
+      console.warn('[Groq] Rate limited — NOT falling back to Gemini (to avoid cascading limits)');
+      throw new Error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
+    }
+
+    console.warn('[Groq] Failed after', Date.now() - startTime, 'ms:', groqErrMsg);
+
+    // Calculate remaining time for Gemini fallback
+    const elapsed = Date.now() - startTime;
+    const remainingTimeout = Math.max(timeoutMs - elapsed, 15000); // minimum 15s for fallback
+    const fallbackOptions = { ...options, timeoutMs: remainingTimeout };
+
+    // ─── Step 2: Try Gemini (FALLBACK) ───
+    console.log('[AI] Falling back to Gemini with', remainingTimeout, 'ms remaining');
+    try {
+      const result = await tryGemini(systemPrompt, userPrompt, fallbackOptions, remainingTimeout, useNonStream);
+      console.log('[AI] Gemini fallback succeeded in', Date.now() - startTime, 'ms total');
+      return result;
+    } catch (geminiError: unknown) {
+      const geminiErrMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
+      console.error('[AI] Both providers failed. Groq:', groqErrMsg, '| Gemini:', geminiErrMsg);
+
+      // Throw the Gemini error (last attempt) with context
+      throw geminiError;
+    }
+  }
+}
+
+// -------------------------------------------------------
+// Wrapper: AI chat with retry + failover
+// -------------------------------------------------------
+
 async function aiChatWithRetry(
   systemPrompt: string,
   userPrompt: string,
   options?: AiChatOptions
 ): Promise<string> {
   const maxRetries = options?.retries ?? 1;
-  const timeoutMs = options?.timeoutMs ?? AI_CALL_TIMEOUT_MS;
-  const useNonStream = options?.nonStream ?? false;
 
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       if (attempt > 0) {
-        console.log(`[Gemini] Retry attempt ${attempt}/${maxRetries}`);
-        // On retry, reset the client in case it's in a bad state
+        console.log(`[AI] Retry attempt ${attempt}/${maxRetries}`);
+        // Reset clients on retry in case they're in a bad state
+        _groqClient = null;
         _genAI = null;
       }
 
-      const result = await aiChatInternal(systemPrompt, userPrompt, options, timeoutMs, useNonStream);
+      const result = await aiChatWithFailover(systemPrompt, userPrompt, options);
       return result;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`[Gemini] Attempt ${attempt + 1} failed:`, lastError.message);
+      console.error(`[AI] Attempt ${attempt + 1} failed:`, lastError.message);
 
       // Don't retry on rate limits or auth errors
       if (
@@ -298,7 +612,7 @@ async function aiChatWithRetry(
         throw lastError;
       }
 
-      // Don't retry on empty response (likely a model issue, not transient)
+      // Don't retry on empty response
       if (lastError.message.includes('empty response')) {
         throw lastError;
       }
@@ -308,7 +622,7 @@ async function aiChatWithRetry(
         throw lastError;
       }
 
-      // Don't retry on timeout — it'll likely timeout again
+      // Don't retry on timeout
       if (lastError.message.includes('مهلة') || lastError.message.includes('timeout')) {
         throw lastError;
       }
@@ -316,122 +630,13 @@ async function aiChatWithRetry(
       // Wait before retrying (exponential backoff)
       if (attempt < maxRetries) {
         const backoffMs = Math.min(2000 * Math.pow(2, attempt), 8000);
-        console.log(`[Gemini] Waiting ${backoffMs}ms before retry...`);
+        console.log(`[AI] Waiting ${backoffMs}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
     }
   }
 
   throw lastError || new Error('فشل الاتصال بالذكاء الاصطناعي بعد عدة محاولات');
-}
-
-// -------------------------------------------------------
-// Core AI chat function — uses Google Gemini with streaming
-// -------------------------------------------------------
-async function aiChatInternal(
-  systemPrompt: string,
-  userPrompt: string,
-  options?: AiChatOptions,
-  timeoutMs: number = AI_CALL_TIMEOUT_MS,
-  useNonStream: boolean = false,
-): Promise<string> {
-  let genAI;
-  try {
-    genAI = getGeminiClient();
-  } catch (initError) {
-    console.error('[Gemini] Client initialization failed:', initError);
-    const errMsg = initError instanceof Error ? initError.message : String(initError);
-    if (errMsg.includes('غير مفعلة') || errMsg.includes('not configured')) {
-      throw new Error('خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة');
-    }
-    throw new Error('فشل الاتصال بخدمة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
-  }
-
-  // Try each model in the fallback list until one works
-  let lastError: Error | null = null;
-  const overallStartTime = Date.now();
-
-  for (let modelIndex = 0; modelIndex < MODEL_FALLBACK_LIST.length; modelIndex++) {
-    const modelName = MODEL_FALLBACK_LIST[modelIndex];
-    const isFirstModel = modelIndex === 0;
-
-    // Calculate remaining time for fallback models
-    const elapsedSoFar = Date.now() - overallStartTime;
-    const remainingTime = Math.max(timeoutMs - elapsedSoFar, 10000); // minimum 10s for fallback
-
-    // Fallback models get less time (the remaining budget, not the full timeout)
-    const modelTimeout = isFirstModel ? timeoutMs : Math.min(remainingTime, 15000);
-
-    // If we've already used up most of the time, don't bother trying another model
-    if (!isFirstModel && remainingTime < 10000) {
-      console.warn('[Gemini] Not enough time left (', remainingTime, 'ms) to try fallback model:', modelName);
-      break;
-    }
-
-    try {
-      console.log('[Gemini] Trying model:', modelName, '(timeout:', modelTimeout + 'ms)');
-
-      let result: string;
-      if (useNonStream) {
-        result = await nonStreamChat(genAI, modelName, systemPrompt, userPrompt, options, modelTimeout);
-      } else {
-        result = await streamChat(genAI, modelName, systemPrompt, userPrompt, options, modelTimeout);
-      }
-
-      return result;
-    } catch (modelError: unknown) {
-      const errMsg = modelError instanceof Error ? modelError.message : String(modelError);
-      lastError = modelError instanceof Error ? modelError : new Error(String(modelError));
-      console.warn('[Gemini] Model', modelName, 'failed:', errMsg);
-
-      // Reset singleton on auth/connection errors so subsequent calls retry
-      if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
-        _genAI = null;
-      }
-
-      // Don't fall back for these errors — they apply to all models
-      if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota')) {
-        throw new Error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
-      }
-      if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('API key not valid') || errMsg.includes('Incorrect API key')) {
-        throw new Error('خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة');
-      }
-      if (errMsg.includes('مهلة') || errMsg.includes('timeout') || errMsg.includes('ETIMEDOUT') || errMsg.includes('timed out') || errMsg.includes('ECONNRESET')) {
-        // Timeout — don't fall back to another model (it'll likely timeout too)
-        throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
-      }
-
-      // For model-specific errors (not found, not available), try the next model
-      if (errMsg.includes('not found') || errMsg.includes('not available') || errMsg.includes('model') || errMsg.includes('empty response')) {
-        console.warn('[Gemini] Model', modelName, 'unavailable, trying next fallback...');
-        continue; // Try the next model in the list
-      }
-
-      // For unknown errors, try the next model as a fallback
-      console.warn('[Gemini] Unknown error from model', modelName, ', trying next fallback...');
-      continue;
-    }
-  }
-
-  // All models failed
-  console.error('[Gemini] All models failed. Last error:', lastError?.message);
-  throw lastError || new Error('فشل الاتصال بالذكاء الاصطناعي بعد تجربة جميع النماذج');
-}
-
-// -------------------------------------------------------
-// Backward-compatible wrapper
-// -------------------------------------------------------
-async function aiChat(
-  systemPrompt: string,
-  userPrompt: string,
-  options?: { temperature?: number; maxTokens?: number }
-): Promise<string> {
-  return aiChatWithRetry(systemPrompt, userPrompt, {
-    temperature: options?.temperature,
-    maxTokens: options?.maxTokens,
-    timeoutMs: AI_CALL_TIMEOUT_MS,
-    retries: 1,
-  });
 }
 
 // -------------------------------------------------------
