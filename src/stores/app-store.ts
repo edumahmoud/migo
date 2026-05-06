@@ -104,6 +104,11 @@ export const useAppStore = create<AppState>()(
         currentPage: state.currentPage,
         selectedSubjectId: state.selectedSubjectId,
         courseTab: state.courseTab,
+        // Critical: persist viewingSummaryId so summaries survive page refresh
+        // Without this, refreshing while viewing a summary loses the ID and the user
+        // lands on an orphaned 'summary' currentPage with no summary to show.
+        viewingSummaryId: state.viewingSummaryId,
+        viewingQuizId: state.viewingQuizId,
       }),
     }
   )

@@ -335,10 +335,24 @@ function HomeContent() {
       <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-teal-50" dir="rtl">
         <QuizView
           quizId={viewingQuizId}
-          onBack={() => setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard')}
+          onBack={() => {
+            setViewingQuizId(null);
+            setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard');
+          }}
           profile={user}
         />
       </div>
+    );
+  }
+
+  // ─── Orphaned 'quiz' page (currentPage='quiz' without viewingQuizId) ───
+  if (currentPage === 'quiz' && !viewingQuizId) {
+    setCurrentPage(
+      user.role === 'superadmin' || user.role === 'admin'
+        ? 'admin-dashboard'
+        : user.role === 'teacher'
+          ? 'teacher-dashboard'
+          : 'student-dashboard'
     );
   }
 
@@ -348,10 +362,26 @@ function HomeContent() {
       <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-teal-50" dir="rtl">
         <SummaryView
           summaryId={viewingSummaryId}
-          onBack={() => setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard')}
+          onBack={() => {
+            setViewingSummaryId(null);
+            setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard');
+          }}
           onViewQuiz={(quizId) => setViewingQuizId(quizId)}
         />
       </div>
+    );
+  }
+
+  // ─── Orphaned 'summary' page (currentPage='summary' without viewingSummaryId) ───
+  // This can happen if the user had an old persisted state where viewingSummaryId
+  // was not saved. Redirect them back to their dashboard.
+  if (currentPage === 'summary' && !viewingSummaryId) {
+    setCurrentPage(
+      user.role === 'superadmin' || user.role === 'admin'
+        ? 'admin-dashboard'
+        : user.role === 'teacher'
+          ? 'teacher-dashboard'
+          : 'student-dashboard'
     );
   }
 

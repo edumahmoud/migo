@@ -12,6 +12,8 @@ import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse 
  * the user can always read their own summaries.
  *
  * Query params:
+ *   - id (optional): if provided, fetch a single summary by ID
+ *     (must be owned by the authenticated user)
  *   - userId (optional): if provided, fetch summaries for this user
  *     (only allowed for admin/teacher viewing student summaries)
  */
@@ -22,8 +24,41 @@ export async function GET(request: NextRequest) {
 
     const userId = authResult.user.id;
     const { searchParams } = new URL(request.url);
+    const summaryId = searchParams.get('id');
     const targetUserId = searchParams.get('userId') || userId;
 
+    // ─── Fetch a single summary by ID (efficient, avoids loading all summaries) ───
+    if (summaryId) {
+      const { data: summary, error } = await supabaseServer
+        .from('summaries')
+        .select('*')
+        .eq('id', summaryId)
+        .single();
+
+      if (error || !summary) {
+        console.error('[Summaries API] Fetch by ID error:', error?.message);
+        return NextResponse.json(
+          { success: false, error: 'الملخص غير موجود' },
+          { status: 404 }
+        );
+      }
+
+      // Verify ownership — users can only fetch their own summaries
+      // (admins can fetch any summary via the userId param which is handled below)
+      if (summary.user_id !== userId) {
+        return NextResponse.json(
+          { success: false, error: 'غير مصرح بعرض هذا الملخص' },
+          { status: 403 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: summary,
+      });
+    }
+
+    // ─── Fetch all summaries for the user (existing behavior) ───
     // Fetch summaries using service role key (bypasses RLS)
     const { data: summaries, error } = await supabaseServer
       .from('summaries')

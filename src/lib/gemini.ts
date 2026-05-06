@@ -36,20 +36,47 @@ async function aiChat(
   userPrompt: string,
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
-  const zai = await getZAIClient();
+  let zai;
+  try {
+    zai = await getZAIClient();
+  } catch (initError) {
+    console.error('[Z-AI] Client initialization failed:', initError);
+    // Reset singleton so next call retries initialization
+    _zai = null;
+    throw new Error('فشل الاتصال بخدمة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+  }
 
   console.log('[Z-AI] Sending request...');
-  const completion = await zai.chat.completions.create({
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    temperature: options?.temperature ?? 0.4,
-    max_tokens: options?.maxTokens ?? 4096,
-  });
+  let completion;
+  try {
+    completion = await zai.chat.completions.create({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: options?.temperature ?? 0.4,
+      max_tokens: options?.maxTokens ?? 4096,
+    });
+  } catch (apiError: unknown) {
+    console.error('[Z-AI] API call failed:', apiError);
+    const errMsg = apiError instanceof Error ? apiError.message : String(apiError);
+    // Reset singleton on auth/connection errors so subsequent calls retry
+    if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
+      _zai = null;
+    }
+    // Re-throw with user-friendly message
+    if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('quota')) {
+      throw new Error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
+    }
+    if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key')) {
+      throw new Error('خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة');
+    }
+    throw new Error(`فشل الاتصال بالذكاء الاصطناعي: ${errMsg.substring(0, 150)}`);
+  }
 
-  const text = completion.choices?.[0]?.message?.content;
+  const text = completion?.choices?.[0]?.message?.content;
   if (!text || text.trim().length === 0) {
+    console.error('[Z-AI] Empty response received. Completion:', JSON.stringify(completion)?.substring(0, 500));
     throw new Error('AI returned an empty response');
   }
 

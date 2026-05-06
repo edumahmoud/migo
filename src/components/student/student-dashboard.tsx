@@ -176,6 +176,32 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Background summary processing state ───
   const [pendingSummaries, setPendingSummaries] = useState<PendingSummary[]>([]);
 
+  // ─── Auto-cleanup for stale pending summaries (Bug Fix #3) ───
+  // If a pending summary has been in progress for more than 3 minutes,
+  // something went wrong — abort it and show an error.
+  useEffect(() => {
+    if (pendingSummaries.length === 0) return;
+    const staleThreshold = 3 * 60 * 1000; // 3 minutes
+    const interval = setInterval(() => {
+      setPendingSummaries(prev => {
+        const now = Date.now();
+        const stillValid = prev.filter(ps => {
+          const isStale = now - ps.startedAt > staleThreshold;
+          if (isStale && ps.status !== 'cancelled') {
+            console.warn('[Summary] Auto-cleanup: removing stale pending summary:', ps.title);
+            // Abort the fetch if still in progress
+            try { ps.abortController.abort(); } catch { /* ignore */ }
+            toast.error(`انتهت مهلة إنشاء ملخص "${ps.title}". يرجى المحاولة مرة أخرى`, { duration: 8000, id: `stale-${ps.id}` });
+            return false;
+          }
+          return ps.status !== 'cancelled';
+        });
+        return stillValid;
+      });
+    }, 15000); // Check every 15 seconds
+    return () => clearInterval(interval);
+  }, [pendingSummaries.length]);
+
   // ─── Deleting teacher link ───
   const [deletingLinkId, setDeletingLinkId] = useState<string | null>(null);
 
@@ -282,11 +308,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           .order('created_at', { ascending: false });
         if (!error && data) {
           const fetched = (data as Summary[]) || [];
-          setSummaries(fetched);
-          try {
-            localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
-            localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
-          } catch { /* ignore */ }
+          // Bug Fix #5: Don't wipe existing summaries with empty data on 401
+          if (fetched.length > 0) {
+            setSummaries(fetched);
+            try {
+              localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
+              localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+            } catch { /* ignore */ }
+          } else {
+            // Direct query also returned empty — check cache before wiping
+            loadSummariesFromCache();
+          }
         } else {
           // Last resort: try localStorage cache
           loadSummariesFromCache();
@@ -304,11 +336,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           loadSummariesFromCache();
         } else {
           const fetched = (data as Summary[]) || [];
-          setSummaries(fetched);
-          try {
-            localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
-            localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
-          } catch { /* ignore */ }
+          // Bug Fix #5: Don't wipe existing summaries with empty data
+          if (fetched.length > 0) {
+            setSummaries(fetched);
+            try {
+              localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
+              localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+            } catch { /* ignore */ }
+          } else {
+            loadSummariesFromCache();
+          }
         }
       }
     } catch (err) {
@@ -321,11 +358,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         .order('created_at', { ascending: false });
       if (!error && data) {
         const fetched = (data as Summary[]) || [];
-        setSummaries(fetched);
-        try {
-          localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
-          localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
-        } catch { /* ignore */ }
+        // Bug Fix #5: Don't wipe existing summaries with empty data on error
+        if (fetched.length > 0) {
+          setSummaries(fetched);
+          try {
+            localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
+            localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+          } catch { /* ignore */ }
+        } else {
+          loadSummariesFromCache();
+        }
       } else {
         loadSummariesFromCache();
       }
@@ -763,6 +805,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
     // Run the rest in the background (no await — fire and track)
     const processInBackground = async () => {
+      // ─── Client-side timeout for the entire process ───
+      // If the AI call takes longer than 120s on the client side, abort.
+      // The server has its own 90s timeout, but network issues on mobile
+      // can cause the client to hang indefinitely without this.
+      const clientTimeoutId = setTimeout(() => {
+        if (!abortController.signal.aborted) {
+          console.warn('[Summary] Client-side timeout (120s) — aborting...');
+          abortController.abort();
+        }
+      }, 120000);
+
       try {
         // Get auth token with robust retry (mobile session hydration can be slow)
         const token = await waitForSession(10000);
@@ -819,11 +872,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summaryContent = summaryData.data?.summary || '';
           savedSummaryId = summaryData.data?.summaryId || '';
 
-          // Check if server saved the summary
+          // Check if server saved the summary (Bug Fix #2: add timeout to Supabase ops)
           if (!summaryData.data?.saved) {
             console.warn('[Summary] Server did not save summary, attempting client-side fallback...');
             setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-            const { data: insertedSummary, error: summaryError } = await supabase
+            const insertPromise = supabase
               .from('summaries')
               .insert({
                 user_id: profile.id,
@@ -833,6 +886,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               })
               .select()
               .single();
+            const insertTimeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('انتهت مهلة حفظ الملخص')), 30000)
+            );
+            const { data: insertedSummary, error: summaryError } = await Promise.race([insertPromise, insertTimeout]);
 
             if (summaryError) {
               console.error('[Summary] Client-side insert also failed:', summaryError.message);
@@ -867,11 +924,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summaryContent = summaryData.data?.summary || '';
           savedSummaryId = summaryData.data?.summaryId || '';
 
-          // Check if server saved the summary
+          // Check if server saved the summary (Bug Fix #2: add timeout to Supabase ops)
           if (!summaryData.data?.saved) {
             console.warn('[Summary] Server did not save summary, attempting client-side fallback...');
             setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
-            const { data: insertedSummary, error: summaryError } = await supabase
+            const insertPromise = supabase
               .from('summaries')
               .insert({
                 user_id: profile.id,
@@ -881,6 +938,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               })
               .select()
               .single();
+            const insertTimeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('انتهت مهلة حفظ الملخص')), 30000)
+            );
+            const { data: insertedSummary, error: summaryError } = await Promise.race([insertPromise, insertTimeout]);
 
             if (summaryError) {
               console.error('[Summary] Client-side insert also failed:', summaryError.message);
@@ -900,38 +961,38 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
         console.log('[Summary] Saved successfully, id:', savedSummaryId);
 
-        // ─── Post-save verification: confirm the summary actually exists in the DB ───
+        // ─── Post-save verification using the new ?id= endpoint ───
         // On mobile, network issues can cause false positives. Verify the save.
+        // Bug Fix #2: Add timeout and abort signal to verification fetch
         try {
-          const verifyRes = await fetch(`/api/summaries`, {
+          const verifyRes = await fetch(`/api/summaries?id=${encodeURIComponent(savedSummaryId)}`, {
             headers: { 'Authorization': `Bearer ${token}` },
+            signal: AbortSignal.timeout(15000), // 15s timeout for verification
           });
           if (verifyRes.ok) {
-            const { data: verifyData } = await verifyRes.json();
-            const allSummaries = (verifyData as Summary[]) || [];
-            const found = allSummaries.some((s: Summary) => s.id === savedSummaryId);
-            if (!found) {
-              console.warn('[Summary] Post-save verification failed — summary not found in DB! Attempting re-insert...');
-              // The server-side save claimed success but the summary isn't there.
-              // Try client-side insert as last resort.
-              const { data: reInserted, error: reInsertError } = await supabase
-                .from('summaries')
-                .insert({
-                  user_id: profile.id,
-                  title,
-                  original_content: originalContent,
-                  summary_content: summaryContent,
-                })
-                .select()
-                .single();
-              if (reInsertError) {
-                console.error('[Summary] Re-insert also failed:', reInsertError.message);
-              } else {
-                savedSummaryId = reInserted.id;
-                console.log('[Summary] Re-insert succeeded, new id:', savedSummaryId);
-              }
+            console.log('[Summary] Post-save verification passed ✓');
+          } else if (verifyRes.status === 404) {
+            // Summary not found in DB! Try re-insert via client-side
+            console.warn('[Summary] Post-save verification failed — summary not found in DB! Attempting re-insert...');
+            const reInsertPromise = supabase
+              .from('summaries')
+              .insert({
+                user_id: profile.id,
+                title,
+                original_content: originalContent,
+                summary_content: summaryContent,
+              })
+              .select()
+              .single();
+            const reInsertTimeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('انتهت مهلة إعادة الحفظ')), 30000)
+            );
+            const { data: reInserted, error: reInsertError } = await Promise.race([reInsertPromise, reInsertTimeout]);
+            if (reInsertError) {
+              console.error('[Summary] Re-insert also failed:', reInsertError.message);
             } else {
-              console.log('[Summary] Post-save verification passed ✓');
+              savedSummaryId = reInserted.id;
+              console.log('[Summary] Re-insert succeeded, new id:', savedSummaryId);
             }
           }
         } catch (verifyErr) {
@@ -970,19 +1031,31 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         console.error('[Summary] Background error:', err);
 
         if (err instanceof DOMException && err.name === 'AbortError') {
-          // User cancelled
+          // User cancelled or client timeout — distinguish between the two
+          const elapsed = Date.now() - (pendingSummaries.find(s => s.id === pendingId)?.startedAt || Date.now());
+          if (elapsed > 100000) {
+            toast.error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى', { duration: 8000, id: 'summary-error' });
+          }
+          // If user manually cancelled, no toast needed
         } else if (err instanceof Error) {
           toast.error(err.message, { duration: 8000, id: 'summary-error' });
         } else {
           toast.error(`فشل إنشاء ملخص "${title}"`, { duration: 8000, id: 'summary-error' });
         }
       } finally {
+        clearTimeout(clientTimeoutId);
         removePendingSummary(pendingId);
       }
     };
 
     // Fire and forget — runs in background
-    processInBackground();
+    // CRITICAL: Add .catch() safety net so unhandled rejections never leave
+    // the pending summary stuck in the UI forever (Bug Fix #1)
+    processInBackground().catch((err) => {
+      console.error('[Summary] UNHANDLED processInBackground error:', err);
+      removePendingSummary(pendingId);
+      toast.error(`حدث خطأ غير متوقع أثناء إنشاء ملخص "${title}"`, { duration: 8000, id: 'summary-error' });
+    });
   };
 
   // -------------------------------------------------------

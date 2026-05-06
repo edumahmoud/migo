@@ -76,7 +76,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   const [relatedQuiz, setRelatedQuiz] = useState<Quiz | null>(null);
 
   // -------------------------------------------------------
-  // Fetch summary
+  // Fetch summary — with robust retry for mobile/PWA
   // -------------------------------------------------------
   const fetchSummary = useCallback(async () => {
     setLoading(true);
@@ -85,44 +85,69 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
       const { data: { session } } = await supabase.auth.getSession();
       let token = session?.access_token || '';
 
-      // If session not yet hydrated, wait briefly and retry (critical on mobile)
+      // If session not yet hydrated, wait with progressive backoff (critical on mobile/PWA)
       if (!token) {
         console.warn('[fetchSummary] No token yet, waiting for session...');
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        const { data: { session: retrySession } } = await supabase.auth.getSession();
-        token = retrySession?.access_token || '';
+        for (const delay of [800, 1500, 3000]) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          const { data: { session: retrySession } } = await supabase.auth.getSession();
+          token = retrySession?.access_token || '';
+          if (token) break;
+        }
       }
 
-      // Try server-side API first (bypasses RLS)
-      const res = await fetch('/api/summaries', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      });
+      // ─── Strategy 1: Fetch by ID using the new ?id= endpoint (efficient) ───
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/summaries?id=${encodeURIComponent(summaryId)}`, { headers });
+
       if (res.ok) {
         const { data } = await res.json();
+        if (data) {
+          setSummary(data as Summary);
+          return; // Success!
+        }
+      }
+
+      // ─── Strategy 2: If 401 and no token, auth not ready yet ───
+      if (res.status === 401 && !token) {
+        console.warn('[fetchSummary] Auth not ready, will retry on auth state change');
+        setError('جاري تحميل الجلسة...');
+        return;
+      }
+
+      // ─── Strategy 3: If 404, the summary might not be saved yet (still generating) ───
+      if (res.status === 404) {
+        console.warn('[fetchSummary] Summary not found in DB, might still be generating');
+        setError('لم يتم العثور على الملخص');
+        return;
+      }
+
+      // ─── Strategy 4: Fallback — fetch all summaries and filter (legacy compatibility) ───
+      console.warn('[fetchSummary] Single-fetch failed, falling back to list endpoint...');
+      const fallbackRes = await fetch('/api/summaries', { headers });
+      if (fallbackRes.ok) {
+        const { data } = await fallbackRes.json();
         const found = (data as Summary[])?.find((s) => s.id === summaryId);
         if (found) {
           setSummary(found);
-        } else {
-          setError('لم يتم العثور على الملخص');
-        }
-      } else if (res.status === 401 && !token) {
-        // Auth not ready yet — retry via auth state change listener
-        console.warn('[fetchSummary] Auth not ready, will retry on auth state change');
-        setError('جاري تحميل الجلسة...');
-      } else {
-        // Fallback to direct query
-        const { data, error: fetchError } = await supabase
-          .from('summaries')
-          .select('*')
-          .eq('id', summaryId)
-          .single();
-
-        if (fetchError || !data) {
-          setError('لم يتم العثور على الملخص');
           return;
         }
-        setSummary(data as Summary);
       }
+
+      // ─── Strategy 5: Last resort — direct Supabase query (subject to RLS) ───
+      const { data, error: fetchError } = await supabase
+        .from('summaries')
+        .select('*')
+        .eq('id', summaryId)
+        .single();
+
+      if (fetchError || !data) {
+        setError('لم يتم العثور على الملخص');
+        return;
+      }
+      setSummary(data as Summary);
     } catch {
       setError('حدث خطأ أثناء تحميل الملخص');
     } finally {
@@ -160,12 +185,16 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   }, [fetchSummary, fetchRelatedQuiz]);
 
   // ─── Re-fetch summary when auth session becomes available (mobile fix) ───
+  // Bug Fix #4: Also handle INITIAL_SESSION event which fires on page refresh
+  // when the persisted session is re-hydrated from localStorage.
+  // Without this, refreshing while viewing a summary shows "لم يتم العثور على الملخص"
+  // because the fetch runs before the auth session is available.
   useEffect(() => {
     let cancelled = false;
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return;
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
-        console.log('[SummaryView] Session ready, re-fetching summary...');
+      if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
+        console.log('[SummaryView] Session ready (event:', event, '), re-fetching summary...');
         fetchSummary();
         fetchRelatedQuiz();
       }
@@ -361,7 +390,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   }
 
   // -------------------------------------------------------
-  // Error state
+  // Error state — with retry button
   // -------------------------------------------------------
   if (error || !summary) {
     return (
@@ -370,14 +399,24 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
           <XCircle className="h-8 w-8 text-rose-600" />
         </div>
         <p className="text-lg font-semibold text-foreground">{error || 'حدث خطأ غير متوقع'}</p>
-        <Button
-          onClick={onBack}
-          variant="outline"
-          className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          العودة
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => fetchSummary()}
+            variant="outline"
+            className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            إعادة المحاولة
+          </Button>
+          <Button
+            onClick={onBack}
+            variant="outline"
+            className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            العودة
+          </Button>
+        </div>
       </div>
     );
   }
