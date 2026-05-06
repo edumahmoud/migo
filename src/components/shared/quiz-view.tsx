@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
+  ArrowLeft,
   CheckCircle2,
   XCircle,
   ChevronLeft,
+  ChevronRight,
   RotateCcw,
   Eye,
   Home,
@@ -722,49 +724,6 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   // Results screen
   // -------------------------------------------------------
   if (showResults) {
-    // If show_results is false, show submission confirmation instead of score
-    if (quiz.show_results === false) {
-      return (
-        <motion.div
-          initial="hidden"
-          animate="visible"
-          variants={staggerContainer}
-          className="mx-auto max-w-2xl space-y-4 sm:space-y-6 p-3 sm:p-8"
-          dir="rtl"
-        >
-          <motion.div variants={fadeInUp} className="flex flex-col items-center gap-4">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.2 }}
-              className="flex h-32 w-32 items-center justify-center rounded-full bg-emerald-100 ring-8 ring-emerald-200 shadow-lg"
-            >
-              <div className="text-center">
-                <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600 mb-1" />
-              </div>
-            </motion.div>
-
-            <motion.div variants={fadeInUp} className="text-center">
-              <h2 className="text-2xl font-bold text-foreground">تم إرسال إجاباتك</h2>
-              <p className="text-muted-foreground mt-2 max-w-md">
-                ستظهر النتائج بعد أن يقرر المعلم إظهارها
-              </p>
-            </motion.div>
-          </motion.div>
-
-          <motion.div variants={fadeInUp} className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <Button
-              onClick={onBack}
-              className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
-            >
-              <Home className="h-4 w-4" />
-              العودة للرئيسية
-            </Button>
-          </motion.div>
-        </motion.div>
-      );
-    }
-
     const finalScore = userAnswers.filter((a) => a.isCorrect).length;
     const percentage = totalQuestions > 0 ? Math.round((finalScore / totalQuestions) * 100) : 0;
     const scoreColor =
@@ -971,6 +930,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     isCorrect={isCorrect}
                     selectedOption={selectedOption}
                     onAnswer={handleMCQAnswer}
+                    showCorrectness={quiz.show_results !== false}
                   />
                 )}
 
@@ -981,6 +941,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     isCorrect={isCorrect}
                     selectedOption={selectedOption}
                     onAnswer={handleBooleanAnswer}
+                    showCorrectness={quiz.show_results !== false}
                   />
                 )}
 
@@ -1011,8 +972,8 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                   />
                 )}
 
-                {/* Feedback indicator */}
-                {answered && (
+                {/* Feedback indicator — only show during quiz if show_results is true */}
+                {answered && quiz.show_results !== false && (
                   <>
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
@@ -1085,7 +1046,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
 
                 {/* Previous / Next / Finish buttons */}
                 <div className="flex items-center gap-3">
-                  {/* Previous button */}
+                  {/* Previous button — RTL: ChevronRight points to the start */}
                   {currentIdx > 0 && (
                     <Button
                       onClick={() => {
@@ -1094,7 +1055,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                       variant="outline"
                       className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronRight className="h-4 w-4" />
                       السؤال السابق
                     </Button>
                   )}
@@ -1112,7 +1073,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                         {currentIdx < totalQuestions - 1 ? (
                           <>
                             السؤال التالي
-                            <ArrowRight className="h-4 w-4" />
+                            <ArrowLeft className="h-4 w-4" />
                           </>
                         ) : (
                           <>
@@ -1146,9 +1107,10 @@ interface MCQQuestionProps {
   isCorrect: boolean;
   selectedOption: string | null;
   onAnswer: (option: string) => void;
+  showCorrectness: boolean;
 }
 
-function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer }: MCQQuestionProps) {
+function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, showCorrectness }: MCQQuestionProps) {
   if (!question.options) return null;
 
   return (
@@ -1161,12 +1123,22 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer }
           'rounded-xl border-2 p-3 sm:p-4 text-sm font-medium transition-all text-right flex items-center gap-3';
 
         if (answered) {
-          if (isCorrectOption) {
-            btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
-          } else if (isSelected && !isCorrect) {
-            btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
+          if (showCorrectness) {
+            // Show correct/incorrect colors
+            if (isCorrectOption) {
+              btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
+            } else if (isSelected && !isCorrect) {
+              btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
+            } else {
+              btnClass += ' border-border bg-muted/30 text-muted-foreground';
+            }
           } else {
-            btnClass += ' border-border bg-muted/30 text-muted-foreground';
+            // Hide correctness — just show selected state
+            if (isSelected) {
+              btnClass += ' border-teal-500 bg-teal-50 text-teal-700';
+            } else {
+              btnClass += ' border-border bg-muted/30 text-muted-foreground';
+            }
           }
         } else {
           btnClass +=
@@ -1185,11 +1157,13 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer }
             {/* Option letter */}
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                answered && isCorrectOption
+                showCorrectness && answered && isCorrectOption
                   ? 'bg-emerald-600 text-white'
-                  : answered && isSelected && !isCorrect
+                  : showCorrectness && answered && isSelected && !isCorrect
                     ? 'bg-rose-600 text-white'
-                    : 'bg-emerald-100 text-emerald-700'
+                    : answered && isSelected
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-emerald-100 text-emerald-700'
               }`}
             >
               {String.fromCharCode(1571 + idx)}
@@ -1197,11 +1171,11 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer }
 
             <span className="flex-1">{option}</span>
 
-            {/* Feedback icon */}
-            {answered && isCorrectOption && (
+            {/* Feedback icon — only when showing correctness */}
+            {showCorrectness && answered && isCorrectOption && (
               <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
             )}
-            {answered && isSelected && !isCorrect && (
+            {showCorrectness && answered && isSelected && !isCorrect && (
               <XCircle className="h-5 w-5 shrink-0 text-rose-600" />
             )}
           </motion.button>
@@ -1220,6 +1194,7 @@ interface BooleanQuestionProps {
   isCorrect: boolean;
   selectedOption: string | null;
   onAnswer: (answer: string) => void;
+  showCorrectness: boolean;
 }
 
 function BooleanQuestion({
@@ -1228,6 +1203,7 @@ function BooleanQuestion({
   isCorrect,
   selectedOption,
   onAnswer,
+  showCorrectness,
 }: BooleanQuestionProps) {
   const options = [
     { label: 'صح', value: 'صح', icon: <CheckCircle2 className="h-5 w-5" /> },
@@ -1244,12 +1220,20 @@ function BooleanQuestion({
           'flex flex-col items-center gap-2 rounded-xl border-2 p-4 sm:p-6 text-sm sm:text-base font-bold transition-all';
 
         if (answered) {
-          if (isCorrectOption) {
-            btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
-          } else if (isSelected && !isCorrect) {
-            btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
+          if (showCorrectness) {
+            if (isCorrectOption) {
+              btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
+            } else if (isSelected && !isCorrect) {
+              btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
+            } else {
+              btnClass += ' border-border bg-muted/30 text-muted-foreground';
+            }
           } else {
-            btnClass += ' border-border bg-muted/30 text-muted-foreground';
+            if (isSelected) {
+              btnClass += ' border-teal-500 bg-teal-50 text-teal-700';
+            } else {
+              btnClass += ' border-border bg-muted/30 text-muted-foreground';
+            }
           }
         } else {
           btnClass +=
@@ -1267,10 +1251,10 @@ function BooleanQuestion({
           >
             {opt.icon}
             {opt.label}
-            {answered && isCorrectOption && (
+            {showCorrectness && answered && isCorrectOption && (
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             )}
-            {answered && isSelected && !isCorrect && (
+            {showCorrectness && answered && isSelected && !isCorrect && (
               <XCircle className="h-4 w-4 text-rose-600" />
             )}
           </motion.button>
