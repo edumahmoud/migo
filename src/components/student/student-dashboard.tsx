@@ -147,6 +147,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
   // ─── Data state ───
   const [summaries, setSummaries] = useState<Summary[]>([]);
+  // Ref to track current summaries for protection against wiping on refresh
+  const summariesRef = useRef<Summary[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
   const [linkedTeachers, setLinkedTeachers] = useState<UserProfile[]>([]);
@@ -234,6 +236,25 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [loadingTeacherSubjects, setLoadingTeacherSubjects] = useState(false);
   const [unlinkConfirmOpen, setUnlinkConfirmOpen] = useState(false);
 
+  // Keep summariesRef in sync with summaries state
+  useEffect(() => {
+    summariesRef.current = summaries;
+  }, [summaries]);
+
+  /**
+   * Safe setter that prevents wiping existing summaries with empty data.
+   * If we already have summaries and the new data is empty, we keep
+   * the existing data unless we have a confirmed session (token provided).
+   * This prevents the "summaries disappear on refresh" bug.
+   */
+  const safeSetSummaries = useCallback((newSummaries: Summary[], hasValidSession: boolean = true) => {
+    if (newSummaries.length === 0 && summariesRef.current.length > 0 && !hasValidSession) {
+      console.warn('[safeSetSummaries] Prevented wipe of', summariesRef.current.length, 'summaries (no valid session)');
+      return;
+    }
+    setSummaries(newSummaries);
+  }, []);
+
   // -------------------------------------------------------
   // Data fetching
   // -------------------------------------------------------
@@ -268,6 +289,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       // Wait for auth session with progressive backoff (critical on mobile)
       const token = await waitForSession(8000);
+      const hasValidSession = !!token;
 
       const res = await fetch('/api/summaries', {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
@@ -276,7 +298,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         const { data } = await res.json();
         const fetched = (data as Summary[]) || [];
         // PROTECTION: Never replace existing summaries with empty list from API
-        // unless we're sure the user truly has no summaries (cache confirms it)
+        // unless we have a confirmed valid session
         if (fetched.length === 0) {
           // Check if we have cached summaries — if so, the empty result might be
           // a temporary auth issue, so keep the cached data
@@ -286,18 +308,23 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               const parsed = JSON.parse(cached) as Summary[];
               if (parsed.length > 0) {
                 console.warn('[fetchSummaries] API returned empty but cache has', parsed.length, 'summaries — keeping cache');
-                setSummaries(parsed);
+                safeSetSummaries(parsed, hasValidSession);
                 return;
               }
             }
           } catch { /* ignore */ }
+          // No cache either — use safe setter to prevent wiping existing data
+          safeSetSummaries(fetched, hasValidSession);
+        } else {
+          safeSetSummaries(fetched, true);
         }
-        setSummaries(fetched);
         // Cache to localStorage for offline/mobile resilience
-        try {
-          localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
-          localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
-        } catch { /* localStorage might be unavailable */ }
+        if (fetched.length > 0) {
+          try {
+            localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
+            localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+          } catch { /* localStorage might be unavailable */ }
+        }
       } else if (res.status === 401) {
         // Auth not ready yet — try direct Supabase query as fallback
         console.warn('[fetchSummaries] API returned 401, trying direct query...');
@@ -308,9 +335,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           .order('created_at', { ascending: false });
         if (!error && data) {
           const fetched = (data as Summary[]) || [];
-          // Bug Fix #5: Don't wipe existing summaries with empty data on 401
           if (fetched.length > 0) {
-            setSummaries(fetched);
+            safeSetSummaries(fetched, true);
             try {
               localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
               localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
@@ -336,9 +362,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           loadSummariesFromCache();
         } else {
           const fetched = (data as Summary[]) || [];
-          // Bug Fix #5: Don't wipe existing summaries with empty data
           if (fetched.length > 0) {
-            setSummaries(fetched);
+            safeSetSummaries(fetched, true);
             try {
               localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
               localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
@@ -358,9 +383,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         .order('created_at', { ascending: false });
       if (!error && data) {
         const fetched = (data as Summary[]) || [];
-        // Bug Fix #5: Don't wipe existing summaries with empty data on error
         if (fetched.length > 0) {
-          setSummaries(fetched);
+          safeSetSummaries(fetched, true);
           try {
             localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(fetched));
             localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
@@ -372,7 +396,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         loadSummariesFromCache();
       }
     }
-  }, [profile.id, waitForSession]);
+  }, [profile.id, waitForSession, safeSetSummaries, loadSummariesFromCache]);
 
   /**
    * Load summaries from localStorage cache as a last resort.
@@ -388,7 +412,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         if (age < 3600000) { // less than 1 hour old
           const parsed = JSON.parse(cached) as Summary[];
           console.log('[loadSummariesFromCache] Loaded', parsed.length, 'summaries from cache (age:', Math.round(age / 1000), 's)');
-          setSummaries(parsed);
+          safeSetSummaries(parsed, false);
           return;
         }
       }
@@ -396,7 +420,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     } catch {
       // localStorage unavailable or corrupted
     }
-  }, [profile.id]);
+  }, [profile.id, safeSetSummaries]);
 
   const fetchQuizzes = useCallback(async () => {
     // Own quizzes

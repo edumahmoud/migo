@@ -15,8 +15,10 @@ export interface PdfExtractionResult {
   pages: number;
 }
 
-/** Max chars to send to the AI (matches server-side sanitizeString limit) */
-const MAX_TEXT_LENGTH = 200000;
+/** Max chars to send to the AI (matches server-side sanitizeString limit)
+ *  30K chars ≈ 8K tokens, well within GLM-4-Plus context window.
+ *  Previous 200K limit caused timeouts. */
+const MAX_TEXT_LENGTH = 30000;
 
 /**
  * Extract text from a PDF File in the browser.

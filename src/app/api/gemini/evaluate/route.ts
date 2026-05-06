@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { evaluateCompletionAnswer } from '@/lib/gemini';
+
+// Allow up to 60 seconds for AI evaluation
+export const maxDuration = 60;
+export const runtime = 'nodejs';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 

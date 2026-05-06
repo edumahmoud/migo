@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateSummary } from '@/lib/gemini';
+
+// Allow up to 120 seconds for AI generation (Vercel default is 10s on hobby)
+export const maxDuration = 120;
+// Force Node.js runtime (Edge runtime has 30s limit)
+export const runtime = 'nodejs';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 import { supabaseServer } from '@/lib/supabase-server';
@@ -53,8 +58,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sanitize and limit content length (200K chars — AI models can't handle more anyway)
-    const sanitizedContent = sanitizeString(rawContent, 200000);
+    // Sanitize and limit content length (30K chars — GLM-4-Plus handles this well;
+    // larger content was causing timeouts. Client-side truncation also applies.)
+    const sanitizedContent = sanitizeString(rawContent, 30000);
     if (sanitizedContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى غير صالح بعد التنظيف' },

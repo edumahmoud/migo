@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+
+// Allow up to 120 seconds for re-generation (Vercel default is 10s)
+export const maxDuration = 120;
+export const runtime = 'nodejs';
 import { supabaseServer } from '@/lib/supabase-server';
 import { generateSummary } from '@/lib/gemini';
 import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse } from '@/lib/api-security';
@@ -141,7 +145,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const originalContent = sanitizeString(existing.original_content, 200000);
+    const originalContent = sanitizeString(existing.original_content, 30000);
     if (!originalContent || originalContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى الأصلي فارغ، لا يمكن إعادة التلخيص' },
