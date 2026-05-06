@@ -145,16 +145,87 @@ const AI_CALL_TIMEOUT_MS = 45000; // 45 seconds
 
 /** Groq-specific timeout (milliseconds).
  *  Groq is supposed to be ultra-fast (sub-second first token).
- *  If Groq doesn't respond within 12s, it's likely down or unreachable —
+ *  If Groq doesn't respond within 8s, it's likely down or unreachable —
  *  fall back to Gemini quickly instead of waiting the full 45s.
- *  This leaves ~30s for Gemini to complete, which is more than enough. */
-const GROQ_TIMEOUT_MS = 12000; // 12 seconds
+ *  Reduced from 12s to 8s because Groq's LPU hardware responds in <500ms
+ *  when healthy — anything over 8s means it's down. */
+const GROQ_TIMEOUT_MS = 8000; // 8 seconds
 
 /** First-token timeout for streaming calls (milliseconds).
  *  Groq typically returns first token in <500ms.
  *  Gemini typically returns first token in 3-8s.
  *  15s is a generous first-token timeout. */
 const AI_FIRST_TOKEN_TIMEOUT_MS = 15000; // 15 seconds
+
+// -------------------------------------------------------
+// Groq Circuit Breaker
+// -------------------------------------------------------
+
+/**
+ * Circuit breaker for Groq: if Groq fails multiple times in a row,
+ * we "open" the circuit and skip Groq entirely for a cooldown period.
+ * This prevents wasting 8+ seconds on every request when Groq is down.
+ *
+ * States:
+ *   CLOSED  → Normal operation (try Groq first)
+ *   OPEN    → Skip Groq entirely (go straight to Gemini)
+ *   HALF_OPEN → Try Groq once to see if it's back
+ *
+ * After COOLDOWN_MS in OPEN state, we try once (HALF_OPEN).
+ * If that succeeds, circuit closes. If it fails, circuit stays open.
+ */
+const CIRCUIT_FAILURE_THRESHOLD = 3;  // Open after 3 consecutive failures
+const CIRCUIT_COOLDOWN_MS = 120000;   // 2 minutes cooldown before retrying Groq
+
+type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+
+let circuitState: CircuitState = 'CLOSED';
+let circuitFailureCount = 0;
+let circuitOpenSince = 0; // timestamp when circuit opened
+
+function isGroqCircuitOpen(): boolean {
+  if (circuitState === 'CLOSED') return false;
+
+  if (circuitState === 'OPEN') {
+    const elapsed = Date.now() - circuitOpenSince;
+    if (elapsed >= CIRCUIT_COOLDOWN_MS) {
+      // Cooldown elapsed — try Groq once (HALF_OPEN)
+      console.log('[Circuit Breaker] Cooldown elapsed, trying Groq again (HALF_OPEN)');
+      circuitState = 'HALF_OPEN';
+      return false; // Allow one attempt
+    }
+    return true; // Still open, skip Groq
+  }
+
+  // HALF_OPEN — allow the attempt
+  return false;
+}
+
+function recordGroqSuccess(): void {
+  if (circuitState !== 'CLOSED') {
+    console.log('[Circuit Breaker] Groq succeeded! Circuit CLOSED (normal operation)');
+  }
+  circuitState = 'CLOSED';
+  circuitFailureCount = 0;
+}
+
+function recordGroqFailure(): void {
+  circuitFailureCount++;
+
+  if (circuitState === 'HALF_OPEN') {
+    // Groq failed in HALF_OPEN — go back to OPEN
+    console.warn('[Circuit Breaker] Groq still failing in HALF_OPEN → back to OPEN');
+    circuitState = 'OPEN';
+    circuitOpenSince = Date.now();
+    return;
+  }
+
+  if (circuitFailureCount >= CIRCUIT_FAILURE_THRESHOLD) {
+    console.warn(`[Circuit Breaker] Groq failed ${circuitFailureCount} times consecutively → circuit OPEN (skipping Groq for ${CIRCUIT_COOLDOWN_MS / 1000}s)`);
+    circuitState = 'OPEN';
+    circuitOpenSince = Date.now();
+  }
+}
 
 // -------------------------------------------------------
 // Provider configuration
@@ -616,15 +687,17 @@ async function tryGemini(
 // -------------------------------------------------------
 
 /**
- * Main AI chat function with automatic provider failover.
+ * Main AI chat function with automatic provider failover + circuit breaker.
  *
- * Flow:
- *   1. Try Groq (primary) — ultra-fast inference
- *   2. If Groq fails for ANY reason → Try Gemini (fallback)
- *   3. If both fail → Return error to user
+ * Flow (with circuit breaker):
+ *   1. If Groq circuit is OPEN → Skip Groq, go straight to Gemini
+ *   2. If Groq circuit is CLOSED/HALF_OPEN → Try Groq (primary)
+ *   3. If Groq succeeds → Close circuit, return result
+ *   4. If Groq fails → Record failure, try Gemini (fallback)
+ *   5. If both fail → Return error to user
  *
- * This ensures the service is resilient: even if Groq is down,
- * rate-limited, or misconfigured, Gemini picks up the load.
+ * The circuit breaker prevents wasting time on Groq when it's consistently down.
+ * After 3 consecutive failures, Groq is skipped for 2 minutes.
  */
 async function aiChatWithFailover(
   systemPrompt: string,
@@ -635,20 +708,31 @@ async function aiChatWithFailover(
   const useNonStream = options?.nonStream ?? false;
   const startTime = Date.now();
 
-  // ─── Step 1: Try Groq (PRIMARY) with shorter timeout ───
-  // Use GROQ_TIMEOUT_MS (12s) instead of the full timeout so we
-  // quickly fall back to Gemini if Groq is unreachable.
+  // ─── Step 1: Check Groq circuit breaker ───
+  if (isGroqCircuitOpen()) {
+    console.log('[Circuit Breaker] Groq circuit is OPEN — skipping Groq, going straight to Gemini');
+    // Give Gemini the full timeout since we're not wasting time on Groq
+    try {
+      const result = await tryGemini(systemPrompt, userPrompt, options, overallTimeoutMs, useNonStream);
+      return result;
+    } catch (geminiError: unknown) {
+      const geminiCode = isAiError(geminiError) ? geminiError.code : 'UNKNOWN';
+      const geminiMsg = isAiError(geminiError) ? geminiError.userMessage : (geminiError instanceof Error ? geminiError.message : String(geminiError));
+      console.error('[AI] Gemini failed (circuit was open, Groq skipped):', geminiCode, geminiMsg);
+      throw geminiError;
+    }
+  }
+
+  // ─── Step 2: Try Groq (PRIMARY) with shorter timeout ───
   const groqTimeoutMs = Math.min(GROQ_TIMEOUT_MS, overallTimeoutMs);
   try {
     const result = await tryGroq(systemPrompt, userPrompt, options, groqTimeoutMs, useNonStream);
+    recordGroqSuccess();
     return result;
   } catch (groqError: unknown) {
     const groqCode = isAiError(groqError) ? groqError.code : 'UNKNOWN';
-    const groqMsg = isAiError(groqError) ? groqError.userMessage : (groqError instanceof Error ? groqError.message : String(groqError));
+    recordGroqFailure();
 
-    // IMPORTANT: We ALWAYS fall back to Gemini, even on rate limits.
-    // Groq and Gemini have SEPARATE rate limits, so a Groq rate limit
-    // does NOT mean Gemini will also be rate-limited.
     console.warn('[Groq] Failed after', Date.now() - startTime, 'ms, code:', groqCode, '— falling back to Gemini');
 
     // Calculate remaining time for Gemini fallback
@@ -656,7 +740,7 @@ async function aiChatWithFailover(
     const remainingTimeout = Math.max(overallTimeoutMs - elapsed, 15000); // minimum 15s for fallback
     const fallbackOptions = { ...options, timeoutMs: remainingTimeout };
 
-    // ─── Step 2: Try Gemini (FALLBACK) ───
+    // ─── Step 3: Try Gemini (FALLBACK) ───
     console.log('[AI] Falling back to Gemini with', remainingTimeout, 'ms remaining');
     try {
       const result = await tryGemini(systemPrompt, userPrompt, fallbackOptions, remainingTimeout, useNonStream);
@@ -665,7 +749,7 @@ async function aiChatWithFailover(
     } catch (geminiError: unknown) {
       const geminiCode = isAiError(geminiError) ? geminiError.code : 'UNKNOWN';
       const geminiMsg = isAiError(geminiError) ? geminiError.userMessage : (geminiError instanceof Error ? geminiError.message : String(geminiError));
-      console.error('[AI] Both providers failed. Groq:', groqCode, groqMsg, '| Gemini:', geminiCode, geminiMsg);
+      console.error('[AI] Both providers failed. Groq:', groqCode, '| Gemini:', geminiCode, geminiMsg);
 
       // If both providers hit rate limits, give a more specific message
       if (groqCode === 'RATE_LIMIT' && geminiCode === 'RATE_LIMIT') {
