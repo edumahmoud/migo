@@ -179,8 +179,8 @@ async function aiChatInternal(
 
   console.log('[Gemini] Sending request... (timeout:', timeoutMs + 'ms)');
 
-  // Use Gemini 1.5 Flash for fast responses (or fallback to gemini-pro)
-  const modelName = 'gemini-2.0-flash';
+  // Use Gemini 2.0 Flash for fast responses (configurable via env)
+  const modelName = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
   const model = genAI.getGenerativeModel({
     model: modelName,
     systemInstruction: systemPrompt,

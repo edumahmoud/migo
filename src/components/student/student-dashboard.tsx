@@ -285,6 +285,34 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     return '';
   }, []);
 
+  /**
+   * Load summaries from localStorage cache as a last resort.
+   * Also used on mount to provide instant UI while API fetch is in progress.
+   * Cache is considered valid for up to 1 hour.
+   *
+   * IMPORTANT: This MUST be defined before fetchSummaries because
+   * fetchSummaries references it in its dependency array.
+   * Defining it after would cause a Temporal Dead Zone (TDZ) error.
+   */
+  const loadSummariesFromCache = useCallback(() => {
+    try {
+      const cached = localStorage.getItem(`summaries_${profile.id}`);
+      const cacheTs = localStorage.getItem(`summaries_${profile.id}_ts`);
+      if (cached) {
+        const age = cacheTs ? Date.now() - parseInt(cacheTs) : Infinity;
+        if (age < 3600000) { // less than 1 hour old
+          const parsed = JSON.parse(cached) as Summary[];
+          console.log('[loadSummariesFromCache] Loaded', parsed.length, 'summaries from cache (age:', Math.round(age / 1000), 's)');
+          safeSetSummaries(parsed, false);
+          return;
+        }
+      }
+      console.warn('[loadSummariesFromCache] No valid cache found');
+    } catch {
+      // localStorage unavailable or corrupted
+    }
+  }, [profile.id, safeSetSummaries]);
+
   const fetchSummaries = useCallback(async () => {
     try {
       // Wait for auth session with progressive backoff (critical on mobile)
@@ -397,30 +425,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
     }
   }, [profile.id, waitForSession, safeSetSummaries, loadSummariesFromCache]);
-
-  /**
-   * Load summaries from localStorage cache as a last resort.
-   * Only used when both API and direct Supabase query fail.
-   * Cache is considered valid for up to 1 hour.
-   */
-  const loadSummariesFromCache = useCallback(() => {
-    try {
-      const cached = localStorage.getItem(`summaries_${profile.id}`);
-      const cacheTs = localStorage.getItem(`summaries_${profile.id}_ts`);
-      if (cached) {
-        const age = cacheTs ? Date.now() - parseInt(cacheTs) : Infinity;
-        if (age < 3600000) { // less than 1 hour old
-          const parsed = JSON.parse(cached) as Summary[];
-          console.log('[loadSummariesFromCache] Loaded', parsed.length, 'summaries from cache (age:', Math.round(age / 1000), 's)');
-          safeSetSummaries(parsed, false);
-          return;
-        }
-      }
-      console.warn('[loadSummariesFromCache] No valid cache found');
-    } catch {
-      // localStorage unavailable or corrupted
-    }
-  }, [profile.id, safeSetSummaries]);
 
   const fetchQuizzes = useCallback(async () => {
     // Own quizzes
@@ -645,18 +649,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Load summaries from localStorage cache immediately on mount ───
   // This gives instant UI on mobile while waiting for the API to respond.
   // The API fetch will override this with fresh data once it completes.
+  // Uses loadSummariesFromCache (which uses safeSetSummaries) to ensure
+  // the cache load is consistent with the protection against empty-data wipes.
   useEffect(() => {
-    try {
-      const cached = localStorage.getItem(`summaries_${profile.id}`);
-      if (cached) {
-        const parsed = JSON.parse(cached) as Summary[];
-        if (parsed.length > 0) {
-          console.log('[Init] Loaded', parsed.length, 'summaries from localStorage cache');
-          setSummaries(parsed);
-        }
-      }
-    } catch { /* ignore */ }
-  }, [profile.id]);
+    loadSummariesFromCache();
+  }, [loadSummariesFromCache]);
 
   useEffect(() => {
     fetchAllData();

@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (errMsg.includes('not configured')) {
+    if (errMsg.includes('غير مفعلة') || errMsg.includes('not configured')) {
       return NextResponse.json(
         { success: false, error: 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة' },
         { status: 503 }
