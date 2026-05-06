@@ -438,6 +438,30 @@ async function groqNonStreamChat(
 }
 
 // -------------------------------------------------------
+// Request Queue — space out Groq API calls to avoid rate limits
+// -------------------------------------------------------
+
+/**
+ * Simple request queue that ensures a minimum delay between Groq API calls.
+ * Groq free tier allows 30 requests/minute and 6,000 tokens/minute.
+ * By spacing requests 2.5s apart, we stay well under the limit (24 req/min).
+ */
+const MIN_REQUEST_INTERVAL_MS = 2500; // 2.5 seconds between requests
+let lastRequestTime = 0;
+let requestQueue: Promise<string> | null = null;
+
+async function waitForRateLimitSlot(): Promise<void> {
+  const now = Date.now();
+  const elapsed = now - lastRequestTime;
+  if (elapsed < MIN_REQUEST_INTERVAL_MS) {
+    const waitMs = MIN_REQUEST_INTERVAL_MS - elapsed;
+    console.log('[Rate Limiter] Waiting', waitMs, 'ms before next Groq request');
+    await new Promise(resolve => setTimeout(resolve, waitMs));
+  }
+  lastRequestTime = Date.now();
+}
+
+// -------------------------------------------------------
 // Options interface
 // -------------------------------------------------------
 
@@ -517,6 +541,9 @@ async function aiChat(
   const overallTimeoutMs = options?.timeoutMs ?? AI_CALL_TIMEOUT_MS;
   const useNonStream = options?.nonStream ?? false;
 
+  // ─── Wait for rate limit slot before calling Groq ───
+  await waitForRateLimitSlot();
+
   // ─── Try Groq ───
   try {
     const result = await tryGroq(systemPrompt, userPrompt, options, overallTimeoutMs, useNonStream);
@@ -540,7 +567,7 @@ async function aiChatWithRetry(
   userPrompt: string,
   options?: AiChatOptions
 ): Promise<string> {
-  const maxRetries = options?.retries ?? 1;
+  const maxRetries = options?.retries ?? 2;
 
   let lastError: Error | null = null;
 
@@ -559,16 +586,21 @@ async function aiChatWithRetry(
       const errorCode = isAiError(error) ? error.code : 'UNKNOWN';
       console.error(`[AI] Attempt ${attempt + 1} failed, code: ${errorCode}:`, lastError.message);
 
-      // Don't retry on these error codes — they won't change on retry
-      const noRetryCodes: AiErrorCode[] = ['RATE_LIMIT', 'AUTH_ERROR', 'NOT_CONFIGURED', 'TIMEOUT', 'EMPTY_RESPONSE'];
+      // Don't retry on these error codes — they truly won't change on retry
+      // NOTE: RATE_LIMIT is NOT here — rate limits reset after ~60s, so retrying
+      // with a longer backoff is worth it (especially with no fallback provider)
+      const noRetryCodes: AiErrorCode[] = ['AUTH_ERROR', 'NOT_CONFIGURED'];
       if (noRetryCodes.includes(errorCode as AiErrorCode)) {
         throw lastError;
       }
 
-      // Wait before retrying (exponential backoff)
+      // Wait before retrying
       if (attempt < maxRetries) {
-        const backoffMs = Math.min(2000 * Math.pow(2, attempt), 8000);
-        console.log(`[AI] Waiting ${backoffMs}ms before retry...`);
+        // For rate limits, wait longer (Groq resets every ~60s)
+        const backoffMs = errorCode === 'RATE_LIMIT'
+          ? Math.min(30000 * Math.pow(2, attempt), 60000) // 30s, 60s for rate limits
+          : Math.min(2000 * Math.pow(2, attempt), 8000);   // 2s, 4s for other errors
+        console.log(`[AI] Waiting ${backoffMs}ms before retry (code: ${errorCode})...`);
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
     }
