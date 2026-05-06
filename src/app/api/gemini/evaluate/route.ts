@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Evaluate using AI (Groq) with timeout
+    // Evaluate using AI (Google Gemini) with timeout
     const evalPromise = evaluateCompletionAnswer(
       sanitizedQuestion,
       sanitizedCorrectAnswer,

@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sanitize and limit content length (30K chars — GLM-4-Plus handles this well;
+    // Sanitize and limit content length (30K chars — Gemini handles this well;
     // larger content was causing timeouts. Client-side truncation also applies.)
     const sanitizedContent = sanitizeString(rawContent, 30000);
     if (sanitizedContent.length === 0) {
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate summary using AI (Groq) with timeout
+    // Generate summary using AI (Google Gemini) with timeout
     console.log('[Summary API] Generating summary for user:', userId, 'content length:', sanitizedContent.length);
     const summaryPromise = generateSummary(sanitizedContent);
     const timeoutPromise = new Promise<never>((_, reject) =>

@@ -1,69 +1,55 @@
 /**
- * AI Service — Powered by z-ai-web-dev-sdk (GLM-4-Plus)
+ * AI Service — Powered by Google Gemini API
  *
- * Centralized service for AI interactions. Uses the Z AI platform
- * (GLM-4-Plus model) as the primary provider.
+ * Centralized service for AI interactions using Google Generative AI.
+ * Uses the GEMINI_API_KEY environment variable.
  *
- * Key improvements:
- *   - Built-in timeout with AbortController for all AI calls
+ * Key features:
+ *   - Built-in timeout for all AI calls
  *   - Content truncation to prevent oversized prompts
- *   - Automatic retry with shorter content on timeout
- *   - Better error handling and logging
+ *   - Automatic retry with exponential backoff
+ *   - Comprehensive error handling with Arabic user messages
  *
  * Used by:
  *   - /api/gemini/summary  → Text/PDF summarization
  *   - /api/gemini/quiz     → Quiz generation from content
  *   - /api/gemini/evaluate → Fill-in-the-blank answer evaluation
+ *   - /api/gemini/explain  → Explain wrong answers
  */
 
-import ZAI from 'z-ai-web-dev-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // -------------------------------------------------------
 // Constants
 // -------------------------------------------------------
 
 /** Maximum content length to send to the AI (chars). ~30K chars ≈ 8K tokens,
- *  well within GLM-4-Plus context window. Previous 200K limit was too large
- *  and caused timeouts. */
+ *  well within Gemini context window. */
 const MAX_AI_CONTENT_LENGTH = 30000;
 
 /** Default timeout for AI API calls (milliseconds) */
-const AI_CALL_TIMEOUT_MS = 60000; // 60 seconds
+const AI_CALL_TIMEOUT_MS = 90000; // 90 seconds — Gemini can be slow for large content
 
 /** Timeout for AI client initialization (milliseconds) */
-const AI_INIT_TIMEOUT_MS = 15000; // 15 seconds
+const AI_INIT_TIMEOUT_MS = 10000; // 10 seconds
 
 // -------------------------------------------------------
-// Z AI Singleton client (z-ai-web-dev-sdk)
+// Google Gemini Singleton client
 // -------------------------------------------------------
-let _zai: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-let _zaiInitPromise: Promise<Awaited<ReturnType<typeof ZAI.create>>> | null = null;
+let _genAI: GoogleGenerativeAI | null = null;
 
-async function getZAIClient(): Promise<Awaited<ReturnType<typeof ZAI.create>>> {
-  // Return existing client if already initialized
-  if (_zai) return _zai;
+function getGeminiClient(): GoogleGenerativeAI {
+  if (_genAI) return _genAI;
 
-  // If initialization is already in progress, await it (prevents concurrent inits)
-  if (_zaiInitPromise) return _zaiInitPromise;
-
-  // Start initialization with timeout
-  _zaiInitPromise = Promise.race([
-    ZAI.create(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('AI client initialization timed out')), AI_INIT_TIMEOUT_MS)
-    ),
-  ]);
-
-  try {
-    _zai = await _zaiInitPromise;
-    console.log('[Z-AI] Client initialized successfully');
-    return _zai;
-  } catch (error) {
-    // Reset so next call retries
-    _zai = null;
-    _zaiInitPromise = null;
-    throw error;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error('[Gemini] GEMINI_API_KEY environment variable is not set');
+    throw new Error('خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة');
   }
+
+  _genAI = new GoogleGenerativeAI(apiKey);
+  console.log('[Gemini] Client initialized successfully');
+  return _genAI;
 }
 
 // -------------------------------------------------------
@@ -77,7 +63,7 @@ async function getZAIClient(): Promise<Awaited<ReturnType<typeof ZAI.create>>> {
 function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LENGTH): string {
   if (content.length <= maxLength) return content;
 
-  console.warn(`[Z-AI] Content too large (${content.length} chars), truncating to ${maxLength} chars`);
+  console.warn(`[Gemini] Content too large (${content.length} chars), truncating to ${maxLength} chars`);
 
   // Try to truncate at a paragraph boundary
   const truncated = content.substring(0, maxLength);
@@ -124,25 +110,26 @@ async function aiChatWithRetry(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       if (attempt > 0) {
-        console.log(`[Z-AI] Retry attempt ${attempt}/${maxRetries}`);
+        console.log(`[Gemini] Retry attempt ${attempt}/${maxRetries}`);
         // On retry, reset the client in case it's in a bad state
-        _zai = null;
-        _zaiInitPromise = null;
+        _genAI = null;
       }
 
       const result = await aiChatInternal(systemPrompt, userPrompt, options, timeoutMs);
       return result;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      console.error(`[Z-AI] Attempt ${attempt + 1} failed:`, lastError.message);
+      console.error(`[Gemini] Attempt ${attempt + 1} failed:`, lastError.message);
 
       // Don't retry on rate limits or auth errors
       if (
         lastError.message.includes('429') ||
         lastError.message.includes('rate_limit') ||
+        lastError.message.includes('RESOURCE_EXHAUSTED') ||
         lastError.message.includes('401') ||
         lastError.message.includes('403') ||
-        lastError.message.includes('API key')
+        lastError.message.includes('API key') ||
+        lastError.message.includes('API_KEY')
       ) {
         throw lastError;
       }
@@ -152,10 +139,15 @@ async function aiChatWithRetry(
         throw lastError;
       }
 
+      // Don't retry on "not configured" errors
+      if (lastError.message.includes('غير مفعلة') || lastError.message.includes('not configured')) {
+        throw lastError;
+      }
+
       // Wait before retrying (exponential backoff)
       if (attempt < maxRetries) {
         const backoffMs = Math.min(2000 * Math.pow(2, attempt), 10000);
-        console.log(`[Z-AI] Waiting ${backoffMs}ms before retry...`);
+        console.log(`[Gemini] Waiting ${backoffMs}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
     }
@@ -165,7 +157,7 @@ async function aiChatWithRetry(
 }
 
 // -------------------------------------------------------
-// Core AI chat function — uses Z AI (GLM-4-Plus)
+// Core AI chat function — uses Google Gemini
 // -------------------------------------------------------
 async function aiChatInternal(
   systemPrompt: string,
@@ -173,73 +165,74 @@ async function aiChatInternal(
   options?: AiChatOptions,
   timeoutMs: number = AI_CALL_TIMEOUT_MS
 ): Promise<string> {
-  let zai;
+  let genAI;
   try {
-    zai = await getZAIClient();
+    genAI = getGeminiClient();
   } catch (initError) {
-    console.error('[Z-AI] Client initialization failed:', initError);
+    console.error('[Gemini] Client initialization failed:', initError);
     const errMsg = initError instanceof Error ? initError.message : String(initError);
-    if (errMsg.includes('timed out')) {
-      throw new Error('انتهت مهلة الاتصال بخدمة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+    if (errMsg.includes('غير مفعلة') || errMsg.includes('not configured')) {
+      throw new Error('خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة');
     }
     throw new Error('فشل الاتصال بخدمة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
   }
 
-  console.log('[Z-AI] Sending request... (timeout:', timeoutMs + 'ms)');
+  console.log('[Gemini] Sending request... (timeout:', timeoutMs + 'ms)');
 
-  // Create an AbortController for manual timeout (since the SDK may not support AbortSignal)
-  const abortController = new AbortController();
-  const timeoutId = setTimeout(() => {
-    abortController.abort();
-    console.error('[Z-AI] Request timed out after', timeoutMs, 'ms');
-  }, timeoutMs);
-
-  let completion;
-  try {
-    completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
+  // Use Gemini 1.5 Flash for fast responses (or fallback to gemini-pro)
+  const modelName = 'gemini-2.0-flash';
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: systemPrompt,
+    generationConfig: {
       temperature: options?.temperature ?? 0.4,
-      max_tokens: options?.maxTokens ?? 4096,
-    });
+      maxOutputTokens: options?.maxTokens ?? 4096,
+    },
+  });
+
+  // Race the API call against a timeout
+  const resultPromise = model.generateContent(userPrompt);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي')), timeoutMs)
+  );
+
+  let result;
+  try {
+    result = await Promise.race([resultPromise, timeoutPromise]);
   } catch (apiError: unknown) {
-    console.error('[Z-AI] API call failed:', apiError);
+    console.error('[Gemini] API call failed:', apiError);
     const errMsg = apiError instanceof Error ? apiError.message : String(apiError);
 
-    // Check if it was our timeout that caused the abort
-    if (abortController.signal.aborted) {
-      throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
+    // Reset singleton on auth/connection errors so subsequent calls retry
+    if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
+      _genAI = null;
     }
 
-    // Reset singleton on auth/connection errors so subsequent calls retry
-    if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('ECONNREFUSED') || errMsg.includes('ETIMEDOUT') || errMsg.includes('fetch failed')) {
-      _zai = null;
-      _zaiInitPromise = null;
-    }
-    // Re-throw with user-friendly message
-    if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('quota')) {
+    // Re-throw with user-friendly Arabic messages
+    if (errMsg.includes('429') || errMsg.includes('rate_limit') || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('quota')) {
       throw new Error('تم تجاوز حد الطلبات للذكاء الاصطناعي. يرجى المحاولة بعد دقيقة');
     }
-    if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key')) {
+    if (errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API_KEY') || errMsg.includes('API key not valid') || errMsg.includes('Incorrect API key')) {
       throw new Error('خطأ في تكوين خدمة الذكاء الاصطناعي. يرجى التواصل مع الإدارة');
     }
-    if (errMsg.includes('timeout') || errMsg.includes('ETIMEDOUT') || errMsg.includes('timed out') || errMsg.includes('ECONNRESET')) {
+    if (errMsg.includes('مهلة') || errMsg.includes('timeout') || errMsg.includes('ETIMEDOUT') || errMsg.includes('timed out') || errMsg.includes('ECONNRESET')) {
       throw new Error('انتهت مهلة الاتصال بالذكاء الاصطناعي. يرجى المحاولة مرة أخرى');
     }
+    if (errMsg.includes('not found') || errMsg.includes('not available') || errMsg.includes('model')) {
+      throw new Error('نموذج الذكاء الاصطناعي غير متاح حالياً. يرجى المحاولة لاحقاً');
+    }
     throw new Error(`فشل الاتصال بالذكاء الاصطناعي: ${errMsg.substring(0, 150)}`);
-  } finally {
-    clearTimeout(timeoutId);
   }
 
-  const text = completion?.choices?.[0]?.message?.content;
+  const response = result.response;
+  const text = response.text();
+
   if (!text || text.trim().length === 0) {
-    console.error('[Z-AI] Empty response received. Completion:', JSON.stringify(completion)?.substring(0, 500));
+    console.error('[Gemini] Empty response received');
     throw new Error('AI returned an empty response');
   }
 
-  console.log('[Z-AI] Response received, length:', text.length);
+  console.log('[Gemini] Response received, length:', text.length);
   return text;
 }
 
