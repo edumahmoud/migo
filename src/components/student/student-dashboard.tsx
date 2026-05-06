@@ -640,6 +640,19 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     fetchAllData();
   }, [fetchAllData]);
 
+  // ─── Loading timeout safety net ───
+  // If loading takes too long (slow session hydration on mobile/PWA),
+  // fall back to cached data and stop showing infinite loading spinner.
+  useEffect(() => {
+    if (!loadingData) return;
+    const timeout = setTimeout(() => {
+      console.warn('[StudentDashboard] Loading timeout (15s) — falling back to cache');
+      loadSummariesFromCache();
+      setLoadingData(false);
+    }, 15000);
+    return () => clearTimeout(timeout);
+  }, [loadingData, loadSummariesFromCache]);
+
   // ─── Re-fetch summaries when auth session becomes available ───
   // On mobile, session hydration can be slow, so we listen for auth state changes
   // and retry fetching if we didn't have a token on the first attempt.
@@ -1357,11 +1370,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
       // Success
       toast.success(data.message || `تم إرسال طلب الارتباط بنجاح. في انتظار موافقة المعلم.`);
+
+      // Optimistically add the teacher to local state so it appears immediately
+      if (teacherPreview) {
+        setLinkedTeachers(prev => [...prev, teacherPreview]);
+      }
+
       setTeacherCode('');
       setTeacherPreview(null);
       setLinkTeacherOpen(false);
-      await fetchLinkedTeachers();
-      fetchQuizzes();
+
+      // Also re-fetch after a delay to get accurate data from server
+      setTimeout(() => { fetchLinkedTeachers(); fetchQuizzes(); }, 1000);
     } catch (err) {
       console.error('[handleConfirmLinkTeacher] Unexpected error:', err);
       toast.error('حدث خطأ غير متوقع');
@@ -3087,6 +3107,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-4" />
           <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
+          <button
+            onClick={() => fetchAllData()}
+            className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
+          >
+            إعادة المحاولة
+          </button>
         </div>
       );
     }

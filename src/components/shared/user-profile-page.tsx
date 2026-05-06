@@ -26,6 +26,8 @@ import {
   Shield,
   Activity,
   Eye,
+  BookOpen,
+  GraduationCap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,7 +48,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useStatusStore, getStatusColor as getStoreStatusColor, getStatusLabel as getStoreStatusLabel, getStatusTextColor as getStoreStatusTextColor, getStatusBorderColor as getStoreStatusBorderColor } from '@/stores/status-store';
 import { toast } from 'sonner';
-import type { UserProfile, UserFile, FileRequest, UserStatus } from '@/lib/types';
+import type { UserProfile, UserFile, FileRequest, UserStatus, Subject } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 
 // ─── Props ───────────────────────────────────────────────
@@ -205,6 +207,10 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
   // Photo enlargement state
   const [photoEnlarged, setPhotoEnlarged] = useState(false);
 
+  // Teacher subjects state
+  const [teacherSubjects, setTeacherSubjects] = useState<Subject[]>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
+
   // User status from global store
   const { getUserStatus, init: initStatusStore, fetchUserStatuses } = useStatusStore();
   const profileUserStatus = getUserStatus(userId);
@@ -302,6 +308,32 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
       fetchFileRequests();
     }
   }, [userId, currentUser.id, fetchFileRequests]);
+
+  // ─── Fetch teacher subjects ─────────────────────────────
+  const fetchTeacherSubjects = useCallback(async () => {
+    if (profile?.role !== 'teacher') return;
+    setLoadingSubjects(true);
+    try {
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('id, name, level, sub_level, color, created_at')
+        .eq('teacher_id', userId)
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        setTeacherSubjects(data as Subject[]);
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setLoadingSubjects(false);
+    }
+  }, [userId, profile?.role]);
+
+  useEffect(() => {
+    if (profile?.role === 'teacher') {
+      fetchTeacherSubjects();
+    }
+  }, [profile?.role, fetchTeacherSubjects]);
 
   // ─── Send file request ────────────────────────────────
   const handleSendRequest = async () => {
@@ -463,6 +495,19 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         </div>
       </motion.div>
 
+      {/* Floating back button - always visible */}
+      <div className="px-6 sm:px-10 mt-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onBack}
+          className="gap-2 text-muted-foreground hover:text-foreground"
+        >
+          <ArrowRight className="h-4 w-4" />
+          العودة
+        </Button>
+      </div>
+
       {/* ─── Profile Info Section ──────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -554,6 +599,12 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                     {fileRequests.length}
                   </Badge>
                 )}
+              </TabsTrigger>
+            )}
+            {profile?.role === 'teacher' && (
+              <TabsTrigger value="courses" className="gap-1.5 text-xs sm:text-sm">
+                <BookOpen className="h-4 w-4" />
+                المقررات
               </TabsTrigger>
             )}
           </TabsList>
@@ -816,6 +867,66 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
               )}
             </motion.section>
           </TabsContent>
+
+          {/* ─── Courses Tab (teacher profile only) ────── */}
+          {profile?.role === 'teacher' && (
+            <TabsContent value="courses">
+              {loadingSubjects ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+                </div>
+              ) : teacherSubjects.length === 0 ? (
+                <Card className="border-dashed border-2 bg-muted/20">
+                  <CardContent className="py-12 flex flex-col items-center gap-3">
+                    <div className="h-14 w-14 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                      <BookOpen className="h-7 w-7 text-emerald-500" />
+                    </div>
+                    <p className="text-muted-foreground text-sm">لا توجد مقررات بعد</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <motion.section variants={containerVariants} initial="hidden" animate="visible">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {teacherSubjects.map((subject) => {
+                      const color = subject.color || '#10b981';
+                      return (
+                        <motion.div key={subject.id} variants={itemVariants}>
+                          <Card className="border shadow-sm hover:shadow-md transition-all duration-200">
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white font-bold text-sm"
+                                  style={{ backgroundColor: color }}
+                                >
+                                  {subject.name.charAt(0)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-foreground truncate">{subject.name}</p>
+                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                    {subject.level && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] text-blue-700">
+                                        <GraduationCap className="h-2.5 w-2.5" />
+                                        {subject.level}
+                                      </span>
+                                    )}
+                                    {subject.sub_level && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 border border-purple-200 px-2 py-0.5 text-[10px] text-purple-700">
+                                        {subject.sub_level}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </motion.section>
+              )}
+            </TabsContent>
+          )}
 
           {/* ─── File Requests Tab (own profile only) ──── */}
           {isOwnProfile && (

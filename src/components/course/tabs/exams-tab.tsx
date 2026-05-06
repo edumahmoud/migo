@@ -14,7 +14,7 @@ import {
   Eye,
   EyeOff,
   RotateCcw,
-  Share2,
+
   Pencil,
   Plus,
   X,
@@ -81,13 +81,20 @@ function scorePercentage(score: number, total: number): number {
 
 /**
  * Determines if a quiz belongs in the "finished" tab.
- * Only uses the explicit `is_finished` flag from the database.
- * Date-based auto-finish is NOT used for tab classification
- * because it causes newly created quizzes with past dates to
- * immediately appear as finished.
+ * A quiz is considered finished if:
+ * 1. The explicit `is_finished` flag is set, OR
+ * 2. The quiz's scheduled date/time has passed AND the teacher has not set is_finished=false explicitly
+ * This ensures expired quizzes automatically move to the finished tab
+ * while still allowing teachers to manually control the state.
  */
 function isQuizFinished(quiz: Quiz): boolean {
-  return !!quiz.is_finished;
+  if (quiz.is_finished) return true;
+  // Auto-classify expired quizzes (scheduled date has passed) as finished
+  if (quiz.scheduled_date && !quiz.is_finished) {
+    const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '23:59'}`);
+    if (scheduledDate < new Date()) return true;
+  }
+  return false;
 }
 
 /**
@@ -134,10 +141,6 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     { key: '', value: '' },
   ]);
   const [savingQuiz, setSavingQuiz] = useState(false);
-
-  // ─── Share modal ───
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [shareQuiz, setShareQuiz] = useState<Quiz | null>(null);
 
   // ─── Delete quiz ───
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -512,35 +515,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     }
   };
 
-  // -------------------------------------------------------
-  // Share quiz
-  // -------------------------------------------------------
-  const handleShareQuiz = (quiz: Quiz) => {
-    setShareQuiz(quiz);
-    setShareModalOpen(true);
-  };
 
-  const handleCopyShareLink = () => {
-    if (shareQuiz) {
-      const link = `${window.location.origin}/quiz/${shareQuiz.id}`;
-      navigator.clipboard.writeText(link);
-      toast.success('تم نسخ رابط المشاركة');
-    }
-  };
-
-  const handleNativeShare = async () => {
-    if (shareQuiz && navigator.share) {
-      try {
-        await navigator.share({
-          title: shareQuiz.title,
-          text: `اختبار: ${shareQuiz.title}`,
-          url: `${window.location.origin}/quiz/${shareQuiz.id}`,
-        });
-      } catch {
-        // User cancelled or share failed
-      }
-    }
-  };
 
   // -------------------------------------------------------
   // Export quiz results (Excel)
@@ -1003,75 +978,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     </AnimatePresence>
   );
 
-  // -------------------------------------------------------
-  // Render: Share modal
-  // -------------------------------------------------------
-  const renderShareModal = () => (
-    <AnimatePresence>
-      {shareModalOpen && shareQuiz && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, pointerEvents: 'none' as const }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onClick={() => setShareModalOpen(false)}
-        >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 10 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"
-            dir="rtl"
-          >
-            <div className="flex items-center justify-between border-b p-5">
-              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Share2 className="h-5 w-5 text-emerald-600" />
-                مشاركة الاختبار
-              </h3>
-              <button
-                onClick={() => setShareModalOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                شارك هذا الرابط مع طلابك للانضمام إلى الاختبار
-              </p>
-              <div className="flex items-center gap-2 rounded-lg border bg-muted/50 p-3">
-                <input
-                  type="text"
-                  readOnly
-                  value={`${window.location.origin}/quiz/${shareQuiz.id}`}
-                  className="flex-1 bg-transparent text-sm text-foreground outline-none font-mono"
-                  dir="ltr"
-                />
-                <button
-                  onClick={handleCopyShareLink}
-                  className="flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 transition-colors"
-                >
-                  <Share2 className="h-3.5 w-3.5" />
-                  نسخ
-                </button>
-              </div>
-              {typeof navigator.share === 'function' && (
-                <button
-                  onClick={handleNativeShare}
-                  className="flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors w-full justify-center"
-                >
-                  <Share2 className="h-4 w-4" />
-                  مشاركة عبر التطبيقات
-                </button>
-              )}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+
 
   // -------------------------------------------------------
   // Render: Teacher quiz card
@@ -1203,15 +1110,6 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               }`}
             >
               {isFinishedTab ? 'إعادة تفعيل' : 'إنهاء الاختبار'}
-            </button>
-
-            {/* Share */}
-            <button
-              onClick={() => handleShareQuiz(quiz)}
-              className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors"
-            >
-              <Share2 className="h-3.5 w-3.5" />
-              مشاركة
             </button>
 
             {/* Export results (finished tab only) */}
@@ -1438,8 +1336,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       {/* Create/Edit quiz modal */}
       {renderQuizModal()}
 
-      {/* Share modal */}
-      {renderShareModal()}
+
     </motion.div>
   );
 }

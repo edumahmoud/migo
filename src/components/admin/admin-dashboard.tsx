@@ -41,6 +41,7 @@ import {
   Clock,
   Gavel,
   ArrowUpDown,
+  Filter,
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -282,6 +283,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const [deletingSubjectId, setDeletingSubjectId] = useState<string | null>(null);
   const [confirmDeleteSubject, setConfirmDeleteSubject] = useState<string | null>(null);
 
+  // ─── Subject search/filter state ───
+  const [subjectSearch, setSubjectSearch] = useState('');
+  const [subjectLevelFilter, setSubjectLevelFilter] = useState('');
+  const [subjectSubLevelFilter, setSubjectSubLevelFilter] = useState('');
+
   // ─── Banned users state ───
   const [bannedUsers, setBannedUsers] = useState<BannedUser[]>([]);
   const [loadingBanned, setLoadingBanned] = useState(false);
@@ -487,6 +493,18 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     fetchBannedUsers();
   }, [fetchAllData, fetchBannedUsers]);
 
+  // ─── Loading timeout safety net ───
+  // If loading takes too long (slow session hydration on mobile/PWA),
+  // stop showing infinite loading spinner and show content with available data.
+  useEffect(() => {
+    if (!loadingData) return;
+    const timeout = setTimeout(() => {
+      console.warn('[AdminDashboard] Loading timeout (15s) — showing available data');
+      setLoadingData(false);
+    }, 15000);
+    return () => clearTimeout(timeout);
+  }, [loadingData]);
+
   // Update total submissions from scores
   useEffect(() => {
     setTotalSubmissions(allScores.length);
@@ -558,6 +576,36 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       const dateB = new Date(b.created_at).getTime();
       return userSortOrder === 'newest' ? dateB - dateA : dateA - dateB;
     });
+
+  // ─── Subject filter options ───
+  const LEVEL_OPTIONS = [
+    { value: 'الفرقة الأولى', label: 'الفرقة الأولى' },
+    { value: 'الفرقة الثانية', label: 'الفرقة الثانية' },
+    { value: 'الفرقة الثالثة', label: 'الفرقة الثالثة' },
+    { value: 'الفرقة الرابعة', label: 'الفرقة الرابعة' },
+    { value: 'الفرقة الخامسة', label: 'الفرقة الخامسة' },
+  ];
+
+  const SUB_LEVEL_OPTIONS = [
+    { value: 'المستوى الأول', label: 'المستوى الأول' },
+    { value: 'المستوى الثاني', label: 'المستوى الثاني' },
+  ];
+
+  const mapSubLevel = (val: string | undefined): string | undefined => {
+    if (!val) return val;
+    if (val === 'مستوى أول') return 'المستوى الأول';
+    if (val === 'مستوى ثاني') return 'المستوى الثاني';
+    return val;
+  };
+
+  const filteredSubjects = allSubjects.filter((s) => {
+    const matchesSearch = !subjectSearch ||
+      s.name.toLowerCase().includes(subjectSearch.toLowerCase()) ||
+      (s.description || '').toLowerCase().includes(subjectSearch.toLowerCase());
+    const matchesLevel = !subjectLevelFilter || s.level === subjectLevelFilter;
+    const effectiveMatchesSubLevel = !subjectSubLevelFilter || mapSubLevel(s.sub_level) === subjectSubLevelFilter;
+    return matchesSearch && matchesLevel && effectiveMatchesSubLevel;
+  });
 
   // User growth per month (for reports section)
   const userGrowthByMonth = (() => {
@@ -1000,6 +1048,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
         <span className="text-sm text-muted-foreground">جاري تحميل البيانات...</span>
+        <button
+          onClick={() => fetchAllData()}
+          className="mt-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
+        >
+          إعادة المحاولة
+        </button>
       </div>
     </div>
   );
@@ -1806,7 +1860,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // -------------------------------------------------------
   // Render: Subjects Section
   // -------------------------------------------------------
-  const renderSubjects = () => (
+  const renderSubjects = () => {
+    const hasSubjectFilters = subjectSearch || subjectLevelFilter || subjectSubLevelFilter;
+
+    return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1816,9 +1873,96 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <BookOpen className="h-4 w-4" />
-          <span>{allSubjects.length} مقرر</span>
+          <span>{filteredSubjects.length} مقرر{hasSubjectFilters ? ` من ${allSubjects.length}` : ''}</span>
         </div>
       </motion.div>
+
+      {/* Search and filter bar */}
+      {allSubjects.length > 0 && (
+        <motion.div variants={itemVariants} className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Search input */}
+            <div className="relative flex-1">
+              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={subjectSearch}
+                onChange={(e) => setSubjectSearch(e.target.value)}
+                placeholder="بحث باسم المقرر أو الوصف..."
+                className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors"
+                dir="rtl"
+              />
+            </div>
+            {/* Level filter */}
+            <div className="relative">
+              <GraduationCap className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <select
+                value={subjectLevelFilter}
+                onChange={(e) => setSubjectLevelFilter(e.target.value)}
+                className="w-full sm:w-auto appearance-none rounded-lg border bg-background pr-10 pl-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
+                dir="rtl"
+              >
+                <option value="">كل الفرقات</option>
+                {LEVEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            {/* Sub-level filter */}
+            <div className="relative">
+              <Calendar className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <select
+                value={subjectSubLevelFilter}
+                onChange={(e) => setSubjectSubLevelFilter(e.target.value)}
+                className="w-full sm:w-auto appearance-none rounded-lg border bg-background pr-10 pl-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
+                dir="rtl"
+              >
+                <option value="">كل المستويات</option>
+                {SUB_LEVEL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {/* Active filters indicator + clear button */}
+          {hasSubjectFilters && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">فلاتر نشطة:</span>
+              {subjectSearch && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-xs font-medium text-teal-700">
+                  بحث: {subjectSearch}
+                  <button onClick={() => setSubjectSearch('')} className="hover:text-teal-900">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {subjectLevelFilter && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-xs font-medium text-teal-700">
+                  {subjectLevelFilter}
+                  <button onClick={() => setSubjectLevelFilter('')} className="hover:text-teal-900">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {subjectSubLevelFilter && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-xs font-medium text-teal-700">
+                  {subjectSubLevelFilter}
+                  <button onClick={() => setSubjectSubLevelFilter('')} className="hover:text-teal-900">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              <button
+                onClick={() => { setSubjectSearch(''); setSubjectLevelFilter(''); setSubjectSubLevelFilter(''); }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline"
+              >
+                مسح الكل
+              </button>
+            </div>
+          )}
+        </motion.div>
+      )}
 
       {/* Subjects grid */}
       {allSubjects.length === 0 ? (
@@ -1832,9 +1976,26 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <p className="text-lg font-semibold text-foreground mb-1">لا توجد مقررات بعد</p>
           <p className="text-sm text-muted-foreground">سيظهر المقررات هنا بعد إنشائها من قبل المعلمين</p>
         </motion.div>
+      ) : filteredSubjects.length === 0 ? (
+        <motion.div
+          variants={itemVariants}
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-teal-300 bg-teal-50/30 py-16"
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 mb-4">
+            <Search className="h-8 w-8 text-teal-600" />
+          </div>
+          <p className="text-lg font-semibold text-foreground mb-1">لا توجد نتائج</p>
+          <p className="text-sm text-muted-foreground">جرّب البحث بكلمات مختلفة أو تغيير الفلاتر</p>
+          <button
+            onClick={() => { setSubjectSearch(''); setSubjectLevelFilter(''); setSubjectSubLevelFilter(''); }}
+            className="mt-3 text-sm text-teal-600 hover:text-teal-700 font-medium underline"
+          >
+            مسح الفلاتر
+          </button>
+        </motion.div>
       ) : (
         <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {allSubjects.map((subject) => {
+          {filteredSubjects.map((subject) => {
             const teacher = allUsers.find((u) => u.id === subject.teacher_id);
             return (
               <motion.div
@@ -2050,7 +2211,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         )}
       </AnimatePresence>
     </motion.div>
-  );
+    );
+  };
 
   // -------------------------------------------------------
   // Render: Banned Users Section

@@ -516,10 +516,30 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       }
 
       toast.success(data.message || 'تم إرسال طلب الانضمام بنجاح');
+
+      // Optimistically add the subject to local state so it appears immediately
+      if (subjectPreview) {
+        const newSubject: Subject = {
+          id: subjectPreview.id,
+          name: subjectPreview.name,
+          description: subjectPreview.description || '',
+          color: subjectPreview.color,
+          teacher_id: '', // will be filled on re-fetch
+          join_code: '',
+          created_at: new Date().toISOString(),
+          level: '',
+          sub_level: '',
+        };
+        setSubjects(prev => [...prev, newSubject]);
+        setEnrollmentStatuses(prev => ({ ...prev, [subjectPreview.id]: 'pending' }));
+      }
+
       setJoinCodeOpen(false);
       setJoinCodeInput('');
       setSubjectPreview(null);
-      fetchSubjects();
+
+      // Also do a delayed re-fetch to get accurate data from server
+      setTimeout(() => fetchSubjects(), 1000);
     } catch (err) {
       console.error('[handleConfirmJoinSubject] Unexpected error:', err);
       toast.error('حدث خطأ غير متوقع');
