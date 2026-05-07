@@ -208,6 +208,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Mobile detection ───
   const isMobile = useIsMobile();
 
+  // Reset 'file' mode on mobile since upload button is hidden on mobile
+  useEffect(() => {
+    if (isMobile && summaryInputMode === 'file') {
+      setSummaryInputMode('text');
+    }
+  }, [isMobile, summaryInputMode]);
+
   // ─── Existing files state (for 'existing' mode) ───
   const [existingFiles, setExistingFiles] = useState<UserFile[]>([]);
   const [selectedExistingFile, setSelectedExistingFile] = useState<UserFile | null>(null);
@@ -2464,7 +2471,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       <Type className="h-4 w-4" />
                       لصق نص
                     </button>
-                    {/* File upload mode - now available on mobile too */}
+                    {/* File upload mode - desktop only */}
+                    {!isMobile && (
                     <button
                       onClick={() => setSummaryInputMode('file')}
 
@@ -2477,6 +2485,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       <Upload className="h-4 w-4" />
                       رفع ملف + تلخيص
                     </button>
+                    )}
                     {/* Transcribe mode - now available on mobile too */}
                     <button
                       onClick={() => setSummaryInputMode('transcribe')}
