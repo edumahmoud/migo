@@ -104,7 +104,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
       // Fetch submissions for assignments in this subject
       const { data: assignments } = await supabase
         .from('assignments')
-        .select('id')
+        .select('id, max_score')
         .eq('subject_id', subjectId);
 
       const assignmentIds = (assignments || []).map((a: { id: string }) => a.id);
@@ -120,9 +120,44 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
 
       const attendedSessions = attendanceRecords.length;
       const attendancePercentage = totalSessions > 0 ? Math.round((attendedSessions / totalSessions) * 100) : 0;
-      const averageScore = scores.length > 0
+      const quizAvgScore = scores.length > 0
         ? Math.round(scores.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / scores.length)
         : 0;
+
+      // ─── Composite performance average (same formula as student/teacher dashboards) ───
+      // Combines: quiz scores (40%), assignment grades (30%), attendance (30%)
+      // Weights are renormalized if a component has no data.
+      const compositeAvg = (() => {
+        const components: { value: number; weight: number }[] = [];
+
+        // Quiz scores component (40% weight)
+        if (scores.length > 0) {
+          components.push({ value: quizAvgScore, weight: 40 });
+        }
+
+        // Assignment grades component (30% weight)
+        const gradedSubmissions = submissions.filter(s => s.status === 'graded' && s.score !== null && s.score !== undefined);
+        if (gradedSubmissions.length > 0 && assignments) {
+          const assignAvgs = gradedSubmissions.map(sub => {
+            const assignment = (assignments as { id: string; max_score: number }[]).find(a => a.id === sub.assignment_id);
+            if (assignment && assignment.max_score > 0) {
+              return (sub.score! / assignment.max_score) * 100;
+            }
+            return 0;
+          });
+          const assignAvg = assignAvgs.reduce((sum, v) => sum + v, 0) / assignAvgs.length;
+          components.push({ value: assignAvg, weight: 30 });
+        }
+
+        // Attendance component (30% weight)
+        if (totalSessions > 0) {
+          components.push({ value: attendancePercentage, weight: 30 });
+        }
+
+        if (components.length === 0) return 0;
+        const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
+        return Math.round(components.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight);
+      })();
 
       setPerformance({
         student,
@@ -131,7 +166,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
         total_sessions: totalSessions,
         attended_sessions: attendedSessions,
         attendance_percentage: attendancePercentage,
-        average_score: averageScore,
+        average_score: compositeAvg, // Now uses composite weighted average
         submissions,
       });
     } catch (err) {
@@ -204,7 +239,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                         <span className="text-sm font-bold text-emerald-700">{performance.average_score}%</span>
                       </div>
                     </div>
-                    <span className="text-xs text-muted-foreground mt-1">متوسط الدرجات</span>
+                    <span className="text-xs text-muted-foreground mt-1">متوسط الأداء</span>
                   </div>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between text-sm">

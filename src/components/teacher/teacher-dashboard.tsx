@@ -153,6 +153,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
+  const [teacherSubmissions, setTeacherSubmissions] = useState<{ id: string; assignment_id: string; student_id: string; score: number | null; status: string }[]>([]);
+  const [teacherAssignments, setTeacherAssignments] = useState<{ id: string; max_score: number }[]>([]);
+  const [teacherAttendanceSessions, setTeacherAttendanceSessions] = useState<{ id: string; subject_id: string }[]>([]);
+  const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState<{ id: string; session_id: string; student_id: string }[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // ─── Students section ───
@@ -348,11 +352,58 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     }
   }, [profile.id]);
 
+  const fetchTeacherSubmissionsAndAssignments = useCallback(async () => {
+    // Fetch assignments created by this teacher
+    const { data: assignData, error: assignErr } = await supabase
+      .from('assignments')
+      .select('id, max_score')
+      .eq('teacher_id', profile.id);
+    if (!assignErr && assignData) {
+      setTeacherAssignments(assignData as { id: string; max_score: number }[]);
+    }
+
+    // Fetch graded submissions for this teacher's assignments
+    const assignmentIds = (assignData as { id: string }[] | null)?.map(a => a.id) || [];
+    if (assignmentIds.length > 0) {
+      const { data: subData, error: subErr } = await supabase
+        .from('submissions')
+        .select('id, assignment_id, student_id, score, status')
+        .in('assignment_id', assignmentIds)
+        .eq('status', 'graded');
+      if (!subErr && subData) {
+        setTeacherSubmissions(subData as { id: string; assignment_id: string; student_id: string; score: number | null; status: string }[]);
+      }
+    }
+  }, [profile.id]);
+
+  const fetchTeacherAttendance = useCallback(async () => {
+    // Fetch attendance sessions for this teacher's subjects
+    const { data: sessionData, error: sessionErr } = await supabase
+      .from('attendance_sessions')
+      .select('id, subject_id')
+      .eq('teacher_id', profile.id);
+    if (!sessionErr && sessionData) {
+      setTeacherAttendanceSessions(sessionData as { id: string; subject_id: string }[]);
+
+      // Fetch attendance records for those sessions
+      const sessionIds = (sessionData as { id: string }[]).map(s => s.id);
+      if (sessionIds.length > 0) {
+        const { data: recData, error: recErr } = await supabase
+          .from('attendance_records')
+          .select('id, session_id, student_id')
+          .in('session_id', sessionIds);
+        if (!recErr && recData) {
+          setTeacherAttendanceRecords(recData as { id: string; session_id: string; student_id: string }[]);
+        }
+      }
+    }
+  }, [profile.id]);
+
   const fetchAllData = useCallback(async () => {
     setLoadingData(true);
-    await Promise.all([fetchStudents(), fetchQuizzes(), fetchScores(), fetchTeacherSubjects(), fetchTeacherFilesCount()]);
+    await Promise.all([fetchStudents(), fetchQuizzes(), fetchScores(), fetchTeacherSubjects(), fetchTeacherFilesCount(), fetchTeacherSubmissionsAndAssignments(), fetchTeacherAttendance()]);
     setLoadingData(false);
-  }, [fetchStudents, fetchQuizzes, fetchScores, fetchTeacherSubjects, fetchTeacherFilesCount]);
+  }, [fetchStudents, fetchQuizzes, fetchScores, fetchTeacherSubjects, fetchTeacherFilesCount, fetchTeacherSubmissionsAndAssignments, fetchTeacherAttendance]);
 
   useEffect(() => {
     fetchAllData();
@@ -431,12 +482,28 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       components.push({ value: quizAvg, weight: 40 });
     }
 
-    // Assignment grades component (30% weight) — from submissions graded by this teacher
-    // We derive this from the scores data since teacher already has it
-    // Attendance is not available in teacher dashboard context directly
-    // so we only add assignment weight if there are submissions, otherwise redistribute
+    // Assignment grades component (30% weight)
+    const gradedSubmissions = teacherSubmissions.filter(s => s.score !== null && s.score !== undefined);
+    if (gradedSubmissions.length > 0) {
+      const assignAvgs = gradedSubmissions.map(sub => {
+        const assignment = teacherAssignments.find(a => a.id === sub.assignment_id);
+        if (assignment && assignment.max_score > 0) {
+          return (sub.score! / assignment.max_score) * 100;
+        }
+        return 0;
+      });
+      const assignAvg = assignAvgs.reduce((sum, v) => sum + v, 0) / assignAvgs.length;
+      components.push({ value: assignAvg, weight: 30 });
+    }
 
-    // Re-normalize weights
+    // Attendance component (30% weight)
+    if (teacherAttendanceSessions.length > 0) {
+      const attendedSessionIds = new Set(teacherAttendanceRecords.map(r => r.session_id));
+      const attendancePct = (attendedSessionIds.size / teacherAttendanceSessions.length) * 100;
+      components.push({ value: attendancePct, weight: 30 });
+    }
+
+    // Calculate weighted average with renormalization
     if (components.length === 0) return 0;
     const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
     return Math.round(components.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight);

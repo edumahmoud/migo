@@ -223,6 +223,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [existingFiles, setExistingFiles] = useState<UserFile[]>([]);
   const [selectedExistingFile, setSelectedExistingFile] = useState<UserFile | null>(null);
   const [loadingExistingFiles, setLoadingExistingFiles] = useState(false);
+  const [existingFileTranscribe, setExistingFileTranscribe] = useState(false); // true = transcribe only, false = summarize
 
   // ─── Link teacher modal ───
   const [linkTeacherOpen, setLinkTeacherOpen] = useState(false);
@@ -1066,6 +1067,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
     // ─── For 'existing' mode, capture the selected file info ───
     const capturedExistingFile = inputMode === 'existing' ? selectedExistingFile : null;
+    const capturedExistingFileTranscribe = existingFileTranscribe;
 
     // Create a pending summary tracker with AbortController for cancellation
     const pendingId = `pending-${Date.now()}`;
@@ -1098,11 +1100,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setSummaryStep('input');
     setCreatingSummary(false);
     setSelectedExistingFile(null);
+    setExistingFileTranscribe(false);
 
     toast.info(inputMode === 'transcribe'
       ? 'جاري استخراج النص من الملف في الخلفية...'
       : inputMode === 'existing'
-        ? 'جاري استخراج النص من الملف المحدد في الخلفية...'
+        ? (capturedExistingFileTranscribe
+          ? 'جاري استخراج النص من الملف المحدد في الخلفية...'
+          : 'جاري استخراج النص وتلخيص الملف المحدد في الخلفية...')
         : inputMode === 'file'
           ? 'جاري استخراج النص وتوليد الملخص في الخلفية...'
           : 'جاري توليد الملخص في الخلفية...'
@@ -1314,35 +1319,99 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             }
           }
         } else if (inputMode === 'existing' && capturedExistingFile) {
-          // ─── Existing file mode: Fetch file from URL and extract text ───
+          // ─── Existing file mode: Extract text from a file already in the user's account ───
+          //
+          // EXTRACTION STRATEGY (FIXED):
+          // PRIMARY: Server-side extraction via /api/files/extract-pdf-url
+          //   - Downloads from Supabase Storage server-to-server (no CORS issues)
+          //   - Uses service role key (no auth header issues)
+          //   - Supports both PDF and DOCX
+          //   - Most reliable on mobile
+          //
+          // FALLBACK: Client-side extraction (fetch + pdfjs/mammoth)
+          //   - Only used if server-side fails
+          //   - May fail on mobile due to CORS, worker issues, etc.
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
+
+          // Detect file type for sourceFileType tracking
+          if (!sourceFileType && capturedExistingFile.file_name) {
+            sourceFileType = /\.(docx|doc)$/i.test(capturedExistingFile.file_name) ? 'docx' : 'pdf';
+          }
 
           let extractionSucceeded = false;
 
+          // ─── PRIMARY: Server-side extraction via /api/files/extract-pdf-url ───
+          // This is the most reliable method for existing files because:
+          //   1. Server downloads from Supabase Storage using service role key
+          //   2. No CORS issues (server-to-server)
+          //   3. No client-side worker issues on mobile
+          //   4. Supports both PDF and DOCX
           try {
-            // Fetch the file from its storage URL
-            const fileRes = await fetch(capturedExistingFile.file_url, { signal: abortController.signal });
-            if (!fileRes.ok) {
-              throw new Error('فشل في تحميل الملف من التخزين');
+            console.log('[Summary] Trying SERVER-SIDE extraction for existing file (primary method)');
+
+            const extractController = new AbortController();
+            const extractTimeoutId = setTimeout(() => extractController.abort(), 45000);
+
+            const extractRes = await fetch('/api/files/extract-pdf-url', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                url: capturedExistingFile.file_url,
+                fileName: capturedExistingFile.file_name,
+              }),
+              signal: extractController.signal,
+            });
+
+            clearTimeout(extractTimeoutId);
+
+            const extractData = await extractRes.json();
+            console.log('[Summary] Server extract-pdf-url response:', extractRes.status, extractData.success ? 'success' : extractData.error);
+
+            if (extractRes.ok && extractData.success && extractData.data?.text) {
+              originalContent = extractData.data.text;
+              sourceFileType = extractData.data.sourceFileType || sourceFileType;
+              console.log('[Summary] Server-side extraction succeeded, length:', originalContent.length, 'type:', sourceFileType);
+              extractionSucceeded = true;
+            } else {
+              console.warn('[Summary] Server extraction failed:', extractData.error);
             }
-            const arrayBuffer = await fileRes.arrayBuffer();
-            console.log('[Summary] Fetched existing file, size:', arrayBuffer.byteLength, 'bytes, name:', capturedExistingFile.file_name);
+          } catch (serverErr) {
+            const errMsg = serverErr instanceof Error ? serverErr.message : String(serverErr);
+            console.warn('[Summary] Server-side extraction error:', errMsg, '— trying client-side fallback');
+          }
 
-            // Extract text using the appropriate extractor
-            const extractionTimeoutMs = 30000;
-            const extractionPromise = extractTextFromFile(arrayBuffer, capturedExistingFile.file_name);
-            const timeoutPromise = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
-            );
+          // ─── FALLBACK: Client-side extraction ───
+          // Only used if server-side extraction fails.
+          // Fetches the file from its storage URL and extracts text in the browser.
+          if (!extractionSucceeded) {
+            try {
+              console.log('[Summary] Trying CLIENT-SIDE extraction as fallback');
 
-            const result = await Promise.race([extractionPromise, timeoutPromise]);
-            originalContent = result.text;
-            sourceFileType = result.sourceFileType || null;
-            console.log('[Summary] Existing file extraction succeeded, length:', originalContent.length, 'type:', sourceFileType);
-            extractionSucceeded = true;
-          } catch (err) {
-            const errMsg = err instanceof Error ? err.message : String(err);
-            console.error('[Summary] Existing file extraction failed:', errMsg);
+              const fileRes = await fetch(capturedExistingFile.file_url, { signal: abortController.signal });
+              if (!fileRes.ok) {
+                throw new Error('فشل في تحميل الملف من التخزين');
+              }
+              const arrayBuffer = await fileRes.arrayBuffer();
+              console.log('[Summary] Fetched existing file (client-side), size:', arrayBuffer.byteLength, 'bytes, name:', capturedExistingFile.file_name);
+
+              const extractionTimeoutMs = 30000;
+              const extractionPromise = extractTextFromFile(arrayBuffer, capturedExistingFile.file_name);
+              const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
+              );
+
+              const result = await Promise.race([extractionPromise, timeoutPromise]);
+              originalContent = result.text;
+              sourceFileType = result.sourceFileType || sourceFileType;
+              console.log('[Summary] Client-side extraction succeeded, length:', originalContent.length, 'type:', sourceFileType);
+              extractionSucceeded = true;
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              console.error('[Summary] Client-side extraction also failed:', errMsg);
+            }
           }
 
           if (!extractionSucceeded) {
@@ -1353,32 +1422,64 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             throw new Error('لم يتم العثور على نص في الملف. تأكد أن الملف ليس ممسوحاً ضوئياً');
           }
 
-          // Determine if this should be transcribe-only or summarized based on the parent mode
-          // For 'existing' mode, we default to summarizing (like 'file' mode)
-          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
+          // ─── Decide: transcribe-only or AI summarize? ───
+          if (capturedExistingFileTranscribe) {
+            // Transcribe mode: Save extracted text directly WITHOUT summarization
+            summaryContent = originalContent;
+            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
 
-          console.log('[Summary] Sending existing file text to API, length:', originalContent.length);
-          const summaryRes = await fetch('/api/gemini/summary', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType }),
-            signal: abortController.signal,
-          });
+            const saveToken = token || await waitForSession(15000);
+            const saveRes = await fetch('/api/summaries', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(saveToken ? { 'Authorization': `Bearer ${saveToken}` } : {}),
+              },
+              body: JSON.stringify({
+                title,
+                original_content: originalContent,
+                summary_content: originalContent,
+                subject_id: selectedSubjectId || null,
+                transcribe_only: true,
+                source_file_type: sourceFileType,
+              }),
+              signal: abortController.signal,
+            });
 
-          const summaryData = await summaryRes.json();
+            const saveData = await saveRes.json();
+            if (saveRes.ok && saveData.success && saveData.data?.id) {
+              savedSummaryId = saveData.data.id;
+              console.log('[Transcribe Existing] Saved directly, id:', savedSummaryId);
+            } else {
+              console.warn('[Transcribe Existing] Direct save failed, will use local state:', saveData.error);
+            }
+          } else {
+            // Summarize mode: Send extracted text to AI for summarization
+            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
 
-          if (!summaryRes.ok || !summaryData.success) {
-            throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
-          }
+            console.log('[Summary] Sending existing file text to API, length:', originalContent.length);
+            const summaryRes = await fetch('/api/gemini/summary', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType }),
+              signal: abortController.signal,
+            });
 
-          summaryContent = summaryData.data?.summary || '';
-          savedSummaryId = summaryData.data?.summaryId || '';
+            const summaryData = await summaryRes.json();
 
-          if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
-            console.warn('[Summary] Server did not save summary immediately (background save in progress).');
+            if (!summaryRes.ok || !summaryData.success) {
+              throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
+            }
+
+            summaryContent = summaryData.data?.summary || '';
+            savedSummaryId = summaryData.data?.summaryId || '';
+
+            if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
+              console.warn('[Summary] Server did not save summary immediately (background save in progress).');
+            }
           }
         } else {
           // Text mode
@@ -2650,9 +2751,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                             .order('created_at', { ascending: false })
                             .then(({ data, error }) => {
                               if (!error && data) {
-                                // Filter to only document files (PDF, Word, text)
+                                // Filter to only supported document files (PDF, Word)
                                 const docFiles = (data as UserFile[]).filter(f =>
-                                  /\.(pdf|docx?|txt|rtf)$/i.test(f.file_name)
+                                  /\.(pdf|docx?)$/i.test(f.file_name)
                                 );
                                 setExistingFiles(docFiles);
                               }
@@ -2677,9 +2778,43 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </p>
                   )}
                   {summaryInputMode === 'existing' && (
-                    <p className="text-xs text-violet-600/80 mt-2">
-                      اختر ملفاً من ملفاتك المرفوعة مسبقاً لتلخيصه
-                    </p>
+                    <div className="mt-2 space-y-2">
+                      <p className="text-xs text-violet-600/80">
+                        اختر ملفاً من ملفاتك المرفوعة مسبقاً
+                      </p>
+                      {/* Sub-toggle: Summarize vs Transcribe */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setExistingFileTranscribe(false)}
+                          className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
+                            !existingFileTranscribe
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                              : 'border-border text-muted-foreground hover:bg-muted/50'
+                          }`}
+                        >
+                          <CheckCircle2 className="h-3 w-3" />
+                          تلخيص بالذكاء الاصطناعي
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExistingFileTranscribe(true)}
+                          className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
+                            existingFileTranscribe
+                              ? 'border-teal-500 bg-teal-50 text-teal-700'
+                              : 'border-border text-muted-foreground hover:bg-muted/50'
+                          }`}
+                        >
+                          <BookOpen className="h-3 w-3" />
+                          تفريغ النص فقط
+                        </button>
+                      </div>
+                      {existingFileTranscribe && (
+                        <p className="text-xs text-teal-600/70">
+                          سيتم استخراج النص من الملف فقط دون تلخيص
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -2821,16 +2956,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   disabled={creatingSummary || (summaryInputMode === 'existing' && !selectedExistingFile)}
                   className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     summaryInputMode === 'transcribe' ? 'bg-teal-600 hover:bg-teal-700' :
-                    summaryInputMode === 'existing' ? 'bg-violet-600 hover:bg-violet-700' :
+                    summaryInputMode === 'existing' ? (existingFileTranscribe ? 'bg-teal-600 hover:bg-teal-700' : 'bg-violet-600 hover:bg-violet-700') :
                     'bg-emerald-600 hover:bg-emerald-700'
                   }`}
                 >
                   <>
                     {summaryInputMode === 'transcribe' ? <BookOpen className="h-4 w-4" /> :
-                     summaryInputMode === 'existing' ? <FolderOpen className="h-4 w-4" /> :
+                     summaryInputMode === 'existing' ? (existingFileTranscribe ? <BookOpen className="h-4 w-4" /> : <FolderOpen className="h-4 w-4" />) :
                      <CheckCircle2 className="h-4 w-4" />}
                     {summaryInputMode === 'transcribe' ? 'تفريغ النص' :
-                     summaryInputMode === 'existing' ? 'تلخيص الملف' :
+                     summaryInputMode === 'existing' ? (existingFileTranscribe ? 'تفريغ النص' : 'تلخيص الملف') :
                      'إنشاء الملخص'}
                   </>
                 </button>

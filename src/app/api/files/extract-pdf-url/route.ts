@@ -2,27 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit } from '@/lib/api-security';
 
-// Server-side PDF text extraction from a Supabase Storage URL
-// This endpoint downloads the PDF from Supabase Storage (server-to-server,
+// Server-side text extraction from a Supabase Storage URL
+// Supports both PDF and DOCX (Word) files.
+// This endpoint downloads the file from Supabase Storage (server-to-server,
 // no body size limit) and extracts text from it.
 // This is the RELIABLE path for mobile devices where:
 // 1. Client-side pdfjs-dist Web Worker fails to load
-// 2. Uploading the full PDF to Vercel API hits the 4.5MB body size limit
+// 2. Uploading the full file to Vercel API hits the 4.5MB body size limit
+// 3. Client-side fetch to Supabase Storage fails due to CORS/auth issues
 
 export const maxDuration = 30;
 export const runtime = 'nodejs';
 
 const MAX_TEXT_LENGTH = 50000;
 
+export interface ExtractionResult {
+  text: string;
+  pages: number;
+  sourceFileType: 'pdf' | 'docx';
+}
+
 /**
  * POST /api/files/extract-pdf-url
  *
- * Accepts a Supabase Storage URL and extracts text from the PDF.
+ * Accepts a Supabase Storage URL and extracts text from the file (PDF or DOCX).
  * This bypasses Vercel's 4.5MB body size limit for serverless functions
- * because the PDF is downloaded server-to-server from Supabase Storage.
+ * because the file is downloaded server-to-server from Supabase Storage.
  *
- * Body: { url: string, storagePath?: string }
- * Returns: { success: true, data: { text: string, pages: number } }
+ * Body: { url: string, storagePath?: string, fileName?: string }
+ * Returns: { success: true, data: { text: string, pages: number, sourceFileType: 'pdf' | 'docx' } }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -40,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse request body
-    let body: { url?: string; storagePath?: string };
+    let body: { url?: string; storagePath?: string; fileName?: string };
     try {
       body = await request.json();
     } catch {
@@ -50,7 +58,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { url, storagePath } = body;
+    const { url, storagePath, fileName } = body;
 
     if (!url && !storagePath) {
       return NextResponse.json(
@@ -73,9 +81,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[Extract PDF URL API] Downloading from:', fileUrl, 'user:', authResult.user.id);
+    // Detect file type from URL or fileName
+    const nameToCheck = fileName || fileUrl;
+    const isDocx = /\.(docx|doc)$/i.test(nameToCheck);
+    const isPdf = /\.pdf$/i.test(nameToCheck);
 
-    // Download the PDF from Supabase Storage (server-to-server, no body size limit)
+    console.log('[Extract URL API] Downloading from:', fileUrl, 'user:', authResult.user.id, 'type:', isDocx ? 'docx' : isPdf ? 'pdf' : 'unknown');
+
+    // Download the file from Supabase Storage (server-to-server, no body size limit)
     const downloadRes = await fetch(fileUrl, {
       headers: {
         // Use service role for authentication if it's a private bucket
@@ -86,7 +99,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!downloadRes.ok) {
-      console.error('[Extract PDF URL API] Download failed:', downloadRes.status, downloadRes.statusText);
+      console.error('[Extract URL API] Download failed:', downloadRes.status, downloadRes.statusText);
       return NextResponse.json(
         { success: false, error: `فشل في تحميل الملف من التخزين (${downloadRes.status})` },
         { status: 400 }
@@ -104,12 +117,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[Extract PDF URL API] Downloaded, size:', arrayBuffer.byteLength, 'bytes');
+    console.log('[Extract URL API] Downloaded, size:', arrayBuffer.byteLength, 'bytes');
 
-    // Extract text using the same server-side function
-    const result = await extractPdfTextServer(arrayBuffer);
+    let result: ExtractionResult;
 
-    console.log('[Extract PDF URL API] Extracted text, length:', result.text.length, 'pages:', result.pages);
+    if (isDocx) {
+      // ─── DOCX extraction using mammoth ───
+      result = await extractDocxTextServer(arrayBuffer);
+    } else {
+      // ─── PDF extraction using pdfjs-dist ───
+      result = await extractPdfTextServer(arrayBuffer);
+    }
+
+    console.log('[Extract URL API] Extracted text, length:', result.text.length, 'type:', result.sourceFileType, 'pages:', result.pages);
 
     return NextResponse.json({
       success: true,
@@ -117,7 +137,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error('[Extract PDF URL API] Error:', errMsg);
+    console.error('[Extract URL API] Error:', errMsg);
 
     if (errMsg.includes('password') || errMsg.includes('encrypted')) {
       return NextResponse.json(
@@ -128,6 +148,12 @@ export async function POST(request: NextRequest) {
     if (errMsg.includes('Invalid PDF') || errMsg.includes('Invalid header')) {
       return NextResponse.json(
         { success: false, error: 'الملف تالف أو ليس ملف PDF صالح' },
+        { status: 400 }
+      );
+    }
+    if (errMsg.includes('Invalid') && errMsg.includes('Word')) {
+      return NextResponse.json(
+        { success: false, error: 'الملف تالف أو ليس ملف Word صالح' },
         { status: 400 }
       );
     }
@@ -148,7 +174,7 @@ export async function POST(request: NextRequest) {
 /**
  * Server-side PDF text extraction using pdfjs-dist LEGACY build.
  */
-async function extractPdfTextServer(arrayBuffer: ArrayBuffer): Promise<{ text: string; pages: number }> {
+async function extractPdfTextServer(arrayBuffer: ArrayBuffer): Promise<ExtractionResult> {
   let pdfjsLib: typeof import('pdfjs-dist');
 
   try {
@@ -204,5 +230,55 @@ async function extractPdfTextServer(arrayBuffer: ArrayBuffer): Promise<{ text: s
     fullText = fullText.substring(0, MAX_TEXT_LENGTH);
   }
 
-  return { text: fullText, pages: numPages };
+  return { text: fullText, pages: numPages, sourceFileType: 'pdf' };
+}
+
+/**
+ * Server-side DOCX text extraction using mammoth.
+ */
+async function extractDocxTextServer(arrayBuffer: ArrayBuffer): Promise<ExtractionResult> {
+  try {
+    const mammoth = await import('mammoth');
+    console.log('[Extract DOCX Server] Loaded mammoth');
+
+    const result = await mammoth.extractRawText({ arrayBuffer });
+
+    let fullText = result.value;
+
+    // Strip leading whitespace from each line (same as client-side)
+    // to prevent code block rendering artifacts in ReactMarkdown
+    fullText = fullText
+      .split('\n')
+      .map(line => line.trimStart())
+      .join('\n');
+
+    // Collapse multiple consecutive blank lines into max 2
+    fullText = fullText.replace(/\n{3,}/g, '\n\n');
+
+    if (!fullText.trim()) {
+      throw new Error('NO_TEXT_EXTRACTED');
+    }
+
+    if (fullText.length > MAX_TEXT_LENGTH) {
+      console.log(`[Extract DOCX Server] Text truncated from ${fullText.length} to ${MAX_TEXT_LENGTH} chars`);
+      fullText = fullText.substring(0, MAX_TEXT_LENGTH);
+    }
+
+    return { text: fullText, pages: 0, sourceFileType: 'docx' };
+  } catch (err) {
+    if (err instanceof Error && err.message === 'NO_TEXT_EXTRACTED') {
+      throw err;
+    }
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[Extract DOCX Server] Extraction failed:', errMsg);
+
+    if (errMsg.includes('password') || errMsg.includes('encrypted')) {
+      throw new Error('الملف محمي بكلمة مرور. يرجى رفع ملف غير محمي');
+    }
+    if (errMsg.includes('Invalid') || errMsg.includes('Could not find') || errMsg.includes('corrupted')) {
+      throw new Error('الملف تالف أو ليس ملف Word صالح');
+    }
+
+    throw new Error(`فشل في قراءة ملف Word: ${errMsg}`);
+  }
 }
