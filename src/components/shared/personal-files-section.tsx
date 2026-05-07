@@ -46,6 +46,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import type { UserProfile, UserFile, FileShare, Subject } from '@/lib/types';
+import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar, { getRoleLabel, getTitleLabel, formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
 
@@ -229,6 +230,7 @@ interface PendingUpload {
 // -------------------------------------------------------
 export default function PersonalFilesSection({ profile, role }: PersonalFilesSectionProps) {
   const { openProfile } = useAppStore();
+  const isMobile = useIsMobile();
 
   // ─── Tab state ───
   const [activeTab, setActiveTab] = useState<'my-files' | 'shared'>('my-files');
@@ -1959,13 +1961,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <h2 className="text-2xl font-bold text-foreground">ملفاتي</h2>
           <p className="text-muted-foreground mt-1">إدارة ملفاتك الشخصية ومشاركتها</p>
         </div>
-        <button
-          onClick={openUploadModal}
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 active:bg-emerald-800 touch-manipulation"
-        >
-          <Upload className="h-4 w-4" />
-          رفع ملف
-        </button>
+        {isMobile ? (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
+            <Info className="h-4 w-4" />
+            ميزة رفع الملفات تعمل عند الفتح من الحاسوب فقط
+          </div>
+        ) : (
+          <button
+            onClick={openUploadModal}
+            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 active:bg-emerald-800 touch-manipulation"
+          >
+            <Upload className="h-4 w-4" />
+            رفع ملف
+          </button>
+        )}
       </motion.div>
 
       {/* Visibility filter tabs */}

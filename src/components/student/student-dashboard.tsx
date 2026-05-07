@@ -1067,6 +1067,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         let originalContent = '';
         let summaryContent = '';
         let savedSummaryId = '';
+        let sourceFileType: 'pdf' | 'docx' | null = null;
 
         // Step 1: Get content (text or extract from PDF/DOCX)
         if ((inputMode === 'file' || inputMode === 'transcribe') && (preReadFileData || capturedFile)) {
@@ -1104,7 +1105,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             try {
               const pdfResult = await Promise.race([extractionPromise, timeoutPromise]);
               originalContent = pdfResult.text;
-              console.log('[Summary] Client-side extraction succeeded, length:', originalContent.length, 'pages:', pdfResult.pages);
+              sourceFileType = pdfResult.sourceFileType || null;
+              console.log('[Summary] Client-side extraction succeeded, length:', originalContent.length, 'pages:', pdfResult.pages, 'type:', sourceFileType);
               extractionSucceeded = true;
             } catch (pdfErr) {
               const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
@@ -1123,6 +1125,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               }
 
               console.log('[Summary] Trying SERVER-SIDE extraction as fallback');
+
+              // Detect file type from filename for sourceFileType tracking
+              if (!sourceFileType && capturedFile?.name) {
+                sourceFileType = /\.(docx|doc)$/i.test(capturedFile.name) ? 'docx' : 'pdf';
+              }
 
               // Try sending PDF directly to server-side extraction API
               try {
@@ -1192,6 +1199,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 summary_content: originalContent,
                 subject_id: selectedSubjectId || null,
                 transcribe_only: true,
+                source_file_type: sourceFileType,
               }),
               signal: abortController.signal,
             });
@@ -1214,7 +1222,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
               },
-              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null }),
+              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType }),
               signal: abortController.signal,
             });
 
@@ -1256,7 +1264,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
             const result = await Promise.race([extractionPromise, timeoutPromise]);
             originalContent = result.text;
-            console.log('[Summary] Existing file extraction succeeded, length:', originalContent.length);
+            sourceFileType = result.sourceFileType || null;
+            console.log('[Summary] Existing file extraction succeeded, length:', originalContent.length, 'type:', sourceFileType);
             extractionSucceeded = true;
           } catch (err) {
             const errMsg = err instanceof Error ? err.message : String(err);
@@ -1282,7 +1291,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null }),
+            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null, source_file_type: sourceFileType }),
             signal: abortController.signal,
           });
 
@@ -2527,7 +2536,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   {isMobile && (
                     <p className="text-xs text-amber-600/80 mt-2 flex items-center gap-1">
                       <AlertTriangle className="h-3 w-3" />
-                      هذه المميزات تعمل عند استخدام الحاسوب
+                      ميزة رفع الملفات تعمل عند الفتح من الحاسوب فقط
                     </p>
                   )}
                   {summaryInputMode === 'transcribe' && (

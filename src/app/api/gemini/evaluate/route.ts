@@ -7,16 +7,35 @@ export const runtime = 'nodejs';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
-// Lazy-loaded Groq client for detailed evaluation
-let _groqClient: import('groq-sdk').default | null = null;
+// Lazy-loaded Groq client for detailed evaluation (uses key pool for rotation)
+const _groqClientPool = new Map<string, import('groq-sdk').default>();
+let _currentKeyIdx = 0;
+
 function getGroqClient() {
-  if (_groqClient) return _groqClient;
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return null;
+  // Collect all available API keys
+  const keys: string[] = [];
+  const primaryKey = process.env.GROQ_API_KEY;
+  if (primaryKey) keys.push(primaryKey);
+  for (let i = 2; i <= 9; i++) {
+    const key = process.env[`GROQ_API_KEY_${i}`];
+    if (key) keys.push(key);
+  }
+
+  if (keys.length === 0) return null;
+
+  // Round-robin key selection
+  const apiKey = keys[_currentKeyIdx % keys.length];
+  _currentKeyIdx = (_currentKeyIdx + 1) % keys.length;
+
+  // Reuse client for this key if available
+  const existing = _groqClientPool.get(apiKey);
+  if (existing) return existing;
+
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const Groq = require('groq-sdk').default;
-  _groqClient = new Groq({ apiKey });
-  return _groqClient;
+  const client = new Groq({ apiKey });
+  _groqClientPool.set(apiKey, client);
+  return client;
 }
 
 export async function POST(request: NextRequest) {

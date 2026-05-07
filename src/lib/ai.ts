@@ -264,22 +264,81 @@ function recordGroqFailure(): void {
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 // -------------------------------------------------------
-// Groq Singleton client
+// Groq API Key Pool (Round-Robin Rotation)
 // -------------------------------------------------------
-let _groqClient: Groq | null = null;
+
+/**
+ * Multiple Groq API keys can be provided to distribute load and avoid rate limits.
+ * 
+ * Configuration:
+ *   GROQ_API_KEY=primary_key              (required, always present)
+ *   GROQ_API_KEY_2=second_key             (optional)
+ *   GROQ_API_KEY_3=third_key              (optional)
+ *   ...up to GROQ_API_KEY_9               (optional)
+ * 
+ * Keys are rotated in round-robin fashion. Each request uses the next key
+ * in the pool. This effectively multiplies the rate limit:
+ *   - 1 key  → 30 req/min
+ *   - 2 keys → 60 req/min
+ *   - 3 keys → 90 req/min
+ */
+const groqApiKeys: string[] = [];
+
+// Collect all GROQ_API_KEY* env vars
+(function initApiKeyPool() {
+  // Primary key (always required)
+  const primaryKey = process.env.GROQ_API_KEY;
+  if (primaryKey) {
+    groqApiKeys.push(primaryKey);
+  }
+
+  // Additional keys (GROQ_API_KEY_2 through GROQ_API_KEY_9)
+  for (let i = 2; i <= 9; i++) {
+    const key = process.env[`GROQ_API_KEY_${i}`];
+    if (key) {
+      groqApiKeys.push(key);
+    }
+  }
+
+  console.log(`[Groq] API key pool initialized: ${groqApiKeys.length} key(s) available`);
+})();
+
+/** Round-robin index for key rotation */
+let currentKeyIndex = 0;
+
+/** Get the next API key in the pool (round-robin) */
+function getNextApiKey(): string {
+  if (groqApiKeys.length === 0) {
+    throw new AiProviderError('NOT_CONFIGURED', 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة', 'groq');
+  }
+
+  const key = groqApiKeys[currentKeyIndex % groqApiKeys.length];
+  currentKeyIndex = (currentKeyIndex + 1) % groqApiKeys.length;
+  return key;
+}
+
+// -------------------------------------------------------
+// Groq Client Pool (one client per API key)
+// -------------------------------------------------------
+
+const groqClientPool = new Map<string, Groq>();
 
 function getGroqClient(): Groq {
-  if (_groqClient) return _groqClient;
+  const apiKey = getNextApiKey();
 
-  const apiKey = process.env.GROQ_API_KEY;
+  // Check if we already have a client for this key
+  const existing = groqClientPool.get(apiKey);
+  if (existing) return existing;
+
   if (!apiKey) {
     console.warn('[Groq] GROQ_API_KEY not set');
     throw new AiProviderError('NOT_CONFIGURED', 'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة', 'groq');
   }
 
-  _groqClient = new Groq({ apiKey });
-  console.log('[Groq] Client initialized successfully');
-  return _groqClient;
+  const client = new Groq({ apiKey });
+  groqClientPool.set(apiKey, client);
+  console.log('[Groq] New client initialized for key index (pool size:', groqClientPool.size, ')');
+  return client;
 }
 
 // -------------------------------------------------------
@@ -501,9 +560,9 @@ async function tryGroq(
     // If it's already an AiProviderError (e.g., NOT_CONFIGURED), pass it through
     if (isAiError(error)) {
       console.warn('[Groq] AiProviderError:', error.code);
-      // Reset Groq client on connection errors
+      // Reset all Groq clients on connection errors
       if (error.code === 'CONNECTION_ERROR') {
-        _groqClient = null;
+        groqClientPool.clear();
       }
       throw error;
     }
@@ -512,9 +571,9 @@ async function tryGroq(
     const classified = classifyAiError(error, 'groq');
     console.warn('[Groq] Failed:', classified.code, '-', error instanceof Error ? error.message : String(error));
 
-    // Reset Groq client on connection errors
+    // Reset all Groq clients on connection errors
     if (classified.code === 'CONNECTION_ERROR') {
-      _groqClient = null;
+      groqClientPool.clear();
     }
 
     throw classified;
@@ -575,8 +634,8 @@ async function aiChatWithRetry(
     try {
       if (attempt > 0) {
         console.log(`[AI] Retry attempt ${attempt}/${maxRetries}`);
-        // Reset client on retry in case it's in a bad state
-        _groqClient = null;
+        // Reset clients on retry in case they're in a bad state
+        groqClientPool.clear();
       }
 
       const result = await aiChat(systemPrompt, userPrompt, options);

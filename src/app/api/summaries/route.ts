@@ -341,7 +341,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let body: { title?: string; original_content?: string; summary_content?: string; subject_id?: string; transcribe_only?: boolean };
+    let body: { title?: string; original_content?: string; summary_content?: string; subject_id?: string; transcribe_only?: boolean; source_file_type?: 'pdf' | 'docx' };
     try {
       body = await request.json();
     } catch {
@@ -351,7 +351,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, original_content, summary_content, subject_id, transcribe_only } = body;
+    const { title, original_content, summary_content, subject_id, transcribe_only, source_file_type } = body;
 
     if (!title || !original_content || !summary_content) {
       return NextResponse.json(
@@ -380,6 +380,7 @@ export async function POST(request: NextRequest) {
         original_content: sanitizedOriginal,
         summary_content: sanitizedSummary,
         subject_id: subject_id || null,
+        source_file_type: source_file_type || null,
       })
       .select()
       .single();

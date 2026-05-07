@@ -17,6 +17,8 @@
 export interface PdfExtractionResult {
   text: string;
   pages: number;
+  /** Source file type: 'pdf' or 'docx' */
+  sourceFileType?: 'pdf' | 'docx';
 }
 
 /** Max chars to send to the AI (matches server-side sanitizeString limit) */
@@ -130,7 +132,7 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
       fullText = fullText.substring(0, MAX_TEXT_LENGTH);
     }
 
-    return { text: fullText, pages: numPages };
+    return { text: fullText, pages: numPages, sourceFileType: 'pdf' };
   } catch (err) {
     if (err instanceof Error && err.message === 'NO_TEXT_EXTRACTED') {
       throw err;
@@ -159,6 +161,8 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
 
 export interface DocxExtractionResult {
   text: string;
+  /** Source file type is always 'docx' for Word documents */
+  sourceFileType: 'docx';
 }
 
 /**
@@ -188,6 +192,20 @@ export async function extractDocxTextClient(source: File | ArrayBuffer): Promise
 
     let fullText = result.value;
 
+    // ─── FIX: Strip leading whitespace from each line ───
+    // mammoth's extractRawText preserves indentation from the Word document.
+    // When rendered through ReactMarkdown, lines with 4+ spaces of indentation
+    // are treated as code blocks, which render as dark <pre> boxes ("black boxes").
+    // By stripping leading whitespace, we prevent this visual artifact while
+    // preserving paragraph structure (empty lines between paragraphs).
+    fullText = fullText
+      .split('\n')
+      .map(line => line.trimStart())
+      .join('\n');
+
+    // Also collapse multiple consecutive blank lines into max 2 (one empty line)
+    fullText = fullText.replace(/\n{3,}/g, '\n\n');
+
     if (!fullText.trim()) {
       throw new Error('NO_TEXT_EXTRACTED');
     }
@@ -198,7 +216,7 @@ export async function extractDocxTextClient(source: File | ArrayBuffer): Promise
       fullText = fullText.substring(0, MAX_TEXT_LENGTH);
     }
 
-    return { text: fullText };
+    return { text: fullText, sourceFileType: 'docx' };
   } catch (err) {
     if (err instanceof Error && err.message === 'NO_TEXT_EXTRACTED') {
       throw err;
@@ -232,7 +250,7 @@ export async function extractTextFromFile(source: File | ArrayBuffer, fileName?:
 
   if (isDocx) {
     const result = await extractDocxTextClient(source);
-    return { text: result.text, pages: 0 };
+    return { text: result.text, pages: 0, sourceFileType: 'docx' };
   }
 
   // Default: treat as PDF

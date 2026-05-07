@@ -64,6 +64,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   const isTranscribed = !!(summary?.original_content && summary?.summary_content &&
     summary.original_content.trim() === summary.summary_content.trim());
 
+  // ─── Detect source file type for display ───
+  const sourceFileType = summary?.source_file_type || null;
+
   // ─── Action states ───
   const [regenerating, setRegenerating] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -523,7 +526,18 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
                     {isTranscribed ? 'النص المفرّغ' : 'الملخص'}
                   </h2>
                   <p className={`text-xs ${isTranscribed ? 'text-teal-600/70' : 'text-emerald-600/70'}`}>
-                    {isTranscribed ? 'تم استخراج النص من ملف PDF' : 'تم إنشاؤه بواسطة الذكاء الاصطناعي'}
+                    {isTranscribed
+                      ? sourceFileType === 'docx'
+                        ? 'تم استخراج النص من ملف Word'
+                        : sourceFileType === 'pdf'
+                          ? 'تم استخراج النص من ملف PDF'
+                          : 'تم استخراج النص من ملف'
+                      : sourceFileType === 'docx'
+                        ? 'تم إنشاؤه بواسطة الذكاء الاصطناعي من ملف Word'
+                        : sourceFileType === 'pdf'
+                          ? 'تم إنشاؤه بواسطة الذكاء الاصطناعي من ملف PDF'
+                          : 'تم إنشاؤه بواسطة الذكاء الاصطناعي'
+                    }
                   </p>
                 </div>
               </div>

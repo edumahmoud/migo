@@ -38,6 +38,7 @@ export interface Summary {
   original_content: string;
   summary_content: string;
   subject_id?: string | null; // FIX #5: Optional link to subject
+  source_file_type?: 'pdf' | 'docx' | null; // Source file type: 'pdf' or 'docx'
   created_at: string;
 }
 

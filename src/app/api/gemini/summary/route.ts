@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const userId = authResult.user.id;
 
     // Parse JSON body with specific error handling
-    let body: { content?: string; title?: string; subject_id?: string };
+    let body: { content?: string; title?: string; subject_id?: string; source_file_type?: 'pdf' | 'docx' };
     try {
       body = await request.json();
     } catch {
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     const rawContent = body.content;
     const title = body.title || 'ملخص';
     const subjectId = body.subject_id || null; // FIX #5: Accept optional subject_id
+    const sourceFileType = body.source_file_type || null;
 
     if (!rawContent || typeof rawContent !== 'string' || rawContent.trim().length === 0) {
       return NextResponse.json(
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
           original_content: rawContent,
           summary_content: summary,
           subject_id: subjectId, // FIX #5: Include subject_id in insert
+          source_file_type: sourceFileType,
         })
         .select()
         .single();
@@ -140,7 +142,7 @@ export async function POST(request: NextRequest) {
         // Fire the save in background so it still completes
         void supabaseServer
           .from('summaries')
-          .insert({ user_id: userId, title, original_content: rawContent, summary_content: summary, subject_id: subjectId })
+          .insert({ user_id: userId, title, original_content: rawContent, summary_content: summary, subject_id: subjectId, source_file_type: sourceFileType })
           .select()
           .single()
           .then(({ data, error }) => {
