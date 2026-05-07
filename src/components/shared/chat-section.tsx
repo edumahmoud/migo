@@ -944,6 +944,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
     const participantIds = getParticipantIds();
 
+    // For pending conversations (before first message), the other participant
+    // may not be in the participants list yet. Include them manually so the
+    // socket server can deliver the chat-notification directly.
+    const otherParticipantId = activeConvInfo?.otherParticipant?.id;
+    if (otherParticipantId && !participantIds.includes(otherParticipantId)) {
+      participantIds.push(otherParticipantId);
+    }
+
     socket?.emit('send-message', {
       conversationId: activeConvId,
       senderId: profile.id,
@@ -970,6 +978,13 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         setMessages((prev) =>
           prev.map((m) => m.id === tempId ? { ...m, id: data.message.id } : m)
         );
+      }
+
+      // Refresh participants list (the pending recipient may have just been added)
+      const partRes = await fetch(`/api/chat?action=participants&conversationId=${activeConvId}`);
+      const partData = await partRes.json();
+      if (partData.participants) {
+        setParticipants(partData.participants);
       }
     } catch (err) {
       console.error('Send message error:', err);

@@ -170,6 +170,18 @@ export async function GET(request: NextRequest) {
                   .eq('id', otherUserId)
                   .single();
                 otherParticipant = otherUser || null;
+              } else if ((conv.title as string)?.startsWith('pending:')) {
+                // Pending conversation: recipient not yet added as participant.
+                // Extract recipient ID from the title marker.
+                const pendingRecipientId = (conv.title as string).replace('pending:', '');
+                if (pendingRecipientId) {
+                  const { data: pendingUser } = await supabaseServer
+                    .from('users')
+                    .select('id, name, email, avatar_url, title_id, gender, role')
+                    .eq('id', pendingRecipientId)
+                    .single();
+                  otherParticipant = pendingUser || null;
+                }
               }
             }
 
@@ -234,6 +246,16 @@ export async function GET(request: NextRequest) {
                       .eq('id', otherUserId)
                       .single();
                     otherParticipant = otherUser || null;
+                  } else if ((conv.title as string)?.startsWith('pending:')) {
+                    const pendingRecipientId = (conv.title as string).replace('pending:', '');
+                    if (pendingRecipientId) {
+                      const { data: pendingUser } = await supabaseServer
+                        .from('users')
+                        .select('id, name, email, avatar_url, title_id, gender, role')
+                        .eq('id', pendingRecipientId)
+                        .single();
+                      otherParticipant = pendingUser || null;
+                    }
                   }
                 }
                 return {
@@ -491,6 +513,42 @@ export async function POST(request: NextRequest) {
           return authErrorResponse(senderOwnershipError);
         }
 
+        // ── Activate pending conversation if this is the first message ──
+        // When a DM is created, only the initiator is added as a participant.
+        // The recipient is added here (on first message send) so they don't
+        // see an empty conversation in their list.
+        const { data: convInfo } = await supabaseServer
+          .from('conversations')
+          .select('id, type, title')
+          .eq('id', conversationId)
+          .maybeSingle();
+
+        if (convInfo?.title && (convInfo.title as string).startsWith('pending:')) {
+          const pendingRecipientId = (convInfo.title as string).replace('pending:', '');
+          if (pendingRecipientId) {
+            // Add the recipient as a participant BEFORE inserting the message
+            // so they can receive the Realtime notification
+            const { error: addPartError } = await supabaseServer
+              .from('conversation_participants')
+              .upsert({
+                conversation_id: conversationId,
+                user_id: pendingRecipientId,
+              }, { onConflict: 'conversation_id,user_id' });
+
+            if (addPartError) {
+              console.error('[Chat API] Add pending participant error:', addPartError);
+            } else {
+              console.log('[Chat API] Activated pending conversation:', conversationId, 'recipient:', pendingRecipientId);
+            }
+
+            // Clear the pending title marker
+            await supabaseServer
+              .from('conversations')
+              .update({ title: null })
+              .eq('id', conversationId);
+          }
+        }
+
         // Insert message
         const { data: message, error: msgError } = await supabaseServer
           .from('messages')
@@ -535,19 +593,18 @@ export async function POST(request: NextRequest) {
           return authErrorResponse(createOwnershipError);
         }
 
-        // Check if conversation already exists between these two users
+        // ── Check 1: Fully established conversation (both participants) ──
         const { data: existingParts } = await supabaseServer
           .from('conversation_participants')
           .select('conversation_id')
           .eq('user_id', userId1);
 
-        // Get the actual conversation details for those IDs
         const existingConvIds = (existingParts || []).map((p: { conversation_id: string }) => p.conversation_id);
         let individualConvs: Record<string, unknown>[] = [];
         if (existingConvIds.length > 0) {
           const { data } = await supabaseServer
             .from('conversations')
-            .select('id, type, subject_id')
+            .select('id, type, subject_id, title')
             .in('id', existingConvIds)
             .eq('type', 'individual');
           individualConvs = (data || []) as Record<string, unknown>[];
@@ -570,12 +627,67 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Create new individual conversation
+        // ── Check 2: Pending conversation created by userId1 for userId2 ──
+        // (userId1 opened a chat with userId2 before but never sent a message)
+        for (const conv of individualConvs) {
+          const convTitle = conv.title || (conv as Record<string, unknown>).title as string;
+          if (convTitle === `pending:${userId2}`) {
+            // Found userId1's own pending conversation — reuse it
+            return NextResponse.json({ conversation: conv, existed: true });
+          }
+        }
+
+        // ── Check 3: Pending conversation created by userId2 for userId1 ──
+        // (userId2 opened a chat with userId1 before but never sent a message)
+        const { data: otherUserParts } = await supabaseServer
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', userId2);
+
+        const otherConvIds = (otherUserParts || []).map((p: { conversation_id: string }) => p.conversation_id);
+        if (otherConvIds.length > 0) {
+          const { data: pendingConvs } = await supabaseServer
+            .from('conversations')
+            .select('id, type, subject_id, title')
+            .in('id', otherConvIds)
+            .eq('type', 'individual')
+            .eq('title', `pending:${userId1}`);
+
+          if (pendingConvs && pendingConvs.length > 0) {
+            // Found userId2's pending conversation for userId1 — activate it
+            const existingConv = pendingConvs[0] as Record<string, unknown>;
+            const existingConvId = existingConv.id as string;
+
+            // Add userId1 as a participant (userId2 is already a participant)
+            await supabaseServer
+              .from('conversation_participants')
+              .upsert({
+                conversation_id: existingConvId,
+                user_id: userId1,
+              }, { onConflict: 'conversation_id,user_id' });
+
+            // Clear the pending title
+            await supabaseServer
+              .from('conversations')
+              .update({ title: null })
+              .eq('id', existingConvId);
+
+            const activatedConv = { ...existingConv, title: null };
+            return NextResponse.json({ conversation: activatedConv, existed: true });
+          }
+        }
+
+        // ── No existing conversation found — create a new one ──
+        // IMPORTANT: Only add the initiator (userId1) as a participant.
+        // The recipient (userId2) will be added when the first message is sent.
+        // We mark the conversation title as "pending:${userId2}" to track
+        // the intended recipient.
         const { data: newConv, error: createError } = await supabaseServer
           .from('conversations')
           .insert({
             type: 'individual',
             subject_id: subjectId || null,
+            title: `pending:${userId2}`,
           })
           .select()
           .single();
@@ -585,13 +697,10 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'فشل إنشاء المحادثة' }, { status: 500 });
         }
 
-        // Add both users as participants
+        // Add ONLY the initiator as a participant (recipient added on first message)
         await supabaseServer
           .from('conversation_participants')
-          .insert([
-            { conversation_id: newConv.id, user_id: userId1 },
-            { conversation_id: newConv.id, user_id: userId2 },
-          ]);
+          .insert({ conversation_id: newConv.id, user_id: userId1 });
 
         return NextResponse.json({ conversation: newConv, existed: false });
       }
