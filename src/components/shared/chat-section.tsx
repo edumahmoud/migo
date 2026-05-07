@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, type TypingPresenceState, isSocketGivenUp } from '@/lib/socket';
+import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, onTypingBroadcast, type TypingPresenceState, isSocketGivenUp } from '@/lib/socket';
 import {
   MessageCircle,
   ArrowUp,
@@ -335,62 +335,102 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
               const currentActiveId = activeConvIdRef.current;
 
-              // Fetch only the new message (not all 50) for efficiency
-              fetch(`/api/chat?action=messages&conversationId=${convId}&limit=1`)
-                .then(r => r.json())
-                .then(data => {
-                  const serverMessages: ChatMessage[] = data.messages || [];
-                  const fullMsg = serverMessages.find(
-                    (m: ChatMessage) => m.id === newMsg.id
-                  );
-                  if (!fullMsg) return;
+              // ── FAST PATH: Use the Realtime payload directly ──
+              // This avoids an extra HTTP round-trip that adds 200-500ms of delay.
+              // We construct a ChatMessage from the payload and enrich it
+              // asynchronously (sender name/avatar) if needed.
+              const fastMsg: ChatMessage = {
+                id: newMsg.id as string,
+                sender_id: newMsg.sender_id as string,
+                content: newMsg.content as string,
+                created_at: newMsg.created_at as string,
+                is_deleted: false,
+                is_edited: false,
+                sender: null, // Will be enriched below
+              };
 
-                  if (convId === currentActiveId) {
-                    setMessages((prev) => {
-                      if (prev.some((m) => m.id === fullMsg.id)) return prev;
-                      const isDuplicate = prev.some((m) =>
-                        m.id.startsWith('temp-') &&
-                        m.sender_id === fullMsg.sender_id &&
-                        m.content === fullMsg.content &&
-                        Date.now() - new Date(m.created_at).getTime() < 10000
-                      );
-                      if (isDuplicate) {
-                        return prev.map((m) =>
-                          m.id.startsWith('temp-') && m.sender_id === fullMsg.sender_id && m.content === fullMsg.content
-                            ? fullMsg
-                            : m
-                        );
-                      }
-                      const isContentDuplicate = prev.some((m) =>
-                        m.id !== fullMsg.id &&
-                        m.sender_id === fullMsg.sender_id &&
-                        m.content === fullMsg.content &&
-                        Math.abs(new Date(m.created_at).getTime() - new Date(fullMsg.created_at).getTime()) < 10000
-                      );
-                      if (isContentDuplicate) return prev;
-                      return [...prev, fullMsg];
-                    });
-                    fetch('/api/chat', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action: 'mark-read', conversationId: convId, userId: profile.id }),
-                    }).catch(() => {});
-                  } else {
-                    const senderName = fullMsg.sender?.name || 'مستخدم';
-                    toast(`رسالة جديدة من ${senderName}`, {
-                      description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
-                      icon: <Bell className="h-4 w-4 text-emerald-600" />,
-                      duration: 5000,
-                    });
-                    setLocalUnread((prev) => {
-                      const next = new Map(prev);
-                      next.set(convId, (next.get(convId) || 0) + 1);
-                      return next;
-                    });
+              if (convId === currentActiveId) {
+                setMessages((prev) => {
+                  if (prev.some((m) => m.id === fastMsg.id)) return prev;
+                  const isDuplicate = prev.some((m) =>
+                    m.id.startsWith('temp-') &&
+                    m.sender_id === fastMsg.sender_id &&
+                    m.content === fastMsg.content &&
+                    Date.now() - new Date(m.created_at).getTime() < 10000
+                  );
+                  if (isDuplicate) {
+                    return prev.map((m) =>
+                      m.id.startsWith('temp-') && m.sender_id === fastMsg.sender_id && m.content === fastMsg.content
+                        ? fastMsg
+                        : m
+                    );
                   }
-                  debouncedFetchConversations();
-                })
-                .catch(() => {});
+                  const isContentDuplicate = prev.some((m) =>
+                    m.id !== fastMsg.id &&
+                    m.sender_id === fastMsg.sender_id &&
+                    m.content === fastMsg.content &&
+                    Math.abs(new Date(m.created_at).getTime() - new Date(fastMsg.created_at).getTime()) < 10000
+                  );
+                  if (isContentDuplicate) return prev;
+                  return [...prev, fastMsg];
+                });
+                // Mark as read
+                fetch('/api/chat', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'mark-read', conversationId: convId, userId: profile.id }),
+                }).catch(() => {});
+
+                // ── ASYNC: Enrich with sender info in the background ──
+                fetch(`/api/chat?action=messages&conversationId=${convId}&limit=1`)
+                  .then(r => r.json())
+                  .then(data => {
+                    const serverMessages: ChatMessage[] = data.messages || [];
+                    const fullMsg = serverMessages.find(
+                      (m: ChatMessage) => m.id === (newMsg.id as string)
+                    );
+                    if (!fullMsg) return;
+                    // Replace the fast message with the enriched one
+                    setMessages((prev) =>
+                      prev.map((m) => m.id === fullMsg.id ? fullMsg : m)
+                    );
+                  })
+                  .catch(() => {});
+              } else {
+                // Message in a different conversation — show toast notification
+                // Fetch sender info for the toast
+                const senderName = 'مستخدم';
+                toast(`رسالة جديدة`, {
+                  description: fastMsg.content.substring(0, 60) + (fastMsg.content.length > 60 ? '...' : ''),
+                  icon: <Bell className="h-4 w-4 text-emerald-600" />,
+                  duration: 5000,
+                });
+                setLocalUnread((prev) => {
+                  const next = new Map(prev);
+                  next.set(convId, (next.get(convId) || 0) + 1);
+                  return next;
+                });
+
+                // Enrich toast with sender name asynchronously
+                fetch(`/api/chat?action=messages&conversationId=${convId}&limit=1`)
+                  .then(r => r.json())
+                  .then(data => {
+                    const serverMessages: ChatMessage[] = data.messages || [];
+                    const fullMsg = serverMessages.find(
+                      (m: ChatMessage) => m.id === (newMsg.id as string)
+                    );
+                    if (fullMsg?.sender?.name) {
+                      toast(`رسالة جديدة من ${fullMsg.sender.name}`, {
+                        description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
+                        icon: <Bell className="h-4 w-4 text-emerald-600" />,
+                        duration: 5000,
+                        id: `msg-${convId}`, // Replace the generic toast
+                      });
+                    }
+                  })
+                  .catch(() => {});
+              }
+              debouncedFetchConversations();
             }
         )
         // ─── Also listen for message updates (edits/deletes) ───
@@ -823,13 +863,50 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     // Join room
     joinRoom(convId);
 
-    // Join Supabase Presence channel for typing indicators (fallback when Socket.IO unavailable)
+    // Leave previous typing presence channel
+    if (typingPresenceRef.current) {
+      leaveTypingPresence(typingPresenceRef.current.topic?.replace('typing:', '') || '');
+    }
+
+    // Join Supabase Presence + Broadcast channel for typing indicators
     const presenceChannel = joinTypingPresence(convId, profile.id, profile.name);
     typingPresenceRef.current = presenceChannel;
 
-    // Poll presence state for typing indicators (when in Realtime mode)
+    // ── PRIMARY: Listen for instant typing broadcasts ──
+    // This is much faster than polling Presence state (which has ~1-2s latency)
     if (typingPresencePollRef.current) clearInterval(typingPresencePollRef.current);
     if (presenceChannel) {
+      // Register broadcast listener for instant typing events
+      const unsubBroadcast = onTypingBroadcast(convId, (data) => {
+        if (data.userId === profile.id) return;
+        if (data.conversationId !== convId) return;
+
+        if (data.isTyping) {
+          setTypingUsers((prev) => new Map(prev).set(data.userId, data.userName));
+          // Clear after 3 seconds if no new typing event
+          const existing = typingTimeoutRef.current.get(data.userId);
+          if (existing) clearTimeout(existing);
+          typingTimeoutRef.current.set(data.userId, setTimeout(() => {
+            setTypingUsers((prev) => {
+              const next = new Map(prev);
+              next.delete(data.userId);
+              return next;
+            });
+          }, 3000));
+        } else {
+          setTypingUsers((prev) => {
+            const next = new Map(prev);
+            next.delete(data.userId);
+            return next;
+          });
+          const existing = typingTimeoutRef.current.get(data.userId);
+          if (existing) clearTimeout(existing);
+          typingTimeoutRef.current.delete(data.userId);
+        }
+      });
+
+      // ── BACKUP: Poll presence state every 3 seconds ──
+      // This catches typing events that might be missed by broadcast
       typingPresencePollRef.current = setInterval(() => {
         const typing = getTypingUsers(convId, profile.id);
         setTypingUsers((prev) => {
@@ -837,10 +914,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           for (const t of typing) {
             next.set(t.userId, t.userName);
           }
-          // Preserve any Socket.IO-based typing users that are still active
+          // Preserve any broadcast-based typing users that are still active
           for (const [key, value] of prev) {
             if (!next.has(key)) {
-              // Keep if the timeout hasn't expired yet
               if (typingTimeoutRef.current.has(key)) {
                 next.set(key, value);
               }
@@ -848,7 +924,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           }
           return next;
         });
-      }, 1000);
+      }, 3000); // Slower polling since broadcast is primary now
     }
 
     try {

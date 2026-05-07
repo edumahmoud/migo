@@ -465,13 +465,13 @@ export function useSocketEvent<T = unknown>(
 }
 
 // =====================================================
-// Supabase Presence-based typing indicators
+// Supabase Presence + Broadcast-based typing indicators
 // =====================================================
 // When Socket.IO is not available, we use Supabase Presence
-// to broadcast typing state to other users in a conversation.
+// to track who is in a conversation, and Supabase Broadcast
+// to send instant typing events (lower latency than Presence sync).
 
 import { supabase } from '@/lib/supabase';
-import type { RealtimePresence } from '@supabase/supabase-js';
 
 export interface TypingPresenceState {
   userId: string;
@@ -484,8 +484,12 @@ export interface TypingPresenceState {
 // Module-level map of conversationId → presence channel
 const typingChannels = new Map<string, ReturnType<typeof supabase.channel>>();
 
+// Module-level map of conversationId → set of broadcast listeners
+const typingListeners = new Map<string, Set<(data: TypingPresenceState) => void>>();
+
 /**
- * Join a Supabase Presence channel for typing indicators in a conversation.
+ * Join a Supabase channel for typing indicators in a conversation.
+ * Uses both Presence (for tracking who's online) and Broadcast (for instant typing events).
  * Returns the channel instance so the caller can listen for presence sync/join/leave events.
  */
 export function joinTypingPresence(
@@ -500,10 +504,23 @@ export function joinTypingPresence(
   if (existing) return existing;
 
   const channel = supabase.channel(`typing:${conversationId}`, {
-    config: { presence: { key: userId } },
+    config: {
+      presence: { key: userId },
+      broadcast: { self: false }, // Don't receive our own broadcasts
+    },
   });
 
-  // Track the user's presence state
+  // Listen for broadcast typing events (instant, low latency)
+  channel.on('broadcast', { event: 'typing-state' }, (payload) => {
+    const data = payload.payload as TypingPresenceState;
+    if (!data || !data.conversationId) return;
+    const listeners = typingListeners.get(data.conversationId);
+    if (listeners) {
+      listeners.forEach(fn => fn(data));
+    }
+  });
+
+  // Track the user's presence state (so others know we're in this conversation)
   channel.on('presence', { event: 'sync' }, () => {
     // Presence state is read via channel.presenceState() in the component
   });
@@ -525,6 +542,30 @@ export function joinTypingPresence(
 }
 
 /**
+ * Register a listener for typing broadcast events on a conversation.
+ * Returns an unsubscribe function.
+ */
+export function onTypingBroadcast(
+  conversationId: string,
+  listener: (data: TypingPresenceState) => void,
+): () => void {
+  if (!typingListeners.has(conversationId)) {
+    typingListeners.set(conversationId, new Set());
+  }
+  typingListeners.get(conversationId)!.add(listener);
+
+  return () => {
+    const listeners = typingListeners.get(conversationId);
+    if (listeners) {
+      listeners.delete(listener);
+      if (listeners.size === 0) {
+        typingListeners.delete(conversationId);
+      }
+    }
+  };
+}
+
+/**
  * Leave a Supabase Presence channel for typing indicators.
  */
 export function leaveTypingPresence(conversationId: string): void {
@@ -533,10 +574,12 @@ export function leaveTypingPresence(conversationId: string): void {
     supabase.removeChannel(channel);
     typingChannels.delete(conversationId);
   }
+  typingListeners.delete(conversationId);
 }
 
 /**
- * Broadcast typing state via Supabase Presence.
+ * Broadcast typing state via Supabase Broadcast (instant delivery).
+ * Also updates Presence state for fallback polling.
  */
 export function broadcastTypingState(
   conversationId: string,
@@ -550,17 +593,28 @@ export function broadcastTypingState(
   const channel = typingChannels.get(conversationId);
   if (!channel) return;
 
-  channel.track({
+  const state: TypingPresenceState = {
     userId,
     userName,
     conversationId,
     isTyping,
     lastUpdated: Date.now(),
+  };
+
+  // Broadcast typing event (instant, low latency)
+  channel.send({
+    type: 'broadcast',
+    event: 'typing-state',
+    payload: state,
   });
+
+  // Also update presence state (for fallback polling)
+  channel.track(state);
 }
 
 /**
  * Get all typing users from a presence channel (excluding the current user).
+ * This is the fallback method used by polling.
  */
 export function getTypingUsers(
   conversationId: string,

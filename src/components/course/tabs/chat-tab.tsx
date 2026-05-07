@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, isSocketGivenUp } from '@/lib/socket';
+import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, onTypingBroadcast, isSocketGivenUp } from '@/lib/socket';
 import { useStatusStore } from '@/stores/status-store';
 import {
   MessageCircle,
@@ -139,26 +139,40 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               // Skip own messages (already added optimistically)
               if (newMsg.sender_id === profile.id) return;
 
-              // Fetch the full message with sender info via API
+              // ── FAST PATH: Use Realtime payload directly (no extra HTTP round-trip) ──
+              const fastMsg: ChatMessage = {
+                id: newMsg.id as string,
+                sender_id: newMsg.sender_id as string,
+                content: newMsg.content as string,
+                created_at: newMsg.created_at as string,
+                is_deleted: false,
+                is_edited: false,
+                sender: null,
+              };
+
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === fastMsg.id)) return prev;
+                const isContentDuplicate = prev.some((m) =>
+                  m.sender_id === fastMsg.sender_id &&
+                  m.content === fastMsg.content &&
+                  Math.abs(new Date(m.created_at).getTime() - new Date(fastMsg.created_at).getTime()) < 10000
+                );
+                if (isContentDuplicate) return prev;
+                return [...prev, fastMsg];
+              });
+
+              // ── ASYNC: Enrich with sender info in the background ──
               fetch(`/api/chat?action=messages&conversationId=${convId}&limit=1`)
                 .then(r => r.json())
                 .then(data => {
                   const serverMessages: ChatMessage[] = data.messages || [];
                   const fullMsg = serverMessages.find(
-                    (m: ChatMessage) => m.id === newMsg.id
+                    (m: ChatMessage) => m.id === (newMsg.id as string)
                   );
                   if (!fullMsg) return;
-
-                  setMessages((prev) => {
-                    if (prev.some((m) => m.id === fullMsg.id)) return prev;
-                    const isContentDuplicate = prev.some((m) =>
-                      m.sender_id === fullMsg.sender_id &&
-                      m.content === fullMsg.content &&
-                      Math.abs(new Date(m.created_at).getTime() - new Date(fullMsg.created_at).getTime()) < 10000
-                    );
-                    if (isContentDuplicate) return prev;
-                    return [...prev, fullMsg];
-                  });
+                  setMessages((prev) =>
+                    prev.map((m) => m.id === fullMsg.id ? fullMsg : m)
+                  );
                 })
                 .catch(() => {});
             }
@@ -497,13 +511,41 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   useEffect(() => {
     if (!conversationId) return;
 
-    // Join Supabase Presence channel for typing indicators (fallback when Socket.IO unavailable)
+    // Join Supabase Presence + Broadcast channel for typing indicators
     const presenceChannel = joinTypingPresence(conversationId, profile.id, profile.name);
     typingPresenceRef.current = presenceChannel;
 
-    // Poll presence state for typing indicators (when in Realtime mode)
     if (typingPresencePollRef.current) clearInterval(typingPresencePollRef.current);
     if (presenceChannel) {
+      // ── PRIMARY: Listen for instant typing broadcasts ──
+      const unsubBroadcast = onTypingBroadcast(conversationId, (data) => {
+        if (data.userId === profile.id) return;
+        if (data.conversationId !== conversationId) return;
+
+        if (data.isTyping) {
+          setTypingUsers((prev) => new Map(prev).set(data.userId, data.userName));
+          const existing = typingTimeoutRef.current.get(data.userId);
+          if (existing) clearTimeout(existing);
+          typingTimeoutRef.current.set(data.userId, setTimeout(() => {
+            setTypingUsers((prev) => {
+              const next = new Map(prev);
+              next.delete(data.userId);
+              return next;
+            });
+          }, 3000));
+        } else {
+          setTypingUsers((prev) => {
+            const next = new Map(prev);
+            next.delete(data.userId);
+            return next;
+          });
+          const existing = typingTimeoutRef.current.get(data.userId);
+          if (existing) clearTimeout(existing);
+          typingTimeoutRef.current.delete(data.userId);
+        }
+      });
+
+      // ── BACKUP: Poll presence state every 3 seconds ──
       typingPresencePollRef.current = setInterval(() => {
         const typing = getTypingUsers(conversationId, profile.id);
         setTypingUsers((prev) => {
@@ -511,7 +553,6 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           for (const t of typing) {
             next.set(t.userId, t.userName);
           }
-          // Preserve any Socket.IO-based typing users that are still active
           for (const [key, value] of prev) {
             if (!next.has(key) && typingTimeoutRef.current.has(key)) {
               next.set(key, value);
@@ -519,7 +560,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           }
           return next;
         });
-      }, 1500);
+      }, 3000); // Slower polling since broadcast is primary now
     }
 
     return () => {
