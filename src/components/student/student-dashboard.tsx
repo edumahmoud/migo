@@ -827,7 +827,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       .channel('quizzes-changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'quizzes' },
+        { event: '*', schema: 'public', table: 'quizzes', filter: `user_id=eq.${profile.id}` },
         () => { fetchQuizzes(); }
       )
       .subscribe();
@@ -3589,12 +3589,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-4" />
           <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
-          <button
-            onClick={() => fetchAllData()}
-            className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
-          >
-            إعادة المحاولة
-          </button>
         </div>
       );
     }

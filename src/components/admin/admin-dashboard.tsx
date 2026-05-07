@@ -1048,12 +1048,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
         <span className="text-sm text-muted-foreground">جاري تحميل البيانات...</span>
-        <button
-          onClick={() => fetchAllData()}
-          className="mt-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
-        >
-          إعادة المحاولة
-        </button>
       </div>
     </div>
   );
