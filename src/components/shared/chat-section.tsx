@@ -181,6 +181,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // ─── Unread tracking (local override for real-time updates) ───
   const [localUnread, setLocalUnread] = useState<Map<string, number>>(new Map());
 
+  // ─── Locally hidden/deleted conversation IDs (to suppress notifications) ───
+  const hiddenConvIdsRef = useRef<Set<string>>(new Set());
+
   // ─── Archived conversations ───
   const [archivedConversations, setArchivedConversations] = useState<Conversation[]>([]);
 
@@ -254,6 +257,17 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       setConvFetchError(null);
       setConversations(data.conversations || []);
       setArchivedConversations(data.archivedConversations || []);
+
+      // Clean up hidden conversation IDs that are now visible again
+      // (e.g., the other user sent a message, reviving the conversation)
+      const visibleConvIds = new Set((data.conversations || []).map((c: Conversation) => c.id));
+      const archivedConvIds = new Set((data.archivedConversations || []).map((c: Conversation) => c.id));
+      for (const hiddenId of hiddenConvIdsRef.current) {
+        if (visibleConvIds.has(hiddenId) || archivedConvIds.has(hiddenId)) {
+          hiddenConvIdsRef.current.delete(hiddenId);
+        }
+      }
+
       return data.conversations || [];
     } catch (err) {
       console.error('Fetch conversations error:', err);
@@ -398,6 +412,13 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   .catch(() => {});
               } else {
                 // Message in a different conversation — show toast notification
+                // BUT skip if this conversation was locally hidden/deleted by the user
+                if (hiddenConvIdsRef.current.has(convId)) {
+                  // Silently refresh conversation list — the conversation might have been
+                  // revived by the other user sending a message
+                  debouncedFetchConversations();
+                  return;
+                }
                 // Fetch sender info for the toast
                 const senderName = 'مستخدم';
                 toast(`رسالة جديدة`, {
@@ -830,6 +851,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     setTypingUsers(new Map());
     setEditingMessageId(null);
     setMessageMenuId(null);
+
+    // Remove from hidden set since user is actively opening this conversation
+    hiddenConvIdsRef.current.delete(convId);
 
     // Set conversation info IMMEDIATELY (before any async operations)
     // so the chat box renders without waiting for network requests
@@ -1359,6 +1383,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             return;
           }
           toast.success('تم حذف المحادثة');
+          // Track this conversation as locally hidden to suppress notifications
+          hiddenConvIdsRef.current.add(convId);
           if (activeConvId === convId) {
             setActiveConvId(null);
             setActiveConvInfo(null);
@@ -1399,6 +1425,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             return;
           }
           toast.success(`تم حذف ${data.deletedCount || 0} محادثة`);
+          // Track all conversation IDs as locally hidden to suppress notifications
+          conversations.forEach(c => hiddenConvIdsRef.current.add(c.id));
           setActiveConvId(null);
           setActiveConvInfo(null);
           setMessages([]);

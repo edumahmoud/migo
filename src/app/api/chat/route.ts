@@ -514,9 +514,10 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Activate pending conversation if this is the first message ──
-        // When a DM is created, only the initiator is added as a participant.
-        // The recipient is added here (on first message send) so they don't
-        // see an empty conversation in their list.
+        // When a DM is created, the recipient is added as a HIDDEN participant
+        // (is_hidden=true) so they don't see an empty conversation in their list.
+        // On first message send, we reveal them (is_hidden=false) and clear the
+        // pending title so they can see the conversation and receive Realtime events.
         const { data: convInfo } = await supabaseServer
           .from('conversations')
           .select('id, type, title')
@@ -526,17 +527,33 @@ export async function POST(request: NextRequest) {
         if (convInfo?.title && (convInfo.title as string).startsWith('pending:')) {
           const pendingRecipientId = (convInfo.title as string).replace('pending:', '');
           if (pendingRecipientId) {
-            // Add the recipient as a participant BEFORE inserting the message
-            // so they can receive the Realtime notification
-            const { error: addPartError } = await supabaseServer
+            // Reveal the hidden recipient (is_hidden = false) so they can see the conversation
+            // If they're not a participant yet (fallback mode), add them.
+            const { error: revealError } = await supabaseServer
               .from('conversation_participants')
               .upsert({
                 conversation_id: conversationId,
                 user_id: pendingRecipientId,
+                is_hidden: false,
               }, { onConflict: 'conversation_id,user_id' });
 
-            if (addPartError) {
-              console.error('[Chat API] Add pending participant error:', addPartError);
+            if (revealError) {
+              // is_hidden column might not exist — try without it
+              console.warn('[Chat API] is_hidden column missing in send-message, trying fallback');
+              const { error: fallbackError } = await supabaseServer
+                .from('conversation_participants')
+                .upsert({
+                  conversation_id: conversationId,
+                  user_id: pendingRecipientId,
+                }, { onConflict: 'conversation_id,user_id' });
+
+              if (fallbackError) {
+                console.error('[Chat API] Add/reveal pending participant error:', fallbackError);
+              } else {
+                // Use file-based fallback for hidden state
+                setHidden(pendingRecipientId, conversationId, false);
+                console.log('[Chat API] Activated pending conversation (fallback):', conversationId, 'recipient:', pendingRecipientId);
+              }
             } else {
               console.log('[Chat API] Activated pending conversation:', conversationId, 'recipient:', pendingRecipientId);
             }
@@ -613,6 +630,10 @@ export async function POST(request: NextRequest) {
         // Check each individual conversation to see if userId2 is also a participant
         for (const conv of individualConvs) {
           const convId = conv.id as string;
+          const convTitle = (conv.title as string) || '';
+
+          // Skip pending conversations — they are handled by Check 2 and Check 3
+          if (convTitle.startsWith('pending:')) continue;
 
           const { data: otherPart } = await supabaseServer
             .from('conversation_participants')
@@ -622,6 +643,27 @@ export async function POST(request: NextRequest) {
 
           if (otherPart && otherPart.length > 0) {
             if (conv?.subject_id === subjectId || (!conv?.subject_id && !subjectId) || !subjectId) {
+              // ── Revive soft-deleted (hidden) conversation ──
+              // If the requesting user previously deleted this conversation (is_hidden=true),
+              // unhide them so they can see it again.
+              const { data: myPart } = await supabaseServer
+                .from('conversation_participants')
+                .select('is_hidden')
+                .eq('conversation_id', convId)
+                .eq('user_id', userId1)
+                .maybeSingle();
+
+              if (myPart?.is_hidden) {
+                const { error: unhideError } = await supabaseServer
+                  .from('conversation_participants')
+                  .update({ is_hidden: false })
+                  .eq('conversation_id', convId)
+                  .eq('user_id', userId1);
+                if (unhideError) {
+                  // is_hidden column might not exist — use file fallback
+                  setHidden(userId1, convId, false);
+                }
+              }
               return NextResponse.json({ conversation: conv, existed: true });
             }
           }
@@ -654,17 +696,31 @@ export async function POST(request: NextRequest) {
             .eq('title', `pending:${userId1}`);
 
           if (pendingConvs && pendingConvs.length > 0) {
-            // Found userId2's pending conversation for userId1 — activate it
+            // Found userId2's pending conversation for userId1
+            // With the is_hidden pattern, userId1 is already a participant but hidden.
+            // Reveal them (is_hidden=false) and clear the pending title so both users
+            // can see the conversation — both have explicitly opened each other's chat.
             const existingConv = pendingConvs[0] as Record<string, unknown>;
             const existingConvId = existingConv.id as string;
 
-            // Add userId1 as a participant (userId2 is already a participant)
-            await supabaseServer
+            // Reveal userId1 (set is_hidden = false)
+            const { error: revealError } = await supabaseServer
               .from('conversation_participants')
-              .upsert({
-                conversation_id: existingConvId,
-                user_id: userId1,
-              }, { onConflict: 'conversation_id,user_id' });
+              .update({ is_hidden: false })
+              .eq('conversation_id', existingConvId)
+              .eq('user_id', userId1);
+
+            if (revealError) {
+              // is_hidden column might not exist — try upsert without it
+              console.warn('[Chat API] Check 3: is_hidden column missing, using upsert fallback');
+              await supabaseServer
+                .from('conversation_participants')
+                .upsert({
+                  conversation_id: existingConvId,
+                  user_id: userId1,
+                }, { onConflict: 'conversation_id,user_id' });
+              setHidden(userId1, existingConvId, false);
+            }
 
             // Clear the pending title
             await supabaseServer
@@ -678,10 +734,11 @@ export async function POST(request: NextRequest) {
         }
 
         // ── No existing conversation found — create a new one ──
-        // IMPORTANT: Only add the initiator (userId1) as a participant.
-        // The recipient (userId2) will be added when the first message is sent.
-        // We mark the conversation title as "pending:${userId2}" to track
-        // the intended recipient.
+        // We add BOTH users as participants:
+        //   - Initiator (userId1): is_hidden = false  → visible in their list
+        //   - Recipient  (userId2): is_hidden = true   → HIDDEN until first message
+        // The pending title "pending:${userId2}" tracks that the recipient is hidden.
+        // When the first message is sent, is_hidden is set to false for the recipient.
         const { data: newConv, error: createError } = await supabaseServer
           .from('conversations')
           .insert({
@@ -697,10 +754,22 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'فشل إنشاء المحادثة' }, { status: 500 });
         }
 
-        // Add ONLY the initiator as a participant (recipient added on first message)
-        await supabaseServer
+        // Add BOTH users as participants (initiator visible, recipient hidden)
+        const { error: partInsertError } = await supabaseServer
           .from('conversation_participants')
-          .insert({ conversation_id: newConv.id, user_id: userId1 });
+          .insert([
+            { conversation_id: newConv.id, user_id: userId1, is_hidden: false },
+            { conversation_id: newConv.id, user_id: userId2, is_hidden: true },
+          ]);
+
+        if (partInsertError) {
+          // is_hidden column might not exist — fall back to only adding the initiator
+          // (recipient will NOT be a participant, which prevents them from seeing the conversation)
+          console.warn('[Chat API] is_hidden column may not exist, falling back to initiator-only participant');
+          await supabaseServer
+            .from('conversation_participants')
+            .insert({ conversation_id: newConv.id, user_id: userId1 });
+        }
 
         return NextResponse.json({ conversation: newConv, existed: false });
       }
@@ -945,40 +1014,36 @@ export async function POST(request: NextRequest) {
           .maybeSingle();
 
         if (convInfo?.type === 'individual') {
-          // Delete all messages in the conversation
-          const { error: msgDeleteError } = await supabaseServer
-            .from('messages')
-            .delete()
-            .eq('conversation_id', conversationId);
-
-          if (msgDeleteError) {
-            console.error('[Chat API] Delete conv - messages delete error:', msgDeleteError);
-            return NextResponse.json({ error: 'فشل حذف رسائل المحادثة' }, { status: 500 });
-          }
-
-          // Delete all participant records
-          const { error: partDeleteError } = await supabaseServer
+          // ── Soft-delete for individual conversations ──
+          // Hide the conversation for this user ONLY (is_hidden=true).
+          // The other participant can still see the conversation and all messages.
+          // If both users later open each other's chat again, the conversation is revived.
+          const { error: hideError } = await supabaseServer
             .from('conversation_participants')
-            .delete()
-            .eq('conversation_id', conversationId);
+            .update({ is_hidden: true })
+            .eq('conversation_id', conversationId)
+            .eq('user_id', userId);
 
-          if (partDeleteError) {
-            console.error('[Chat API] Delete conv - participants delete error:', partDeleteError);
-            return NextResponse.json({ error: 'فشل حذف مشاركي المحادثة' }, { status: 500 });
+          if (hideError) {
+            // is_hidden column might not exist — fall back to removing only this user's participant record
+            // DO NOT delete messages, other participants, or the conversation itself
+            console.warn('[Chat API] is_hidden column missing for individual conv delete, removing participant record only');
+            const { error: deletePartError } = await supabaseServer
+              .from('conversation_participants')
+              .delete()
+              .eq('conversation_id', conversationId)
+              .eq('user_id', userId);
+
+            if (deletePartError) {
+              console.error('[Chat API] Delete participant error:', deletePartError);
+              return NextResponse.json({ error: 'فشل حذف المحادثة' }, { status: 500 });
+            }
+
+            // Use file-based fallback for hidden state
+            setHidden(userId, conversationId, true);
           }
 
-          // Delete the conversation itself
-          const { error: convDeleteError } = await supabaseServer
-            .from('conversations')
-            .delete()
-            .eq('id', conversationId);
-
-          if (convDeleteError) {
-            console.error('[Chat API] Delete conv - conversation delete error:', convDeleteError);
-            return NextResponse.json({ error: 'فشل حذف المحادثة' }, { status: 500 });
-          }
-
-          console.log('[Chat API] Delete conv - individual conversation fully deleted:', conversationId);
+          console.log('[Chat API] Delete conv - individual conversation hidden for user:', conversationId, userId);
         } else {
           // For group conversations: use soft-delete (hide for this user only)
           // Other participants should still see the group chat
@@ -1045,25 +1110,29 @@ export async function POST(request: NextRequest) {
           .filter((c: { type: string }) => c.type !== 'individual')
           .map((c: { id: string }) => c.id);
 
-        // For individual conversations: hard-delete messages, participants, and conversation
+        // For individual conversations: soft-delete (hide for this user only)
+        // The other participant can still see the conversation and all messages
         if (individualConvIds.length > 0) {
-          // Delete messages
-          await supabaseServer
-            .from('messages')
-            .delete()
-            .in('conversation_id', individualConvIds);
-
-          // Delete all participant records
-          await supabaseServer
+          const { error: hideError } = await supabaseServer
             .from('conversation_participants')
-            .delete()
+            .update({ is_hidden: true })
+            .eq('user_id', userId)
             .in('conversation_id', individualConvIds);
 
-          // Delete the conversations
-          await supabaseServer
-            .from('conversations')
-            .delete()
-            .in('id', individualConvIds);
+          if (hideError) {
+            // is_hidden column might not exist — fall back to removing only this user's participant records
+            console.warn('[Chat API] is_hidden column missing for bulk individual delete, removing participant records only');
+            await supabaseServer
+              .from('conversation_participants')
+              .delete()
+              .eq('user_id', userId)
+              .in('conversation_id', individualConvIds);
+
+            // Use file-based fallback for hidden state
+            for (const convId of individualConvIds) {
+              setHidden(userId, convId, true);
+            }
+          }
         }
 
         // For group conversations: soft-delete (hide for this user only)
