@@ -615,17 +615,41 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // Socket.io event subscriptions (using shared socket)
   // =====================================================
 
-  // ─── New message (from room broadcast) ───
-  useSocketEvent<ChatMessage>('new-message', (msg) => {
-    const convId = msg.conversationId || (msg as Record<string, unknown>).conversation_id as string;
-    const currentActiveId = activeConvIdRef.current;
+  // ─── Helper: normalize incoming socket message to ChatMessage shape ───
+  // Socket.IO messages may use camelCase (senderId) or snake_case (sender_id).
+  // This helper ensures we always have a valid ChatMessage for the UI.
+  const normalizeSocketMsg = useCallback((raw: Record<string, unknown>): ChatMessage => {
+    const senderId = (raw.sender_id as string) || (raw.senderId as string) || '';
+    const convId = (raw.conversation_id as string) || (raw.conversationId as string) || '';
+    const createdAt = (raw.created_at as string) || (raw.createdAt as string) || new Date().toISOString();
+    const senderObj = raw.sender as ChatMessage['sender'] | undefined;
+    const senderName = (raw.sender_name as string) || (raw.senderName as string) || '';
+
+    return {
+      id: (raw.id as string) || '',
+      sender_id: senderId,
+      content: (raw.content as string) || '',
+      created_at: createdAt,
+      is_deleted: (raw.is_deleted as boolean) ?? false,
+      is_edited: (raw.is_edited as boolean) ?? false,
+      edited_at: (raw.edited_at as string) || undefined,
+      sender: senderObj || (senderName ? { id: senderId, name: senderName } : null),
+      // Keep these for conversation matching convenience
+      conversation_id: convId,
+      conversationId: convId,
+    } as ChatMessage;
+  }, []);
+
+  // ─── Helper: add or merge a message into the messages list ───
+  const addMessageToList = useCallback((msg: ChatMessage, currentActiveId: string | null) => {
+    const convId = msg.conversation_id || (msg as Record<string, unknown>).conversationId as string;
+    if (!convId) return;
 
     if (convId === currentActiveId) {
       setMessages((prev) => {
-        // Check if we already have this message (by ID)
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        // Also check if this is the server version of our optimistic message
-        // (same sender, same content, within last 10 seconds)
+        // Already have this exact message? Skip.
+        if (prev.some((m) => m.id === msg.id && !m.id.startsWith('temp-'))) return prev;
+        // Replace optimistic (temp-) message with the confirmed one
         const isDuplicate = prev.some((m) =>
           m.id.startsWith('temp-') &&
           m.sender_id === msg.sender_id &&
@@ -633,15 +657,13 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           Date.now() - new Date(m.created_at).getTime() < 10000
         );
         if (isDuplicate) {
-          // Replace the optimistic message with the server one
           return prev.map((m) =>
             m.id.startsWith('temp-') && m.sender_id === msg.sender_id && m.content === msg.content
               ? msg
               : m
           );
         }
-        // Also check for duplicate content from same sender within 10 seconds
-        // (handles case where optimistic msg was already replaced by API response)
+        // Skip content-duplicate from same sender within 10s
         const isContentDuplicate = prev.some((m) =>
           m.id !== msg.id &&
           m.sender_id === msg.sender_id &&
@@ -667,66 +689,59 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     }
     // Always refresh conversation list for updated last message
     debouncedFetchConversations();
+  }, [profile.id, debouncedFetchConversations]);
+
+  // ─── New message (from room broadcast) ───
+  useSocketEvent<Record<string, unknown>>('new-message', (rawMsg) => {
+    try {
+      const msg = normalizeSocketMsg(rawMsg);
+      addMessageToList(msg, activeConvIdRef.current);
+    } catch (err) {
+      console.error('[Socket] new-message handler error:', err);
+      // Fallback: refresh from server
+      debouncedFetchConversations();
+    }
   });
 
   // ─── Chat notification (direct delivery, even if not in room) ───
-  useSocketEvent<{
-    conversationId: string;
-    message: ChatMessage;
-    senderName: string;
-    content: string;
-  }>('chat-notification', (data) => {
-    const currentActiveId = activeConvIdRef.current;
+  useSocketEvent<Record<string, unknown>>('chat-notification', (data) => {
+    try {
+      const currentActiveId = activeConvIdRef.current;
+      const convId = (data.conversationId as string) || (data.conversation_id as string) || '';
 
-    if (data.conversationId === currentActiveId) {
-      setMessages((prev) => {
-        // Check if we already have this message (by ID)
-        if (prev.some((m) => m.id === data.message.id)) return prev;
-        // Check if this is the server version of our optimistic message
-        const isDuplicate = prev.some((m) =>
-          m.id.startsWith('temp-') &&
-          m.sender_id === data.message.sender_id &&
-          m.content === data.message.content &&
-          Date.now() - new Date(m.created_at).getTime() < 10000
-        );
-        if (isDuplicate) {
-          return prev.map((m) =>
-            m.id.startsWith('temp-') && m.sender_id === data.message.sender_id && m.content === data.message.content
-              ? data.message
-              : m
-          );
-        }
-        // Also check for duplicate content from same sender within 10 seconds
-        const isContentDuplicate = prev.some((m) =>
-          m.id !== data.message.id &&
-          m.sender_id === data.message.sender_id &&
-          m.content === data.message.content &&
-          Math.abs(new Date(m.created_at).getTime() - new Date(data.message.created_at).getTime()) < 10000
-        );
-        if (isContentDuplicate) return prev;
-        return [...prev, data.message];
-      });
-      // Mark as read
-      fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'mark-read', conversationId: data.conversationId, userId: profile.id }),
-      }).catch(() => {});
-    } else {
-      // Show toast and increment unread
-      toast(`رسالة جديدة من ${data.senderName}`, {
-        description: data.content.substring(0, 60) + (data.content.length > 60 ? '...' : ''),
-        icon: <Bell className="h-4 w-4 text-emerald-600" />,
-        duration: 5000,
-      });
-      setLocalUnread((prev) => {
-        const next = new Map(prev);
-        next.set(data.conversationId, (next.get(data.conversationId) || 0) + 1);
-        return next;
-      });
+      // The server sends: { conversationId, message, senderName, content }
+      // Build a ChatMessage from either data.message or the top-level fields
+      let msg: ChatMessage;
+      if (data.message && typeof data.message === 'object') {
+        msg = normalizeSocketMsg(data.message as Record<string, unknown>);
+      } else {
+        // Legacy/fallback: construct from top-level fields
+        msg = normalizeSocketMsg(data as Record<string, unknown>);
+      }
+
+      if (convId === currentActiveId) {
+        addMessageToList(msg, currentActiveId);
+      } else {
+        // Show toast and increment unread
+        const senderName = (data.senderName as string) || msg.sender?.name || 'مستخدم';
+        const content = (data.content as string) || msg.content || '';
+        toast(`رسالة جديدة من ${senderName}`, {
+          description: content.substring(0, 60) + (content.length > 60 ? '...' : ''),
+          icon: <Bell className="h-4 w-4 text-emerald-600" />,
+          duration: 5000,
+        });
+        setLocalUnread((prev) => {
+          const next = new Map(prev);
+          next.set(convId, (next.get(convId) || 0) + 1);
+          return next;
+        });
+      }
+
+      debouncedFetchConversations();
+    } catch (err) {
+      console.error('[Socket] chat-notification handler error:', err);
+      debouncedFetchConversations();
     }
-
-    debouncedFetchConversations();
   });
 
   // ─── New conversation notification ───
@@ -1077,7 +1092,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       senderName: profile.name,
       content,
       tempId,
+      messageId: tempId,     // explicit messageId for server
       participantIds,
+      createdAt: optimisticMsg.created_at,
     });
 
     try {

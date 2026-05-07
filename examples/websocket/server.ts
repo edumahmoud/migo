@@ -129,24 +129,50 @@ io.on('connection', (socket: Socket) => {
     createdAt: string
     type?: string
     replyTo?: string
+    participantIds?: string[]
     [key: string]: unknown
   }) => {
     const { conversationId, senderId, senderName, content } = data
+    const msgId = data.messageId || data.tempId || generateMessageId()
+    const now = data.createdAt || new Date().toISOString()
+
+    // Build a proper ChatMessage-shaped object so the client
+    // can use it directly without conversion.
+    const chatMsg = {
+      id: msgId,
+      conversation_id: conversationId,
+      conversationId,               // also camelCase for convenience
+      sender_id: senderId,
+      senderId,                     // also camelCase for convenience
+      sender_name: senderName,
+      content,
+      created_at: now,
+      is_deleted: false,
+      is_edited: false,
+      sender: {
+        id: senderId,
+        name: senderName,
+      },
+    }
 
     // Broadcast to everyone in the conversation room EXCEPT the sender
-    socket.to(conversationId).emit('new-message', {
-      ...data,
-      id: data.messageId || generateMessageId(),
-    })
+    socket.to(conversationId).emit('new-message', chatMsg)
 
-    // Also send a notification to users who may not be in the room
-    io.emit('chat-notification', {
-      conversationId,
-      senderId,
-      senderName,
-      content: content.substring(0, 100),
-      createdAt: data.createdAt || new Date().toISOString(),
-    })
+    // Also send a direct notification to specific participants
+    // who may not be in the room yet (e.g. just opened the app)
+    if (data.participantIds && Array.isArray(data.participantIds)) {
+      data.participantIds.forEach((pid: string) => {
+        const user = authenticatedUsers.get(pid)
+        if (user && user.socketId !== socket.id) {
+          io.to(user.socketId).emit('chat-notification', {
+            conversationId,
+            message: chatMsg,
+            senderName,
+            content: content.substring(0, 100),
+          })
+        }
+      })
+    }
 
     console.log(`[Message] ${senderName} in ${conversationId}: ${content.substring(0, 50)}`)
   })

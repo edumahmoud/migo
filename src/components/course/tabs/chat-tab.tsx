@@ -344,111 +344,145 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   // (auto-cleanup, always uses latest handler via refs)
   // -------------------------------------------------------
 
-  // ─── New message (from room broadcast) ───
-  useSocketEvent<ChatMessage>('new-message', (msg) => {
-    const msgConvId = msg.conversationId || (msg as Record<string, unknown>).conversation_id as string;
-    const currentConvId = conversationIdRef.current;
+  // ─── Helper: normalize incoming socket message to ChatMessage shape ───
+  const normalizeSocketMsg = useCallback((raw: Record<string, unknown>): ChatMessage => {
+    const senderId = (raw.sender_id as string) || (raw.senderId as string) || '';
+    const convId = (raw.conversation_id as string) || (raw.conversationId as string) || '';
+    const createdAt = (raw.created_at as string) || (raw.createdAt as string) || new Date().toISOString();
+    const senderObj = raw.sender as ChatMessage['sender'] | undefined;
+    const senderName = (raw.sender_name as string) || (raw.senderName as string) || '';
 
-    if (msgConvId === currentConvId) {
-      setMessages((prev) => {
-        // Check if we already have this message (by ID)
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        // Check if this is the server version of our optimistic message
-        const isDuplicate = prev.some((m) =>
-          m.id.startsWith('temp-') &&
-          m.sender_id === msg.sender_id &&
-          m.content === msg.content &&
-          Date.now() - new Date(m.created_at).getTime() < 10000
-        );
-        if (isDuplicate) {
-          // Replace the optimistic message with the server one
-          return prev.map((m) =>
-            m.id.startsWith('temp-') && m.sender_id === msg.sender_id && m.content === msg.content
-              ? msg
-              : m
-          ).sort(
+    return {
+      id: (raw.id as string) || '',
+      sender_id: senderId,
+      content: (raw.content as string) || '',
+      created_at: createdAt,
+      is_deleted: (raw.is_deleted as boolean) ?? false,
+      is_edited: (raw.is_edited as boolean) ?? false,
+      edited_at: (raw.edited_at as string) || undefined,
+      sender: senderObj || (senderName ? { id: senderId, name: senderName } : null),
+      conversation_id: convId,
+      conversationId: convId,
+    } as ChatMessage;
+  }, []);
+
+  // ─── New message (from room broadcast) ───
+  useSocketEvent<Record<string, unknown>>('new-message', (rawMsg) => {
+    try {
+      const msg = normalizeSocketMsg(rawMsg);
+      const msgConvId = msg.conversation_id || msg.conversationId;
+      const currentConvId = conversationIdRef.current;
+
+      if (msgConvId === currentConvId) {
+        setMessages((prev) => {
+          // Check if we already have this message (by ID)
+          if (prev.some((m) => m.id === msg.id && !m.id.startsWith('temp-'))) return prev;
+          // Check if this is the server version of our optimistic message
+          const isDuplicate = prev.some((m) =>
+            m.id.startsWith('temp-') &&
+            m.sender_id === msg.sender_id &&
+            m.content === msg.content &&
+            Date.now() - new Date(m.created_at).getTime() < 10000
+          );
+          if (isDuplicate) {
+            return prev.map((m) =>
+              m.id.startsWith('temp-') && m.sender_id === msg.sender_id && m.content === msg.content
+                ? msg
+                : m
+            ).sort(
+              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+          }
+          const isContentDuplicate = prev.some((m) =>
+            m.id !== msg.id &&
+            m.sender_id === msg.sender_id &&
+            m.content === msg.content &&
+            Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 10000
+          );
+          if (isContentDuplicate) return prev;
+          return [...prev, msg].sort(
             (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           );
+        });
+        // Auto mark-as-read since we're viewing this conversation
+        if (msg.sender_id !== profile.id && currentConvId) {
+          fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'mark-read', conversationId: currentConvId, userId: profile.id }),
+          }).catch(() => {});
         }
-        // Also check for duplicate content from same sender within 10 seconds
-        // (handles case where optimistic msg was already replaced by API response)
-        const isContentDuplicate = prev.some((m) =>
-          m.id !== msg.id &&
-          m.sender_id === msg.sender_id &&
-          m.content === msg.content &&
-          Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 10000
-        );
-        if (isContentDuplicate) return prev;
-        return [...prev, msg].sort(
-          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
-      });
-      // Auto mark-as-read since we're viewing this conversation
-      if (msg.sender_id !== profile.id && currentConvId) {
-        fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'mark-read', conversationId: currentConvId, userId: profile.id }),
-        }).catch(() => {});
       }
+    } catch (err) {
+      console.error('[Socket] new-message handler error (chat-tab):', err);
     }
   });
 
   // ─── Chat notification (direct delivery fallback) ───
-  useSocketEvent<{
-    conversationId: string;
-    message: ChatMessage;
-    senderName: string;
-    content: string;
-  }>('chat-notification', (data) => {
-    const currentConvId = conversationIdRef.current;
-    if (data.conversationId === currentConvId) {
-      setMessages((prev) => {
-        // Check if we already have this message (by ID)
-        if (prev.some((m) => m.id === data.message.id)) return prev;
-        // Check if this is the server version of our optimistic message
-        const isDuplicate = prev.some((m) =>
-          m.id.startsWith('temp-') &&
-          m.sender_id === data.message.sender_id &&
-          m.content === data.message.content &&
-          Date.now() - new Date(m.created_at).getTime() < 10000
-        );
-        if (isDuplicate) {
-          return prev.map((m) =>
-            m.id.startsWith('temp-') && m.sender_id === data.message.sender_id && m.content === data.message.content
-              ? data.message
-              : m
-          ).sort(
+  useSocketEvent<Record<string, unknown>>('chat-notification', (data) => {
+    try {
+      const currentConvId = conversationIdRef.current;
+      const convId = (data.conversationId as string) || (data.conversation_id as string) || '';
+
+      // Build a ChatMessage from either data.message or the top-level fields
+      let msg: ChatMessage;
+      if (data.message && typeof data.message === 'object') {
+        msg = normalizeSocketMsg(data.message as Record<string, unknown>);
+      } else {
+        msg = normalizeSocketMsg(data as Record<string, unknown>);
+      }
+
+      if (convId === currentConvId) {
+        setMessages((prev) => {
+          // Check if we already have this message (by ID)
+          if (prev.some((m) => m.id === msg.id && !m.id.startsWith('temp-'))) return prev;
+          // Check if this is the server version of our optimistic message
+          const isDuplicate = prev.some((m) =>
+            m.id.startsWith('temp-') &&
+            m.sender_id === msg.sender_id &&
+            m.content === msg.content &&
+            Date.now() - new Date(m.created_at).getTime() < 10000
+          );
+          if (isDuplicate) {
+            return prev.map((m) =>
+              m.id.startsWith('temp-') && m.sender_id === msg.sender_id && m.content === msg.content
+                ? msg
+                : m
+            ).sort(
+              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            );
+          }
+          const isContentDuplicate = prev.some((m) =>
+            m.id !== msg.id &&
+            m.sender_id === msg.sender_id &&
+            m.content === msg.content &&
+            Math.abs(new Date(m.created_at).getTime() - new Date(msg.created_at).getTime()) < 10000
+          );
+          if (isContentDuplicate) return prev;
+          return [...prev, msg].sort(
             (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           );
+        });
+        // Auto mark-as-read since we're viewing this conversation
+        if (msg.sender_id !== profile.id && currentConvId) {
+          fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'mark-read', conversationId: currentConvId, userId: profile.id }),
+          }).catch(() => {});
         }
-        // Also check for duplicate content from same sender within 10 seconds
-        const isContentDuplicate = prev.some((m) =>
-          m.id !== data.message.id &&
-          m.sender_id === data.message.sender_id &&
-          m.content === data.message.content &&
-          Math.abs(new Date(m.created_at).getTime() - new Date(data.message.created_at).getTime()) < 10000
-        );
-        if (isContentDuplicate) return prev;
-        return [...prev, data.message].sort(
-          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
-      });
-      // Auto mark-as-read since we're viewing this conversation
-      if (data.message.sender_id !== profile.id && currentConvId) {
-        fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'mark-read', conversationId: currentConvId, userId: profile.id }),
-        }).catch(() => {});
+      } else {
+        // Show toast notification for messages in other conversations
+        const senderName = (data.senderName as string) || msg.sender?.name || 'مستخدم';
+        const content = (data.content as string) || msg.content || '';
+        toast(`رسالة جديدة من ${senderName}`, {
+          description: content.substring(0, 60) + (content.length > 60 ? '...' : ''),
+          icon: <Bell className="h-4 w-4 text-emerald-600" />,
+          duration: 5000,
+        });
       }
-    } else {
-      // Show toast notification for messages in other conversations
-      toast(`رسالة جديدة من ${data.senderName}`, {
-        description: data.content.substring(0, 60) + (data.content.length > 60 ? '...' : ''),
-        icon: <Bell className="h-4 w-4 text-emerald-600" />,
-        duration: 5000,
-      });
+    } catch (err) {
+      console.error('[Socket] chat-notification handler error (chat-tab):', err);
     }
   });
 
@@ -634,7 +668,9 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       senderName: profile.name,
       content,
       tempId,
+      messageId: tempId,     // explicit messageId for server
       participantIds,
+      createdAt: optimisticMsg.created_at,
     });
 
     // Save to database
