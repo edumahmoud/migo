@@ -7,6 +7,18 @@ export const runtime = 'nodejs';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
 
+// Lazy-loaded Groq client for detailed evaluation
+let _groqClient: import('groq-sdk').default | null = null;
+function getGroqClient() {
+  if (_groqClient) return _groqClient;
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Groq = require('groq-sdk').default;
+  _groqClient = new Groq({ apiKey });
+  return _groqClient;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Content-Type and size validation
@@ -28,7 +40,7 @@ export async function POST(request: NextRequest) {
     if (!authResult.success) return authErrorResponse(authResult);
 
     const body = await request.json();
-    const { question, correctAnswer, studentAnswer } = body;
+    const { question, correctAnswer, studentAnswer, detailed } = body;
 
     if (!question || !correctAnswer || !studentAnswer) {
       return NextResponse.json(
@@ -56,7 +68,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Evaluate using AI (Groq) with timeout
+    // First check exact match (case-insensitive)
+    if (sanitizedStudentAnswer.toLowerCase().trim() === sanitizedCorrectAnswer.toLowerCase().trim()) {
+      return NextResponse.json(
+        {
+          success: true,
+          data: detailed
+            ? { isCorrect: true, reasoning: 'الإجابة مطابقة تماماً للإجابة الصحيحة' }
+            : { isCorrect: true }
+        },
+        { headers: rateLimitHeaders }
+      );
+    }
+
+    // ─── Detailed mode: returns isCorrect + reasoning (for teacher AI grading) ───
+    if (detailed) {
+      const client = getGroqClient();
+      if (!client) {
+        // Fallback to standard mode if Groq is not configured
+        const isCorrect = await evaluateCompletionAnswer(sanitizedQuestion, sanitizedCorrectAnswer, sanitizedStudentAnswer);
+        return NextResponse.json(
+          { success: true, data: { isCorrect, reasoning: isCorrect ? 'الذكاء الاصطناعي يرى أن الإجابة صحيحة معنوياً' : 'الذكاء الاصطناعي يرى أن الإجابة غير صحيحة' } },
+          { headers: rateLimitHeaders }
+        );
+      }
+
+      const evalPromise = (async () => {
+        const result = await client.chat.completions.create({
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: 'أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية، وتقدم تبريراً موجزاً لإجابتك. يجب أن يكون ردك بتنسيق JSON فقط: {"isCorrect": true/false, "reasoning": "تبرير موجز باللغة العربية"}' },
+            { role: 'user', content: `السؤال: ${sanitizedQuestion}\nالإجابة النموذجية: ${sanitizedCorrectAnswer}\nإجابة الطالب: ${sanitizedStudentAnswer}\n\nهل إجابة الطالب صحيحة معنوياً؟ قدم تبريراً موجزاً.` },
+          ],
+          temperature: 0.1,
+          max_tokens: 256,
+        });
+
+        const text = result.choices[0]?.message?.content || '';
+        try {
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            return {
+              isCorrect: !!parsed.isCorrect,
+              reasoning: String(parsed.reasoning || ''),
+            };
+          }
+        } catch {
+          // Fallback: check if text contains true/false
+        }
+        return {
+          isCorrect: text.trim().toLowerCase().includes('true'),
+          reasoning: '',
+        };
+      })();
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('انتهت مهلة التقييم')), 30000)
+      );
+
+      const result = await Promise.race([evalPromise, timeoutPromise]);
+
+      return NextResponse.json(
+        { success: true, data: result },
+        { headers: rateLimitHeaders }
+      );
+    }
+
+    // ─── Standard mode: returns isCorrect only (for student quiz evaluation) ───
     const evalPromise = evaluateCompletionAnswer(
       sanitizedQuestion,
       sanitizedCorrectAnswer,

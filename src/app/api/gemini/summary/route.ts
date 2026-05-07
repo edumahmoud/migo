@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateSummary, isAiError, type AiProviderError } from '@/lib/ai';
+import { generateSummary, refineTranscribedText, isAiError, type AiProviderError } from '@/lib/ai';
 
 // IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
 // The AI call timeout (45s) + auth/validation (~3-5s) must fit within this.
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
       if (errMsg === 'db_save_timeout') {
         console.warn('[Summary API] DB save timed out after', dbTimeoutMs, 'ms — returning without ID');
         // Fire the save in background so it still completes
-        supabaseServer
+        void supabaseServer
           .from('summaries')
           .insert({ user_id: userId, title, original_content: rawContent, summary_content: summary, subject_id: subjectId })
           .select()
@@ -146,8 +146,7 @@ export async function POST(request: NextRequest) {
           .then(({ data, error }) => {
             if (error) console.error('[Summary API] Background save failed:', error.message);
             else console.log('[Summary API] Background save succeeded, id:', data?.id);
-          })
-          .catch((err: unknown) => console.error('[Summary API] Background save error:', err));
+          });
       } else {
         console.error('[Summary API] DB save error:', errMsg);
       }
@@ -198,5 +197,131 @@ export async function POST(request: NextRequest) {
       { success: false, error: 'حدث خطأ غير متوقع أثناء إنشاء الملخص. يرجى المحاولة مرة أخرى' },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * PUT /api/gemini/summary
+ *
+ * Refine/format transcribed (extracted) text.
+ * Used when the user has raw OCR-extracted text that needs cleanup,
+ * formatting, and error correction — NOT summarization.
+ *
+ * Request body: { summaryId: string }
+ *
+ * This endpoint:
+ * 1. Fetches the summary by ID (verifies ownership)
+ * 2. Uses the original_content as input for refinement
+ * 3. Updates summary_content in the database with the refined text
+ * 4. Returns the updated summary
+ */
+export async function PUT(request: NextRequest) {
+  const requestStartTime = Date.now();
+
+  try {
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
+
+    // Rate limiting
+    const rateLimit = checkRateLimit(request, authResult.user.id);
+    const rateLimitHeaders = getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'طلبات كثيرة جداً. يرجى المحاولة لاحقاً' },
+        { status: 429, headers: rateLimitHeaders }
+      );
+    }
+
+    const body = await request.json();
+    const { summaryId } = body;
+
+    if (!summaryId) {
+      return NextResponse.json(
+        { success: false, error: 'معرف الملخص مطلوب' },
+        { status: 400 }
+      );
+    }
+
+    // Verify ownership
+    const { data: existing, error: fetchError } = await supabaseServer
+      .from('summaries')
+      .select('id, user_id, original_content, summary_content, title')
+      .eq('id', summaryId)
+      .single();
+
+    if (fetchError || !existing) {
+      return NextResponse.json(
+        { success: false, error: 'الملخص غير موجود' },
+        { status: 404 }
+      );
+    }
+
+    if (existing.user_id !== authResult.user.id) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح بتعديل هذا الملخص' },
+        { status: 403 }
+      );
+    }
+
+    const originalContent = sanitizeString(existing.original_content, 50000);
+    if (!originalContent || originalContent.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'المحتوى الأصلي فارغ، لا يمكن التنقيح' },
+        { status: 400 }
+      );
+    }
+
+    // Refine the transcribed text using AI
+    console.log('[Summary API] Refining transcribed text for:', summaryId, 'content length:', originalContent.length);
+    const refinedText = await refineTranscribedText(originalContent);
+
+    const aiTime = Date.now() - requestStartTime;
+    console.log('[Summary API] Refinement completed, length:', refinedText.length, 'total time:', aiTime + 'ms');
+
+    // Update the summary_content in the database
+    const { data: updated, error: updateError } = await supabaseServer
+      .from('summaries')
+      .update({ summary_content: refinedText })
+      .eq('id', summaryId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('[Summary API] Refinement update error:', updateError.message);
+      return NextResponse.json(
+        { success: false, error: 'فشل تحديث المحتوى المنقّح' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: updated,
+    }, { headers: rateLimitHeaders });
+  } catch (error: unknown) {
+    console.error('[Summary API] PUT (refine) error:', error);
+
+    if (isAiError(error)) {
+      const statusMap: Record<string, number> = {
+        'RATE_LIMIT': 429,
+        'AUTH_ERROR': 503,
+        'TIMEOUT': 504,
+        'NOT_CONFIGURED': 503,
+        'MODEL_ERROR': 503,
+        'CONNECTION_ERROR': 504,
+        'EMPTY_RESPONSE': 502,
+        'UNKNOWN': 500,
+      };
+      const status = statusMap[error.code] || 500;
+      console.error('[Summary API] AiProviderError:', error.code, error.provider, error.userMessage);
+      return NextResponse.json(
+        { success: false, error: error.userMessage },
+        { status }
+      );
+    }
+
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('[Summary API] Unhandled refine error:', errMsg);
+    return safeErrorResponse('حدث خطأ أثناء تنقيح النص');
   }
 }

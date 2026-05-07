@@ -52,8 +52,9 @@ function dbToNotification(db: DBNotification): Notification {
   };
 }
 
-// Polling interval for notification fallback (milliseconds)
-const NOTIFICATION_REFETCH_INTERVAL = 15000; // 15 seconds
+// Polling intervals for notification fallback (milliseconds)
+const NOTIFICATION_REFETCH_INTERVAL_INITIAL = 10000; // 10 seconds for the first minute
+const NOTIFICATION_REFETCH_INTERVAL = 30000; // 30 seconds after the first minute
 
 /** Check if a Supabase error is caused by RLS infinite recursion (42P17) */
 function isRLSRecursionError(error: { code?: string; message?: string } | null | undefined): boolean {
@@ -93,10 +94,26 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         return;
       }
 
-      const notifications = (data || []).map(dbToNotification);
-      const unreadCount = notifications.filter((n) => !n.read).length;
+      const dbNotifications = (data || []).map(dbToNotification);
 
-      set({ notifications, unreadCount });
+      // Merge intelligently instead of blindly replacing:
+      // - Keep local-only notifications (ids starting with 'notif-')
+      // - Only add DB notifications that aren't already in the list
+      set((state) => {
+        const existingIds = new Set(state.notifications.map((n) => n.id));
+        const localOnly = state.notifications.filter((n) => n.id.startsWith('notif-'));
+
+        // Add DB notifications not already present
+        const newFromDb = dbNotifications.filter((n) => !existingIds.has(n.id));
+
+        // Merge: local-only notifications first (most recent), then DB notifications
+        const merged = [...localOnly, ...dbNotifications]
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, 100);
+
+        const unreadCount = merged.filter((n) => !n.read).length;
+        return { notifications: merged, unreadCount };
+      });
     } catch (err) {
       // Silently ignore refetch errors - they're non-critical and the polling will retry
     }
@@ -240,9 +257,23 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .subscribe();
 
       // 4. Set up polling fallback for when real-time subscription doesn't deliver
+      // Use a faster interval (10s) for the first minute, then switch to 30s
+      const initStartTime = Date.now();
       const refetchTimer = setInterval(() => {
         get().refetchNotifications();
-      }, NOTIFICATION_REFETCH_INTERVAL);
+        // After the first minute, reduce polling frequency
+        if (Date.now() - initStartTime > 60000 && refetchTimer) {
+          clearInterval(refetchTimer);
+          const newTimer = setInterval(() => {
+            get().refetchNotifications();
+          }, NOTIFICATION_REFETCH_INTERVAL);
+          // Update the timer reference in the store
+          set({ refetchTimer: newTimer });
+        }
+      }, NOTIFICATION_REFETCH_INTERVAL_INITIAL);
+
+      // 5. Immediately fetch to catch any notifications that arrived before the subscription was active
+      get().refetchNotifications();
 
       set({
         notifications,
@@ -295,10 +326,23 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       createdAt: new Date().toISOString(),
     };
 
-    set((state) => ({
-      notifications: [newNotification, ...state.notifications].slice(0, 100),
-      unreadCount: state.unreadCount + 1,
-    }));
+    set((state) => {
+      // Dedup: check if a notification with the same title+message+type was added within the last 5 seconds
+      const now = Date.now();
+      const isDuplicate = state.notifications.some(
+        (n) =>
+          n.title === notification.title &&
+          n.message === notification.message &&
+          n.type === notification.type &&
+          now - new Date(n.createdAt).getTime() < 5000
+      );
+      if (isDuplicate) return state;
+
+      return {
+        notifications: [newNotification, ...state.notifications].slice(0, 100),
+        unreadCount: state.unreadCount + 1,
+      };
+    });
   },
 
   markAsRead: (id) => {

@@ -27,10 +27,12 @@ import {
   BookMarked,
   Unlink,
   Folder,
+  FolderOpen,
   TrendingUp,
   XCircle,
   AlertTriangle,
   ListChecks,
+  File,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession as waitForSessionShared } from '@/lib/client-auth';
@@ -48,8 +50,9 @@ import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
-import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject } from '@/lib/types';
-import { extractPdfTextClient } from '@/lib/pdf-client';
+import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile } from '@/lib/types';
+import { extractPdfTextClient, extractTextFromFile } from '@/lib/pdf-client';
+import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import SummaryView from '@/components/shared/summary-view';
@@ -60,7 +63,7 @@ import SummaryView from '@/components/shared/summary-view';
 interface PendingSummary {
   id: string;
   title: string;
-  mode: 'text' | 'file' | 'transcribe';
+  mode: 'text' | 'file' | 'transcribe' | 'existing';
   status: 'extracting' | 'summarizing' | 'saving' | 'cancelled';
   startedAt: number;
   abortController: AbortController;
@@ -195,12 +198,20 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── New summary modal ───
   const [newSummaryOpen, setNewSummaryOpen] = useState(false);
   const [summaryTitle, setSummaryTitle] = useState('');
-  const [summaryInputMode, setSummaryInputMode] = useState<'text' | 'file' | 'transcribe'>('text');
+  const [summaryInputMode, setSummaryInputMode] = useState<'text' | 'file' | 'transcribe' | 'existing'>('text');
   const [summaryText, setSummaryText] = useState('');
   const [summaryFile, setSummaryFile] = useState<File | null>(null);
   const [creatingSummary, setCreatingSummary] = useState(false);
   const [summaryStep, setSummaryStep] = useState<'input' | 'processing'>('input');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Mobile detection ───
+  const isMobile = useIsMobile();
+
+  // ─── Existing files state (for 'existing' mode) ───
+  const [existingFiles, setExistingFiles] = useState<UserFile[]>([]);
+  const [selectedExistingFile, setSelectedExistingFile] = useState<UserFile | null>(null);
+  const [loadingExistingFiles, setLoadingExistingFiles] = useState(false);
 
   // ─── Link teacher modal ───
   const [linkTeacherOpen, setLinkTeacherOpen] = useState(false);
@@ -932,7 +943,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
     } else if (summaryInputMode === 'file' || summaryInputMode === 'transcribe') {
       if (!summaryFile) {
-        toast.error('يرجى اختيار ملف PDF');
+        toast.error('يرجى اختيار ملف PDF أو Word');
+        return;
+      }
+    } else if (summaryInputMode === 'existing') {
+      if (!selectedExistingFile) {
+        toast.error('يرجى اختيار ملف من ملفاتك');
         return;
       }
     }
@@ -975,6 +991,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
     }
 
+    // ─── For 'existing' mode, capture the selected file info ───
+    const capturedExistingFile = inputMode === 'existing' ? selectedExistingFile : null;
+
     // Create a pending summary tracker with AbortController for cancellation
     const pendingId = `pending-${Date.now()}`;
     const abortController = new AbortController();
@@ -1005,12 +1024,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setNewSummaryOpen(false);
     setSummaryStep('input');
     setCreatingSummary(false);
+    setSelectedExistingFile(null);
 
     toast.info(inputMode === 'transcribe'
       ? 'جاري استخراج النص من الملف في الخلفية...'
-      : inputMode === 'file'
-        ? 'جاري استخراج النص وتوليد الملخص في الخلفية...'
-        : 'جاري توليد الملخص في الخلفية...'
+      : inputMode === 'existing'
+        ? 'جاري استخراج النص من الملف المحدد في الخلفية...'
+        : inputMode === 'file'
+          ? 'جاري استخراج النص وتوليد الملخص في الخلفية...'
+          : 'جاري توليد الملخص في الخلفية...'
     );
 
     // Run the rest in the background (no await — fire and track)
@@ -1046,11 +1068,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         let summaryContent = '';
         let savedSummaryId = '';
 
-        // Step 1: Get content (text or extract from PDF)
+        // Step 1: Get content (text or extract from PDF/DOCX)
         if ((inputMode === 'file' || inputMode === 'transcribe') && (preReadFileData || capturedFile)) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
-          // ─── PDF EXTRACTION STRATEGY (FIXED) ───
+          // ─── PDF/DOCX EXTRACTION STRATEGY (FIXED) ───
           // On MOBILE: Client-side extraction FIRST using preReadFileData.
           // The file data is already in memory as an ArrayBuffer, so client-side
           // extraction is fast and reliable. Worker is disabled on mobile.
@@ -1070,11 +1092,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           //   - Worker is disabled on mobile (fake worker mode)
           {
             const pdfSource = preReadFileData || capturedFile!;
-            console.log('[Summary] Trying CLIENT-SIDE PDF extraction first', isMobile ? '(mobile mode, worker disabled)' : '(desktop mode)');
+            console.log('[Summary] Trying CLIENT-SIDE extraction first', isMobile ? '(mobile mode)' : '(desktop mode)', 'file:', capturedFile?.name);
 
             // Race the extraction against a 30-second timeout to prevent indefinite hangs
             const extractionTimeoutMs = 30000;
-            const extractionPromise = extractPdfTextClient(pdfSource);
+            const extractionPromise = extractTextFromFile(pdfSource, capturedFile?.name);
             const timeoutPromise = new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
             );
@@ -1082,11 +1104,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             try {
               const pdfResult = await Promise.race([extractionPromise, timeoutPromise]);
               originalContent = pdfResult.text;
-              console.log('[Summary] Client-side PDF extraction succeeded, length:', originalContent.length, 'pages:', pdfResult.pages);
+              console.log('[Summary] Client-side extraction succeeded, length:', originalContent.length, 'pages:', pdfResult.pages);
               extractionSucceeded = true;
             } catch (pdfErr) {
               const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
-              console.warn('[Summary] Client-side PDF extraction failed:', errMsg, '— trying server-side fallback');
+              console.warn('[Summary] Client-side extraction failed:', errMsg, '— trying server-side fallback');
             }
           }
 
@@ -1209,6 +1231,72 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
               console.warn('[Summary] Server did not save summary immediately (background save in progress). Waiting for Realtime/polling to pick it up.');
             }
+          }
+        } else if (inputMode === 'existing' && capturedExistingFile) {
+          // ─── Existing file mode: Fetch file from URL and extract text ───
+          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
+
+          let extractionSucceeded = false;
+
+          try {
+            // Fetch the file from its storage URL
+            const fileRes = await fetch(capturedExistingFile.file_url, { signal: abortController.signal });
+            if (!fileRes.ok) {
+              throw new Error('فشل في تحميل الملف من التخزين');
+            }
+            const arrayBuffer = await fileRes.arrayBuffer();
+            console.log('[Summary] Fetched existing file, size:', arrayBuffer.byteLength, 'bytes, name:', capturedExistingFile.file_name);
+
+            // Extract text using the appropriate extractor
+            const extractionTimeoutMs = 30000;
+            const extractionPromise = extractTextFromFile(arrayBuffer, capturedExistingFile.file_name);
+            const timeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
+            );
+
+            const result = await Promise.race([extractionPromise, timeoutPromise]);
+            originalContent = result.text;
+            console.log('[Summary] Existing file extraction succeeded, length:', originalContent.length);
+            extractionSucceeded = true;
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            console.error('[Summary] Existing file extraction failed:', errMsg);
+          }
+
+          if (!extractionSucceeded) {
+            throw new Error('فشل في استخراج النص من الملف. يرجى المحاولة مرة أخرى');
+          }
+
+          if (!originalContent.trim()) {
+            throw new Error('لم يتم العثور على نص في الملف. تأكد أن الملف ليس ممسوحاً ضوئياً');
+          }
+
+          // Determine if this should be transcribe-only or summarized based on the parent mode
+          // For 'existing' mode, we default to summarizing (like 'file' mode)
+          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
+
+          console.log('[Summary] Sending existing file text to API, length:', originalContent.length);
+          const summaryRes = await fetch('/api/gemini/summary', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null }),
+            signal: abortController.signal,
+          });
+
+          const summaryData = await summaryRes.json();
+
+          if (!summaryRes.ok || !summaryData.success) {
+            throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
+          }
+
+          summaryContent = summaryData.data?.summary || '';
+          savedSummaryId = summaryData.data?.summaryId || '';
+
+          if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
+            console.warn('[Summary] Server did not save summary immediately (background save in progress).');
           }
         } else {
           // Text mode
@@ -1474,7 +1562,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${quizToken}`,
         },
         body: JSON.stringify({ content, questionTypes: quizConfigTypes }),
       });
@@ -1490,7 +1578,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${quizToken}`,
         },
         body: JSON.stringify({
           title: `اختبار: ${quizConfigSummaryTitle}`,
@@ -2368,34 +2456,88 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       <Type className="h-4 w-4" />
                       لصق نص
                     </button>
-                    <button
-                      onClick={() => setSummaryInputMode('file')}
+                    {/* File upload mode - hidden on mobile */}
+                    {!isMobile && (
+                      <button
+                        onClick={() => setSummaryInputMode('file')}
 
-                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
-                        summaryInputMode === 'file'
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                          : 'border-border text-muted-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      <Upload className="h-4 w-4" />
-                      رفع ملف + تلخيص
-                    </button>
-                    <button
-                      onClick={() => setSummaryInputMode('transcribe')}
+                        className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                          summaryInputMode === 'file'
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : 'border-border text-muted-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        <Upload className="h-4 w-4" />
+                        رفع ملف + تلخيص
+                      </button>
+                    )}
+                    {/* Transcribe mode - hidden on mobile */}
+                    {!isMobile && (
+                      <button
+                        onClick={() => setSummaryInputMode('transcribe')}
 
-                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
-                        summaryInputMode === 'transcribe'
-                          ? 'border-teal-500 bg-teal-50 text-teal-700'
-                          : 'border-border text-muted-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      <BookOpen className="h-4 w-4" />
-                      تفريغ فقط
-                    </button>
+                        className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                          summaryInputMode === 'transcribe'
+                            ? 'border-teal-500 bg-teal-50 text-teal-700'
+                            : 'border-border text-muted-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        <BookOpen className="h-4 w-4" />
+                        تفريغ فقط
+                      </button>
+                    )}
+                    {/* Existing files mode - hidden on mobile */}
+                    {!isMobile && (
+                      <button
+                        onClick={() => {
+                          setSummaryInputMode('existing');
+                          // Fetch user's document files
+                          if (existingFiles.length === 0) {
+                            setLoadingExistingFiles(true);
+                            supabase
+                              .from('user_files')
+                              .select('*')
+                              .eq('user_id', profile.id)
+                              .order('created_at', { ascending: false })
+                              .then(({ data, error }) => {
+                                if (!error && data) {
+                                  // Filter to only document files (PDF, Word, text)
+                                  const docFiles = (data as UserFile[]).filter(f =>
+                                    /\.(pdf|docx?|txt|rtf)$/i.test(f.file_name)
+                                  );
+                                  setExistingFiles(docFiles);
+                                }
+                                setLoadingExistingFiles(false);
+                              });
+                          }
+                        }}
+
+                        className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                          summaryInputMode === 'existing'
+                            ? 'border-violet-500 bg-violet-50 text-violet-700'
+                            : 'border-border text-muted-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                        ملفاتي
+                      </button>
+                    )}
                   </div>
+                  {/* Mobile: show message if user tries file/transcribe features */}
+                  {isMobile && (
+                    <p className="text-xs text-amber-600/80 mt-2 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      هذه المميزات تعمل عند استخدام الحاسوب
+                    </p>
+                  )}
                   {summaryInputMode === 'transcribe' && (
                     <p className="text-xs text-teal-600/80 mt-2">
-                      سيتم استخراج النص من ملف PDF فقط دون تلخيص
+                      سيتم استخراج النص من ملف PDF أو Word فقط دون تلخيص
+                    </p>
+                  )}
+                  {summaryInputMode === 'existing' && (
+                    <p className="text-xs text-violet-600/80 mt-2">
+                      اختر ملفاً من ملفاتك المرفوعة مسبقاً لتلخيصه
                     </p>
                   )}
                 </div>
@@ -2422,7 +2564,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {(summaryInputMode === 'file' || summaryInputMode === 'transcribe') && (
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">
-                      ملف PDF
+                      ملف PDF أو Word
                     </label>
                     <p className="text-xs text-muted-foreground/70 mb-2">
                       {summaryInputMode === 'transcribe'
@@ -2433,7 +2575,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".pdf"
+                      accept=".pdf,.docx,.doc"
                       onChange={(e) => setSummaryFile(e.target.files?.[0] || null)}
                       className="hidden"
 
@@ -2458,11 +2600,73 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       ) : (
                         <>
                           <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-emerald-400'}`} />
-                          <span className="text-sm text-muted-foreground">اضغط لاختيار ملف PDF</span>
+                          <span className="text-sm text-muted-foreground">اضغط لاختيار ملف PDF أو Word</span>
                           <span className="text-xs text-muted-foreground/60">الحد الأقصى 10 MB</span>
                         </>
                       )}
                     </button>
+                  </div>
+                )}
+
+                {/* Existing files selection - shown for 'existing' mode */}
+                {summaryInputMode === 'existing' && (
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">
+                      اختر ملفاً من ملفاتك
+                    </label>
+                    {loadingExistingFiles ? (
+                      <div className="flex items-center justify-center py-8 gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+                        <span className="text-sm text-muted-foreground">جاري تحميل الملفات...</span>
+                      </div>
+                    ) : existingFiles.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-lg border-2 border-dashed border-violet-300 bg-violet-50/30">
+                        <FolderOpen className="h-8 w-8 text-violet-400" />
+                        <span className="text-sm text-muted-foreground">لا توجد ملفات مستندية مرفوعة</span>
+                        <span className="text-xs text-muted-foreground/60">ارفع ملفات PDF أو Word من قسم الملفات</span>
+                      </div>
+                    ) : (
+                      <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2">
+                        {existingFiles.map((file) => {
+                          const isPdf = /\.pdf$/i.test(file.file_name);
+                          const isDocx = /\.docx?$/i.test(file.file_name);
+                          return (
+                            <button
+                              key={file.id}
+                              onClick={() => setSelectedExistingFile(file)}
+                              className={`flex items-center gap-3 w-full rounded-lg border p-3 text-right transition-all ${
+                                selectedExistingFile?.id === file.id
+                                  ? 'border-violet-500 bg-violet-50'
+                                  : 'border-border hover:bg-muted/50'
+                              }`}
+                            >
+                              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                                isPdf ? 'bg-rose-100' : 'bg-blue-100'
+                              }`}>
+                                {isPdf ? (
+                                  <FileText className="h-4 w-4 text-rose-600" />
+                                ) : (
+                                  <File className="h-4 w-4 text-blue-600" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
+                                <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                  <span>{isPdf ? 'PDF' : isDocx ? 'Word' : 'مستند'}</span>
+                                  <span className="text-muted-foreground/40">•</span>
+                                  <span>{(file.file_size / 1024).toFixed(0)} KB</span>
+                                  <span className="text-muted-foreground/40">•</span>
+                                  <span>{formatDate(file.created_at)}</span>
+                                </div>
+                              </div>
+                              {selectedExistingFile?.id === file.id && (
+                                <CheckCircle2 className="h-4 w-4 text-violet-600 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2473,13 +2677,20 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="flex items-center gap-3 border-t p-5">
                 <button
                   onClick={handleCreateSummary}
-                  className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors ${
-                    summaryInputMode === 'transcribe' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                  disabled={creatingSummary || (summaryInputMode === 'existing' && !selectedExistingFile)}
+                  className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    summaryInputMode === 'transcribe' ? 'bg-teal-600 hover:bg-teal-700' :
+                    summaryInputMode === 'existing' ? 'bg-violet-600 hover:bg-violet-700' :
+                    'bg-emerald-600 hover:bg-emerald-700'
                   }`}
                 >
                   <>
-                    {summaryInputMode === 'transcribe' ? <BookOpen className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                    {summaryInputMode === 'transcribe' ? 'تفريغ النص' : 'إنشاء الملخص'}
+                    {summaryInputMode === 'transcribe' ? <BookOpen className="h-4 w-4" /> :
+                     summaryInputMode === 'existing' ? <FolderOpen className="h-4 w-4" /> :
+                     <CheckCircle2 className="h-4 w-4" />}
+                    {summaryInputMode === 'transcribe' ? 'تفريغ النص' :
+                     summaryInputMode === 'existing' ? 'تلخيص الملف' :
+                     'إنشاء الملخص'}
                   </>
                 </button>
                 <button
@@ -3421,7 +3632,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         userId={profile.id}
         userRole="student"
         userGender={profile.gender}
-        avatarUrl={profile.avatar_url}
+        avatarUrl={profile.avatar_url ?? undefined}
         onSignOut={onSignOut}
         onOpenSettings={() => handleSectionChange('settings')}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}

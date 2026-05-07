@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSharedSocket, useSocketEvent } from '@/lib/socket';
+import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, type TypingPresenceState, isSocketGivenUp } from '@/lib/socket';
 import {
   MessageCircle,
   ArrowUp,
@@ -207,6 +207,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const typingPresenceRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const typingPresencePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messageMenuRef = useRef<HTMLDivElement>(null);
   const activeConvIdRef = useRef<string | null>(null);
   const conversationsRef = useRef<Conversation[]>([]);
@@ -479,15 +481,16 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
     // ─── Polling: lightweight backup for reliability ───
     // In ALL modes: poll conversations periodically to catch new conversations
-    // In Realtime mode: poll messages every 10 seconds as backup
-    // In Socket.IO mode: poll messages every 15 seconds as backup  
+    // When there's an active conversation: poll messages every 5 seconds for faster delivery
+    // In Realtime mode: poll messages every 5 seconds as backup
+    // In Socket.IO mode: poll messages every 10 seconds as backup  
     // When disconnected: poll messages every 5 seconds
     if (!isConnected) {
       pollingRef.current = setInterval(pollMessages, 5000);
     } else if (isRealtimeMode) {
-      backupPollingRef.current = setInterval(pollMessages, 10000);
+      backupPollingRef.current = setInterval(pollMessages, 5000);
     } else {
-      backupPollingRef.current = setInterval(pollMessages, 15000);
+      backupPollingRef.current = setInterval(pollMessages, 10000);
     }
 
     // ALWAYS poll conversations — this catches new conversations, unread changes, etc.
@@ -498,6 +501,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       if (pollingRef.current) clearInterval(pollingRef.current);
       if (backupPollingRef.current) clearInterval(backupPollingRef.current);
       if (convPollingRef.current) clearInterval(convPollingRef.current);
+      if (typingPresencePollRef.current) clearInterval(typingPresencePollRef.current);
       if (realtimeChannelRef.current) {
         try {
           supabase.removeChannel(realtimeChannelRef.current);
@@ -812,6 +816,34 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     // Join room
     joinRoom(convId);
 
+    // Join Supabase Presence channel for typing indicators (fallback when Socket.IO unavailable)
+    const presenceChannel = joinTypingPresence(convId, profile.id, profile.name);
+    typingPresenceRef.current = presenceChannel;
+
+    // Poll presence state for typing indicators (when in Realtime mode)
+    if (typingPresencePollRef.current) clearInterval(typingPresencePollRef.current);
+    if (presenceChannel) {
+      typingPresencePollRef.current = setInterval(() => {
+        const typing = getTypingUsers(convId, profile.id);
+        setTypingUsers((prev) => {
+          const next = new Map<string, string>();
+          for (const t of typing) {
+            next.set(t.userId, t.userName);
+          }
+          // Preserve any Socket.IO-based typing users that are still active
+          for (const [key, value] of prev) {
+            if (!next.has(key)) {
+              // Keep if the timeout hasn't expired yet
+              if (typingTimeoutRef.current.has(key)) {
+                next.set(key, value);
+              }
+            }
+          }
+          return next;
+        });
+      }, 1000);
+    }
+
     try {
       // Fetch messages
       const msgRes = await fetch(`/api/chat?action=messages&conversationId=${convId}&limit=50`);
@@ -1025,18 +1057,28 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // =====================================================
   const handleTyping = (value: string) => {
     setNewMessage(value);
-    if (socket && activeConvId) {
+    if (activeConvId) {
       if (value.trim()) {
-        socket.emit('typing', {
-          conversationId: activeConvId,
-          userId: profile.id,
-          userName: profile.name,
-        });
+        // Try Socket.IO first
+        if (socket) {
+          socket.emit('typing', {
+            conversationId: activeConvId,
+            userId: profile.id,
+            userName: profile.name,
+          });
+        }
+        // Fallback: Supabase Presence for typing indicators
+        broadcastTypingState(activeConvId, profile.id, profile.name, true);
       } else {
-        socket.emit('stop-typing', {
-          conversationId: activeConvId,
-          userId: profile.id,
-        });
+        // Try Socket.IO first
+        if (socket) {
+          socket.emit('stop-typing', {
+            conversationId: activeConvId,
+            userId: profile.id,
+          });
+        }
+        // Fallback: Supabase Presence
+        broadcastTypingState(activeConvId, profile.id, profile.name, false);
       }
     }
   };

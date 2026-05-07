@@ -39,6 +39,11 @@ import {
   XCircle,
   UserPlus,
   Trash2,
+  Sparkles,
+  Link2,
+  PenLine,
+  ArrowLeftRight,
+  ListChecks,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AppSidebar from '@/components/shared/app-sidebar';
@@ -54,7 +59,7 @@ import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
-import type { UserProfile, Quiz, Score, Subject, TeacherSection } from '@/lib/types';
+import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 
@@ -156,6 +161,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const [selectedStudent, setSelectedStudent] = useState<UserProfile | null>(null);
   const [studentDetailOpen, setStudentDetailOpen] = useState(false);
   const [resettingStudent, setResettingStudent] = useState(false);
+
+  // ─── Quiz answers review state ───
+  const [viewingScore, setViewingScore] = useState<Score | null>(null);
+  const [viewingQuiz, setViewingQuiz] = useState<Quiz | null>(null);
+  const [aiGradingIdx, setAiGradingIdx] = useState<number | null>(null);
+  const [aiGradingResults, setAiGradingResults] = useState<Record<number, { isCorrect: boolean; reasoning?: string }>>({});
 
   // ─── Pending link requests ───
   const [pendingStudents, setPendingStudents] = useState<UserProfile[]>([]);
@@ -1951,7 +1962,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => { if (!resettingStudent) setStudentDetailOpen(false); }}
+            onClick={() => { if (!resettingStudent) { setStudentDetailOpen(false); setViewingScore(null); setViewingQuiz(null); setAiGradingResults({}); } }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
@@ -1959,7 +1970,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"
+              className={`w-full rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto ${viewingScore ? 'max-w-2xl' : 'max-w-lg'}`}
               dir="rtl"
             >
               {/* Header */}
@@ -1982,32 +1993,270 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 </button>
               </div>
 
-              {/* Scores list */}
-              <div className="p-5 space-y-3 max-h-72 overflow-y-auto custom-scrollbar">
-                {getStudentScores(selectedStudent.id).length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground text-sm">
-                    لا توجد نتائج لهذا الطالب
+              {/* Scores list or Quiz Answers Review */}
+              {viewingScore ? (
+                <div className="p-5 space-y-3">
+                  {/* Back to scores list */}
+                  <button
+                    onClick={() => { setViewingScore(null); setViewingQuiz(null); setAiGradingResults({}); }}
+                    className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 mb-2"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    العودة للنتائج
+                  </button>
+
+                  <div className="flex items-center gap-2 mb-3">
+                    <ClipboardList className="h-4 w-4 text-teal-600" />
+                    <p className="text-sm font-semibold text-foreground">{viewingScore.quiz_title}</p>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${pctColorClass(scorePercentage(viewingScore.score, viewingScore.total))}`}>
+                      {scorePercentage(viewingScore.score, viewingScore.total)}%
+                    </span>
                   </div>
-                ) : (
-                  getStudentScores(selectedStudent.id).map((score) => {
-                    const pct = scorePercentage(score.score, score.total);
-                    return (
-                      <div key={score.id} className="flex items-center gap-3 rounded-lg border p-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50">
-                          <ClipboardList className="h-4 w-4 text-teal-600" />
+
+                  {/* Questions review */}
+                  <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+                    {viewingQuiz?.questions?.map((q: QuizQuestion, idx: number) => {
+                      const ans = viewingScore.user_answers?.find((a: UserAnswer) => a.questionIndex === idx);
+                      const isCompletion = q.type === 'completion';
+                      const aiResult = aiGradingResults[idx];
+                      const hasAiResult = aiResult !== undefined;
+
+                      // Type label
+                      const typeLabel = q.type === 'mcq' ? 'اختيار من متعدد' : q.type === 'boolean' ? 'صح أو خطأ' : q.type === 'completion' ? 'أكمل' : 'توصيل';
+                      const typeIcon = q.type === 'mcq' ? <ListChecks className="h-3 w-3" /> : q.type === 'boolean' ? <CheckCircle2 className="h-3 w-3" /> : q.type === 'completion' ? <PenLine className="h-3 w-3" /> : <ArrowLeftRight className="h-3 w-3" />;
+
+                      return (
+                        <div key={idx} className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                          {/* Question header */}
+                          <div className="flex items-start gap-2">
+                            <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                              ans?.isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                            }`}>
+                              {ans?.isCorrect ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="text-[10px] text-muted-foreground">سؤال {idx + 1}</span>
+                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700">
+                                  {typeIcon}
+                                  {typeLabel}
+                                </span>
+                              </div>
+                              <p className="text-xs font-medium text-foreground">{q.question}</p>
+                            </div>
+                          </div>
+
+                          {/* Answer details */}
+                          {q.type === 'matching' && q.pairs ? (
+                            <div className="space-y-1.5">
+                              <p className="text-[10px] text-muted-foreground">إجابة الطالب:</p>
+                              {Object.entries((ans?.answer as Record<string, string>) || {}).map(([k, v]) => {
+                                const isPairCorrect = q.pairs?.find(p => p.key === k)?.value === v;
+                                return (
+                                  <div key={k} className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] ${
+                                    isPairCorrect ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'
+                                  }`}>
+                                    <span className="font-medium">{k}</span>
+                                    <Link2 className="h-2.5 w-2.5" />
+                                    <span className={isPairCorrect ? 'text-emerald-700 font-medium' : 'text-rose-700 font-medium'}>{v}</span>
+                                    {isPairCorrect ? <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500 mr-auto" /> : <XCircle className="h-2.5 w-2.5 text-rose-500 mr-auto" />}
+                                  </div>
+                                );
+                              })}
+                              {!ans?.isCorrect && (
+                                <div className="mt-1">
+                                  <p className="text-[10px] text-emerald-700 font-medium">التوصيل الصحيح:</p>
+                                  {q.pairs.map((p) => (
+                                    <div key={p.key} className="flex items-center gap-1.5 text-[10px] text-emerald-700 px-2 py-0.5">
+                                      <span>{p.key}</span> <Link2 className="h-2.5 w-2.5" /> <span>{p.value}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <p className="text-[10px] text-muted-foreground">
+                                إجابة الطالب: <span className="font-medium text-foreground">{String(ans?.answer || '—')}</span>
+                              </p>
+                              {q.correctAnswer && (
+                                <p className="text-[10px] text-emerald-700">
+                                  الإجابة الصحيحة: <span className="font-medium">{q.correctAnswer}</span>
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* AI Grading button for completion questions */}
+                          {isCompletion && (
+                            <div className="pt-1 border-t">
+                              {!hasAiResult ? (
+                                <button
+                                  onClick={async () => {
+                                    if (aiGradingIdx === idx) return;
+                                    setAiGradingIdx(idx);
+                                    try {
+                                      const studentAnswer = String(ans?.answer || '');
+                                      const correctAnswer = q.correctAnswer || '';
+
+                                      // First check exact match
+                                      if (studentAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()) {
+                                        setAiGradingResults(prev => ({
+                                          ...prev,
+                                          [idx]: { isCorrect: true, reasoning: 'الإجابة مطابقة تماماً للإجابة الصحيحة' }
+                                        }));
+                                        return;
+                                      }
+
+                                      // Call AI evaluate
+                                      const { data: { session } } = await supabase.auth.getSession();
+                                      const token = session?.access_token || '';
+                                      const res = await fetch('/api/gemini/evaluate', {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                                        },
+                                        body: JSON.stringify({
+                                          question: q.question,
+                                          correctAnswer,
+                                          studentAnswer,
+                                          detailed: true,
+                                        }),
+                                      });
+                                      const data = await res.json();
+                                      if (data.success && data.data) {
+                                        setAiGradingResults(prev => ({
+                                          ...prev,
+                                          [idx]: {
+                                            isCorrect: data.data.isCorrect,
+                                            reasoning: data.data.reasoning || (data.data.isCorrect
+                                              ? 'الذكاء الاصطناعي يرى أن إجابة الطالب صحيحة أو مكافئة للإجابة الصحيحة'
+                                              : 'الذكاء الاصطناعي يرى أن إجابة الطالب غير صحيحة أو لا تكافئ الإجابة الصحيحة'),
+                                          }
+                                        }));
+                                      } else {
+                                        setAiGradingResults(prev => ({
+                                          ...prev,
+                                          [idx]: { isCorrect: false, reasoning: 'لم يتمكن الذكاء الاصطناعي من التقييم' }
+                                        }));
+                                      }
+                                    } catch {
+                                      toast.error('حدث خطأ أثناء التقييم بالذكاء الاصطناعي');
+                                      setAiGradingResults(prev => ({
+                                        ...prev,
+                                        [idx]: { isCorrect: false, reasoning: 'حدث خطأ في الاتصال' }
+                                      }));
+                                    } finally {
+                                      setAiGradingIdx(null);
+                                    }
+                                  }}
+                                  disabled={aiGradingIdx !== null}
+                                  className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-colors disabled:opacity-50"
+                                >
+                                  {aiGradingIdx === idx ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <Sparkles className="h-3 w-3" />
+                                  )}
+                                  {aiGradingIdx === idx ? 'جاري التصحيح...' : 'AI تصحيح'}
+                                </button>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  <div className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs ${
+                                    aiResult.isCorrect ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-rose-50 border border-rose-200 text-rose-700'
+                                  }`}>
+                                    <Sparkles className="h-3 w-3" />
+                                    <span className="font-medium">{aiResult.isCorrect ? 'الذكاء الاصطناعي: إجابة صحيحة' : 'الذكاء الاصطناعي: إجابة خاطئة'}</span>
+                                  </div>
+                                  {aiResult.reasoning && (
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">{aiResult.reasoning}</p>
+                                  )}
+                                  {/* Teacher override */}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <button
+                                      onClick={() => {
+                                        // Override AI: mark as correct
+                                        setAiGradingResults(prev => ({
+                                          ...prev,
+                                          [idx]: { ...prev[idx], isCorrect: true, reasoning: (prev[idx]?.reasoning || '') + ' — تم التعديل يدوياً: صحيحة' }
+                                        }));
+                                        toast.success('تم تعديل التقييم: صحيحة');
+                                      }}
+                                      className="flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-200 transition-colors"
+                                    >
+                                      <CheckCircle2 className="h-2.5 w-2.5" />
+                                      تعديل: صحيحة
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        // Override AI: mark as incorrect
+                                        setAiGradingResults(prev => ({
+                                          ...prev,
+                                          [idx]: { ...prev[idx], isCorrect: false, reasoning: (prev[idx]?.reasoning || '') + ' — تم التعديل يدوياً: خاطئة' }
+                                        }));
+                                        toast.success('تم تعديل التقييم: خاطئة');
+                                      }}
+                                      className="flex items-center gap-1 rounded-md bg-rose-100 px-2 py-1 text-[10px] font-medium text-rose-700 hover:bg-rose-200 transition-colors"
+                                    >
+                                      <XCircle className="h-2.5 w-2.5" />
+                                      تعديل: خاطئة
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground truncate">{score.quiz_title}</p>
-                          <p className="text-xs text-muted-foreground">{score.score}/{score.total} · {formatDate(score.completed_at)}</p>
-                        </div>
-                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${pctColorClass(pct)}`}>
-                          {pct}%
-                        </span>
+                      );
+                    })}
+                    {(!viewingQuiz?.questions || viewingQuiz.questions.length === 0) && (
+                      <div className="text-center py-6 text-muted-foreground text-xs">
+                        لا تتوفر تفاصيل الأسئلة لهذا الاختبار
                       </div>
-                    );
-                  })
-                )}
-              </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-5 space-y-3 max-h-72 overflow-y-auto custom-scrollbar">
+                  {getStudentScores(selectedStudent.id).length === 0 ? (
+                    <div className="text-center py-6 text-muted-foreground text-sm">
+                      لا توجد نتائج لهذا الطالب
+                    </div>
+                  ) : (
+                    getStudentScores(selectedStudent.id).map((score) => {
+                      const pct = scorePercentage(score.score, score.total);
+                      return (
+                        <div key={score.id} className="flex items-center gap-3 rounded-lg border p-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50">
+                            <ClipboardList className="h-4 w-4 text-teal-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground truncate">{score.quiz_title}</p>
+                            <p className="text-xs text-muted-foreground">{score.score}/{score.total} · {formatDate(score.completed_at)}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${pctColorClass(pct)}`}>
+                              {pct}%
+                            </span>
+                            <button
+                              onClick={() => {
+                                setViewingScore(score);
+                                const quiz = quizzes.find(q => q.id === score.quiz_id);
+                                setViewingQuiz(quiz || null);
+                              }}
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                              title="عرض الإجابات"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
 
               {/* Footer */}
               <div className="flex items-center gap-3 border-t p-5">
@@ -2036,7 +2285,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   إزالة
                 </button>
                 <button
-                  onClick={() => setStudentDetailOpen(false)}
+                  onClick={() => { setStudentDetailOpen(false); setViewingScore(null); setViewingQuiz(null); setAiGradingResults({}); }}
                   className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
                 >
                   إغلاق

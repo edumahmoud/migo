@@ -134,6 +134,16 @@ export default function NotificationBell() {
     };
   }, [user?.id, initialized, initializeNotifications]);
 
+  // Periodic refresh every 30s when the bell component is mounted
+  // This ensures notifications stay fresh even when the dropdown is closed
+  useEffect(() => {
+    if (!user?.id || !initialized) return;
+    const refreshTimer = setInterval(() => {
+      refetchNotifications();
+    }, 30000);
+    return () => clearInterval(refreshTimer);
+  }, [user?.id, initialized, refetchNotifications]);
+
   // Calculate dropdown position when opened
   useEffect(() => {
     if (isOpen && buttonRef.current) {

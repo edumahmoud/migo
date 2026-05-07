@@ -1342,6 +1342,16 @@ interface MatchingQuestionProps {
   feedback: 'correct' | 'incorrect' | null;
 }
 
+// Pair colors for visual connection
+const PAIR_COLORS = [
+  { bg: 'bg-emerald-100', border: 'border-emerald-400', text: 'text-emerald-700', badge: 'bg-emerald-500', ring: 'ring-emerald-300' },
+  { bg: 'bg-teal-100', border: 'border-teal-400', text: 'text-teal-700', badge: 'bg-teal-500', ring: 'ring-teal-300' },
+  { bg: 'bg-amber-100', border: 'border-amber-400', text: 'text-amber-700', badge: 'bg-amber-500', ring: 'ring-amber-300' },
+  { bg: 'bg-rose-100', border: 'border-rose-400', text: 'text-rose-700', badge: 'bg-rose-500', ring: 'ring-rose-300' },
+  { bg: 'bg-purple-100', border: 'border-purple-400', text: 'text-purple-700', badge: 'bg-purple-500', ring: 'ring-purple-300' },
+  { bg: 'bg-cyan-100', border: 'border-cyan-400', text: 'text-cyan-700', badge: 'bg-cyan-500', ring: 'ring-cyan-300' },
+];
+
 function MatchingQuestion({
   question,
   answered,
@@ -1354,14 +1364,11 @@ function MatchingQuestion({
   onCheck,
   feedback,
 }: MatchingQuestionProps) {
-  if (!question.pairs) return null;
-
-  const keys = question.pairs.map((p) => p.key);
-
   // Shuffle values so they don't appear in the same order as keys
   // Uses Fisher-Yates shuffle — ensures the order is DIFFERENT from the original
   const values = useMemo(() => {
-    const original = question.pairs!.map((p) => p.value);
+    if (!question.pairs) return [];
+    const original = question.pairs.map((p) => p.value);
     if (original.length <= 1) return original;
 
     // Shuffle until the order is different from the original
@@ -1381,39 +1388,79 @@ function MatchingQuestion({
     return shuffled;
   }, [question.pairs]);
 
-  // Track which values are already matched
+  if (!question.pairs) return null;
+
+  const keys = question.pairs.map((p) => p.key);
+
+  // Track which values/keys are already matched
   const matchedValuesSet = new Set(Object.values(matchedPairs));
   const matchedKeysSet = new Set(Object.keys(matchedPairs));
 
+  // Get pair number for a key (for numbered badges)
+  const getPairNumber = (key: string): number => {
+    const keyIndex = keys.indexOf(key);
+    return keyIndex + 1;
+  };
+
+  // Get color for a matched pair
+  const getPairColor = (key: string) => {
+    const pairKeys = Object.keys(matchedPairs);
+    const idx = pairKeys.indexOf(key);
+    return PAIR_COLORS[idx % PAIR_COLORS.length];
+  };
+
+  // Get pair number for a value (find which key it's matched to)
+  const getValuePairNumber = (value: string): number | null => {
+    const entry = Object.entries(matchedPairs).find(([, v]) => v === value);
+    if (!entry) return null;
+    return getPairNumber(entry[0]);
+  };
+
+  const allPairsMatched = Object.keys(matchedPairs).length >= (question.pairs?.length || 0);
+
   return (
-    <div className="space-y-4">
-      {/* Two columns */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Keys column */}
+    <div className="space-y-5">
+      {/* Instructions */}
+      {!answered && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+          <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
+          <span>اختر عنصراً من القائمة أ ثم عنصراً من القائمة ب للتوصيل بينهما</span>
+        </div>
+      )}
+
+      {/* Two columns layout */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-5">
+        {/* Keys column (القائمة أ) */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-emerald-700 text-center mb-2">القائمة أ</p>
+          <div className="flex items-center justify-center gap-1.5 mb-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <p className="text-xs font-bold text-emerald-700">القائمة أ</p>
+          </div>
           {keys.map((key) => {
             const isMatched = matchedKeysSet.has(key);
             const isSelected = selectedKey === key;
+            const pairNum = getPairNumber(key);
+            const color = isMatched ? getPairColor(key) : null;
 
             let btnClass =
-              'w-full rounded-lg border-2 p-3 text-sm font-medium transition-all text-center';
+              'w-full rounded-xl border-2 p-2.5 sm:p-3 text-sm font-medium transition-all text-center relative';
 
             if (answered) {
               const correctValue = question.pairs?.find((p) => p.key === key)?.value;
               const userValue = matchedPairs[key];
-              if (userValue === correctValue) {
+              const isPairCorrect = userValue === correctValue;
+              if (isPairCorrect) {
                 btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
               } else {
                 btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
               }
-            } else if (isMatched) {
-              btnClass += ' border-teal-400 bg-teal-50 text-teal-700';
+            } else if (isMatched && color) {
+              btnClass += ` ${color.border} ${color.bg} ${color.text}`;
             } else if (isSelected) {
               btnClass += ' border-emerald-500 bg-emerald-100 text-emerald-700 ring-2 ring-emerald-300';
             } else {
               btnClass +=
-                ' border-emerald-200 bg-white text-foreground hover:border-emerald-400 cursor-pointer';
+                ' border-emerald-200 bg-white text-foreground hover:border-emerald-400 hover:bg-emerald-50/50 cursor-pointer';
             }
 
             return (
@@ -1425,40 +1472,84 @@ function MatchingQuestion({
                 disabled={answered}
                 className={btnClass}
               >
-                {key}
+                {/* Numbered badge */}
+                <span className={`absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-sm ${
+                  answered
+                    ? matchedPairs[key] === question.pairs?.find((p) => p.key === key)?.value
+                      ? 'bg-emerald-500'
+                      : 'bg-rose-500'
+                    : isMatched && color
+                      ? color.badge
+                      : 'bg-emerald-400'
+                }`}>
+                  {pairNum}
+                </span>
+                <span className="block mt-1 leading-relaxed">{key}</span>
+                {/* Connection indicator when matched */}
+                {!answered && isMatched && color && (
+                  <span className={`mt-1 inline-flex items-center gap-1 rounded-full ${color.bg} ${color.border} border px-2 py-0.5 text-[10px] ${color.text}`}>
+                    <Link2 className="h-2.5 w-2.5" />
+                    {matchedPairs[key]}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRemovePair(key); }}
+                      className="flex h-3.5 w-3.5 items-center justify-center rounded-full hover:bg-rose-200 hover:text-rose-600 transition-colors"
+                    >
+                      <XCircle className="h-2.5 w-2.5" />
+                    </button>
+                  </span>
+                )}
+                {/* Answered: show connection status */}
+                {answered && matchedPairs[key] && (
+                  <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${
+                    matchedPairs[key] === question.pairs?.find((p) => p.key === key)?.value
+                      ? 'bg-emerald-200 text-emerald-700'
+                      : 'bg-rose-200 text-rose-700'
+                  }`}>
+                    {matchedPairs[key] === question.pairs?.find((p) => p.key === key)?.value
+                      ? <CheckCircle2 className="h-2.5 w-2.5" />
+                      : <XCircle className="h-2.5 w-2.5" />}
+                    {matchedPairs[key]}
+                  </span>
+                )}
               </motion.button>
             );
           })}
         </div>
 
-        {/* Values column */}
+        {/* Values column (القائمة ب) */}
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-teal-700 text-center mb-2">القائمة ب</p>
+          <div className="flex items-center justify-center gap-1.5 mb-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+            <p className="text-xs font-bold text-teal-700">القائمة ب</p>
+          </div>
           {values.map((value) => {
             const isMatched = matchedValuesSet.has(value);
             const isSelected = selectedValue === value;
+            const pairNum = getValuePairNumber(value);
+            const matchedKey = Object.entries(matchedPairs).find(([, v]) => v === value)?.[0];
+            const color = matchedKey ? getPairColor(matchedKey) : null;
 
             let btnClass =
-              'w-full rounded-lg border-2 p-3 text-sm font-medium transition-all text-center';
+              'w-full rounded-xl border-2 p-2.5 sm:p-3 text-sm font-medium transition-all text-center relative';
 
             if (answered) {
-              // Find which key matches this value correctly
               const correctKey = question.pairs?.find((p) => p.value === value)?.key;
               const userKey = Object.entries(matchedPairs).find(
                 ([, v]) => v === value
               )?.[0];
-              if (userKey === correctKey) {
+              const isPairCorrect = userKey === correctKey;
+              if (isPairCorrect) {
                 btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
               } else {
                 btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
               }
-            } else if (isMatched) {
-              btnClass += ' border-teal-400 bg-teal-50 text-teal-700';
+            } else if (isMatched && color) {
+              btnClass += ` ${color.border} ${color.bg} ${color.text}`;
             } else if (isSelected) {
               btnClass += ' border-teal-500 bg-teal-100 text-teal-700 ring-2 ring-teal-300';
             } else {
               btnClass +=
-                ' border-teal-200 bg-white text-foreground hover:border-teal-400 cursor-pointer';
+                ' border-teal-200 bg-white text-foreground hover:border-teal-400 hover:bg-teal-50/50 cursor-pointer';
             }
 
             return (
@@ -1470,72 +1561,118 @@ function MatchingQuestion({
                 disabled={answered}
                 className={btnClass}
               >
-                {value}
+                {/* Numbered badge showing which pair it's connected to */}
+                {pairNum !== null && (
+                  <span className={`absolute -top-1.5 -left-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-sm ${
+                    answered
+                      ? (() => {
+                          const correctKey = question.pairs?.find((p) => p.value === value)?.key;
+                          const userKey = Object.entries(matchedPairs).find(([, v]) => v === value)?.[0];
+                          return userKey === correctKey ? 'bg-emerald-500' : 'bg-rose-500';
+                        })()
+                      : color
+                        ? color.badge
+                        : 'bg-teal-400'
+                  }`}>
+                    {pairNum}
+                  </span>
+                )}
+                <span className="block leading-relaxed">{value}</span>
               </motion.button>
             );
           })}
         </div>
       </div>
 
-      {/* Matched pairs display */}
+      {/* Matched pairs summary display */}
       {Object.keys(matchedPairs).length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground">التوصيلات:</p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground">التوصيلات ({Object.keys(matchedPairs).length}/{question.pairs?.length || 0})</p>
+            {!answered && allPairsMatched && (
+              <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">جميع العناصر متصلة ✓</span>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(matchedPairs).map(([key, value]) => (
-              <motion.div
-                key={key}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700"
-              >
-                <span>{key}</span>
-                <Link2 className="h-3 w-3" />
-                <span>{value}</span>
-                {!answered && (
-                  <button
-                    onClick={() => onRemovePair(key)}
-                    className="mr-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-200 hover:bg-rose-200 text-emerald-700 hover:text-rose-700 transition-colors"
-                  >
-                    <XCircle className="h-3 w-3" />
-                  </button>
-                )}
-              </motion.div>
-            ))}
+            {Object.entries(matchedPairs).map(([key, value], idx) => {
+              const color = PAIR_COLORS[idx % PAIR_COLORS.length];
+              const pairNum = keys.indexOf(key) + 1;
+              const isPairCorrect = answered && question.pairs?.find((p) => p.key === key)?.value === value;
+              const isPairWrong = answered && question.pairs?.find((p) => p.key === key)?.value !== value;
+
+              return (
+                <motion.div
+                  key={key}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    isPairCorrect
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                      : isPairWrong
+                        ? 'bg-rose-50 border-rose-300 text-rose-700'
+                        : `${color.bg} ${color.border} ${color.text}`
+                  }`}
+                >
+                  <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-white ${
+                    isPairCorrect ? 'bg-emerald-500' : isPairWrong ? 'bg-rose-500' : color.badge
+                  }`}>
+                    {pairNum}
+                  </span>
+                  <span className="truncate max-w-[80px]">{key}</span>
+                  <Link2 className="h-3 w-3 shrink-0" />
+                  <span className="truncate max-w-[80px]">{value}</span>
+                  {!answered && (
+                    <button
+                      onClick={() => onRemovePair(key)}
+                      className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-rose-200 hover:text-rose-700 transition-colors"
+                    >
+                      <XCircle className="h-3 w-3" />
+                    </button>
+                  )}
+                  {answered && (isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : isPairWrong ? <XCircle className="h-3 w-3 text-rose-500" /> : null)}
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Check button */}
+      {/* Check button - more prominent */}
       {!answered && (
         <Button
           onClick={onCheck}
-          disabled={Object.keys(matchedPairs).length < (question.pairs?.length || 0)}
-          className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+          disabled={!allPairsMatched}
+          className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700 w-full sm:w-auto px-6 py-2.5 text-sm font-semibold"
         >
           <ArrowLeftRight className="h-4 w-4" />
-          تحقق من التوصيل
+          {allPairsMatched ? 'تحقق من التوصيل' : `توصيل (${Object.keys(matchedPairs).length}/${question.pairs?.length || 0})`}
         </Button>
       )}
 
-      {/* Show correct pairs on wrong answer */}
+      {/* Show correct pairs on wrong answer - improved */}
       {answered && !isCorrect && question.pairs && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-lg border border-emerald-200 bg-emerald-50 p-3"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
         >
-          <p className="text-xs font-semibold text-emerald-700 mb-2">التوصيل الصحيح:</p>
-          <div className="flex flex-wrap gap-2">
-            {question.pairs.map((pair) => (
-              <span
+          <p className="text-xs font-bold text-emerald-700 mb-3 flex items-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            التوصيل الصحيح:
+          </p>
+          <div className="space-y-2">
+            {question.pairs.map((pair, idx) => (
+              <div
                 key={pair.key}
-                className="flex items-center gap-1 rounded-full bg-white border border-emerald-200 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                className="flex items-center gap-2 rounded-lg bg-white border border-emerald-200 px-3 py-2"
               >
-                {pair.key}
-                <Link2 className="h-3 w-3" />
-                {pair.value}
-              </span>
+                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${PAIR_COLORS[idx % PAIR_COLORS.length].badge}`}>
+                  {idx + 1}
+                </span>
+                <span className="text-xs font-medium text-foreground">{pair.key}</span>
+                <Link2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                <span className="text-xs font-medium text-emerald-700">{pair.value}</span>
+              </div>
             ))}
           </div>
         </motion.div>
@@ -1589,25 +1726,51 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
 
           {/* Show answer details based on type */}
           {question.type === 'matching' && question.pairs ? (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">
-                إجابتك:
-                {Object.entries((userAnswer?.answer as Record<string, string>) || {}).map(
-                  ([k, v]) => (
-                    <span key={k} className="inline-flex items-center gap-1 mx-1 text-xs">
-                      {k} <Link2 className="h-2.5 w-2.5" /> {v}
-                    </span>
-                  )
-                )}
-              </p>
-              <p className="text-xs text-emerald-700">
-                الصحيح:
-                {question.pairs.map((p) => (
-                  <span key={p.key} className="inline-flex items-center gap-1 mx-1">
-                    {p.key} <Link2 className="h-2.5 w-2.5" /> {p.value}
-                  </span>
-                ))}
-              </p>
+            <div className="space-y-3">
+              {/* User's matching */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1.5">إجابتك:</p>
+                <div className="space-y-1.5">
+                  {Object.entries((userAnswer?.answer as Record<string, string>) || {}).map(
+                    ([k, v], idx) => {
+                      const isPairCorrect = question.pairs?.find(p => p.key === k)?.value === v;
+                      return (
+                        <div key={k} className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs ${
+                          isPairCorrect ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'
+                        }`}>
+                          <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white ${
+                            isPairCorrect ? 'bg-emerald-500' : 'bg-rose-500'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <span className="font-medium">{k}</span>
+                          <Link2 className="h-3 w-3 shrink-0" />
+                          <span className={isPairCorrect ? 'text-emerald-700 font-medium' : 'text-rose-700 font-medium'}>{v}</span>
+                          {isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-emerald-500 mr-auto" /> : <XCircle className="h-3 w-3 text-rose-500 mr-auto" />}
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              </div>
+              {/* Correct matching */}
+              {!userAnswer?.isCorrect && (
+                <div>
+                  <p className="text-xs font-medium text-emerald-700 mb-1.5">التوصيل الصحيح:</p>
+                  <div className="space-y-1.5">
+                    {question.pairs.map((p, idx) => (
+                      <div key={p.key} className="flex items-center gap-2 rounded-lg bg-white border border-emerald-200 px-2.5 py-1.5 text-xs">
+                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white ${PAIR_COLORS[idx % PAIR_COLORS.length].badge}`}>
+                          {idx + 1}
+                        </span>
+                        <span className="font-medium">{p.key}</span>
+                        <Link2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                        <span className="text-emerald-700 font-medium">{p.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-1">

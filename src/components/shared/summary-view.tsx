@@ -21,6 +21,7 @@ import {
   ListChecks,
   Type,
   Link2,
+  Wand2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   const [generatingQuiz, setGeneratingQuiz] = useState(false);
   const [regeneratingQuiz, setRegeneratingQuiz] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [refining, setRefining] = useState(false);
 
   // ─── Quiz config states ───
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
@@ -345,6 +347,32 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   };
 
   // -------------------------------------------------------
+  // Refine/format transcribed text
+  // -------------------------------------------------------
+  const handleRefineText = async () => {
+    if (!summary) return;
+    setRefining(true);
+    try {
+      const res = await fetch('/api/gemini/summary', {
+        method: 'PUT',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ summaryId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSummary(data.data as Summary);
+        toast.success('تم تنقيح وتنسيق النص بنجاح');
+      } else {
+        toast.error(data.error || 'فشل تنقيح النص');
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء تنقيح النص');
+    } finally {
+      setRefining(false);
+    }
+  };
+
+  // -------------------------------------------------------
   // Copy content
   // -------------------------------------------------------
   const handleCopyContent = async () => {
@@ -517,6 +545,24 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
                 <span className="hidden sm:inline">{regenerating ? 'جاري الإعادة...' : 'إعادة التلخيص'}</span>
               </Button>
               )}
+              {/* Refine/format button - only show for transcribed content */}
+              {isTranscribed && (
+                <Button
+                  onClick={handleRefineText}
+                  disabled={refining}
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                  title="تنقيح وتنسيق"
+                >
+                  {refining ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-4 w-4" />
+                  )}
+                  <span className="hidden sm:inline">{refining ? 'جاري التنقيح...' : 'تنقيح وتنسيق'}</span>
+                </Button>
+              )}
             </div>
 
             {/* Markdown content with RTL typography */}
@@ -524,6 +570,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
               <div className="flex flex-col items-center justify-center py-12 gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
                 <p className="text-sm text-muted-foreground">جاري إعادة توليد الملخص...</p>
+              </div>
+            ) : refining ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
+                <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
+                <p className="text-sm text-muted-foreground">جاري تنقيح وتنسيق النص...</p>
               </div>
             ) : (
               <div className="prose-summary">

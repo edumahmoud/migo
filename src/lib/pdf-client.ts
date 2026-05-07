@@ -152,3 +152,89 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
     throw new Error(`فشل في قراءة ملف PDF: ${errMsg}`);
   }
 }
+
+// -------------------------------------------------------
+// DOCX (Word document) text extraction
+// -------------------------------------------------------
+
+export interface DocxExtractionResult {
+  text: string;
+}
+
+/**
+ * Extract text from a Word document (.docx) File or pre-read ArrayBuffer in the browser.
+ *
+ * Uses the mammoth library to convert .docx files to plain text.
+ * Works entirely client-side — no server upload needed.
+ *
+ * @param source - The .docx File object OR a pre-read ArrayBuffer
+ * @returns Extracted text
+ * @throws Error if not in browser or extraction fails
+ */
+export async function extractDocxTextClient(source: File | ArrayBuffer): Promise<DocxExtractionResult> {
+  if (typeof window === 'undefined') {
+    throw new Error('DOCX extraction is only available in the browser');
+  }
+
+  try {
+    // Dynamic import — only loads mammoth in the browser
+    const mammoth = await import('mammoth');
+
+    // Accept either a File object or a pre-read ArrayBuffer
+    const arrayBuffer = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
+
+    // Extract text using mammoth
+    const result = await mammoth.extractRawText({ arrayBuffer });
+
+    let fullText = result.value;
+
+    if (!fullText.trim()) {
+      throw new Error('NO_TEXT_EXTRACTED');
+    }
+
+    // Truncate to max length
+    if (fullText.length > MAX_TEXT_LENGTH) {
+      console.log(`[DOCX Client] Text truncated from ${fullText.length} to ${MAX_TEXT_LENGTH} chars`);
+      fullText = fullText.substring(0, MAX_TEXT_LENGTH);
+    }
+
+    return { text: fullText };
+  } catch (err) {
+    if (err instanceof Error && err.message === 'NO_TEXT_EXTRACTED') {
+      throw err;
+    }
+
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[DOCX Client] Extraction failed:', errMsg);
+
+    if (errMsg.includes('password') || errMsg.includes('encrypted')) {
+      throw new Error('الملف محمي بكلمة مرور. يرجى رفع ملف غير محمي');
+    }
+    if (errMsg.includes('Invalid') || errMsg.includes('corrupted') || errMsg.includes('Could not find')) {
+      throw new Error('الملف تالف أو ليس ملف Word صالح');
+    }
+
+    throw new Error(`فشل في قراءة ملف Word: ${errMsg}`);
+  }
+}
+
+/**
+ * Detect file type from a File object and extract text accordingly.
+ * Supports PDF and Word (.docx) files.
+ *
+ * @param source - The File object OR a pre-read ArrayBuffer
+ * @param fileName - The file name (used to detect type when source is ArrayBuffer)
+ * @returns Extracted text and page count (pages is 0 for docx)
+ */
+export async function extractTextFromFile(source: File | ArrayBuffer, fileName?: string): Promise<PdfExtractionResult> {
+  const name = source instanceof File ? source.name : (fileName || '');
+  const isDocx = /\.(docx|doc)$/i.test(name);
+
+  if (isDocx) {
+    const result = await extractDocxTextClient(source);
+    return { text: result.text, pages: 0 };
+  }
+
+  // Default: treat as PDF
+  return extractPdfTextClient(source);
+}

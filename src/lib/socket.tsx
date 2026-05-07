@@ -446,7 +446,11 @@ export function useSocketEvent<T = unknown>(
 
   useEffect(() => {
     const socket = getSocket();
-    if (!socket) return; // Realtime mode — no socket events
+    if (!socket) {
+      // Realtime mode — no Socket.IO events to listen for
+      // Typing indicators are handled via Supabase Presence in ChatSection
+      return;
+    }
 
     const listener = (data: T) => {
       handlerRef.current(data);
@@ -458,4 +462,128 @@ export function useSocketEvent<T = unknown>(
       socket.off(event, listener);
     };
   }, [event]);
+}
+
+// =====================================================
+// Supabase Presence-based typing indicators
+// =====================================================
+// When Socket.IO is not available, we use Supabase Presence
+// to broadcast typing state to other users in a conversation.
+
+import { supabase } from '@/lib/supabase';
+import type { RealtimePresence } from '@supabase/supabase-js';
+
+export interface TypingPresenceState {
+  userId: string;
+  userName: string;
+  conversationId: string;
+  isTyping: boolean;
+  lastUpdated: number;
+}
+
+// Module-level map of conversationId → presence channel
+const typingChannels = new Map<string, ReturnType<typeof supabase.channel>>();
+
+/**
+ * Join a Supabase Presence channel for typing indicators in a conversation.
+ * Returns the channel instance so the caller can listen for presence sync/join/leave events.
+ */
+export function joinTypingPresence(
+  conversationId: string,
+  userId: string,
+  userName: string,
+): ReturnType<typeof supabase.channel> | null {
+  // If Socket.IO is available, don't create presence channels
+  if (!isSocketGivenUp()) return null;
+
+  const existing = typingChannels.get(conversationId);
+  if (existing) return existing;
+
+  const channel = supabase.channel(`typing:${conversationId}`, {
+    config: { presence: { key: userId } },
+  });
+
+  // Track the user's presence state
+  channel.on('presence', { event: 'sync' }, () => {
+    // Presence state is read via channel.presenceState() in the component
+  });
+
+  channel.subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') {
+      await channel.track({
+        userId,
+        userName,
+        conversationId,
+        isTyping: false,
+        lastUpdated: Date.now(),
+      });
+    }
+  });
+
+  typingChannels.set(conversationId, channel);
+  return channel;
+}
+
+/**
+ * Leave a Supabase Presence channel for typing indicators.
+ */
+export function leaveTypingPresence(conversationId: string): void {
+  const channel = typingChannels.get(conversationId);
+  if (channel) {
+    supabase.removeChannel(channel);
+    typingChannels.delete(conversationId);
+  }
+}
+
+/**
+ * Broadcast typing state via Supabase Presence.
+ */
+export function broadcastTypingState(
+  conversationId: string,
+  userId: string,
+  userName: string,
+  isTyping: boolean,
+): void {
+  // If Socket.IO is available, use that instead
+  if (!isSocketGivenUp()) return;
+
+  const channel = typingChannels.get(conversationId);
+  if (!channel) return;
+
+  channel.track({
+    userId,
+    userName,
+    conversationId,
+    isTyping,
+    lastUpdated: Date.now(),
+  });
+}
+
+/**
+ * Get all typing users from a presence channel (excluding the current user).
+ */
+export function getTypingUsers(
+  conversationId: string,
+  currentUserId: string,
+): TypingPresenceState[] {
+  const channel = typingChannels.get(conversationId);
+  if (!channel) return [];
+
+  const state = channel.presenceState<TypingPresenceState>();
+  const typingUsers: TypingPresenceState[] = [];
+
+  for (const key of Object.keys(state)) {
+    for (const presence of state[key]) {
+      if (
+        presence.userId !== currentUserId &&
+        presence.isTyping &&
+        presence.conversationId === conversationId &&
+        Date.now() - presence.lastUpdated < 4000 // Expire after 4 seconds
+      ) {
+        typingUsers.push(presence);
+      }
+    }
+  }
+
+  return typingUsers;
 }

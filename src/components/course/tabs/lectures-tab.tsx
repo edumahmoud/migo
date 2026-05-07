@@ -801,10 +801,32 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     setStoppingAttendance(sessionId);
     try {
       const { error } = await supabase.from('attendance_sessions').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', sessionId);
-      if (error) toast.error('حدث خطأ أثناء إنهاء الحضور');
-      else { toast.success('تم إنهاء تسجيل الحضور'); fetchLectures(); }
+      if (error) {
+        toast.error('حدث خطأ أثناء إنهاء الحضور');
+      } else {
+        toast.success('تم إنهاء تسجيل الحضور');
+
+        // Optimistic update: immediately reflect the closed session in local state
+        // without waiting for fetchLectures() to complete
+        setLectures(prev => prev.map(l => {
+          if (l.attendance_session?.id === sessionId) {
+            return {
+              ...l,
+              attendance_session: { ...l.attendance_session, status: 'ended', ended_at: new Date().toISOString() }
+            };
+          }
+          return l;
+        }));
+
+        // Clear the stopping state immediately after optimistic update
+        setStoppingAttendance(null);
+
+        // Background refresh for consistency (don't block UI)
+        fetchLectures();
+        return; // Exit early since we already cleared stoppingAttendance
+      }
     } catch { toast.error('حدث خطأ غير متوقع'); }
-    finally { setStoppingAttendance(null); }
+    setStoppingAttendance(null);
   };
 
   // ─── QR Code rotation state ───
