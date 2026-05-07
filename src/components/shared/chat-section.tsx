@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, onTypingBroadcast, type TypingPresenceState, isSocketGivenUp } from '@/lib/socket';
+import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, onTypingBroadcast, type TypingPresenceState } from '@/lib/socket';
 import {
   MessageCircle,
   ArrowUp,
@@ -210,7 +210,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const typingPresenceRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const typingPresenceConvIdRef = useRef<string | null>(null);
   const typingPresencePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messageMenuRef = useRef<HTMLDivElement>(null);
   const activeConvIdRef = useRef<string | null>(null);
@@ -877,6 +877,25 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       }
     }
 
+    // ── OPTIMISTIC: Pre-populate messages from conversation list data ──
+    // This prevents the "message appears in list but not in chat box" issue
+    // by showing the last message immediately before the full HTTP fetch completes.
+    const existingConv = conversationsRef.current.find(c => c.id === convId);
+    if (existingConv?.lastMessage) {
+      const lm = existingConv.lastMessage;
+      setMessages([{
+        id: lm.id,
+        sender_id: lm.sender_id,
+        content: lm.content,
+        created_at: lm.created_at,
+        is_deleted: false,
+        is_edited: false,
+        sender: null,
+      }]);
+    } else {
+      setMessages([]);
+    }
+
     // Clear local unread for this conversation
     setLocalUnread((prev) => {
       const next = new Map(prev);
@@ -888,18 +907,18 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     joinRoom(convId);
 
     // Leave previous typing presence channel
-    if (typingPresenceRef.current) {
-      leaveTypingPresence(typingPresenceRef.current.topic?.replace('typing:', '') || '');
+    if (typingPresenceConvIdRef.current) {
+      leaveTypingPresence(typingPresenceConvIdRef.current);
     }
 
     // Join Supabase Presence + Broadcast channel for typing indicators
-    const presenceChannel = joinTypingPresence(convId, profile.id, profile.name);
-    typingPresenceRef.current = presenceChannel;
+    const presenceConvId = joinTypingPresence(convId, profile.id, profile.name);
+    typingPresenceConvIdRef.current = presenceConvId;
 
     // ── PRIMARY: Listen for instant typing broadcasts ──
     // This is much faster than polling Presence state (which has ~1-2s latency)
     if (typingPresencePollRef.current) clearInterval(typingPresencePollRef.current);
-    if (presenceChannel) {
+    if (presenceConvId) {
       // Register broadcast listener for instant typing events
       const unsubBroadcast = onTypingBroadcast(convId, (data) => {
         if (data.userId === profile.id) return;
@@ -1175,13 +1194,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   };
 
   // =====================================================
-  // Handle typing
+  // Handle typing (with debounce to avoid rate limiting)
   // =====================================================
+  const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleTyping = (value: string) => {
     setNewMessage(value);
     if (activeConvId) {
       if (value.trim()) {
-        // Try Socket.IO first
+        // Socket.IO: emit immediately (no rate limit concern)
         if (socket) {
           socket.emit('typing', {
             conversationId: activeConvId,
@@ -1189,17 +1209,20 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             userName: profile.name,
           });
         }
-        // Fallback: Supabase Presence for typing indicators
-        broadcastTypingState(activeConvId, profile.id, profile.name, true);
+        // Supabase: debounce to avoid rate limiting (max once per 500ms)
+        if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = setTimeout(() => {
+          broadcastTypingState(activeConvId!, profile.id, profile.name, true);
+        }, 300);
       } else {
-        // Try Socket.IO first
+        // Stop typing: clear debounce and send immediately
+        if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
         if (socket) {
           socket.emit('stop-typing', {
             conversationId: activeConvId,
             userId: profile.id,
           });
         }
-        // Fallback: Supabase Presence
         broadcastTypingState(activeConvId, profile.id, profile.name, false);
       }
     }

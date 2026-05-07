@@ -467,9 +467,9 @@ export function useSocketEvent<T = unknown>(
 // =====================================================
 // Supabase Presence + Broadcast-based typing indicators
 // =====================================================
-// When Socket.IO is not available, we use Supabase Presence
-// to track who is in a conversation, and Supabase Broadcast
-// to send instant typing events (lower latency than Presence sync).
+// ALWAYS uses Supabase for typing indicators regardless of
+// Socket.IO availability. Socket.IO server may not handle
+// typing events, so Supabase is the reliable primary channel.
 
 import { supabase } from '@/lib/supabase';
 
@@ -481,27 +481,36 @@ export interface TypingPresenceState {
   lastUpdated: number;
 }
 
-// Module-level map of conversationId → presence channel
-const typingChannels = new Map<string, ReturnType<typeof supabase.channel>>();
+// Module-level map of conversationId → { channel, subscribed, userId }
+const typingChannels = new Map<string, {
+  channel: ReturnType<typeof supabase.channel>;
+  subscribed: boolean;
+  userId: string;
+}>();
 
 // Module-level map of conversationId → set of broadcast listeners
 const typingListeners = new Map<string, Set<(data: TypingPresenceState) => void>>();
 
 /**
  * Join a Supabase channel for typing indicators in a conversation.
- * Uses both Presence (for tracking who's online) and Broadcast (for instant typing events).
- * Returns the channel instance so the caller can listen for presence sync/join/leave events.
+ * ALWAYS creates a fresh channel — removes any stale one first.
+ * Returns the conversationId so the caller can use it for cleanup.
  */
 export function joinTypingPresence(
   conversationId: string,
   userId: string,
   userName: string,
-): ReturnType<typeof supabase.channel> | null {
-  // If Socket.IO is available, don't create presence channels
-  if (!isSocketGivenUp()) return null;
-
+): string | null {
+  // Always remove any existing channel first to avoid stale connections
   const existing = typingChannels.get(conversationId);
-  if (existing) return existing;
+  if (existing) {
+    try {
+      supabase.removeChannel(existing.channel);
+    } catch {
+      // Ignore cleanup errors
+    }
+    typingChannels.delete(conversationId);
+  }
 
   const channel = supabase.channel(`typing:${conversationId}`, {
     config: {
@@ -509,6 +518,9 @@ export function joinTypingPresence(
       broadcast: { self: false }, // Don't receive our own broadcasts
     },
   });
+
+  const entry = { channel, subscribed: false, userId };
+  typingChannels.set(conversationId, entry);
 
   // Listen for broadcast typing events (instant, low latency)
   channel.on('broadcast', { event: 'typing-state' }, (payload) => {
@@ -520,13 +532,10 @@ export function joinTypingPresence(
     }
   });
 
-  // Track the user's presence state (so others know we're in this conversation)
-  channel.on('presence', { event: 'sync' }, () => {
-    // Presence state is read via channel.presenceState() in the component
-  });
-
+  // Track the user's presence state
   channel.subscribe(async (status) => {
     if (status === 'SUBSCRIBED') {
+      entry.subscribed = true;
       await channel.track({
         userId,
         userName,
@@ -534,11 +543,20 @@ export function joinTypingPresence(
         isTyping: false,
         lastUpdated: Date.now(),
       });
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      entry.subscribed = false;
+      console.warn(`[Typing] Channel subscription failed for ${conversationId}: ${status}`);
+      // Retry after 2 seconds
+      setTimeout(() => {
+        const current = typingChannels.get(conversationId);
+        if (current && !current.subscribed) {
+          current.channel.subscribe();
+        }
+      }, 2000);
     }
   });
 
-  typingChannels.set(conversationId, channel);
-  return channel;
+  return conversationId;
 }
 
 /**
@@ -569,9 +587,14 @@ export function onTypingBroadcast(
  * Leave a Supabase Presence channel for typing indicators.
  */
 export function leaveTypingPresence(conversationId: string): void {
-  const channel = typingChannels.get(conversationId);
-  if (channel) {
-    supabase.removeChannel(channel);
+  if (!conversationId) return;
+  const entry = typingChannels.get(conversationId);
+  if (entry) {
+    try {
+      supabase.removeChannel(entry.channel);
+    } catch {
+      // Ignore cleanup errors
+    }
     typingChannels.delete(conversationId);
   }
   typingListeners.delete(conversationId);
@@ -580,6 +603,7 @@ export function leaveTypingPresence(conversationId: string): void {
 /**
  * Broadcast typing state via Supabase Broadcast (instant delivery).
  * Also updates Presence state for fallback polling.
+ * Queues the broadcast if the channel isn't subscribed yet.
  */
 export function broadcastTypingState(
   conversationId: string,
@@ -587,11 +611,8 @@ export function broadcastTypingState(
   userName: string,
   isTyping: boolean,
 ): void {
-  // If Socket.IO is available, use that instead
-  if (!isSocketGivenUp()) return;
-
-  const channel = typingChannels.get(conversationId);
-  if (!channel) return;
+  const entry = typingChannels.get(conversationId);
+  if (!entry) return;
 
   const state: TypingPresenceState = {
     userId,
@@ -601,15 +622,18 @@ export function broadcastTypingState(
     lastUpdated: Date.now(),
   };
 
-  // Broadcast typing event (instant, low latency)
-  channel.send({
+  // Always try to broadcast — even if not yet subscribed,
+  // Supabase queues the message and sends when ready
+  const sendResult = entry.channel.send({
     type: 'broadcast',
     event: 'typing-state',
     payload: state,
   });
 
-  // Also update presence state (for fallback polling)
-  channel.track(state);
+  // Only update presence track if subscribed (track fails before subscription)
+  if (entry.subscribed) {
+    entry.channel.track(state);
+  }
 }
 
 /**
@@ -620,10 +644,10 @@ export function getTypingUsers(
   conversationId: string,
   currentUserId: string,
 ): TypingPresenceState[] {
-  const channel = typingChannels.get(conversationId);
-  if (!channel) return [];
+  const entry = typingChannels.get(conversationId);
+  if (!entry || !entry.subscribed) return [];
 
-  const state = channel.presenceState<TypingPresenceState>();
+  const state = entry.channel.presenceState<TypingPresenceState>();
   const typingUsers: TypingPresenceState[] = [];
 
   for (const key of Object.keys(state)) {

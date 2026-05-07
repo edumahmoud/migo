@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, onTypingBroadcast, isSocketGivenUp } from '@/lib/socket';
+import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, onTypingBroadcast } from '@/lib/socket';
 import { useStatusStore } from '@/stores/status-store';
 import {
   MessageCircle,
@@ -85,7 +85,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   const [setupInfo, setSetupInfo] = useState<{ sqlEditorUrl?: string; steps?: string[] } | null>(null);
 
   // Typing presence refs
-  const typingPresenceRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const typingPresenceConvIdRef = useRef<string | null>(null);
   const typingPresencePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Status store
@@ -512,11 +512,11 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
     if (!conversationId) return;
 
     // Join Supabase Presence + Broadcast channel for typing indicators
-    const presenceChannel = joinTypingPresence(conversationId, profile.id, profile.name);
-    typingPresenceRef.current = presenceChannel;
+    const presenceConvId = joinTypingPresence(conversationId, profile.id, profile.name);
+    typingPresenceConvIdRef.current = presenceConvId;
 
     if (typingPresencePollRef.current) clearInterval(typingPresencePollRef.current);
-    if (presenceChannel) {
+    if (presenceConvId) {
       // ── PRIMARY: Listen for instant typing broadcasts ──
       const unsubBroadcast = onTypingBroadcast(conversationId, (data) => {
         if (data.userId === profile.id) return;
@@ -762,13 +762,14 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   };
 
   // -------------------------------------------------------
-  // Handle typing
+  // Handle typing (with debounce to avoid rate limiting)
   // -------------------------------------------------------
+  const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleTyping = (value: string) => {
     setNewMessage(value);
     if (conversationId) {
       if (value.trim()) {
-        // Socket.IO first
+        // Socket.IO first (no rate limit)
         if (socket) {
           socket.emit('typing', {
             conversationId,
@@ -776,17 +777,19 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             userName: profile.name,
           });
         }
-        // Supabase Presence fallback
-        broadcastTypingState(conversationId, profile.id, profile.name, true);
+        // Supabase: debounce to avoid rate limiting
+        if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = setTimeout(() => {
+          broadcastTypingState(conversationId!, profile.id, profile.name, true);
+        }, 300);
       } else {
-        // Socket.IO first
+        if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
         if (socket) {
           socket.emit('stop-typing', {
             conversationId,
             userId: profile.id,
           });
         }
-        // Supabase Presence fallback
         broadcastTypingState(conversationId, profile.id, profile.name, false);
       }
     }
