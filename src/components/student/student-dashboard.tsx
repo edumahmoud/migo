@@ -1209,11 +1209,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 sourceFileType = /\.(docx|doc)$/i.test(capturedFile.name) ? 'docx' : 'pdf';
               }
 
-              // Try sending PDF directly to server-side extraction API
+              // Send with correct MIME type so the server can handle both PDF and DOCX
               try {
-                const pdfBlob = new Blob([sourceBuffer], { type: 'application/pdf' });
+                const isDocx = sourceFileType === 'docx';
+                const mimeType = isDocx
+                  ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                  : 'application/pdf';
+                const fileName = isDocx ? 'document.docx' : 'document.pdf';
+                const fileBlob = new Blob([sourceBuffer], { type: mimeType });
                 const extractFormData = new FormData();
-                extractFormData.append('file', pdfBlob, 'document.pdf');
+                extractFormData.append('file', fileBlob, fileName);
 
                 const extractController = new AbortController();
                 const extractTimeoutId = setTimeout(() => extractController.abort(), 30000);
@@ -1234,7 +1239,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                 if (extractRes.ok && extractData.success && extractData.data?.text) {
                   originalContent = extractData.data.text;
-                  console.log('[Summary] Server extraction succeeded, length:', originalContent.length, 'pages:', extractData.data.pages);
+                  sourceFileType = extractData.data.sourceFileType || sourceFileType;
+                  console.log('[Summary] Server extraction succeeded, length:', originalContent.length, 'type:', sourceFileType, 'pages:', extractData.data.pages);
                   extractionSucceeded = true;
                 } else {
                   console.warn('[Summary] Server extraction failed:', extractData.error);

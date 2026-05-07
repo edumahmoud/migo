@@ -343,9 +343,15 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 sourceFileType = /\.(docx|doc)$/i.test(capturedFile.name) ? 'docx' : 'pdf';
               }
 
-              const pdfBlob = new Blob([sourceBuffer], { type: 'application/pdf' });
+              // Send with correct MIME type so the server can handle both PDF and DOCX
+              const isDocx = sourceFileType === 'docx';
+              const mimeType = isDocx
+                ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                : 'application/pdf';
+              const fileName = isDocx ? 'document.docx' : 'document.pdf';
+              const fileBlob = new Blob([sourceBuffer], { type: mimeType });
               const extractFormData = new FormData();
-              extractFormData.append('file', pdfBlob, 'document.pdf');
+              extractFormData.append('file', fileBlob, fileName);
 
               const extractController = new AbortController();
               const extractTimeoutId = setTimeout(() => extractController.abort(), 30000);
@@ -362,6 +368,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
               if (extractRes.ok && extractData.success && extractData.data?.text) {
                 originalContent = extractData.data.text;
+                sourceFileType = extractData.data.sourceFileType || sourceFileType;
                 extractionSucceeded = true;
               }
             } catch { /* Server fallback failed */ }
