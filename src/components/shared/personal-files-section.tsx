@@ -701,7 +701,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
             const formData = new FormData();
             formData.append('cacheControl', '3600');
-            formData.append('', item.file);
+            formData.append('file', item.file);
             xhr.send(formData);
           });
 
