@@ -24,6 +24,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { waitForSession } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import type { UserProfile, Assignment, Submission, Subject, UserFile } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -200,6 +201,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
   // ─── Student: submit state ───
   const [submitContent, setSubmitContent] = useState('');
   const [submitFile, setSubmitFile] = useState<File | null>(null);
+  const [submitFileBuffer, setSubmitFileBuffer] = useState<ArrayBuffer | null>(null); // Pre-read for mobile
   const [submitting, setSubmitting] = useState(false);
   const [submitMode, setSubmitMode] = useState<'text' | 'upload' | 'existing'>('text');
   const [selectedExistingFile, setSelectedExistingFile] = useState<UserFile | null>(null);
@@ -708,27 +710,63 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       let contentValue = submitContent.trim() || null;
 
       if (submitMode === 'upload' && submitFile && selectedAssignment.allow_file_submission) {
-        const { data: { session: uploadSession } } = await supabase.auth.getSession();
-        const uploadToken = uploadSession?.access_token || '';
-
-        const formData = new FormData();
-        formData.append('file', submitFile);
-        formData.append('userId', profile.id);
-        formData.append('assignmentId', selectedAssignment.id);
-
-        const uploadRes = await fetch('/api/files/upload', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${uploadToken}` },
-          body: formData,
-        });
-
-        const uploadResult = await uploadRes.json();
-        if (!uploadResult.success) {
-          toast.error(uploadResult.error || 'حدث خطأ أثناء رفع الملف');
+        // Use waitForSession for mobile PWA reliability
+        const uploadToken = await waitForSession(15000);
+        if (!uploadToken) {
+          toast.error('يرجى تسجيل الدخول أولاً');
           setSubmitting(false);
           return;
         }
-        fileId = uploadResult.data?.id || null;
+
+        // Pre-read file into ArrayBuffer on mobile to prevent File object becoming invalid
+        let fileToUpload: File | Blob = submitFile;
+        if (submitFileBuffer) {
+          fileToUpload = new Blob([submitFileBuffer], { type: submitFile.type || 'application/octet-stream' });
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileToUpload, submitFile.name);
+        formData.append('userId', profile.id);
+        formData.append('assignmentId', selectedAssignment.id);
+
+        // Add upload timeout to prevent infinity loading
+        const uploadController = new AbortController();
+        const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000);
+
+        try {
+          const uploadRes = await fetch('/api/files/upload', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${uploadToken}` },
+            body: formData,
+            signal: uploadController.signal,
+          });
+
+          clearTimeout(uploadTimeoutId);
+
+          if (!uploadRes.ok) {
+            const errorData = await uploadRes.json().catch(() => ({ error: 'حدث خطأ أثناء رفع الملف' }));
+            toast.error(errorData.error || 'حدث خطأ أثناء رفع الملف');
+            setSubmitting(false);
+            return;
+          }
+
+          const uploadResult = await uploadRes.json();
+          if (!uploadResult.success) {
+            toast.error(uploadResult.error || 'حدث خطأ أثناء رفع الملف');
+            setSubmitting(false);
+            return;
+          }
+          fileId = uploadResult.data?.id || null;
+        } catch (uploadErr) {
+          clearTimeout(uploadTimeoutId);
+          if (uploadErr instanceof Error && uploadErr.name === 'AbortError') {
+            toast.error('انتهت مهلة رفع الملف. يرجى المحاولة مرة أخرى');
+          } else {
+            toast.error('حدث خطأ أثناء رفع الملف. يرجى المحاولة مرة أخرى');
+          }
+          setSubmitting(false);
+          return;
+        }
       } else if (submitMode === 'existing' && selectedExistingFile) {
         fileId = selectedExistingFile.id;
         // Update the user_file to link with this assignment
@@ -766,6 +804,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         } catch { /* notification failure is non-critical */ }
         setSubmitContent('');
         setSubmitFile(null);
+        setSubmitFileBuffer(null);
         setSelectedExistingFile(null);
         setSubmitMode('text');
         fetchMySubmissions();
@@ -1613,7 +1652,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                       <p className="text-xs text-muted-foreground">{(submitFile.size / 1024).toFixed(1)} KB</p>
                     </div>
                     <button
-                      onClick={() => setSubmitFile(null)}
+                      onClick={() => { setSubmitFile(null); setSubmitFileBuffer(null); }}
                       className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
                     >
                       <X className="h-3 w-3" />
@@ -1634,7 +1673,14 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 <input
                   ref={fileInputRef}
                   type="file"
-                  onChange={(e) => { if (e.target.files?.[0]) setSubmitFile(e.target.files[0]); }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setSubmitFile(file);
+                      // Pre-read file into ArrayBuffer immediately for mobile PWA
+                      file.arrayBuffer().then(buf => setSubmitFileBuffer(buf)).catch(() => {});
+                    }
+                  }}
                   className="hidden"
                 />
               </div>

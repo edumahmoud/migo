@@ -22,6 +22,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { waitForSession } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import type { UserProfile, Subject, Assignment, Submission, UserFile } from '@/lib/types';
@@ -210,6 +211,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
   // ─── Student: submit state ───
   const [submitContent, setSubmitContent] = useState('');
   const [submitFile, setSubmitFile] = useState<File | null>(null);
+  const [submitFileBuffer, setSubmitFileBuffer] = useState<ArrayBuffer | null>(null); // Pre-read for mobile
   const [submitting, setSubmitting] = useState(false);
   const [submitMode, setSubmitMode] = useState<'text' | 'upload' | 'existing'>('text');
   const [selectedExistingFile, setSelectedExistingFile] = useState<UserFile | null>(null);
@@ -291,20 +293,27 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         setSubmissions([]);
       } else {
         const subs = (data as Submission[]) || [];
-        const enriched: SubmissionWithStudent[] = [];
-        for (const sub of subs) {
-          const { data: student } = await supabase
+        if (subs.length === 0) {
+          setSubmissions([]);
+        } else {
+          // Batch-fetch all student names in a single query (fixes N+1 problem)
+          const studentIds = [...new Set(subs.map(s => s.student_id))];
+          const { data: studentsData } = await supabase
             .from('users')
-            .select('name, email')
-            .eq('id', sub.student_id)
-            .single();
-          enriched.push({
+            .select('id, name, email')
+            .in('id', studentIds);
+
+          const studentMap = new Map(
+            (studentsData || []).map((s: { id: string; name?: string; email?: string }) => [s.id, s])
+          );
+
+          const enriched: SubmissionWithStudent[] = subs.map(sub => ({
             ...sub,
-            student_name: (student as { name?: string })?.name || 'طالب',
-            student_email: (student as { email?: string })?.email || '',
-          });
+            student_name: studentMap.get(sub.student_id)?.name || 'طالب',
+            student_email: studentMap.get(sub.student_id)?.email || '',
+          }));
+          setSubmissions(enriched);
         }
-        setSubmissions(enriched);
       }
     } catch {
       setSubmissions([]);
@@ -514,6 +523,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
     const currentSubmitMode = submitMode;
     const currentSubmitContent = submitContent.trim();
     const currentSubmitFile = submitFile;
+    const currentSubmitFileBuffer = submitFileBuffer;
     const currentSelectedExistingFile = selectedExistingFile;
 
     if (currentSubmitMode === 'text' && !currentSubmitContent) {
@@ -537,28 +547,64 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
       let contentValue = currentSubmitContent || null;
 
       if (currentSubmitMode === 'upload' && currentSubmitFile && selectedAssignment.allow_file_submission) {
-        // Upload file via API
-        const { data: { session: uploadSession } } = await supabase.auth.getSession();
-        const uploadToken = uploadSession?.access_token || '';
-
-        const formData = new FormData();
-        formData.append('file', currentSubmitFile);
-        formData.append('userId', profile.id);
-        formData.append('assignmentId', selectedAssignment.id);
-
-        const uploadRes = await fetch('/api/files/upload', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${uploadToken}` },
-          body: formData,
-        });
-
-        const uploadResult = await uploadRes.json();
-        if (!uploadResult.success) {
-          toast.error(uploadResult.error || 'حدث خطأ أثناء رفع الملف');
+        // Use waitForSession for mobile PWA reliability (handles session hydration delay)
+        const uploadToken = await waitForSession(15000);
+        if (!uploadToken) {
+          toast.error('يرجى تسجيل الدخول أولاً');
           setSubmitting(false);
           return;
         }
-        fileId = uploadResult.data?.id || null;
+
+        // Pre-read file into ArrayBuffer on mobile to prevent File object becoming invalid
+        let fileToUpload: File | Blob = currentSubmitFile;
+        if (currentSubmitFileBuffer) {
+          // Use pre-read ArrayBuffer to create a fresh Blob (mobile PWA fix)
+          fileToUpload = new Blob([currentSubmitFileBuffer], { type: currentSubmitFile.type || 'application/octet-stream' });
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileToUpload, currentSubmitFile.name);
+        formData.append('userId', profile.id);
+        formData.append('assignmentId', selectedAssignment.id);
+
+        // Add upload timeout to prevent infinity loading
+        const uploadController = new AbortController();
+        const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000); // 60s timeout
+
+        try {
+          const uploadRes = await fetch('/api/files/upload', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${uploadToken}` },
+            body: formData,
+            signal: uploadController.signal,
+          });
+
+          clearTimeout(uploadTimeoutId);
+
+          if (!uploadRes.ok) {
+            const errorData = await uploadRes.json().catch(() => ({ error: 'حدث خطأ أثناء رفع الملف' }));
+            toast.error(errorData.error || 'حدث خطأ أثناء رفع الملف');
+            setSubmitting(false);
+            return;
+          }
+
+          const uploadResult = await uploadRes.json();
+          if (!uploadResult.success) {
+            toast.error(uploadResult.error || 'حدث خطأ أثناء رفع الملف');
+            setSubmitting(false);
+            return;
+          }
+          fileId = uploadResult.data?.id || null;
+        } catch (uploadErr) {
+          clearTimeout(uploadTimeoutId);
+          if (uploadErr instanceof Error && uploadErr.name === 'AbortError') {
+            toast.error('انتهت مهلة رفع الملف. يرجى المحاولة مرة أخرى');
+          } else {
+            toast.error('حدث خطأ أثناء رفع الملف. يرجى المحاولة مرة أخرى');
+          }
+          setSubmitting(false);
+          return;
+        }
       } else if (currentSubmitMode === 'existing' && currentSelectedExistingFile) {
         // Use existing file
         fileId = currentSelectedExistingFile.id;
@@ -581,9 +627,10 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         toast.success('تم تسليم المهمة بنجاح');
         // Send notification to teacher
         try {
+          const notifyToken = await waitForSession(10000);
           await fetch('/api/notify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(notifyToken ? { 'Authorization': `Bearer ${notifyToken}` } : {}) },
             body: JSON.stringify({
               action: 'assignment_submitted',
               assignmentId: selectedAssignment.id,
@@ -596,6 +643,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         } catch { /* notification failure is non-critical */ }
         setSubmitContent('');
         setSubmitFile(null);
+        setSubmitFileBuffer(null);
         setSelectedExistingFile(null);
         setSubmitMode('text');
         fetchMySubmissions();
@@ -682,7 +730,10 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
     e.stopPropagation();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setSubmitFile(e.dataTransfer.files[0]);
+      const file = e.dataTransfer.files[0];
+      setSubmitFile(file);
+      // Pre-read for mobile PWA reliability
+      file.arrayBuffer().then(buf => setSubmitFileBuffer(buf)).catch(() => {});
       setSubmitMode('upload');
     }
   };
@@ -1272,7 +1323,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                       <p className="text-xs text-muted-foreground">{(submitFile.size / 1024).toFixed(1)} KB</p>
                     </div>
                     <button
-                      onClick={() => setSubmitFile(null)}
+                      onClick={() => { setSubmitFile(null); setSubmitFileBuffer(null); }}
                       className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
                     >
                       <X className="h-3 w-3" />
@@ -1293,7 +1344,15 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                 <input
                   ref={fileInputRef}
                   type="file"
-                  onChange={(e) => { if (e.target.files?.[0]) setSubmitFile(e.target.files[0]); }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setSubmitFile(file);
+                      // Pre-read file into ArrayBuffer immediately on mobile
+                      // Mobile PWA File objects can become invalid after the input is cleared
+                      file.arrayBuffer().then(buf => setSubmitFileBuffer(buf)).catch(() => {});
+                    }
+                  }}
                   className="hidden"
                 />
               </div>

@@ -462,32 +462,31 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   }, [profile.id, waitForSession, safeSetSummaries, loadSummariesFromCache]);
 
   const fetchQuizzes = useCallback(async () => {
-    // Own quizzes
-    const { data: ownQuizzes, error: ownError } = await supabase
-      .from('quizzes')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false });
+    // Run own quizzes and teacher links queries in parallel
+    const [ownResult, linksResult] = await Promise.all([
+      supabase
+        .from('quizzes')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('teacher_student_links')
+        .select('teacher_id, status')
+        .eq('student_id', profile.id),
+    ]);
 
-    if (ownError) {
-      console.error('Error fetching own quizzes:', ownError);
+    const ownQuizzes = ownResult.data as Quiz[] || [];
+    if (ownResult.error) {
+      console.error('Error fetching own quizzes:', ownResult.error);
     }
 
-    // Teacher-linked quizzes - fetch all links and filter by status if available
-    const { data: links } = await supabase
-      .from('teacher_student_links')
-      .select('teacher_id, status')
-      .eq('student_id', profile.id);
-
     let teacherIds: string[] = [];
-    if (links && links.length > 0) {
-      // Check if status column exists
-      const hasStatus = 'status' in links[0];
+    if (linksResult.data && linksResult.data.length > 0) {
+      const hasStatus = 'status' in linksResult.data[0];
       if (hasStatus) {
-        // Only include approved links
-        teacherIds = links.filter((l) => l.status === 'approved').map((l) => l.teacher_id);
+        teacherIds = linksResult.data.filter((l) => l.status === 'approved').map((l) => l.teacher_id);
       } else {
-        teacherIds = links.map((l) => l.teacher_id);
+        teacherIds = linksResult.data.map((l) => l.teacher_id);
       }
     }
 
@@ -507,7 +506,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     }
 
     // Merge and deduplicate
-    const allQuizzes = [...(ownQuizzes as Quiz[] || []), ...teacherQuizzes];
+    const allQuizzes = [...ownQuizzes, ...teacherQuizzes];
     const uniqueMap = new Map<string, Quiz>();
     allQuizzes.forEach((q) => uniqueMap.set(q.id, q));
     setQuizzes(Array.from(uniqueMap.values()));
@@ -2465,80 +2464,67 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       <Type className="h-4 w-4" />
                       لصق نص
                     </button>
-                    {/* File upload mode - hidden on mobile */}
-                    {!isMobile && (
-                      <button
-                        onClick={() => setSummaryInputMode('file')}
+                    {/* File upload mode - now available on mobile too */}
+                    <button
+                      onClick={() => setSummaryInputMode('file')}
 
-                        className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
-                          summaryInputMode === 'file'
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                            : 'border-border text-muted-foreground hover:bg-muted/50'
-                        }`}
-                      >
-                        <Upload className="h-4 w-4" />
-                        رفع ملف + تلخيص
-                      </button>
-                    )}
-                    {/* Transcribe mode - hidden on mobile */}
-                    {!isMobile && (
-                      <button
-                        onClick={() => setSummaryInputMode('transcribe')}
+                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                        summaryInputMode === 'file'
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <Upload className="h-4 w-4" />
+                      رفع ملف + تلخيص
+                    </button>
+                    {/* Transcribe mode - now available on mobile too */}
+                    <button
+                      onClick={() => setSummaryInputMode('transcribe')}
 
-                        className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
-                          summaryInputMode === 'transcribe'
-                            ? 'border-teal-500 bg-teal-50 text-teal-700'
-                            : 'border-border text-muted-foreground hover:bg-muted/50'
-                        }`}
-                      >
-                        <BookOpen className="h-4 w-4" />
-                        تفريغ فقط
-                      </button>
-                    )}
-                    {/* Existing files mode - hidden on mobile */}
-                    {!isMobile && (
-                      <button
-                        onClick={() => {
-                          setSummaryInputMode('existing');
-                          // Fetch user's document files
-                          if (existingFiles.length === 0) {
-                            setLoadingExistingFiles(true);
-                            supabase
-                              .from('user_files')
-                              .select('*')
-                              .eq('user_id', profile.id)
-                              .order('created_at', { ascending: false })
-                              .then(({ data, error }) => {
-                                if (!error && data) {
-                                  // Filter to only document files (PDF, Word, text)
-                                  const docFiles = (data as UserFile[]).filter(f =>
-                                    /\.(pdf|docx?|txt|rtf)$/i.test(f.file_name)
-                                  );
-                                  setExistingFiles(docFiles);
-                                }
-                                setLoadingExistingFiles(false);
-                              });
-                          }
-                        }}
+                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                        summaryInputMode === 'transcribe'
+                          ? 'border-teal-500 bg-teal-50 text-teal-700'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      تفريغ فقط
+                    </button>
+                    {/* Existing files mode - now available on mobile too */}
+                    <button
+                      onClick={() => {
+                        setSummaryInputMode('existing');
+                        // Fetch user's document files
+                        if (existingFiles.length === 0) {
+                          setLoadingExistingFiles(true);
+                          supabase
+                            .from('user_files')
+                            .select('*')
+                            .eq('user_id', profile.id)
+                            .order('created_at', { ascending: false })
+                            .then(({ data, error }) => {
+                              if (!error && data) {
+                                // Filter to only document files (PDF, Word, text)
+                                const docFiles = (data as UserFile[]).filter(f =>
+                                  /\.(pdf|docx?|txt|rtf)$/i.test(f.file_name)
+                                );
+                                setExistingFiles(docFiles);
+                              }
+                              setLoadingExistingFiles(false);
+                            });
+                        }
+                      }}
 
-                        className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
-                          summaryInputMode === 'existing'
-                            ? 'border-violet-500 bg-violet-50 text-violet-700'
-                            : 'border-border text-muted-foreground hover:bg-muted/50'
-                        }`}
-                      >
-                        <FolderOpen className="h-4 w-4" />
-                        ملفاتي
-                      </button>
-                    )}
+                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                        summaryInputMode === 'existing'
+                          ? 'border-violet-500 bg-violet-50 text-violet-700'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                      ملفاتي
+                    </button>
                   </div>
-                  {/* Mobile: show message if user tries file/transcribe features */}
-                  {isMobile && (
-                    <p className="text-xs text-amber-600/80 mt-2 flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      ميزة رفع الملفات تعمل عند الفتح من الحاسوب فقط
-                    </p>
-                  )}
                   {summaryInputMode === 'transcribe' && (
                     <p className="text-xs text-teal-600/80 mt-2">
                       سيتم استخراج النص من ملف PDF أو Word فقط دون تلخيص

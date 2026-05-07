@@ -123,26 +123,13 @@ export default function NotificationBell() {
   const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore();
 
   // Initialize notifications from DB when component mounts
-  // Cleanup on unmount to prevent ghost subscriptions and polling timers
+  // The notification store already handles both Realtime subscription AND polling,
+  // so we only need to trigger initialization here — no duplicate polling needed.
   useEffect(() => {
     if (user?.id && !initialized) {
       initializeNotifications(user.id);
     }
-    return () => {
-      // Don't cleanup here on every re-render — only on actual unmount
-      // The notification store's cleanup is called on sign-out via auth-store
-    };
   }, [user?.id, initialized, initializeNotifications]);
-
-  // Periodic refresh every 30s when the bell component is mounted
-  // This ensures notifications stay fresh even when the dropdown is closed
-  useEffect(() => {
-    if (!user?.id || !initialized) return;
-    const refreshTimer = setInterval(() => {
-      refetchNotifications();
-    }, 30000);
-    return () => clearInterval(refreshTimer);
-  }, [user?.id, initialized, refetchNotifications]);
 
   // Calculate dropdown position when opened
   useEffect(() => {
