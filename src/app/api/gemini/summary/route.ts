@@ -82,10 +82,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate summary using AI (Groq) with STREAMING
-    // NO duplicate route-level timeout — the AI call has its own two-tier timeout:
-    //   - First-token timeout: 15s (fast feedback if AI is unreachable)
-    //   - Overall timeout: 45s (leaves 15s headroom for auth + DB)
+    // Generate summary using AI (Gemini) with streaming and fallback chain
+    // The AI layer handles its own timeout, retry, and key rotation internally.
     const authTime = Date.now() - requestStartTime;
     console.log('[Summary API] Generating summary for user:', userId, 'content length:', sanitizedContent.length, 'auth took:', authTime + 'ms');
 

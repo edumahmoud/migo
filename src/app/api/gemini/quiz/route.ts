@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate quiz using AI (Groq) with timeout
+    // Generate quiz using AI (Gemini) with fallback chain
     console.log('[Quiz API] Generating quiz for user:', authResult.user.id, 'config:', questionTypes);
     const quizPromise = generateQuiz(sanitizedContent, questionTypes);
     const timeoutPromise = new Promise<never>((_, reject) =>

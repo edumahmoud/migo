@@ -173,6 +173,50 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     };
   }, [profile.id, fetchSummaries, fetchSubjects]);
 
+  // ─── Auth re-hydration for mobile (fix: no INITIAL_SESSION handling) ───
+  useEffect(() => {
+    let cancelled = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (cancelled) return;
+      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        console.log('[TeacherSummaries] Session ready (event:', event, '), re-fetching...');
+        fetchSummaries();
+        fetchSubjects();
+      }
+    });
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [fetchSummaries, fetchSubjects]);
+
+  // ─── Loading timeout for mobile (fix: no timeout = stuck forever) ───
+  useEffect(() => {
+    if (!loadingSummaries) return;
+    const timer = setTimeout(() => {
+      console.warn('[TeacherSummaries] Loading timeout (15s) — forcing data display');
+      setLoadingSummaries(false);
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [loadingSummaries]);
+
+  // ─── Stale pending summary auto-cleanup (fix: stuck "جاري إنشاء..." on mobile) ───
+  useEffect(() => {
+    if (pendingSummaries.length === 0) return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setPendingSummaries(prev => {
+        const stale = prev.filter(p => now - p.startedAt > 5 * 60 * 1000); // 5 minutes
+        if (stale.length > 0) {
+          console.warn('[TeacherSummaries] Cleaning up', stale.length, 'stale pending summaries');
+          return prev.filter(p => now - p.startedAt <= 5 * 60 * 1000);
+        }
+        return prev;
+      });
+    }, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, [pendingSummaries.length]);
+
   // -------------------------------------------------------
   // Handle delete summary
   // -------------------------------------------------------

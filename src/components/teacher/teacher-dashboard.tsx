@@ -410,6 +410,47 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     fetchAllData();
   }, [fetchAllData]);
 
+  // ─── Auth re-hydration for mobile (fix: no INITIAL_SESSION handling) ───
+  useEffect(() => {
+    let cancelled = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (cancelled) return;
+      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        console.log('[TeacherDashboard] Session ready (event:', event, '), re-fetching data...');
+        fetchAllData();
+      }
+    });
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [fetchAllData]);
+
+  // ─── Visibility change handler for mobile (fix: stale data after tab switch) ───
+  useEffect(() => {
+    let cancelled = false;
+    const handleVisibility = () => {
+      if (cancelled) return;
+      if (!document.hidden) {
+        console.log('[TeacherDashboard] Tab visible, refreshing data...');
+        fetchAllData();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [fetchAllData]);
+
+  // ─── Fallback polling for mobile (fix: Realtime disconnect on mobile) ───
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAllData();
+    }, 120000); // 2 minutes
+    return () => clearInterval(interval);
+  }, [fetchAllData]);
+
   // ─── Loading timeout safety net ───
   // If loading takes too long (slow session hydration on mobile/PWA),
   // stop showing infinite loading spinner and show content with available data.

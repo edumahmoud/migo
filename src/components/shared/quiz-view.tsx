@@ -88,6 +88,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
 
   // ─── Quiz taking state ───
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -169,6 +170,42 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       setLoading(false);
     }
   }, [quizId, profile.id]);
+
+  // ─── Auth re-hydration for mobile (fix: no INITIAL_SESSION handling) ───
+  useEffect(() => {
+    let cancelled = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (cancelled) return;
+      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        setAuthReady(true);
+        fetchQuiz();
+      }
+    });
+
+    // Also check current session immediately
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      if (session) {
+        setAuthReady(true);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [fetchQuiz]);
+
+  // ─── Loading timeout for mobile (fix: no timeout = stuck forever) ───
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => {
+      console.warn('[QuizView] Loading timeout (15s) — forcing error state');
+      setLoading(false);
+      setError('انتهت مهلة تحميل الاختبار. يرجى المحاولة مرة أخرى');
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     fetchQuiz();
@@ -408,22 +445,38 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         return;
       }
 
-      // Call API for semantic evaluation
+      // Call API for semantic evaluation (with AbortController for mobile)
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
 
-      const res = await fetch('/api/gemini/evaluate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          question: currentQuestion?.question,
-          correctAnswer: currentQuestion?.correctAnswer,
-          studentAnswer,
-        }),
-      });
+      // FIX: Add AbortController with timeout for mobile networks
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      let res: Response;
+      try {
+        res = await fetch('/api/gemini/evaluate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            question: currentQuestion?.question,
+            correctAnswer: currentQuestion?.correctAnswer,
+            studentAnswer,
+          }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        toast.error('حدث خطأ أثناء تقييم الإجابة');
+        setIsCorrect(false);
+        setAnswered(true);
+        setEvaluatingCompletion(false);
+        return;
+      }
 
       const data = await res.json();
       if (data.success && data.data) {
@@ -564,6 +617,15 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
 
       if (scoreError) {
         console.error('Error saving score:', scoreError);
+        // FIX: Notify user about save failure instead of silent loss
+        toast.error('فشل حفظ النتيجة', {
+          description: 'تم إكمال الاختبار ولكن حدث خطأ في حفظ النتيجة. يرجى المحاولة مرة أخرى.',
+          duration: 8000,
+          action: {
+            label: 'إعادة المحاولة',
+            onClick: () => saveScore(finalScore, finalAnswers),
+          },
+        });
       }
 
       // Handle teacher linking if student is not linked to the quiz creator

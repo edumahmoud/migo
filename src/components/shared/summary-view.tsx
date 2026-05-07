@@ -195,6 +195,19 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     fetchRelatedQuiz();
   }, [fetchSummary, fetchRelatedQuiz]);
 
+  // ─── Loading timeout for mobile (fix: loading stuck forever) ───
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => {
+      console.warn('[SummaryView] Loading timeout (15s) — forcing error state');
+      setLoading(false);
+      if (!error) {
+        setError('انتهت مهلة تحميل الملخص. يرجى المحاولة مرة أخرى');
+      }
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [loading, error]);
+
   // ─── Re-fetch summary when auth session becomes available (mobile fix) ───
   // Bug Fix #4: Also handle INITIAL_SESSION event which fires on page refresh
   // when the persisted session is re-hydrated from localStorage.
@@ -422,21 +435,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   };
 
   // -------------------------------------------------------
-  // Loading state
+  // Error state — with retry button (FIX: check error BEFORE loading
+  // to prevent stuck loading when error is set but loading is also true)
   // -------------------------------------------------------
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" dir="rtl">
-        <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
-        <p className="text-muted-foreground text-sm">جاري تحميل الملخص...</p>
-      </div>
-    );
-  }
-
-  // -------------------------------------------------------
-  // Error state — with retry button
-  // -------------------------------------------------------
-  if (error || !summary) {
+  if (error && !loading) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir="rtl">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100">
@@ -461,6 +463,30 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             العودة
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------
+  // Loading state
+  // -------------------------------------------------------
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" dir="rtl">
+        <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+        <p className="text-muted-foreground text-sm">جاري تحميل الملخص...</p>
+      </div>
+    );
+  }
+
+  if (!summary) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir="rtl">
+        <p className="text-lg font-semibold text-foreground">لم يتم العثور على الملخص</p>
+        <Button onClick={onBack} variant="outline" className="gap-2">
+          <ChevronLeft className="h-4 w-4" />
+          العودة
+        </Button>
       </div>
     );
   }
