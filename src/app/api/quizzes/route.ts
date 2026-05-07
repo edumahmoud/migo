@@ -10,7 +10,7 @@ import { checkRateLimit, getRateLimitHeaders, sanitizeString, safeErrorResponse 
  * Create a new quiz.
  * Uses the service role key (bypasses RLS) to guarantee the quiz is saved.
  *
- * Body: { title: string, questions: array, summaryId?: string }
+ * Body: { title: string, questions: array, summaryId?: string, subject_id?: string, show_results?: boolean, allow_retake?: boolean }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
     const body = await request.json();
-    const { title, questions, summaryId } = body;
+    const { title, questions, summaryId, subject_id, show_results, allow_retake } = body;
 
     if (!title || !questions || !Array.isArray(questions)) {
       return NextResponse.json(
@@ -36,6 +36,18 @@ export async function POST(request: NextRequest) {
 
     if (summaryId) {
       insertData.summary_id = summaryId;
+    }
+
+    if (subject_id) {
+      insertData.subject_id = subject_id;
+    }
+
+    if (show_results !== undefined) {
+      insertData.show_results = show_results;
+    }
+
+    if (allow_retake !== undefined) {
+      insertData.allow_retake = allow_retake;
     }
 
     const { data: quiz, error } = await supabaseServer

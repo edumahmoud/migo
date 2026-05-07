@@ -36,6 +36,8 @@ interface SummaryViewProps {
   summaryId: string;
   onBack: () => void;
   onViewQuiz?: (quizId: string) => void;
+  /** If true, show quiz creation with subject_id (teacher mode) */
+  teacherMode?: boolean;
 }
 
 // -------------------------------------------------------
@@ -54,7 +56,7 @@ const staggerContainer = {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryViewProps) {
+export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode }: SummaryViewProps) {
   // ─── State ───
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -297,15 +299,22 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
       }
 
       // Save the quiz
+      const quizPayload: Record<string, unknown> = {
+        title: `اختبار: ${summary?.title || 'ملخص'}`,
+        questions: quizData.data.questions,
+        summaryId,
+        show_results: quizAnswerMode === 'after' ? false : true,
+      };
+
+      // If teacher mode and summary has a subject_id, include it
+      if (teacherMode && summary?.subject_id) {
+        quizPayload.subject_id = summary.subject_id;
+      }
+
       const saveRes = await fetch('/api/quizzes', {
         method: 'POST',
         headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          title: `اختبار: ${summary?.title || 'ملخص'}`,
-          questions: quizData.data.questions,
-          summaryId,
-          show_results: quizAnswerMode === 'after' ? false : true,
-        }),
+        body: JSON.stringify(quizPayload),
       });
 
       if (saveRes.ok) {

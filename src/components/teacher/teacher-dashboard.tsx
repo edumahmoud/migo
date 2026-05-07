@@ -56,6 +56,7 @@ import PersonalFilesSection from '@/components/shared/personal-files-section';
 import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import NotificationsSection from '@/components/shared/notifications-section';
 import CoursePage from '@/components/course/course-page';
+import TeacherSummariesSection from '@/components/teacher/teacher-summaries-section';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
@@ -2022,6 +2023,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {activeSection === 'subjects' && (selectedSubjectId
                   ? <CoursePage profile={profile} role="teacher" />
                   : <SubjectsSection profile={profile} role="teacher" />)}
+                {activeSection === 'summaries' && <TeacherSummariesSection profile={profile} />}
                 {activeSection === 'students' && renderStudents()}
                 {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
                 {activeSection === 'analytics' && renderAnalytics()}
