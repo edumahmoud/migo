@@ -26,6 +26,115 @@ export async function POST(request: NextRequest) {
   if (!authResult.success) return authErrorResponse(authResult);
 
   try {
+    const contentType = request.headers.get('content-type') || '';
+
+    // ── Mode 1: JSON body (file already uploaded to Supabase Storage directly) ──
+    // This mode is used by the mobile PWA upload flow to bypass Vercel's 4.5MB body limit.
+    // The file was uploaded directly to Supabase Storage from the client, and only
+    // metadata is sent here to create the DB record.
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      const { subjectId, uploadedBy, displayName, fileUrl, storagePath, fileSize, fileType: rawFileType, category, customName, description, userFileId } = body;
+
+      if (!subjectId || !uploadedBy || !fileUrl) {
+        return NextResponse.json(
+          { success: false, error: 'معرف المقرر ومعرف المستخدم ورابط الملف مطلوبون' },
+          { status: 400 }
+        );
+      }
+
+      // Verify that the authenticated user matches the uploadedBy user
+      const ownershipError = verifyOwnership(authResult.user.id, uploadedBy);
+      if (ownershipError) return authErrorResponse(ownershipError);
+
+      // Determine file type from MIME
+      let fileType = 'other';
+      if (rawFileType?.startsWith('image/')) fileType = 'image';
+      else if (rawFileType === 'application/pdf') fileType = 'pdf';
+      else if (rawFileType?.includes('word') || rawFileType?.includes('document')) fileType = 'document';
+      else if (rawFileType?.includes('sheet') || rawFileType?.includes('excel')) fileType = 'spreadsheet';
+      else if (rawFileType?.includes('presentation') || rawFileType?.includes('powerpoint')) fileType = 'presentation';
+      else if (rawFileType === 'text/plain' || rawFileType === 'text/csv') fileType = 'text';
+      else if (rawFileType?.includes('zip') || rawFileType?.includes('compressed')) fileType = 'archive';
+
+      // Insert into subject_files
+      const insertDataFull: Record<string, unknown> = {
+        subject_id: subjectId,
+        uploaded_by: uploadedBy,
+        file_name: displayName || customName || 'ملف',
+        file_type: fileType,
+        file_size: fileSize || 0,
+        file_url: fileUrl,
+        description: description || null,
+        category: category || null,
+        visibility: 'public',
+      };
+
+      if (userFileId) {
+        insertDataFull.user_file_id = userFileId;
+      }
+
+      let fileRecord = null;
+      let dbError = null;
+
+      // First attempt: with full columns
+      const fullResult = await supabaseServer
+        .from('subject_files')
+        .insert(insertDataFull)
+        .select()
+        .single();
+
+      if (fullResult.error) {
+        const errMsg = fullResult.error.message || '';
+        if (errMsg.includes('user_file_id') || errMsg.includes('visibility') || errMsg.includes('does not exist') || errMsg.includes('schema cache')) {
+          console.warn('subject_files missing columns, retrying without visibility/user_file_id. Run v6 migration:', errMsg);
+          const insertDataBasic: Record<string, unknown> = {
+            subject_id: subjectId,
+            uploaded_by: uploadedBy,
+            file_name: displayName || customName || 'ملف',
+            file_type: fileType,
+            file_size: fileSize || 0,
+            file_url: fileUrl,
+            description: description || null,
+            category: category || null,
+          };
+
+          const basicResult = await supabaseServer
+            .from('subject_files')
+            .insert(insertDataBasic)
+            .select()
+            .single();
+
+          fileRecord = basicResult.data;
+          dbError = basicResult.error;
+        } else {
+          dbError = fullResult.error;
+        }
+      } else {
+        fileRecord = fullResult.data;
+      }
+
+      if (dbError) {
+        console.error('DB insert error (JSON mode):', dbError);
+        // Try to clean up the storage file since the DB record failed
+        if (storagePath) {
+          await supabaseServer.storage.from('user-files').remove([storagePath]);
+        }
+        return NextResponse.json(
+          { success: false, error: 'حدث خطأ أثناء حفظ بيانات الملف' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: fileRecord,
+      });
+    }
+
+    // ── Mode 2: FormData body (file uploaded through this endpoint) ──
+    // This is the original flow where the file is sent as FormData through Vercel.
+    // Kept for backward compatibility but subject to Vercel's 4.5MB body size limit.
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const subjectId = formData.get('subjectId') as string | null;

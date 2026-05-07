@@ -33,6 +33,7 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { waitForSession as waitForSessionShared } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
 import StatCard from '@/components/shared/stat-card';
@@ -334,27 +335,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
    * Wait for a valid Supabase auth session with exponential backoff.
    * On mobile, session hydration from localStorage can be slow (1-5s),
    * so we need multiple retries before giving up.
+   * Uses the shared utility from @/lib/client-auth for consistency across all components.
    */
   const waitForSession = useCallback(async (maxWaitMs = 8000): Promise<string> => {
-    const startTime = Date.now();
-    const delays = [500, 1000, 1500, 2000, 3000]; // progressive backoff
-    let attempt = 0;
-
-    while (Date.now() - startTime < maxWaitMs) {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      if (token) {
-        console.log(`[waitForSession] Got token after ${attempt} retries, ${Date.now() - startTime}ms`);
-        return token;
-      }
-      const delay = delays[Math.min(attempt, delays.length - 1)];
-      console.warn(`[waitForSession] No token yet (attempt ${attempt + 1}), waiting ${delay}ms...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      attempt++;
-    }
-
-    console.error('[waitForSession] Failed to get session after', maxWaitMs, 'ms');
-    return '';
+    return waitForSessionShared(maxWaitMs);
   }, []);
 
   /**
@@ -557,12 +541,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const allIds = [...approvedIds, ...pendingIds, ...rejectedIds];
       if (allIds.length > 0) {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const batchToken = await waitForSession(15000);
           const res = await fetch('/api/users/batch', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+              ...(batchToken ? { 'Authorization': `Bearer ${batchToken}` } : {}),
             },
             body: JSON.stringify({ userIds: allIds }),
           });
@@ -589,12 +573,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       if (approvedLinks && approvedLinks.length > 0) {
         const teacherIds = approvedLinks.map((l) => l.teacher_id);
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const batchToken2 = await waitForSession(15000);
           const res = await fetch('/api/users/batch', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+              ...(batchToken2 ? { 'Authorization': `Bearer ${batchToken2}` } : {}),
             },
             body: JSON.stringify({ userIds: teacherIds }),
           });
@@ -1237,8 +1221,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
 
             // Save directly to database (no AI call needed)
-            const { data: { session: saveSession } } = await supabase.auth.getSession();
-            const saveToken = saveSession?.access_token || token;
+            // Use waitForSession to ensure valid token on mobile PWA
+            const saveToken = token || await waitForSession(15000);
             const saveRes = await fetch('/api/summaries', {
               method: 'POST',
               headers: {
@@ -1462,13 +1446,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setDeletingSummaryId(summaryId);
     try {
       // Use server-side API to delete (bypasses RLS issues)
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      const deleteToken = await waitForSession(15000);
       const res = await fetch('/api/summaries', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(deleteToken ? { 'Authorization': `Bearer ${deleteToken}` } : {}),
         },
         body: JSON.stringify({ summaryId }),
       });
@@ -1526,11 +1509,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setCreatingQuizFromSummary(true);
     try {
       // 1. Get the summary content
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      const quizToken = await waitForSession(15000);
 
       const summaryRes = await fetch('/api/summaries', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        headers: quizToken ? { 'Authorization': `Bearer ${quizToken}` } : {},
       });
       let content = '';
       if (summaryRes.ok) {
@@ -1616,9 +1598,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // -------------------------------------------------------
   // Link teacher handler (two-step: search then confirm)
   // -------------------------------------------------------
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
+  const getAuthHeadersLocal = async () => {
+    const token = await waitForSession(15000);
     return {
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -1638,7 +1619,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getAuthHeadersLocal(),
         body: JSON.stringify({ teacherCode: code, action: 'search' }),
       });
 
@@ -1667,7 +1648,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getAuthHeadersLocal(),
         body: JSON.stringify({ teacherCode: teacherCode.trim().toUpperCase() }),
       });
 
@@ -1708,7 +1689,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher-unlink', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getAuthHeadersLocal(),
         body: JSON.stringify({ teacherId }),
       });
 
@@ -1738,7 +1719,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher-cancel', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getAuthHeadersLocal(),
         body: JSON.stringify({ teacherId, action: 'cancel' }),
       });
 
@@ -1765,7 +1746,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher-cancel', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getAuthHeadersLocal(),
         body: JSON.stringify({ teacherId, action: 'dismiss' }),
       });
 
@@ -1792,7 +1773,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-student-approve', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getAuthHeadersLocal(),
         body: JSON.stringify({ action: 'approve', teacherId, notificationId }),
       });
 
@@ -1821,7 +1802,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-student-approve', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getAuthHeadersLocal(),
         body: JSON.stringify({ action: 'reject', teacherId, notificationId }),
       });
 
@@ -1934,8 +1915,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
   const handleDeleteAccount = async () => {
     // Get the current session token for authorization
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const deleteAccountToken = await waitForSession(15000);
+    if (!deleteAccountToken) {
       throw new Error('لا يوجد جلسة نشطة');
     }
 
@@ -1944,7 +1925,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
+        'Authorization': `Bearer ${deleteAccountToken}`,
       },
     });
 

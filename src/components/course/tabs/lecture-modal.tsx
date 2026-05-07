@@ -30,6 +30,7 @@ import {
   Search,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import type { UserProfile, LectureWithAttendance, AttendanceRecordWithStudent, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
@@ -255,13 +256,10 @@ export default function LectureModal({
         // Use server-side API to fetch student profiles (bypasses RLS)
         let studentMap = new Map<string, { name: string; email: string }>();
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const headers = await getAuthHeaders(15000);
           const res = await fetch('/api/users/batch', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-            },
+            headers,
             body: JSON.stringify({ userIds: studentIds }),
           });
           if (res.ok) {
@@ -312,13 +310,10 @@ export default function LectureModal({
         if (absentIds.length === 0) { setAbsentStudents([]); return; }
         // Use server-side API to fetch student profiles (bypasses RLS)
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const headers = await getAuthHeaders(15000);
           const res = await fetch('/api/users/batch', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-            },
+            headers,
             body: JSON.stringify({ userIds: absentIds }),
           });
           if (res.ok) {
@@ -337,13 +332,10 @@ export default function LectureModal({
 
       // Use server-side API to fetch student profiles (bypasses RLS)
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const headers = await getAuthHeaders(15000);
         const res = await fetch('/api/users/batch', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-          },
+          headers,
           body: JSON.stringify({ userIds: absentIds }),
         });
         if (res.ok) {
@@ -398,13 +390,10 @@ export default function LectureModal({
         // Use server-side API to fetch author profiles (bypasses RLS)
         let authorMap = new Map<string, string>();
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const headers = await getAuthHeaders(15000);
           const res = await fetch('/api/users/batch', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-            },
+            headers,
             body: JSON.stringify({ userIds: authorIds }),
           });
           if (res.ok) {
@@ -498,8 +487,16 @@ export default function LectureModal({
 
     setUploadingFiles(true);
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token || '';
+    // Wait for valid auth session — critical on mobile PWA where session hydration is slow
+    const token = await waitForSession(15000);
+    if (!token) {
+      toast.error('يرجى تسجيل الدخول أولاً');
+      setUploadingFiles(false);
+      return;
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
     for (let i = 0; i < pendingFiles.length; i++) {
       const pf = pendingFiles[i];
@@ -513,27 +510,110 @@ export default function LectureModal({
       try {
         const originalExt = pf.file.name.includes('.') ? '.' + pf.file.name.split('.').pop() : '';
         const displayName = pf.customName.trim() ? pf.customName.trim() + originalExt : pf.file.name;
+        const safeStorageName = `${Date.now()}_${pf.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const storagePath = `courses/${subjectId}/${safeStorageName}`;
 
-        const formData = new FormData();
-        formData.append('file', pf.file);
-        formData.append('subjectId', subjectId);
-        formData.append('uploadedBy', profile.id);
-        formData.append('category', 'محاضرات');
-        formData.append('customName', pf.customName.trim());
+        let storageUploadSuccess = false;
 
-        const result = await uploadFileWithProgress(
-          '/api/files/course-upload',
-          formData,
-          { Authorization: `Bearer ${token}` },
-          (percent) => {
-            setPendingFiles((prev) =>
-              prev.map((p, idx) => (idx === i ? { ...p, progress: percent } : p))
-            );
+        // ── Step 1: Upload directly to Supabase Storage (bypasses Vercel 4.5MB limit) ──
+        if (supabaseUrl && supabaseAnonKey) {
+          // Try XHR direct upload first (real progress tracking)
+          try {
+            await new Promise<void>((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.timeout = 5 * 60 * 1000; // 5 min for large files on mobile
+
+              xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                  const percent = Math.round((e.loaded / e.total) * 85); // Storage is 85% of work
+                  setPendingFiles((prev) =>
+                    prev.map((p, idx) => (idx === i ? { ...p, progress: percent } : p))
+                  );
+                }
+              });
+
+              xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  resolve();
+                } else {
+                  reject(new Error(`HTTP ${xhr.status}`));
+                }
+              });
+              xhr.addEventListener('error', () => reject(new Error('Network error')));
+              xhr.addEventListener('abort', () => reject(new Error('Aborted')));
+              xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+
+              const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
+              xhr.open('POST', storageUploadUrl);
+              xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+              xhr.setRequestHeader('apikey', supabaseAnonKey);
+              xhr.setRequestHeader('x-upsert', 'false');
+
+              const formData = new FormData();
+              formData.append('cacheControl', '3600');
+              formData.append('file', pf.file);
+              xhr.send(formData);
+            });
+
+            storageUploadSuccess = true;
+          } catch (xhrErr) {
+            console.warn(`[LectureUpload] XHR upload failed, trying SDK:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
           }
+        }
+
+        // SDK fallback for storage upload
+        if (!storageUploadSuccess) {
+          try {
+            const { error: uploadError } = await supabase.storage
+              .from('user-files')
+              .upload(storagePath, pf.file, {
+                cacheControl: '3600',
+                contentType: pf.file.type || 'application/octet-stream',
+                upsert: false,
+              });
+
+            if (uploadError) {
+              throw uploadError;
+            }
+            storageUploadSuccess = true;
+          } catch (sdkErr) {
+            console.warn(`[LectureUpload] SDK upload also failed:`, sdkErr);
+          }
+        }
+
+        if (!storageUploadSuccess) {
+          throw new Error('فشل رفع الملف إلى التخزين');
+        }
+
+        // ── Step 2: Create DB record via lightweight API (metadata only, no file body) ──
+        const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
+
+        setPendingFiles((prev) =>
+          prev.map((p, idx) => (idx === i ? { ...p, progress: 90 } : p))
         );
 
-        if (result.success && result.data) {
-          const fileData = result.data as { file_url: string; file_name: string };
+        const createRecordHeaders = await getAuthHeaders(15000);
+        const createRes = await fetch('/api/files/course-upload', {
+          method: 'POST',
+          headers: createRecordHeaders,
+          body: JSON.stringify({
+            subjectId,
+            uploadedBy: profile.id,
+            category: 'محاضرات',
+            customName: pf.customName.trim(),
+            displayName,
+            fileUrl,
+            storagePath,
+            fileSize: pf.file.size,
+            fileType: pf.file.type,
+          }),
+          signal: AbortSignal.timeout(30000),
+        });
+
+        const createResult = await createRes.json();
+
+        if (createRes.ok && createResult.success && createResult.data) {
+          const fileData = createResult.data as { file_url: string; file_name: string };
           // Create lecture_note referencing this file
           await supabase.from('lecture_notes').insert({
             lecture_id: lecture.id,
@@ -546,13 +626,15 @@ export default function LectureModal({
             prev.map((p, idx) => (idx === i ? { ...p, status: 'done' as const, progress: 100 } : p))
           );
         } else {
-          setPendingFiles((prev) =>
-            prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const, error: result.error || 'حدث خطأ' } : p))
-          );
+          // DB record creation failed — try to clean up the orphaned storage file
+          console.error('[LectureUpload] Create record error:', createResult.error);
+          await supabase.storage.from('user-files').remove([storagePath]);
+          throw new Error(createResult.error || 'فشل حفظ بيانات الملف');
         }
-      } catch {
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'حدث خطأ غير متوقع';
         setPendingFiles((prev) =>
-          prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const, error: 'حدث خطأ غير متوقع' } : p))
+          prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const, error: errMsg } : p))
         );
       }
     }

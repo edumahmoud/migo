@@ -34,6 +34,7 @@ import {
   Users,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -346,18 +347,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const fetchSharedFiles = useCallback(async () => {
     setLoadingShared(true);
     try {
-      // Get auth token for mobile browsers where cookies may not be sent
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      // Also send user ID as extra auth fallback (middleware may set this)
-      if (profile.id) {
-        headers['x-user-id'] = profile.id;
-      }
+      // Get auth token — use waitForSession for mobile PWA where session hydration can be slow
+      const headers = await getAuthHeaders(15000, { userId: profile.id });
 
       const res = await fetch('/api/files/shared-with-me', { headers });
 
@@ -593,13 +584,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       return;
     }
 
-    // Get auth token
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
+    // Get auth token — use waitForSession for mobile PWA where session hydration can be slow
+    const token = await waitForSession(15000);
+    if (!token) {
       toast.error('يرجى تسجيل الدخول أولاً');
       return;
     }
-    const token = session.access_token;
 
     // Supabase Storage direct-upload configuration
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -980,10 +970,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
 
       // Use server-side API to create shares (bypasses RLS)
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const headers = await getAuthHeaders(15000);
 
       const res = await fetch('/api/files/bulk-share', {
         method: 'POST',
@@ -1025,10 +1012,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     if (!sharingFileId || !shareByEmail.trim()) return;
     setShareByEmailLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const headers = await getAuthHeaders(15000);
 
       const res = await fetch('/api/files/share-by-email', {
         method: 'POST',
@@ -1071,10 +1055,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     if (selectedFileIds.size === 0 || !bulkShareByEmail.trim()) return;
     setBulkShareByEmailLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const headers = await getAuthHeaders(15000);
 
       const fileIds = Array.from(selectedFileIds);
       let totalCreated = 0;
@@ -1470,10 +1451,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         toast.error('لا توجد ملفات للمشاركة');
         return;
       }
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const headers = await getAuthHeaders(15000);
 
       const res = await fetch('/api/files/bulk-share', {
         method: 'POST',
