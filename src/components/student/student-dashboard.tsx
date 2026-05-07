@@ -1062,24 +1062,84 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         let summaryContent = '';
         let savedSummaryId = '';
 
-        // Step 1: Get content (text or extract from PDF in browser)
+        // Step 1: Get content (text or extract from PDF)
         if ((inputMode === 'file' || inputMode === 'transcribe') && (preReadFileData || capturedFile)) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
-          // Extract PDF text CLIENT-SIDE using pdfjs-dist
-          // MOBILE FIX: Use preReadFileData (ArrayBuffer) when available instead of
-          // the File object, because File references can become invalid after the
-          // modal is unmounted on mobile browsers.
-          const pdfSource = preReadFileData || capturedFile!;
-          console.log('[Summary] Extracting PDF text in browser...', preReadFileData ? '(using pre-read data)' : '(using File reference)');
-          try {
-            const pdfResult = await extractPdfTextClient(pdfSource);
-            originalContent = pdfResult.text;
-            console.log('[Summary] PDF text extracted client-side, length:', originalContent.length, 'pages:', pdfResult.pages);
-          } catch (pdfErr) {
-            const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
-            console.error('[Summary] Client-side PDF extraction failed:', errMsg);
-            throw new Error(errMsg || 'فشل في قراءة ملف PDF');
+          // ─── MOBILE FIX: Server-side PDF extraction ───
+          // Client-side pdfjs-dist extraction is UNRELIABLE on mobile because:
+          // 1. The Web Worker (/pdf.worker.min.mjs) often fails to load on mobile
+          //    browsers, especially in PWA standalone mode
+          // 2. When the worker fails, getDocument() can hang indefinitely
+          // 3. The AbortController signal doesn't interrupt pdfjs-dist calls
+          //
+          // Solution: Upload the PDF to our server endpoint for extraction.
+          // The server uses pdfjs-dist in Node.js (no web worker needed),
+          // which is 100% reliable. Client-side extraction is kept as
+          // fallback for desktop where it works well.
+          const useServerExtraction = isMobile;
+          let extractionSucceeded = false;
+
+          if (useServerExtraction) {
+            // ─── Server-side extraction (MOBILE — reliable) ───
+            console.log('[Summary] Using SERVER-SIDE PDF extraction (mobile mode)');
+            try {
+              // Create a File/Blob from the pre-read data or captured file
+              const pdfBlob = preReadFileData
+                ? new Blob([preReadFileData], { type: 'application/pdf' })
+                : capturedFile!;
+
+              const formData = new FormData();
+              formData.append('file', pdfBlob, 'document.pdf');
+
+              const extractRes = await fetch('/api/files/extract-pdf', {
+                method: 'POST',
+                headers: {
+                  ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                },
+                body: formData,
+                signal: abortController.signal,
+              });
+
+              const extractData = await extractRes.json();
+
+              if (extractRes.ok && extractData.success && extractData.data?.text) {
+                originalContent = extractData.data.text;
+                console.log('[Summary] Server-side PDF extraction succeeded, length:', originalContent.length, 'pages:', extractData.data.pages);
+                extractionSucceeded = true;
+              } else {
+                console.warn('[Summary] Server-side extraction failed:', extractData.error, '— falling back to client-side');
+              }
+            } catch (serverErr) {
+              const errMsg = serverErr instanceof Error ? serverErr.message : String(serverErr);
+              console.warn('[Summary] Server-side extraction error:', errMsg, '— falling back to client-side');
+            }
+          }
+
+          if (!extractionSucceeded) {
+            // ─── Client-side extraction (DESKTOP or fallback) ───
+            const pdfSource = preReadFileData || capturedFile!;
+            console.log('[Summary] Using CLIENT-SIDE PDF extraction', useServerExtraction ? '(fallback from server)' : '(desktop mode)');
+
+            // Race the extraction against a 30-second timeout to prevent indefinite hangs
+            const extractionTimeoutMs = 30000;
+            const extractionPromise = extractPdfTextClient(pdfSource);
+            const timeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
+            );
+
+            try {
+              const pdfResult = await Promise.race([extractionPromise, timeoutPromise]);
+              originalContent = pdfResult.text;
+              console.log('[Summary] Client-side PDF extraction succeeded, length:', originalContent.length, 'pages:', pdfResult.pages);
+            } catch (pdfErr) {
+              const errMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
+              console.error('[Summary] Client-side PDF extraction failed:', errMsg);
+              if (errMsg === 'EXTRACTION_TIMEOUT') {
+                throw new Error('انتهت مهلة استخراج النص من الملف. يرجى المحاولة مرة أخرى');
+              }
+              throw new Error(errMsg || 'فشل في قراءة ملف PDF');
+            }
           }
 
           if (!originalContent.trim()) {
@@ -1228,12 +1288,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         console.error('[Summary] Background error:', err);
 
         if (err instanceof DOMException && err.name === 'AbortError') {
-          // User cancelled or client timeout — distinguish between the two
-          const elapsed = Date.now() - (pendingSummaries.find(s => s.id === pendingId)?.startedAt || Date.now());
-          if (elapsed > 100000) {
-            toast.error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى', { duration: 8000, id: 'summary-error' });
-          }
-          // If user manually cancelled, no toast needed
+          // Client timeout fired — show timeout error message
+          // (Manual cancellation doesn't show a toast — the cancel handler
+          // already shows "cancelled" state before removing the pending item)
+          toast.error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى', { duration: 8000, id: 'summary-error' });
         } else if (err instanceof Error) {
           toast.error(err.message, { duration: 8000, id: 'summary-error' });
         } else {

@@ -1,9 +1,9 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'atendo-v2';
-const STATIC_CACHE = 'atendo-static-v2';
-const DYNAMIC_CACHE = 'atendo-dynamic-v2';
-const API_CACHE = 'atendo-api-v2';
+const CACHE_NAME = 'atendo-v3';
+const STATIC_CACHE = 'atendo-static-v3';
+const DYNAMIC_CACHE = 'atendo-dynamic-v3';
+const API_CACHE = 'atendo-api-v3';
 
 // Build version — update this comment to force SW cache bust
 // BUILD_VERSION: 2.0.0
@@ -60,6 +60,7 @@ function isApiRequest(url) {
 function isStaticAsset(url) {
   return (
     url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.mjs') ||
     url.pathname.endsWith('.css') ||
     url.pathname.endsWith('.png') ||
     url.pathname.endsWith('.jpg') ||
