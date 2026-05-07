@@ -495,9 +495,6 @@ export default function LectureModal({
       return;
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
     for (let i = 0; i < pendingFiles.length; i++) {
       const pf = pendingFiles[i];
       if (pf.status === 'done') continue;
@@ -510,59 +507,73 @@ export default function LectureModal({
       try {
         const originalExt = pf.file.name.includes('.') ? '.' + pf.file.name.split('.').pop() : '';
         const displayName = pf.customName.trim() ? pf.customName.trim() + originalExt : pf.file.name;
-        const safeStorageName = `${Date.now()}_${pf.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const storagePath = `courses/${subjectId}/${safeStorageName}`;
 
-        let storageUploadSuccess = false;
+        let uploadSucceeded = false;
 
-        // ── Step 1: Upload directly to Supabase Storage (bypasses Vercel 4.5MB limit) ──
-        if (supabaseUrl && supabaseAnonKey) {
-          // Try XHR direct upload first (real progress tracking)
+        // ── STEP 1 (PRIMARY): Server-side upload via same-origin fetch() ──
+        // Most reliable on mobile PWA: same-origin fetch() with FormData.
+        // The server handles storage upload (no cross-origin client requests).
+        // Subject to Vercel 4.5MB body limit.
+        const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB safe margin
+        if (pf.file.size <= FILE_SIZE_LIMIT) {
           try {
-            await new Promise<void>((resolve, reject) => {
-              const xhr = new XMLHttpRequest();
-              xhr.timeout = 5 * 60 * 1000; // 5 min for large files on mobile
+            setPendingFiles((prev) =>
+              prev.map((p, idx) => (idx === i ? { ...p, progress: 20 } : p))
+            );
 
-              xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                  const percent = Math.round((e.loaded / e.total) * 85); // Storage is 85% of work
-                  setPendingFiles((prev) =>
-                    prev.map((p, idx) => (idx === i ? { ...p, progress: percent } : p))
-                  );
-                }
-              });
+            const formData = new FormData();
+            formData.append('file', pf.file);
+            formData.append('subjectId', subjectId);
+            formData.append('uploadedBy', profile.id);
+            formData.append('category', 'محاضرات');
+            formData.append('customName', pf.customName.trim());
 
-              xhr.addEventListener('load', () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  resolve();
-                } else {
-                  reject(new Error(`HTTP ${xhr.status}`));
-                }
-              });
-              xhr.addEventListener('error', () => reject(new Error('Network error')));
-              xhr.addEventListener('abort', () => reject(new Error('Aborted')));
-              xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-              const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
-              xhr.open('POST', storageUploadUrl);
-              xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-              xhr.setRequestHeader('apikey', supabaseAnonKey);
-              xhr.setRequestHeader('x-upsert', 'false');
-
-              const formData = new FormData();
-              formData.append('cacheControl', '3600');
-              formData.append('file', pf.file);
-              xhr.send(formData);
+            const res = await fetch('/api/files/course-upload', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+              body: formData,
+              signal: controller.signal,
             });
 
-            storageUploadSuccess = true;
-          } catch (xhrErr) {
-            console.warn(`[LectureUpload] XHR upload failed, trying SDK:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
+            clearTimeout(timeoutId);
+
+            const result = await res.json();
+
+            if (result.success && result.data) {
+              const fileData = result.data as { file_url: string; file_name: string };
+              // Create lecture_note referencing this file
+              await supabase.from('lecture_notes').insert({
+                lecture_id: lecture.id,
+                user_id: profile.id,
+                content: `[FILE|||${fileData.file_url}|||${fileData.file_name}]`,
+                visibility: 'public',
+              });
+              uploadSucceeded = true;
+              console.log(`[LectureUpload] Server-side upload succeeded for ${displayName}`);
+            } else {
+              console.warn(`[LectureUpload] Server-side upload failed for ${displayName}:`, result.error);
+            }
+          } catch (serverErr) {
+            console.warn(`[LectureUpload] Server-side upload error for ${displayName}:`, serverErr instanceof Error ? serverErr.message : serverErr);
           }
+        } else {
+          console.log(`[LectureUpload] File ${displayName} is ${Math.round(pf.file.size / 1024 / 1024)}MB, too large for server route`);
         }
 
-        // SDK fallback for storage upload
-        if (!storageUploadSuccess) {
+        // ── STEP 2 (FALLBACK): Direct upload to Supabase Storage from client ──
+        if (!uploadSucceeded) {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+          const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+          const safeStorageName = `${Date.now()}_${pf.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const storagePath = `courses/${subjectId}/${safeStorageName}`;
+          let storageUploadSuccess = false;
+
+          // Try SDK upload (uses fetch internally, more reliable than XHR on mobile PWA)
           try {
             const { error: uploadError } = await supabase.storage
               .from('user-files')
@@ -577,59 +588,108 @@ export default function LectureModal({
             }
             storageUploadSuccess = true;
           } catch (sdkErr) {
-            console.warn(`[LectureUpload] SDK upload also failed:`, sdkErr);
+            console.warn(`[LectureUpload] SDK upload failed:`, sdkErr);
+          }
+
+          // XHR fallback for storage upload (real progress tracking)
+          if (!storageUploadSuccess && supabaseUrl && supabaseAnonKey) {
+            try {
+              await new Promise<void>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.timeout = 5 * 60 * 1000;
+
+                xhr.upload.addEventListener('progress', (e) => {
+                  if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 85);
+                    setPendingFiles((prev) =>
+                      prev.map((p, idx) => (idx === i ? { ...p, progress: percent } : p))
+                    );
+                  }
+                });
+
+                xhr.addEventListener('load', () => {
+                  if (xhr.status >= 200 && xhr.status < 300) resolve();
+                  else reject(new Error(`HTTP ${xhr.status}`));
+                });
+                xhr.addEventListener('error', () => reject(new Error('Network error')));
+                xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+
+                const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
+                xhr.open('POST', storageUploadUrl);
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                xhr.setRequestHeader('apikey', supabaseAnonKey);
+                xhr.setRequestHeader('x-upsert', 'false');
+
+                const formData = new FormData();
+                formData.append('cacheControl', '3600');
+                formData.append('file', pf.file);
+                xhr.send(formData);
+              });
+
+              storageUploadSuccess = true;
+            } catch (xhrErr) {
+              console.warn(`[LectureUpload] XHR upload also failed:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
+            }
+          }
+
+          if (!storageUploadSuccess) {
+            throw new Error('فشل رفع الملف — تعذر الاتصال بخدمة التخزين');
+          }
+
+          // Create DB record via API
+          const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
+          setPendingFiles((prev) =>
+            prev.map((p, idx) => (idx === i ? { ...p, progress: 90 } : p))
+          );
+
+          const recordHeaders = await getAuthHeaders(15000);
+          const recordController = new AbortController();
+          const recordTimeout = setTimeout(() => recordController.abort(), 30000);
+
+          try {
+            const createRes = await fetch('/api/files/course-upload', {
+              method: 'POST',
+              headers: recordHeaders,
+              body: JSON.stringify({
+                subjectId,
+                uploadedBy: profile.id,
+                category: 'محاضرات',
+                customName: pf.customName.trim(),
+                displayName,
+                fileUrl,
+                storagePath,
+                fileSize: pf.file.size,
+                fileType: pf.file.type,
+              }),
+              signal: recordController.signal,
+            });
+
+            clearTimeout(recordTimeout);
+            const createResult = await createRes.json();
+
+            if (createRes.ok && createResult.success && createResult.data) {
+              const fileData = createResult.data as { file_url: string; file_name: string };
+              await supabase.from('lecture_notes').insert({
+                lecture_id: lecture.id,
+                user_id: profile.id,
+                content: `[FILE|||${fileData.file_url}|||${fileData.file_name}]`,
+                visibility: 'public',
+              });
+              uploadSucceeded = true;
+            } else {
+              console.error('[LectureUpload] Create record error:', createResult.error);
+              await supabase.storage.from('user-files').remove([storagePath]);
+              throw new Error(createResult.error || 'فشل حفظ بيانات الملف');
+            }
+          } finally {
+            clearTimeout(recordTimeout);
           }
         }
 
-        if (!storageUploadSuccess) {
-          throw new Error('فشل رفع الملف إلى التخزين');
-        }
-
-        // ── Step 2: Create DB record via lightweight API (metadata only, no file body) ──
-        const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
-
-        setPendingFiles((prev) =>
-          prev.map((p, idx) => (idx === i ? { ...p, progress: 90 } : p))
-        );
-
-        const createRecordHeaders = await getAuthHeaders(15000);
-        const createRes = await fetch('/api/files/course-upload', {
-          method: 'POST',
-          headers: createRecordHeaders,
-          body: JSON.stringify({
-            subjectId,
-            uploadedBy: profile.id,
-            category: 'محاضرات',
-            customName: pf.customName.trim(),
-            displayName,
-            fileUrl,
-            storagePath,
-            fileSize: pf.file.size,
-            fileType: pf.file.type,
-          }),
-          signal: AbortSignal.timeout(30000),
-        });
-
-        const createResult = await createRes.json();
-
-        if (createRes.ok && createResult.success && createResult.data) {
-          const fileData = createResult.data as { file_url: string; file_name: string };
-          // Create lecture_note referencing this file
-          await supabase.from('lecture_notes').insert({
-            lecture_id: lecture.id,
-            user_id: profile.id,
-            content: `[FILE|||${fileData.file_url}|||${fileData.file_name}]`,
-            visibility: 'public',
-          });
-
+        if (uploadSucceeded) {
           setPendingFiles((prev) =>
             prev.map((p, idx) => (idx === i ? { ...p, status: 'done' as const, progress: 100 } : p))
           );
-        } else {
-          // DB record creation failed — try to clean up the orphaned storage file
-          console.error('[LectureUpload] Create record error:', createResult.error);
-          await supabase.storage.from('user-files').remove([storagePath]);
-          throw new Error(createResult.error || 'فشل حفظ بيانات الملف');
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : 'حدث خطأ غير متوقع';

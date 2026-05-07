@@ -655,119 +655,184 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         const storagePath = `${profile.id}/${safeStorageName}`;
         const fileType = getFileTypeCategory(item.file.type || 'other');
 
-        let storageUploadSuccess = false;
+        let uploadSucceeded = false;
 
-        // ── Step 1a: Try XHR direct upload to Supabase Storage (real progress) ──
-        try {
-          await new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.timeout = 5 * 60 * 1000; // 5 min for large files on mobile
+        // ── STEP 1 (PRIMARY): Server-side upload via same-origin fetch() ──
+        // This is the most reliable method on mobile PWA because:
+        //   - Same-origin request (no CORS issues)
+        //   - Uses fetch() which is proven to work on mobile PWA
+        //   - Server handles storage upload (no cross-origin client requests)
+        // Subject to Vercel 4.5MB body limit — fallback handles larger files.
+        const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB (safe margin below Vercel's 4.5MB)
+        if (item.file.size <= FILE_SIZE_LIMIT) {
+          try {
+            throttledProgressUpdate(item.id, 15);
+            const simInterval = startSimulatedProgress(item.id, item.file.size);
 
-            xhr.upload.addEventListener('progress', (e) => {
-              if (e.lengthComputable) {
-                // Storage upload is ~90% of total work
-                const pct = Math.round((e.loaded / e.total) * 90);
-                throttledProgressUpdate(item.id, pct);
-              }
+            const uploadFormData = new FormData();
+            uploadFormData.append('file', item.file);
+            uploadFormData.append('userId', profile.id);
+            uploadFormData.append('customName', item.customName.trim());
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+            const res = await fetch('/api/files/upload', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+              body: uploadFormData,
+              signal: controller.signal,
             });
 
-            xhr.addEventListener('load', () => {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                resolve();
-              } else {
-                reject(new Error(`HTTP ${xhr.status}`));
-              }
-            });
+            clearTimeout(timeoutId);
+            clearInterval(simInterval);
 
-            xhr.addEventListener('error', () => reject(new Error('Network error')));
-            xhr.addEventListener('abort', () => reject(new Error('Aborted')));
-            xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+            const result = await res.json();
 
-            const storageUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
-            xhr.open('POST', storageUrl);
-            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-            xhr.setRequestHeader('apikey', supabaseAnonKey);
-            xhr.setRequestHeader('x-upsert', 'false');
-
-            const formData = new FormData();
-            formData.append('cacheControl', '3600');
-            formData.append('file', item.file);
-            xhr.send(formData);
-          });
-
-          storageUploadSuccess = true;
-        } catch (xhrErr) {
-          // XHR direct upload failed (likely CORS/RLS) — fallback to Supabase SDK
-          console.warn(`XHR upload failed for ${item.customName}, falling back to SDK:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
+            if (result.success && result.data?.id) {
+              uploadedFileIds.push(result.data.id);
+              uploadSucceeded = true;
+              console.log(`[Upload] Server-side upload succeeded for ${displayName}`);
+            } else {
+              console.warn(`[Upload] Server-side upload failed for ${displayName}:`, result.error, '— falling back to direct storage');
+            }
+          } catch (serverErr) {
+            console.warn(`[Upload] Server-side upload error for ${displayName}:`, serverErr instanceof Error ? serverErr.message : serverErr, '— falling back to direct storage');
+          }
+        } else {
+          console.log(`[Upload] File ${displayName} is ${Math.round(item.file.size / 1024 / 1024)}MB, too large for server route, using direct storage`);
         }
 
-        // ── Step 1b: Fallback — Upload via Supabase client SDK ──
-        if (!storageUploadSuccess) {
-          const progressInterval = startSimulatedProgress(item.id, item.file.size);
-          throttledProgressUpdate(item.id, 10);
+        // ── STEP 2 (FALLBACK): Direct upload to Supabase Storage from client ──
+        // Used when: file is too large for server route, or server upload failed.
+        // This uses XHR + SDK which may have CORS issues on mobile PWA.
+        if (!uploadSucceeded) {
+          let storageUploadSuccess = false;
 
+          // Try XHR direct upload to Supabase Storage (real progress)
           try {
-            const { error: uploadError } = await supabase.storage
-              .from('user-files')
-              .upload(storagePath, item.file, {
-                cacheControl: '3600',
-                contentType: item.file.type || 'application/octet-stream',
-                upsert: false,
+            await new Promise<void>((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.timeout = 5 * 60 * 1000; // 5 min for large files on mobile
+
+              xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                  // Storage upload is ~90% of total work
+                  const pct = Math.round((e.loaded / e.total) * 90);
+                  throttledProgressUpdate(item.id, pct);
+                }
               });
 
-            clearInterval(progressInterval);
+              xhr.addEventListener('load', () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  resolve();
+                } else {
+                  reject(new Error(`HTTP ${xhr.status}`));
+                }
+              });
 
-            if (uploadError) {
-              throw uploadError;
+              xhr.addEventListener('error', () => reject(new Error('Network error')));
+              xhr.addEventListener('abort', () => reject(new Error('Aborted')));
+              xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+
+              const storageUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
+              xhr.open('POST', storageUrl);
+              xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+              xhr.setRequestHeader('apikey', supabaseAnonKey);
+              xhr.setRequestHeader('x-upsert', 'false');
+
+              const formData = new FormData();
+              formData.append('cacheControl', '3600');
+              formData.append('file', item.file);
+              xhr.send(formData);
+            });
+
+            storageUploadSuccess = true;
+          } catch (xhrErr) {
+            // XHR direct upload failed (likely CORS/RLS) — fallback to Supabase SDK
+            console.warn(`[Upload] XHR failed for ${item.customName}, trying SDK:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
+          }
+
+          // SDK fallback for storage upload
+          if (!storageUploadSuccess) {
+            const progressInterval = startSimulatedProgress(item.id, item.file.size);
+            throttledProgressUpdate(item.id, 10);
+
+            try {
+              const { error: uploadError } = await supabase.storage
+                .from('user-files')
+                .upload(storagePath, item.file, {
+                  cacheControl: '3600',
+                  contentType: item.file.type || 'application/octet-stream',
+                  upsert: false,
+                });
+
+              clearInterval(progressInterval);
+
+              if (uploadError) {
+                throw uploadError;
+              }
+              storageUploadSuccess = true;
+            } catch (sdkErr) {
+              clearInterval(progressInterval);
+              console.error(`[Upload] SDK also failed for ${item.customName}:`, sdkErr);
             }
-          } catch (sdkErr) {
-            clearInterval(progressInterval);
-            throw sdkErr;
+          }
+
+          if (!storageUploadSuccess) {
+            throw new Error('فشل رفع الملف — تعذر الاتصال بخدمة التخزين');
+          }
+
+          throttledProgressUpdate(item.id, 92);
+
+          // Create DB record via lightweight API (metadata only, no file body)
+          const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
+
+          const controller2 = new AbortController();
+          const timeoutId2 = setTimeout(() => controller2.abort(), 30000);
+
+          try {
+            const res = await fetch('/api/files/create-record', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                userId: profile.id,
+                fileName: displayName,
+                fileType,
+                fileSize: item.file.size,
+                fileUrl,
+                storagePath,
+              }),
+              signal: controller2.signal,
+            });
+
+            const result = await res.json();
+            clearTimeout(timeoutId2);
+
+            if (result.success && result.data?.id) {
+              uploadedFileIds.push(result.data.id);
+              uploadSucceeded = true;
+            } else {
+              // DB record creation failed — try to clean up the orphaned storage file
+              console.error('[Upload] Create record error:', result.error);
+              await supabase.storage.from('user-files').remove([storagePath]);
+              throw new Error(result.error || 'فشل حفظ بيانات الملف');
+            }
+          } finally {
+            clearTimeout(timeoutId2);
           }
         }
 
-        throttledProgressUpdate(item.id, 92);
-
-        // ── Step 2: Create DB record via lightweight API (metadata only, no file body) ──
-        const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-        try {
-          const res = await fetch('/api/files/create-record', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              userId: profile.id,
-              fileName: displayName,
-              fileType,
-              fileSize: item.file.size,
-              fileUrl,
-              storagePath,
-            }),
-            signal: controller.signal,
-          });
-
-          const result = await res.json();
-          clearTimeout(timeoutId);
-
-          if (result.success && result.data?.id) {
-            uploadedFileIds.push(result.data.id);
-            setPendingUploads((prev) =>
-              prev.map((p) => (p.id === item.id ? { ...p, progress: 100, done: true, uploading: false } : p))
-            );
-          } else {
-            // DB record creation failed — try to clean up the orphaned storage file
-            console.error('Create record error:', result.error);
-            await supabase.storage.from('user-files').remove([storagePath]);
-            throw new Error(result.error || 'فشل حفظ بيانات الملف');
-          }
-        } finally {
-          clearTimeout(timeoutId);
+        // Mark as done
+        if (uploadSucceeded) {
+          setPendingUploads((prev) =>
+            prev.map((p) => (p.id === item.id ? { ...p, progress: 100, done: true, uploading: false } : p))
+          );
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Upload failed';

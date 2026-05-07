@@ -1085,98 +1085,136 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               const tempStoragePath = `${profile.id}/${tempStorageName}`;
               const tempStorageUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${tempStoragePath}`;
 
-              console.log('[Summary] Uploading PDF to temp storage:', tempStoragePath, 'size:', sourceBuffer.byteLength);
+              console.log('[Summary] MOBILE mode: Extracting PDF text via server API');
 
-              // Try Supabase SDK upload first (most reliable on mobile)
-              let storageUploadOk = false;
+              // ── PRIMARY: Send PDF directly to server-side extraction API ──
+              // Same-origin fetch() is proven to work on mobile PWA.
+              // No need to upload to Supabase Storage first — just send the file.
               try {
                 const pdfBlob = new Blob([sourceBuffer], { type: 'application/pdf' });
-                const { error: uploadError } = await supabase.storage
-                  .from('user-files')
-                  .upload(tempStoragePath, pdfBlob, {
-                    cacheControl: '3600',
-                    contentType: 'application/pdf',
-                    upsert: false,
-                  });
+                const extractFormData = new FormData();
+                extractFormData.append('file', pdfBlob, 'document.pdf');
 
-                if (uploadError) {
-                  console.warn('[Summary] SDK upload failed:', uploadError.message, '— trying XHR');
-                } else {
-                  storageUploadOk = true;
-                  console.log('[Summary] SDK upload succeeded');
-                }
-              } catch (sdkErr) {
-                console.warn('[Summary] SDK upload error:', sdkErr, '— trying XHR');
-              }
+                const extractController = new AbortController();
+                const extractTimeoutId = setTimeout(() => extractController.abort(), 45000);
 
-              // XHR fallback for storage upload
-              if (!storageUploadOk) {
-                try {
-                  await new Promise<void>((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    xhr.timeout = 60000; // 1 min timeout for upload on mobile
-                    xhr.addEventListener('load', () => {
-                      if (xhr.status >= 200 && xhr.status < 300) {
-                        resolve();
-                      } else {
-                        reject(new Error(`XHR upload HTTP ${xhr.status}`));
-                      }
-                    });
-                    xhr.addEventListener('error', () => reject(new Error('XHR network error')));
-                    xhr.addEventListener('timeout', () => reject(new Error('XHR upload timeout')));
-
-                    const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${tempStoragePath}`;
-                    xhr.open('POST', storageUploadUrl);
-                    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-                    xhr.setRequestHeader('apikey', supabaseAnonKey);
-                    xhr.setRequestHeader('x-upsert', 'false');
-
-                    const formData = new FormData();
-                    formData.append('cacheControl', '3600');
-                    formData.append('file', new Blob([sourceBuffer], { type: 'application/pdf' }), 'document.pdf');
-                    xhr.send(formData);
-                  });
-
-                  storageUploadOk = true;
-                  console.log('[Summary] XHR upload succeeded');
-                } catch (xhrErr) {
-                  console.warn('[Summary] XHR upload also failed:', xhrErr);
-                }
-              }
-
-              // Step B: If upload succeeded, send storage URL to server for extraction
-              if (storageUploadOk) {
-                console.log('[Summary] PDF uploaded to storage, requesting server extraction from URL');
-                const extractRes = await fetch('/api/files/extract-pdf-url', {
+                const extractRes = await fetch('/api/files/extract-pdf', {
                   method: 'POST',
                   headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                    'Authorization': `Bearer ${token}`,
                   },
-                  body: JSON.stringify({ url: tempStorageUrl, storagePath: tempStoragePath }),
-                  signal: abortController.signal,
+                  body: extractFormData,
+                  signal: extractController.signal,
                 });
 
+                clearTimeout(extractTimeoutId);
+
                 const extractData = await extractRes.json();
-                console.log('[Summary] Extract-from-URL response:', extractRes.status, extractData.success ? 'success' : extractData.error);
+                console.log('[Summary] Server extract-pdf response:', extractRes.status, extractData.success ? 'success' : extractData.error);
 
                 if (extractRes.ok && extractData.success && extractData.data?.text) {
                   originalContent = extractData.data.text;
-                  console.log('[Summary] Server extraction from URL succeeded, length:', originalContent.length, 'pages:', extractData.data.pages);
+                  console.log('[Summary] Server extraction succeeded, length:', originalContent.length, 'pages:', extractData.data.pages);
                   extractionSucceeded = true;
                 } else {
-                  console.warn('[Summary] Server extraction from URL failed:', extractData.error);
+                  console.warn('[Summary] Server extraction failed:', extractData.error, '— trying storage upload fallback');
+                }
+              } catch (directErr) {
+                console.warn('[Summary] Direct server extraction error:', directErr instanceof Error ? directErr.message : directErr, '— trying storage upload fallback');
+              }
+
+              // ── FALLBACK: Upload PDF to Supabase Storage, then extract from URL ──
+              // Only used if direct extraction fails (e.g., file too large for server route).
+              if (!extractionSucceeded) {
+                let storageUploadOk = false;
+                try {
+                  const pdfBlob = new Blob([sourceBuffer], { type: 'application/pdf' });
+                  const { error: uploadError } = await supabase.storage
+                    .from('user-files')
+                    .upload(tempStoragePath, pdfBlob, {
+                      cacheControl: '3600',
+                      contentType: 'application/pdf',
+                      upsert: false,
+                    });
+
+                  if (uploadError) {
+                    console.warn('[Summary] SDK upload failed:', uploadError.message, '— trying XHR');
+                  } else {
+                    storageUploadOk = true;
+                    console.log('[Summary] SDK upload succeeded');
+                  }
+                } catch (sdkErr) {
+                  console.warn('[Summary] SDK upload error:', sdkErr, '— trying XHR');
                 }
 
-                // Clean up: Delete the temporary file from storage
-                // (fire and forget — don't block the flow)
-                supabase.storage.from('user-files').remove([tempStoragePath]).then(() => {
-                  console.log('[Summary] Temp PDF cleaned up from storage');
-                }).catch((cleanupErr: unknown) => {
-                  console.warn('[Summary] Temp PDF cleanup failed:', cleanupErr);
-                });
-              } else {
-                console.warn('[Summary] Both storage upload methods failed');
+                // XHR fallback for storage upload
+                if (!storageUploadOk) {
+                  try {
+                    await new Promise<void>((resolve, reject) => {
+                      const xhr = new XMLHttpRequest();
+                      xhr.timeout = 60000; // 1 min timeout for upload on mobile
+                      xhr.addEventListener('load', () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                          resolve();
+                        } else {
+                          reject(new Error(`XHR upload HTTP ${xhr.status}`));
+                        }
+                      });
+                      xhr.addEventListener('error', () => reject(new Error('XHR network error')));
+                      xhr.addEventListener('timeout', () => reject(new Error('XHR upload timeout')));
+
+                      const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${tempStoragePath}`;
+                      xhr.open('POST', storageUploadUrl);
+                      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                      xhr.setRequestHeader('apikey', supabaseAnonKey);
+                      xhr.setRequestHeader('x-upsert', 'false');
+
+                      const formData = new FormData();
+                      formData.append('cacheControl', '3600');
+                      formData.append('file', new Blob([sourceBuffer], { type: 'application/pdf' }), 'document.pdf');
+                      xhr.send(formData);
+                    });
+
+                    storageUploadOk = true;
+                    console.log('[Summary] XHR upload succeeded');
+                  } catch (xhrErr) {
+                    console.warn('[Summary] XHR upload also failed:', xhrErr);
+                  }
+                }
+
+                // If upload succeeded, send storage URL to server for extraction
+                if (storageUploadOk) {
+                  console.log('[Summary] PDF uploaded to storage, requesting server extraction from URL');
+                  const extractRes = await fetch('/api/files/extract-pdf-url', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify({ url: tempStorageUrl, storagePath: tempStoragePath }),
+                    signal: abortController.signal,
+                  });
+
+                  const extractData = await extractRes.json();
+                  console.log('[Summary] Extract-from-URL response:', extractRes.status, extractData.success ? 'success' : extractData.error);
+
+                  if (extractRes.ok && extractData.success && extractData.data?.text) {
+                    originalContent = extractData.data.text;
+                    console.log('[Summary] Server extraction from URL succeeded, length:', originalContent.length, 'pages:', extractData.data.pages);
+                    extractionSucceeded = true;
+                  } else {
+                    console.warn('[Summary] Server extraction from URL failed:', extractData.error);
+                  }
+
+                  // Clean up: Delete the temporary file from storage
+                  supabase.storage.from('user-files').remove([tempStoragePath]).then(() => {
+                    console.log('[Summary] Temp PDF cleaned up from storage');
+                  }).catch((cleanupErr: unknown) => {
+                    console.warn('[Summary] Temp PDF cleanup failed:', cleanupErr);
+                  });
+                } else {
+                  console.warn('[Summary] Both storage upload methods failed');
+                }
               }
             } catch (serverErr) {
               const errMsg = serverErr instanceof Error ? serverErr.message : String(serverErr);

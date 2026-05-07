@@ -1,9 +1,9 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'atendo-v3';
-const STATIC_CACHE = 'atendo-static-v3';
-const DYNAMIC_CACHE = 'atendo-dynamic-v3';
-const API_CACHE = 'atendo-api-v3';
+const CACHE_NAME = 'atendo-v4';
+const STATIC_CACHE = 'atendo-static-v4';
+const DYNAMIC_CACHE = 'atendo-dynamic-v4';
+const API_CACHE = 'atendo-api-v4';
 
 // Build version — update this comment to force SW cache bust
 // BUILD_VERSION: 2.0.0
@@ -141,18 +141,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // ─── Strategy: Cache First for static assets ───
+  // ─── Strategy: Stale While Revalidate for static assets ───
+  // Changed from Cache First to ensure mobile PWA users get updated code.
+  // Serves from cache immediately but fetches and updates in background.
   if (isStaticAsset(url) || url.pathname.includes('/_next/static/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
+        const fetchPromise = fetch(request).then((response) => {
           if (response.ok) {
             const cloned = response.clone();
             caches.open(STATIC_CACHE).then((cache) => cache.put(request, cloned));
           }
           return response;
-        });
+        }).catch(() => cached || new Response('Offline', { status: 503 }));
+
+        return cached || fetchPromise;
       })
     );
     return;

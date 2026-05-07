@@ -19,6 +19,8 @@ import { supabase } from '@/lib/supabase';
  * Without waiting, getSession() returns null and all
  * authenticated API calls (file uploads, data mutations) fail.
  *
+ * If the session appears expired or stale, attempts to refresh it.
+ *
  * @param maxWaitMs Maximum time to wait in milliseconds (default: 15000 for mobile safety)
  * @returns The access_token string, or empty string if no session found
  */
@@ -32,10 +34,41 @@ export async function waitForSession(maxWaitMs = 15000): Promise<string> {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
       if (token) {
+        // Check if token is about to expire (within 60 seconds)
+        // If so, try to refresh it to avoid using a stale token
+        if (session.expires_at) {
+          const expiresInSeconds = session.expires_at - Math.floor(Date.now() / 1000);
+          if (expiresInSeconds < 60) {
+            console.warn(`[waitForSession] Token expires in ${expiresInSeconds}s, refreshing...`);
+            try {
+              const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+              if (refreshedSession?.access_token) {
+                console.log(`[waitForSession] Token refreshed successfully`);
+                return refreshedSession.access_token;
+              }
+            } catch (refreshErr) {
+              console.warn('[waitForSession] Token refresh failed, using current token:', refreshErr);
+            }
+          }
+        }
         if (attempt > 0) {
           console.log(`[waitForSession] Got token after ${attempt} retries, ${Date.now() - startTime}ms`);
         }
         return token;
+      }
+
+      // No token found — try to refresh the session explicitly
+      // This helps when the session is stored but not yet hydrated
+      if (attempt === 1) {
+        try {
+          const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+          if (refreshedSession?.access_token) {
+            console.log('[waitForSession] Got token via refreshSession()');
+            return refreshedSession.access_token;
+          }
+        } catch (refreshErr) {
+          // Refresh failed, continue with retry loop
+        }
       }
     } catch (err) {
       console.warn(`[waitForSession] getSession() threw error (attempt ${attempt + 1}):`, err);
@@ -45,6 +78,17 @@ export async function waitForSession(maxWaitMs = 15000): Promise<string> {
     console.warn(`[waitForSession] No token yet (attempt ${attempt + 1}), waiting ${delay}ms...`);
     await new Promise(resolve => setTimeout(resolve, delay));
     attempt++;
+  }
+
+  // Last resort: try refreshSession one more time
+  try {
+    const { data: { session } } = await supabase.auth.refreshSession();
+    if (session?.access_token) {
+      console.log('[waitForSession] Got token via final refreshSession() attempt');
+      return session.access_token;
+    }
+  } catch {
+    // Give up
   }
 
   console.error('[waitForSession] Failed to get session after', maxWaitMs, 'ms');
