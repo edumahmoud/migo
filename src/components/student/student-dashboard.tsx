@@ -51,6 +51,7 @@ import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject } from 
 import { extractPdfTextClient } from '@/lib/pdf-client';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
+import SummaryView from '@/components/shared/summary-view';
 
 // -------------------------------------------------------
 // Summary background processing type
@@ -58,7 +59,7 @@ import UserLink from '@/components/shared/user-link';
 interface PendingSummary {
   id: string;
   title: string;
-  mode: 'text' | 'file';
+  mode: 'text' | 'file' | 'transcribe';
   status: 'extracting' | 'summarizing' | 'saving' | 'cancelled';
   startedAt: number;
   abortController: AbortController;
@@ -123,7 +124,7 @@ function scorePercentage(score: number, total: number): number {
 // -------------------------------------------------------
 export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
   // ─── App store ───
-  const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<StudentSection>(storedStudentSection || 'dashboard');
@@ -193,7 +194,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── New summary modal ───
   const [newSummaryOpen, setNewSummaryOpen] = useState(false);
   const [summaryTitle, setSummaryTitle] = useState('');
-  const [summaryInputMode, setSummaryInputMode] = useState<'text' | 'file'>('text');
+  const [summaryInputMode, setSummaryInputMode] = useState<'text' | 'file' | 'transcribe'>('text');
   const [summaryText, setSummaryText] = useState('');
   const [summaryFile, setSummaryFile] = useState<File | null>(null);
   const [creatingSummary, setCreatingSummary] = useState(false);
@@ -868,6 +869,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Section change handler
   // -------------------------------------------------------
   const handleSectionChange = (section: string) => {
+    // If viewing a summary and user navigates via sidebar,
+    // clear the summary view so the new section is shown.
+    // This also applies when clicking "summaries" — the user wants the list, not the detail.
+    if (viewingSummaryId) {
+      setViewingSummaryId(null);
+    }
     setActiveSection(section as StudentSection);
     storeSetStudentSection(section as StudentSection);
   };
@@ -912,7 +919,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         toast.error('يرجى إدخال المحتوى أو لصقه');
         return;
       }
-    } else {
+    } else if (summaryInputMode === 'file' || summaryInputMode === 'transcribe') {
       if (!summaryFile) {
         toast.error('يرجى اختيار ملف PDF');
         return;
@@ -953,9 +960,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setSummaryStep('input');
     setCreatingSummary(false);
 
-    toast.info(inputMode === 'file'
-      ? 'جاري استخراج النص وتوليد الملخص في الخلفية...'
-      : 'جاري توليد الملخص في الخلفية...'
+    toast.info(inputMode === 'transcribe'
+      ? 'جاري استخراج النص من الملف في الخلفية...'
+      : inputMode === 'file'
+        ? 'جاري استخراج النص وتوليد الملخص في الخلفية...'
+        : 'جاري توليد الملخص في الخلفية...'
     );
 
     // Run the rest in the background (no await — fire and track)
@@ -985,7 +994,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         let savedSummaryId = '';
 
         // Step 1: Get content (text or extract from PDF in browser)
-        if (inputMode === 'file' && capturedFile) {
+        if ((inputMode === 'file' || inputMode === 'transcribe') && capturedFile) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
           // Extract PDF text CLIENT-SIDE using pdfjs-dist (works perfectly in browsers)
@@ -1004,38 +1013,66 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             throw new Error('لم يتم العثور على نص في الملف. تأكد أن الملف ليس ممسوحاً ضوئياً');
           }
 
-          // Now send extracted TEXT to server for summarization (same as text mode)
-          setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
+          if (inputMode === 'transcribe') {
+            // ─── Transcribe mode: Save extracted text directly WITHOUT summarization ───
+            // The summary_content is the same as original_content (just the extracted text)
+            summaryContent = originalContent;
+            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'saving' } : s));
 
-          console.log('[Summary] Sending extracted text to API, length:', originalContent.length);
-          const summaryRes = await fetch('/api/gemini/summary', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null }),
-            signal: abortController.signal,
-          });
+            // Save directly to database (no AI call needed)
+            const { data: { session: saveSession } } = await supabase.auth.getSession();
+            const saveToken = saveSession?.access_token || token;
+            const saveRes = await fetch('/api/summaries', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(saveToken ? { 'Authorization': `Bearer ${saveToken}` } : {}),
+              },
+              body: JSON.stringify({
+                title,
+                original_content: originalContent,
+                summary_content: originalContent,
+                subject_id: selectedSubjectId || null,
+                transcribe_only: true,
+              }),
+              signal: abortController.signal,
+            });
 
-          const summaryData = await summaryRes.json();
-          console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error, 'saved:', summaryData.data?.saved);
+            const saveData = await saveRes.json();
+            if (saveRes.ok && saveData.success && saveData.data?.id) {
+              savedSummaryId = saveData.data.id;
+              console.log('[Transcribe] Saved directly, id:', savedSummaryId);
+            } else {
+              console.warn('[Transcribe] Direct save failed, will use local state:', saveData.error);
+            }
+          } else {
+            // ─── File mode: Extract text then summarize with AI ───
+            setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'summarizing' } : s));
 
-          if (!summaryRes.ok || !summaryData.success) {
-            throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
-          }
+            console.log('[Summary] Sending extracted text to API, length:', originalContent.length);
+            const summaryRes = await fetch('/api/gemini/summary', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({ content: originalContent, title, subject_id: selectedSubjectId || null }),
+              signal: abortController.signal,
+            });
 
-          summaryContent = summaryData.data?.summary || '';
-          savedSummaryId = summaryData.data?.summaryId || '';
+            const summaryData = await summaryRes.json();
+            console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error, 'saved:', summaryData.data?.saved);
 
-          // ─── FIX #3: Removed client-side fallback insert ───
-          // The server already handles background saves if the primary DB save times out.
-          // Client-side inserts were causing DUPLICATE summaries because both the server's
-          // background save and the client's fallback insert could succeed independently.
-          // Now we trust the server to save, and if it doesn't, we rely on the Realtime
-          // subscription and polling to pick up the data later.
-          if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
-            console.warn('[Summary] Server did not save summary immediately (background save in progress). Waiting for Realtime/polling to pick it up.');
+            if (!summaryRes.ok || !summaryData.success) {
+              throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
+            }
+
+            summaryContent = summaryData.data?.summary || '';
+            savedSummaryId = summaryData.data?.summaryId || '';
+
+            if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
+              console.warn('[Summary] Server did not save summary immediately (background save in progress). Waiting for Realtime/polling to pick it up.');
+            }
           }
         } else {
           // Text mode
@@ -1064,14 +1101,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summaryContent = summaryData.data?.summary || '';
           savedSummaryId = summaryData.data?.summaryId || '';
 
-          // ─── FIX #3: Removed client-side fallback insert (same as file mode) ───
           if (!summaryData.data?.saved || !summaryData.data?.summaryId) {
             console.warn('[Summary] Server did not save summary immediately (background save in progress). Waiting for Realtime/polling to pick it up.');
           }
         }
 
         if (!summaryContent) {
-          throw new Error('لم يتم إنشاء محتوى الملخص — رد الذكاء الاصطناعي فارغ');
+          throw new Error(inputMode === 'transcribe'
+            ? 'لم يتم استخراج نص من الملف'
+            : 'لم يتم إنشاء محتوى الملخص — رد الذكاء الاصطناعي فارغ');
         }
 
         if (savedSummaryId) {
@@ -1100,13 +1138,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         safeSetSummaries(updatedSummaries, 0, true);
 
         // Generate quiz in background (non-blocking) — delay 5s to let things settle
-        if (savedSummaryId) {
+        // Skip quiz generation for transcribe-only mode (no AI summarization = no quiz)
+        if (savedSummaryId && inputMode !== 'transcribe') {
           setTimeout(() => {
             generateQuizInBackground(token, originalContent, title, savedSummaryId, pendingId);
           }, 5000);
         }
 
-        toast.success(`تم إنشاء ملخص "${title}" بنجاح`);
+        toast.success(inputMode === 'transcribe'
+          ? `تم تفريغ نص "${title}" بنجاح`
+          : `تم إنشاء ملخص "${title}" بنجاح`
+        );
         // Also refresh from server to get the authoritative version
         fetchSummaries();
       } catch (err) {
@@ -1768,7 +1810,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       )}
                       <span className="font-medium">{ps.title}</span>
                       <span className="text-emerald-600/70">
-                        {ps.status === 'extracting' && '• استخراج النص...'}
+                        {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
                         {ps.status === 'summarizing' && '• توليد الملخص...'}
                         {ps.status === 'saving' && '• حفظ...'}
                         {ps.status === 'cancelled' && '• تم الإلغاء'}
@@ -1900,7 +1942,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             <div key={ps.id} className="flex items-center gap-2 text-xs text-emerald-700 py-1 mr-6">
               <span className="font-medium">{ps.title}</span>
               <span className="text-emerald-600/70">
-                {ps.status === 'extracting' && '• استخراج النص...'}
+                {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
                 {ps.status === 'summarizing' && '• توليد الملخص...'}
                 {ps.status === 'saving' && '• حفظ...'}
                 {ps.status === 'cancelled' && '• تم الإلغاء'}
@@ -2176,10 +2218,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {/* Input mode toggle */}
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">طريقة الإدخال</label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => setSummaryInputMode('text')}
-  
+
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'text'
                           ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
@@ -2191,7 +2233,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </button>
                     <button
                       onClick={() => setSummaryInputMode('file')}
-  
+
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'file'
                           ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
@@ -2199,9 +2241,26 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       }`}
                     >
                       <Upload className="h-4 w-4" />
-                      رفع ملف PDF
+                      رفع ملف + تلخيص
+                    </button>
+                    <button
+                      onClick={() => setSummaryInputMode('transcribe')}
+
+                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                        summaryInputMode === 'transcribe'
+                          ? 'border-teal-500 bg-teal-50 text-teal-700'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      تفريغ فقط
                     </button>
                   </div>
+                  {summaryInputMode === 'transcribe' && (
+                    <p className="text-xs text-teal-600/80 mt-2">
+                      سيتم استخراج النص من ملف PDF فقط دون تلخيص
+                    </p>
+                  )}
                 </div>
 
                 {/* Text input */}
@@ -2222,36 +2281,46 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   </div>
                 )}
 
-                {/* File upload */}
-                {summaryInputMode === 'file' && (
+                {/* File upload - shown for both 'file' and 'transcribe' modes */}
+                {(summaryInputMode === 'file' || summaryInputMode === 'transcribe') && (
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">
                       ملف PDF
                     </label>
+                    <p className="text-xs text-muted-foreground/70 mb-2">
+                      {summaryInputMode === 'transcribe'
+                        ? 'سيتم استخراج النص من الملف فقط دون تلخيص'
+                        : 'سيتم استخراج النص من الملف تلقائياً ثم تلخيصه بالذكاء الاصطناعي'
+                      }
+                    </p>
                     <input
                       ref={fileInputRef}
                       type="file"
                       accept=".pdf"
                       onChange={(e) => setSummaryFile(e.target.files?.[0] || null)}
                       className="hidden"
-  
+
                     />
                     <button
                       onClick={() => fileInputRef.current?.click()}
-  
-                      className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-6 transition-colors hover:border-emerald-400 hover:bg-emerald-50/50"
+
+                      className={`flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
+                        summaryInputMode === 'transcribe'
+                          ? 'border-teal-300 bg-teal-50/30 hover:border-teal-400 hover:bg-teal-50/50'
+                          : 'border-emerald-300 bg-emerald-50/30 hover:border-emerald-400 hover:bg-emerald-50/50'
+                      }`}
                     >
                       {summaryFile ? (
                         <>
-                          <FileUp className="h-8 w-8 text-emerald-600" />
-                          <span className="text-sm font-medium text-emerald-700">{summaryFile.name}</span>
+                          <FileUp className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-600' : 'text-emerald-600'}`} />
+                          <span className={`text-sm font-medium ${summaryInputMode === 'transcribe' ? 'text-teal-700' : 'text-emerald-700'}`}>{summaryFile.name}</span>
                           <span className="text-xs text-muted-foreground">
                             {(summaryFile.size / 1024 / 1024).toFixed(2)} MB
                           </span>
                         </>
                       ) : (
                         <>
-                          <Upload className="h-8 w-8 text-emerald-400" />
+                          <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-emerald-400'}`} />
                           <span className="text-sm text-muted-foreground">اضغط لاختيار ملف PDF</span>
                           <span className="text-xs text-muted-foreground/60">الحد الأقصى 10 MB</span>
                         </>
@@ -2267,11 +2336,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="flex items-center gap-3 border-t p-5">
                 <button
                   onClick={handleCreateSummary}
-                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+                  className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors ${
+                    summaryInputMode === 'transcribe' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                  }`}
                 >
                   <>
-                    <CheckCircle2 className="h-4 w-4" />
-                    إنشاء الملخص
+                    {summaryInputMode === 'transcribe' ? <BookOpen className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {summaryInputMode === 'transcribe' ? 'تفريغ النص' : 'إنشاء الملخص'}
                   </>
                 </button>
                 <button
@@ -3149,6 +3220,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Render: Section content
   // -------------------------------------------------------
   const renderSection = () => {
+    // If viewing a summary, render SummaryView inside the dashboard layout
+    // This keeps the sidebar and header visible on mobile
+    if (viewingSummaryId) {
+      return (
+        <SummaryView
+          summaryId={viewingSummaryId}
+          onBack={() => setViewingSummaryId(null)}
+          onViewQuiz={(quizId) => setViewingQuizId(quizId)}
+        />
+      );
+    }
+
     if (loadingData) {
       return (
         <div className="flex flex-col items-center justify-center py-20">
@@ -3223,7 +3306,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           <AnnouncementsBanner userId={profile.id} />
           <AnimatePresence mode="wait">
             <motion.div
-              key={activeSection}
+              key={viewingSummaryId ? `summary-${viewingSummaryId}` : activeSection}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}

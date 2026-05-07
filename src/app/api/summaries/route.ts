@@ -315,3 +315,94 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+/**
+ * POST /api/summaries
+ *
+ * Create a new summary record directly (used by transcribe-only mode).
+ * This saves the extracted text WITHOUT AI summarization.
+ *
+ * Body: { title: string, original_content: string, summary_content: string, subject_id?: string, transcribe_only?: boolean }
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
+
+    const userId = authResult.user.id;
+
+    // Rate limiting
+    const rateLimit = checkRateLimit(request, userId);
+    const rateLimitHeaders = getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'طلبات كثيرة جداً. يرجى المحاولة لاحقاً' },
+        { status: 429, headers: rateLimitHeaders }
+      );
+    }
+
+    let body: { title?: string; original_content?: string; summary_content?: string; subject_id?: string; transcribe_only?: boolean };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: 'تنسيق الطلب غير صالح' },
+        { status: 400 }
+      );
+    }
+
+    const { title, original_content, summary_content, subject_id, transcribe_only } = body;
+
+    if (!title || !original_content || !summary_content) {
+      return NextResponse.json(
+        { success: false, error: 'العنوان والمحتوى مطلوبان' },
+        { status: 400, headers: rateLimitHeaders }
+      );
+    }
+
+    // Sanitize content
+    const sanitizedOriginal = sanitizeString(original_content, 50000);
+    const sanitizedSummary = sanitizeString(summary_content, 50000);
+
+    if (sanitizedOriginal.length === 0 || sanitizedSummary.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'المحتوى غير صالح بعد التنظيف' },
+        { status: 400, headers: rateLimitHeaders }
+      );
+    }
+
+    // Insert the summary record
+    const { data: savedSummary, error: dbError } = await supabaseServer
+      .from('summaries')
+      .insert({
+        user_id: userId,
+        title,
+        original_content: sanitizedOriginal,
+        summary_content: sanitizedSummary,
+        subject_id: subject_id || null,
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error('[Summaries API] POST insert error:', dbError.message);
+      return NextResponse.json(
+        { success: false, error: 'فشل حفظ التفريغ' },
+        { status: 500 }
+      );
+    }
+
+    console.log('[Summaries API] Transcribe-only saved, id:', savedSummary?.id, 'transcribe_only:', !!transcribe_only);
+
+    return NextResponse.json({
+      success: true,
+      data: savedSummary,
+    }, { headers: rateLimitHeaders });
+  } catch (error) {
+    console.error('[Summaries API] POST error:', error);
+    return NextResponse.json(
+      { success: false, error: 'حدث خطأ غير متوقع' },
+      { status: 500 }
+    );
+  }
+}

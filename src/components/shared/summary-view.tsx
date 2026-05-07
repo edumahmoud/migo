@@ -59,6 +59,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ─── Detect transcribed content (original_content === summary_content means no AI summarization) ───
+  const isTranscribed = !!(summary?.original_content && summary?.summary_content &&
+    summary.original_content.trim() === summary.summary_content.trim());
+
   // ─── Action states ───
   const [regenerating, setRegenerating] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -478,26 +482,31 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
 
       {/* Summary content card */}
       <motion.div variants={fadeInUp}>
-        <Card className="border-emerald-200 bg-white shadow-sm print:shadow-none print:border-none">
+        <Card className={`${isTranscribed ? 'border-teal-200' : 'border-emerald-200'} bg-white shadow-sm print:shadow-none print:border-none`}>
           <CardContent className="p-6 sm:p-8">
             {/* Decorative header */}
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-emerald-100 print:hidden">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
-                  <Sparkles className="h-5 w-5 text-emerald-600" />
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isTranscribed ? 'bg-teal-100' : 'bg-emerald-100'}`}>
+                  {isTranscribed ? <BookOpen className="h-5 w-5 text-teal-600" /> : <Sparkles className="h-5 w-5 text-emerald-600" />}
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-emerald-700">الملخص</h2>
-                  <p className="text-xs text-emerald-600/70">تم إنشاؤه بواسطة الذكاء الاصطناعي</p>
+                  <h2 className={`text-sm font-bold ${isTranscribed ? 'text-teal-700' : 'text-emerald-700'}`}>
+                    {isTranscribed ? 'النص المفرّغ' : 'الملخص'}
+                  </h2>
+                  <p className={`text-xs ${isTranscribed ? 'text-teal-600/70' : 'text-emerald-600/70'}`}>
+                    {isTranscribed ? 'تم استخراج النص من ملف PDF' : 'تم إنشاؤه بواسطة الذكاء الاصطناعي'}
+                  </p>
                 </div>
               </div>
-              {/* Re-summarize button */}
-              <Button
-                onClick={handleRegenerateSummary}
-                disabled={regenerating}
-                variant="ghost"
-                size="sm"
-                className="gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+              {/* Re-summarize button - only show for AI-generated summaries */}
+              {!isTranscribed && (
+                <Button
+                  onClick={handleRegenerateSummary}
+                  disabled={regenerating}
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                 title="إعادة التلخيص"
               >
                 {regenerating ? (
@@ -507,6 +516,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
                 )}
                 <span className="hidden sm:inline">{regenerating ? 'جاري الإعادة...' : 'إعادة التلخيص'}</span>
               </Button>
+              )}
             </div>
 
             {/* Markdown content with RTL typography */}

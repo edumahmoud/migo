@@ -31,6 +31,10 @@ interface AppState {
   viewingSummaryId: string | null;
   setViewingSummaryId: (id: string | null) => void;
   
+  // Previous student section (saved before viewing a summary, restored on back)
+  previousStudentSection: StudentSection | null;
+  clearPreviousStudentSection: () => void;
+  
   // Course page navigation
   selectedSubjectId: string | null;
   setSelectedSubjectId: (id: string | null) => void;
@@ -61,6 +65,7 @@ const initialState = {
   adminSection: 'dashboard' as AdminSection,
   viewingQuizId: null as string | null,
   viewingSummaryId: null as string | null,
+  previousStudentSection: null as StudentSection | null,
   selectedSubjectId: null as string | null,
   courseTab: 'overview' as CourseTab,
   selectedStudentId: null as string | null,
@@ -83,10 +88,30 @@ export const useAppStore = create<AppState>()(
         viewingQuizId: id,
         currentPage: id ? 'quiz' : (state.currentPage === 'quiz' ? 'student-dashboard' : state.currentPage),
       })),
-      setViewingSummaryId: (id) => set((state) => ({
-        viewingSummaryId: id,
-        currentPage: id ? 'summary' : (state.currentPage === 'summary' ? 'student-dashboard' : state.currentPage),
-      })),
+      setViewingSummaryId: (id) => set((state) => {
+        if (id) {
+          // Navigating TO a summary: save current student section so we can restore it on back
+          // Also set studentSection to 'summaries' so the sidebar & header show the correct active section
+          return {
+            viewingSummaryId: id,
+            previousStudentSection: state.studentSection,
+            studentSection: 'summaries' as StudentSection,
+            // Don't change currentPage — the student dashboard handles summary rendering internally
+            // so the sidebar and header stay visible on mobile
+          };
+        } else {
+          // Navigating AWAY from summary: restore the previous student section
+          const restoredSection = state.previousStudentSection || 'summaries';
+          return {
+            viewingSummaryId: null,
+            previousStudentSection: null,
+            studentSection: restoredSection,
+            // If currentPage was 'summary' (e.g. from persisted state), redirect back to dashboard
+            currentPage: state.currentPage === 'summary' ? 'student-dashboard' : state.currentPage,
+          };
+        }
+      }),
+      clearPreviousStudentSection: () => set({ previousStudentSection: null }),
       setSelectedSubjectId: (id) => set({ selectedSubjectId: id }),
       setCourseTab: (tab) => set({ courseTab: tab }),
       setSelectedStudentId: (id) => set({ selectedStudentId: id }),
@@ -109,6 +134,8 @@ export const useAppStore = create<AppState>()(
         // lands on an orphaned 'summary' currentPage with no summary to show.
         viewingSummaryId: state.viewingSummaryId,
         viewingQuizId: state.viewingQuizId,
+        // Persist previousStudentSection so back navigation works after refresh
+        previousStudentSection: state.previousStudentSection,
       }),
     }
   )

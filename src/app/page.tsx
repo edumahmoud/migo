@@ -19,7 +19,6 @@ import StudentDashboard from '@/components/student/student-dashboard';
 import TeacherDashboard from '@/components/teacher/teacher-dashboard';
 import AdminDashboard from '@/components/admin/admin-dashboard';
 import QuizView from '@/components/shared/quiz-view';
-import SummaryView from '@/components/shared/summary-view';
 import UserProfilePage from '@/components/shared/user-profile-page';
 import AppHeader from '@/components/shared/app-header';
 import AppSidebar from '@/components/shared/app-sidebar';
@@ -74,12 +73,14 @@ function HomeContent() {
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
 
-  // ─── Close sidebar when navigating to quiz/summary views ───
-  // These views don't include the sidebar component, so we need to ensure
+  // ─── Close sidebar when navigating to quiz view ───
+  // Quiz view doesn't include the sidebar component, so we need to ensure
   // the mobile Sheet (portal) is closed and desktop sidebar state is reset
+  // NOTE: Summary view is now rendered inside the student dashboard (with sidebar),
+  // so we no longer close the sidebar for 'summary' page.
   // NOTE: Profile page DOES include AppSidebar, so we don't force-close it there
   useEffect(() => {
-    if (currentPage === 'quiz' || currentPage === 'summary') {
+    if (currentPage === 'quiz') {
       if (sidebarOpen) {
         setSidebarOpen(false);
       }
@@ -359,33 +360,24 @@ function HomeContent() {
     );
   }
 
-  // Summary view
-  if (currentPage === 'summary' && viewingSummaryId) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-teal-50" dir="rtl">
-        <SummaryView
-          summaryId={viewingSummaryId}
-          onBack={() => {
-            setViewingSummaryId(null);
-            setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard');
-          }}
-          onViewQuiz={(quizId) => setViewingQuizId(quizId)}
-        />
-      </div>
-    );
-  }
-
-  // ─── Orphaned 'summary' page (currentPage='summary' without viewingSummaryId) ───
-  // This can happen if the user had an old persisted state where viewingSummaryId
-  // was not saved. Redirect them back to their dashboard.
-  if (currentPage === 'summary' && !viewingSummaryId) {
-    setCurrentPage(
-      user.role === 'superadmin' || user.role === 'admin'
-        ? 'admin-dashboard'
-        : user.role === 'teacher'
-          ? 'teacher-dashboard'
-          : 'student-dashboard'
-    );
+  // ─── Orphaned 'summary' page ───
+  // Summary view is now rendered INSIDE the student dashboard, so 'summary' currentPage
+  // should never be set for students. This handles legacy persisted state or
+  // teacher/admin fallback: redirect back to the appropriate dashboard.
+  // For students, setViewingSummaryId(null) will restore the previousStudentSection.
+  if (currentPage === 'summary') {
+    // Clear the orphaned summary state and redirect
+    if (viewingSummaryId) {
+      setViewingSummaryId(null);
+    } else {
+      setCurrentPage(
+        user.role === 'superadmin' || user.role === 'admin'
+          ? 'admin-dashboard'
+          : user.role === 'teacher'
+            ? 'teacher-dashboard'
+            : 'student-dashboard'
+      );
+    }
   }
 
   // Profile view — includes AppSidebar so the toggle button works
