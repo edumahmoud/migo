@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useIsMobile } from '@/hooks/use-mobile';
 import SummaryView from '@/components/shared/summary-view';
+import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Summary, UserFile, Subject } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -70,6 +71,7 @@ const cardHover = {
 export default function TeacherSummariesSection({ profile }: TeacherSummariesSectionProps) {
   const isMobile = useIsMobile();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { setViewingQuizId } = useAppStore();
 
   // ─── Data state ───
   const [summaries, setSummaries] = useState<Summary[]>([]);
@@ -656,6 +658,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         summaryId={viewingSummaryId}
         onBack={() => setViewingSummaryId(null)}
         teacherMode={true}
+        onViewQuiz={(quizId) => setViewingQuizId(quizId)}
       />
     );
   }
