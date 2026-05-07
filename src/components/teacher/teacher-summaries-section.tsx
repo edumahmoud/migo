@@ -42,6 +42,7 @@ interface PendingSummary {
   title: string;
   status: 'extracting' | 'summarizing' | 'saving' | 'cancelled';
   mode: 'transcribe' | 'summarize';
+  startedAt: number;
 }
 
 interface TeacherSummariesSectionProps {
@@ -313,6 +314,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       title,
       status: 'extracting',
       mode: (inputMode === 'transcribe' || (inputMode === 'existing' && capturedExistingFileTranscribe)) ? 'transcribe' : 'summarize',
+      startedAt: Date.now(),
     };
 
     // Reset form

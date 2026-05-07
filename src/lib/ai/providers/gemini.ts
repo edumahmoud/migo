@@ -23,7 +23,7 @@ import type {
   ProviderId,
   AiErrorCode,
 } from '../types';
-import { AiProviderError } from '../types';
+import { AiProviderError, isAiError } from '../types';
 
 // -------------------------------------------------------
 // Constants

@@ -113,19 +113,19 @@ function TypingIndicator({ names }: { names: string[] }) {
   if (names.length === 0) return null;
   const label =
     names.length === 1
-      ? `${names[0]} يكتب`
+      ? `${names[0]} يكتب الآن`
       : names.length === 2
-        ? `${names[0]} و ${names[1]} يكتبان`
-        : `${names[0]} وآخرون يكتبون`;
+        ? `${names[0]} و ${names[1]} يكتبان الآن`
+        : `${names[0]} وآخرون يكتبون الآن`;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2">
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/80 border border-emerald-100">
       <div className="flex items-center gap-1">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
       </div>
-      <span className="text-xs text-emerald-600 font-medium animate-pulse">{label}</span>
+      <span className="text-xs text-emerald-700 font-medium">{label}...</span>
     </div>
   );
 }
@@ -219,7 +219,6 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null);
   const convRealtimeChannelRef = useRef<RealtimeChannel | null>(null);
 
-  // ─── Keep refs in sync ───
   useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
@@ -264,6 +263,16 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       setLoading(false);
     }
   }, [profile.id]);
+
+  // ─── Debounced conversation refresh ───
+  // Prevents multiple rapid fetchConversations calls (e.g. from multiple Realtime events)
+  const convRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedFetchConversations = useCallback(() => {
+    if (convRefreshTimerRef.current) clearTimeout(convRefreshTimerRef.current);
+    convRefreshTimerRef.current = setTimeout(() => {
+      fetchConversations();
+    }, 1000);
+  }, [fetchConversations]);
 
   // =====================================================
   // Polling fallback for messages
@@ -326,8 +335,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
               const currentActiveId = activeConvIdRef.current;
 
-              // Fetch the full message with sender info via API
-              fetch(`/api/chat?action=messages&conversationId=${convId}&limit=50`)
+              // Fetch only the new message (not all 50) for efficiency
+              fetch(`/api/chat?action=messages&conversationId=${convId}&limit=1`)
                 .then(r => r.json())
                 .then(data => {
                   const serverMessages: ChatMessage[] = data.messages || [];
@@ -379,7 +388,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       return next;
                     });
                   }
-                  fetchConversations();
+                  debouncedFetchConversations();
                 })
                 .catch(() => {});
             }
@@ -438,7 +447,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             (payload) => {
               console.log('[Chat Realtime] New conversation participant:', payload.new);
               // We were added to a conversation — refresh the list
-              fetchConversations();
+              debouncedFetchConversations();
             }
           )
           .on(
@@ -451,7 +460,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             },
             () => {
               // Participant record updated (e.g. unarchived, unhidden)
-              fetchConversations();
+              debouncedFetchConversations();
             }
           )
           .on(
@@ -465,7 +474,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               const deleted = payload.old as Record<string, unknown>;
               // Check if we were removed from a conversation
               if (deleted?.user_id === profile.id) {
-                fetchConversations();
+                debouncedFetchConversations();
               }
             }
           )
@@ -480,22 +489,20 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     }
 
     // ─── Polling: lightweight backup for reliability ───
-    // In ALL modes: poll conversations periodically to catch new conversations
-    // When there's an active conversation: poll messages every 5 seconds for faster delivery
-    // In Realtime mode: poll messages every 5 seconds as backup
-    // In Socket.IO mode: poll messages every 10 seconds as backup  
-    // When disconnected: poll messages every 5 seconds
+    // OPTIMIZED: Reduced polling frequency to minimize server load and perceived lag
+    // When disconnected: poll messages every 8 seconds
+    // In Realtime mode: poll messages every 12 seconds as backup (Realtime is primary)
+    // In Socket.IO mode: poll messages every 15 seconds as backup
     if (!isConnected) {
-      pollingRef.current = setInterval(pollMessages, 5000);
+      pollingRef.current = setInterval(pollMessages, 8000);
     } else if (isRealtimeMode) {
-      backupPollingRef.current = setInterval(pollMessages, 5000);
+      backupPollingRef.current = setInterval(pollMessages, 12000);
     } else {
-      backupPollingRef.current = setInterval(pollMessages, 10000);
+      backupPollingRef.current = setInterval(pollMessages, 15000);
     }
 
-    // ALWAYS poll conversations — this catches new conversations, unread changes, etc.
-    // that Realtime might miss (e.g. if Realtime isn't enabled on the table)
-    convPollingRef.current = setInterval(fetchConversations, 8000);
+    // Poll conversations every 15 seconds (reduced from 8s — Realtime catches most updates)
+    convPollingRef.current = setInterval(fetchConversations, 15000);
 
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
@@ -598,7 +605,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       });
     }
     // Always refresh conversation list for updated last message
-    fetchConversations();
+    debouncedFetchConversations();
   });
 
   // ─── Chat notification (direct delivery, even if not in room) ───
@@ -658,7 +665,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       });
     }
 
-    fetchConversations();
+    debouncedFetchConversations();
   });
 
   // ─── New conversation notification ───
@@ -675,7 +682,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       icon: <MessageCircle className="h-4 w-4 text-emerald-600" />,
       duration: 5000,
     });
-    fetchConversations();
+    debouncedFetchConversations();
   });
 
   // ─── Message updated (edit) ───
@@ -702,7 +709,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
   // ─── Conversation updated ───
   useSocketEvent('conversation-updated', () => {
-    fetchConversations();
+    debouncedFetchConversations();
   });
 
   // ─── Typing indicators ───

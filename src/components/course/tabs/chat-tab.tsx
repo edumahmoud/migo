@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSharedSocket, useSocketEvent } from '@/lib/socket';
+import { useSharedSocket, useSocketEvent, joinTypingPresence, leaveTypingPresence, broadcastTypingState, getTypingUsers, isSocketGivenUp } from '@/lib/socket';
 import { useStatusStore } from '@/stores/status-store';
 import {
   MessageCircle,
@@ -83,6 +83,10 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   const [participants, setParticipants] = useState<{ user_id: string; users: UserProfile }[]>([]);
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const [setupInfo, setSetupInfo] = useState<{ sqlEditorUrl?: string; steps?: string[] } | null>(null);
+
+  // Typing presence refs
+  const typingPresenceRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const typingPresencePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Status store
   const { init: initStatusStore } = useStatusStore();
@@ -484,10 +488,45 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
     }
   });
 
-  // Initialize status store
+  // Initialize status store + typing presence when conversation is ready
   useEffect(() => {
     initStatusStore();
   }, [initStatusStore]);
+
+  // ─── Setup typing presence when conversationId is available ───
+  useEffect(() => {
+    if (!conversationId) return;
+
+    // Join Supabase Presence channel for typing indicators (fallback when Socket.IO unavailable)
+    const presenceChannel = joinTypingPresence(conversationId, profile.id, profile.name);
+    typingPresenceRef.current = presenceChannel;
+
+    // Poll presence state for typing indicators (when in Realtime mode)
+    if (typingPresencePollRef.current) clearInterval(typingPresencePollRef.current);
+    if (presenceChannel) {
+      typingPresencePollRef.current = setInterval(() => {
+        const typing = getTypingUsers(conversationId, profile.id);
+        setTypingUsers((prev) => {
+          const next = new Map<string, string>();
+          for (const t of typing) {
+            next.set(t.userId, t.userName);
+          }
+          // Preserve any Socket.IO-based typing users that are still active
+          for (const [key, value] of prev) {
+            if (!next.has(key) && typingTimeoutRef.current.has(key)) {
+              next.set(key, value);
+            }
+          }
+          return next;
+        });
+      }, 1500);
+    }
+
+    return () => {
+      if (typingPresencePollRef.current) clearInterval(typingPresencePollRef.current);
+      leaveTypingPresence(conversationId);
+    };
+  }, [conversationId, profile.id, profile.name]);
 
   // ─── Online users tracking now handled by status store ───
 
@@ -686,18 +725,28 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   // -------------------------------------------------------
   const handleTyping = (value: string) => {
     setNewMessage(value);
-    if (socket && conversationId) {
+    if (conversationId) {
       if (value.trim()) {
-        socket.emit('typing', {
-          conversationId,
-          userId: profile.id,
-          userName: profile.name,
-        });
+        // Socket.IO first
+        if (socket) {
+          socket.emit('typing', {
+            conversationId,
+            userId: profile.id,
+            userName: profile.name,
+          });
+        }
+        // Supabase Presence fallback
+        broadcastTypingState(conversationId, profile.id, profile.name, true);
       } else {
-        socket.emit('stop-typing', {
-          conversationId,
-          userId: profile.id,
-        });
+        // Socket.IO first
+        if (socket) {
+          socket.emit('stop-typing', {
+            conversationId,
+            userId: profile.id,
+          });
+        }
+        // Supabase Presence fallback
+        broadcastTypingState(conversationId, profile.id, profile.name, false);
       }
     }
   };
@@ -1002,15 +1051,15 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4, pointerEvents: 'none' as const }}
-              className="flex items-center gap-2 text-xs text-muted-foreground"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/80 border border-emerald-100"
             >
               <div className="flex gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
-              <span>
-                {Array.from(typingUsers.values()).join('، ')} يكتب...
+              <span className="text-xs text-emerald-700 font-medium">
+                {Array.from(typingUsers.values()).join('، ')} يكتب الآن...
               </span>
             </motion.div>
           )}
