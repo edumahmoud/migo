@@ -433,7 +433,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
       initial="hidden"
       animate="visible"
       variants={staggerContainer}
-      className="mx-auto max-w-3xl space-y-6 px-4 py-6"
+      className="mx-auto max-w-3xl space-y-6 px-4 py-6 overflow-x-hidden"
       dir="rtl"
     >
       {/* Header */}
@@ -574,34 +574,34 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
             {relatedQuiz ? (
               <div className="space-y-3">
                 {/* Quiz info */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg bg-teal-50/70 border border-teal-100">
+                <div className="flex flex-col gap-3 p-3 rounded-lg bg-teal-50/70 border border-teal-100">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-teal-800">{relatedQuiz.title}</p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-xs text-teal-600">
+                    <p className="text-sm font-medium text-teal-800 break-words">{relatedQuiz.title}</p>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap text-xs text-teal-600">
+                      <span>
                         {relatedQuiz.questions?.length || 0} سؤال
                       </span>
-                      <span className="text-xs text-teal-400">•</span>
-                      <span className="text-xs text-teal-600">
+                      <span className="text-teal-400">•</span>
+                      <span>
                         {relatedQuiz.questions?.filter(q => q.type === 'mcq').length || 0} اختيار من متعدد
                       </span>
-                      <span className="text-xs text-teal-400">•</span>
-                      <span className="text-xs text-teal-600">
+                      <span className="text-teal-400">•</span>
+                      <span>
                         {relatedQuiz.questions?.filter(q => q.type === 'boolean').length || 0} صح/خطأ
                       </span>
-                      <span className="text-xs text-teal-400">•</span>
-                      <span className="text-xs text-teal-600">
+                      <span className="text-teal-400">•</span>
+                      <span>
                         {relatedQuiz.questions?.filter(q => q.type === 'completion').length || 0} أكمل الفراغ
                       </span>
-                      <span className="text-xs text-teal-400">•</span>
-                      <span className="text-xs text-teal-600">
+                      <span className="text-teal-400">•</span>
+                      <span>
                         {relatedQuiz.questions?.filter(q => q.type === 'matching').length || 0} مطابقة
                       </span>
                     </div>
                   </div>
                   <Button
                     onClick={() => onViewQuiz?.(relatedQuiz.id)}
-                    className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white shrink-0 self-start sm:self-center"
+                    className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white shrink-0 w-full sm:w-auto self-start"
                     size="sm"
                   >
                     <Play className="h-4 w-4" />

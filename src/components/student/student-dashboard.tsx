@@ -965,6 +965,32 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     const capturedFile = summaryFile;
     const capturedText = summaryText.trim();
 
+    // ───────────────────────────────────────────────────────
+    // MOBILE FIX: Pre-read file data BEFORE closing the modal.
+    // On mobile browsers, File objects can become invalid when
+    // the <input type="file"> element is unmounted from the DOM
+    // (which happens when the modal closes). By reading the
+    // ArrayBuffer now, we ensure the file data is captured in
+    // memory regardless of what happens to the File reference.
+    // ───────────────────────────────────────────────────────
+    let preReadFileData: ArrayBuffer | null = null;
+    if ((inputMode === 'file' || inputMode === 'transcribe') && capturedFile) {
+      // Enforce file size limit (10MB) to prevent memory issues on mobile
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      if (capturedFile.size > MAX_FILE_SIZE) {
+        toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB). يرجى اختيار ملف أصغر');
+        return;
+      }
+      try {
+        preReadFileData = await capturedFile.arrayBuffer();
+        console.log('[Summary] Pre-read file data, size:', preReadFileData.byteLength, 'bytes');
+      } catch (readErr) {
+        console.error('[Summary] Failed to pre-read file data:', readErr);
+        toast.error('فشل في قراءة الملف. يرجى المحاولة مرة أخرى');
+        return;
+      }
+    }
+
     // Create a pending summary tracker with AbortController for cancellation
     const pendingId = `pending-${Date.now()}`;
     const abortController = new AbortController();
@@ -987,6 +1013,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     } catch { /* ignore */ }
 
     // Reset form & close modal immediately
+    // Safe to close now — file data is already in memory (preReadFileData)
     setSummaryTitle('');
     setSummaryText('');
     setSummaryFile(null);
@@ -1036,13 +1063,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         let savedSummaryId = '';
 
         // Step 1: Get content (text or extract from PDF in browser)
-        if ((inputMode === 'file' || inputMode === 'transcribe') && capturedFile) {
+        if ((inputMode === 'file' || inputMode === 'transcribe') && (preReadFileData || capturedFile)) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
-          // Extract PDF text CLIENT-SIDE using pdfjs-dist (works perfectly in browsers)
-          console.log('[Summary] Extracting PDF text in browser...');
+          // Extract PDF text CLIENT-SIDE using pdfjs-dist
+          // MOBILE FIX: Use preReadFileData (ArrayBuffer) when available instead of
+          // the File object, because File references can become invalid after the
+          // modal is unmounted on mobile browsers.
+          const pdfSource = preReadFileData || capturedFile!;
+          console.log('[Summary] Extracting PDF text in browser...', preReadFileData ? '(using pre-read data)' : '(using File reference)');
           try {
-            const pdfResult = await extractPdfTextClient(capturedFile);
+            const pdfResult = await extractPdfTextClient(pdfSource);
             originalContent = pdfResult.text;
             console.log('[Summary] PDF text extracted client-side, length:', originalContent.length, 'pages:', pdfResult.pages);
           } catch (pdfErr) {

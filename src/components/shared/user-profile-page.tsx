@@ -443,7 +443,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           variant="ghost"
           size="sm"
           onClick={onBack}
-          className="absolute top-4 left-4 sm:left-auto sm:right-4 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm z-10"
+          className="absolute top-4 right-4 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm z-10"
         >
           <ArrowRight className="h-4 w-4" />
           <span className="hidden sm:inline">العودة</span>
@@ -495,20 +495,9 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         </div>
       </motion.div>
 
-      {/* Floating back button - always visible */}
-      <div className="px-4 sm:px-10 mt-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onBack}
-          className="gap-2 text-muted-foreground hover:text-foreground"
-        >
-          <ArrowRight className="h-4 w-4" />
-          العودة
-        </Button>
-      </div>
-
       {/* ─── Profile Info Section ──────────────────────── */}
+      {/* Back button on the banner (right-4) is the primary way back.
+          The profile info section is spaced to clear the avatar overlay. */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}

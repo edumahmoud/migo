@@ -23,7 +23,7 @@ export interface PdfExtractionResult {
 const MAX_TEXT_LENGTH = 50000;
 
 /**
- * Extract text from a PDF File in the browser.
+ * Extract text from a PDF File or pre-read ArrayBuffer in the browser.
  *
  * Uses dynamic import to load pdfjs-dist ONLY in the browser,
  * preventing SSR/prerender errors from browser-only APIs.
@@ -31,11 +31,16 @@ const MAX_TEXT_LENGTH = 50000;
  * Worker is disabled — for text extraction we don't need it,
  * and it avoids CORS/fetch errors loading the worker script.
  *
- * @param file - The PDF File object from an <input type="file">
+ * IMPORTANT: On mobile browsers, File objects can become invalid when the
+ * <input> element is unmounted from the DOM. Callers should pre-read the
+ * file data (via file.arrayBuffer()) BEFORE closing the modal/form, and
+ * pass the ArrayBuffer instead of the File object to avoid this issue.
+ *
+ * @param source - The PDF File object OR a pre-read ArrayBuffer
  * @returns Extracted text and page count
  * @throws Error if not in browser or extraction fails
  */
-export async function extractPdfTextClient(file: File): Promise<PdfExtractionResult> {
+export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<PdfExtractionResult> {
   if (typeof window === 'undefined') {
     throw new Error('PDF extraction is only available in the browser');
   }
@@ -48,7 +53,10 @@ export async function extractPdfTextClient(file: File): Promise<PdfExtractionRes
     // CDN doesn't host v5.6.205, and empty workerSrc causes an error.
     pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-    const arrayBuffer = await file.arrayBuffer();
+    // Accept either a File object or a pre-read ArrayBuffer
+    // Pre-read ArrayBuffer is preferred on mobile to avoid File reference
+    // invalidation when the <input> element is unmounted from the DOM
+    const arrayBuffer = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
 
     const numPages = pdf.numPages;
