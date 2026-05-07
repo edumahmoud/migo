@@ -94,61 +94,60 @@ export async function POST(request: NextRequest) {
     const aiTime = Date.now() - requestStartTime;
     console.log('[Summary API] Summary generated successfully, length:', summary.length, 'total time so far:', aiTime + 'ms');
 
-    // ─── SAVE SUMMARY TO DATABASE (with short timeout) ───
-    // Previous version awaited the DB insert without a timeout, which could
-    // add 2-5s+ and push past Vercel's 60s limit if the AI call was slow.
-    // Now we race the save against a 5-second timeout:
-    //   - If it completes in 5s (typical), we return the saved ID
-    //   - If it times out, we return without ID and the client handles it
+    // ─── SAVE SUMMARY TO DATABASE (ALWAYS await — no fire-and-forget) ───
+    // PREVIOUS BUG: Using fire-and-forget (void supabaseServer.insert()) after a timeout
+    // caused the save to NEVER execute on Vercel serverless, because the function
+    // runtime is terminated immediately after the response is sent.
+    // FIX: We ALWAYS await the DB save. If we have time remaining, we use it.
+    // Only if we're dangerously close to Vercel's 60s limit do we skip the save
+    // and return the summary for the client to retry.
     let savedSummaryId: string | null = null;
     let dbSaveSucceeded = false;
 
-    const timeRemaining = 55000 - (Date.now() - requestStartTime); // Leave 5s buffer
-    const dbTimeoutMs = Math.max(Math.min(timeRemaining - 2000, 5000), 2000); // 2-5s, depends on remaining time
+    const timeRemaining = 55000 - (Date.now() - requestStartTime); // Leave 5s buffer for response
 
     try {
-      const savePromise = supabaseServer
-        .from('summaries')
-        .insert({
-          user_id: userId,
-          title,
-          original_content: rawContent,
-          summary_content: summary,
-          subject_id: subjectId, // FIX #5: Include subject_id in insert
-          source_file_type: sourceFileType,
-        })
-        .select()
-        .single();
+      if (timeRemaining < 3000) {
+        // Not enough time left — return summary without saving
+        // Client will handle saving via a separate request
+        console.warn('[Summary API] Only', timeRemaining, 'ms remaining — skipping DB save, client will retry');
+      } else {
+        const dbTimeoutMs = Math.min(timeRemaining - 2000, 10000); // Up to 10s for DB save
+        console.log('[Summary API] Saving to DB with', dbTimeoutMs, 'ms budget...');
 
-      const saveTimeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('db_save_timeout')), dbTimeoutMs)
-      );
+        const savePromise = supabaseServer
+          .from('summaries')
+          .insert({
+            user_id: userId,
+            title,
+            original_content: rawContent,
+            summary_content: summary,
+            subject_id: subjectId,
+            source_file_type: sourceFileType,
+          })
+          .select()
+          .single();
 
-      const { data: savedSummary, error: dbError } = await Promise.race([savePromise, saveTimeoutPromise]);
+        const saveTimeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('db_save_timeout')), dbTimeoutMs)
+        );
 
-      if (dbError) {
-        console.error('[Summary API] DB insert failed:', dbError.message, dbError.code, dbError.details);
-        // Still return the summary — client will try to save it
-      } else if (savedSummary) {
-        savedSummaryId = savedSummary.id;
-        dbSaveSucceeded = true;
-        console.log('[Summary API] Summary saved successfully, id:', savedSummaryId);
+        const { data: savedSummary, error: dbError } = await Promise.race([savePromise, saveTimeoutPromise]);
+
+        if (dbError) {
+          console.error('[Summary API] DB insert failed:', dbError.message, dbError.code, dbError.details);
+        } else if (savedSummary) {
+          savedSummaryId = savedSummary.id;
+          dbSaveSucceeded = true;
+          console.log('[Summary API] Summary saved successfully, id:', savedSummaryId);
+        }
       }
     } catch (saveErr) {
-      // DB save timed out — return summary without ID
       const errMsg = saveErr instanceof Error ? saveErr.message : String(saveErr);
       if (errMsg === 'db_save_timeout') {
-        console.warn('[Summary API] DB save timed out after', dbTimeoutMs, 'ms — returning without ID');
-        // Fire the save in background so it still completes
-        void supabaseServer
-          .from('summaries')
-          .insert({ user_id: userId, title, original_content: rawContent, summary_content: summary, subject_id: subjectId, source_file_type: sourceFileType })
-          .select()
-          .single()
-          .then(({ data, error }) => {
-            if (error) console.error('[Summary API] Background save failed:', error.message);
-            else console.log('[Summary API] Background save succeeded, id:', data?.id);
-          });
+        console.warn('[Summary API] DB save timed out — summary generated but not persisted');
+        // DO NOT fire-and-forget — it won't work on Vercel serverless.
+        // Instead, return the summary content so the client can retry saving.
       } else {
         console.error('[Summary API] DB save error:', errMsg);
       }

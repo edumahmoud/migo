@@ -50,7 +50,7 @@ import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
-import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile } from '@/lib/types';
+import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
 import { extractPdfTextClient, extractTextFromFile } from '@/lib/pdf-client';
 import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar from '@/components/shared/user-avatar';
@@ -191,6 +191,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const POLL_INTERVAL_MS = 60000;
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<{ id: string; session_id: string; student_id: string; checked_in_at: string }[]>([]);
+  const [attendanceSessions, setAttendanceSessions] = useState<{ id: string; subject_id: string; status: string }[]>([]);
   const [linkedTeachers, setLinkedTeachers] = useState<UserProfile[]>([]);
   const [fileCount, setFileCount] = useState(0);
   const [loadingData, setLoadingData] = useState(true);
@@ -680,12 +684,75 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     }
   }, [profile.id]);
 
+  // Fetch graded submissions and their assignments for performance calculation
+  const fetchSubmissionsAndAssignments = useCallback(async () => {
+    try {
+      // Fetch graded submissions for this student
+      const { data: subData, error: subError } = await supabase
+        .from('submissions')
+        .select('id, assignment_id, student_id, score, status, submitted_at, graded_at')
+        .eq('student_id', profile.id)
+        .eq('status', 'graded');
+      if (!subError && subData) {
+        setSubmissions(subData as Submission[]);
+        // Get unique assignment IDs
+        const assignmentIds = [...new Set(subData.map((s: Submission) => s.assignment_id))];
+        if (assignmentIds.length > 0) {
+          const { data: assignData, error: assignError } = await supabase
+            .from('assignments')
+            .select('id, subject_id, teacher_id, title, max_score, show_grade')
+            .in('id', assignmentIds);
+          if (!assignError && assignData) {
+            setAssignments(assignData as Assignment[]);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[fetchSubmissionsAndAssignments] Error:', err);
+    }
+  }, [profile.id]);
+
+  // Fetch attendance data for performance calculation
+  const fetchAttendance = useCallback(async () => {
+    try {
+      // Get all attendance sessions for subjects the student is enrolled in
+      const { data: enrollments } = await supabase
+        .from('subject_students')
+        .select('subject_id')
+        .eq('student_id', profile.id);
+      if (enrollments && enrollments.length > 0) {
+        const subjectIds = enrollments.map(e => e.subject_id);
+        const { data: sessions, error: sessError } = await supabase
+          .from('attendance_sessions')
+          .select('id, subject_id, status')
+          .in('subject_id', subjectIds);
+        if (!sessError && sessions) {
+          setAttendanceSessions(sessions);
+          // Get student's attendance records
+          if (sessions.length > 0) {
+            const sessionIds = sessions.map(s => s.id);
+            const { data: records, error: recError } = await supabase
+              .from('attendance_records')
+              .select('id, session_id, student_id, checked_in_at')
+              .eq('student_id', profile.id)
+              .in('session_id', sessionIds);
+            if (!recError && records) {
+              setAttendanceRecords(records);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[fetchAttendance] Error:', err);
+    }
+  }, [profile.id]);
+
   // Load all data
   const fetchAllData = useCallback(async () => {
     setLoadingData(true);
-    await Promise.all([fetchSummaries(), fetchQuizzes(), fetchScores(), fetchLinkedTeachers(), fetchIncomingLinkRequests(), fetchFileCount()]);
+    await Promise.all([fetchSummaries(), fetchQuizzes(), fetchScores(), fetchLinkedTeachers(), fetchIncomingLinkRequests(), fetchFileCount(), fetchSubmissionsAndAssignments(), fetchAttendance()]);
     setLoadingData(false);
-  }, [fetchSummaries, fetchQuizzes, fetchScores, fetchLinkedTeachers, fetchIncomingLinkRequests, fetchFileCount]);
+  }, [fetchSummaries, fetchQuizzes, fetchScores, fetchLinkedTeachers, fetchIncomingLinkRequests, fetchFileCount, fetchSubmissionsAndAssignments, fetchAttendance]);
 
   // RADICAL FIX: Removed the separate loadSummariesFromCache useEffect.
   // Cache is now loaded SYNCHRONOUSLY in useState initializer — no more flicker.
@@ -1354,12 +1421,39 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         if (savedSummaryId) {
           console.log('[Summary] Saved successfully, id:', savedSummaryId);
         } else {
-          // ─── FIX #3: Removed client-side fallback insert ───
-          // Previously: if no savedSummaryId, the code tried 3 more client-side inserts.
-          // This caused duplicates when the server's background save also succeeded.
-          // Now we just wait — the server will complete the save in the background,
-          // and Realtime + polling will update the UI.
-          console.warn('[Summary] No summaryId from server yet — server is saving in background. Realtime/polling will update the UI.');
+          // ─── CLIENT-SIDE RETRY: Save via /api/summaries POST ───
+          // The server may not have saved (DB timeout, Vercel termination, etc.)
+          // We retry saving via the /api/summaries endpoint which is simpler
+          // and more likely to succeed since it doesn't involve AI processing.
+          console.warn('[Summary] No summaryId from server — attempting client-side save via /api/summaries');
+          try {
+            const retryToken = token || await waitForSession(15000);
+            const retryRes = await fetch('/api/summaries', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(retryToken ? { 'Authorization': `Bearer ${retryToken}` } : {}),
+              },
+              body: JSON.stringify({
+                title,
+                original_content: originalContent,
+                summary_content: summaryContent,
+                subject_id: selectedSubjectId || null,
+                source_file_type: sourceFileType,
+                transcribe_only: inputMode === 'transcribe',
+              }),
+              signal: abortController.signal,
+            });
+            const retryData = await retryRes.json();
+            if (retryRes.ok && retryData.success && retryData.data?.id) {
+              savedSummaryId = retryData.data.id;
+              console.log('[Summary] Client-side save succeeded, id:', savedSummaryId);
+            } else {
+              console.warn('[Summary] Client-side save also failed:', retryData.error);
+            }
+          } catch (retryErr) {
+            console.warn('[Summary] Client-side save error:', retryErr instanceof Error ? retryErr.message : retryErr);
+          }
         }
 
         // Add summary to local state IMMEDIATELY so it shows even before Realtime/polling
@@ -1369,7 +1463,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           title,
           original_content: originalContent,
           summary_content: summaryContent,
-          subject_id: selectedSubjectId || null, // FIX #5: Include subject_id
+          subject_id: selectedSubjectId || null,
           created_at: new Date().toISOString(),
         };
         // Use safeSetSummaries with force=true for optimistic local update
@@ -1388,8 +1482,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           ? `تم تفريغ نص "${title}" بنجاح`
           : `تم إنشاء ملخص "${title}" بنجاح`
         );
-        // Also refresh from server to get the authoritative version
-        fetchSummaries();
+        // Delay fetchSummaries to avoid race condition with optimistic update
+        // The optimistic update above uses generation=0, but fetchSummaries
+        // increments the generation counter. If we call fetchSummaries immediately,
+        // the server data (which may not include the new summary yet) overwrites
+        // the optimistic update. Waiting 3-5s gives the DB time to propagate.
+        setTimeout(() => fetchSummaries(), savedSummaryId ? 1000 : 5000);
       } catch (err) {
         console.error('[Summary] Background error:', err);
 
@@ -1984,7 +2082,46 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // -------------------------------------------------------
   // Computed: average performance
   // -------------------------------------------------------
-  const avgPerformance = scores.length > 0 ? Math.round(scores.reduce((sum, s) => sum + scorePercentage(s.score, s.total), 0) / scores.length) : 0;
+  // ─── Composite performance average ───
+  // Combines: quiz scores (40%), assignment grades (30%), attendance (30%)
+  // Each component is calculated as a percentage (0-100), then weighted.
+  const avgPerformance = (() => {
+    const components: { value: number; weight: number }[] = [];
+
+    // Quiz scores component (40% weight)
+    if (scores.length > 0) {
+      const quizAvg = scores.reduce((sum, s) => sum + scorePercentage(s.score, s.total), 0) / scores.length;
+      components.push({ value: quizAvg, weight: 40 });
+    }
+
+    // Assignment grades component (30% weight)
+    const gradedSubmissions = submissions.filter(s => s.score !== null && s.score !== undefined);
+    if (gradedSubmissions.length > 0) {
+      const assignAvgs = gradedSubmissions.map(sub => {
+        const assignment = assignments.find(a => a.id === sub.assignment_id);
+        if (assignment && assignment.max_score > 0) {
+          return (sub.score! / assignment.max_score) * 100;
+        }
+        return 0;
+      });
+      const assignAvg = assignAvgs.reduce((sum, v) => sum + v, 0) / assignAvgs.length;
+      components.push({ value: assignAvg, weight: 30 });
+    }
+
+    // Attendance component (30% weight)
+    if (attendanceSessions.length > 0) {
+      const attendedSessionIds = new Set(attendanceRecords.map(r => r.session_id));
+      const attendancePct = (attendedSessionIds.size / attendanceSessions.length) * 100;
+      components.push({ value: attendancePct, weight: 30 });
+    }
+
+    // Calculate weighted average
+    if (components.length === 0) return 0;
+
+    // Re-normalize weights when some components are missing
+    const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
+    return Math.round(components.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight);
+  })();
 
   // -------------------------------------------------------
   // Render: Dashboard Section
