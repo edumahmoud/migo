@@ -185,6 +185,10 @@ async function downloadWithCustomName(url: string, displayName: string) {
 // -------------------------------------------------------
 interface PendingFile {
   file: File;
+  fileData: ArrayBuffer | null; // Pre-read data (critical for mobile PWA where File objects can become invalid)
+  fileName: string; // Store separately in case File object is invalidated
+  fileType: string;
+  fileSize: number;
   customName: string;
   progress: number;
   status: 'pending' | 'uploading' | 'done' | 'error';
@@ -456,14 +460,30 @@ export default function LectureModal({
   };
 
   // ─── Handle file selection ───
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
-    const newFiles: PendingFile[] = Array.from(e.target.files).map((file) => ({
-      file,
-      customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
-      progress: 0,
-      status: 'pending' as const,
-    }));
+    // Pre-read file data into ArrayBuffers for mobile PWA reliability
+    const newFiles: PendingFile[] = await Promise.all(
+      Array.from(e.target.files).map(async (file) => {
+        let fileData: ArrayBuffer | null = null;
+        try {
+          fileData = await file.arrayBuffer();
+          console.log(`[LectureUpload] Pre-read file "${file.name}", size: ${fileData.byteLength} bytes`);
+        } catch (readErr) {
+          console.error(`[LectureUpload] Failed to pre-read file "${file.name}":`, readErr);
+        }
+        return {
+          file,
+          fileData,
+          fileName: file.name,
+          fileType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+          customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
+          progress: 0,
+          status: 'pending' as const,
+        };
+      })
+    );
     setPendingFiles((prev) => [...prev, ...newFiles]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -505,8 +525,30 @@ export default function LectureModal({
       );
 
       try {
-        const originalExt = pf.file.name.includes('.') ? '.' + pf.file.name.split('.').pop() : '';
-        const displayName = pf.customName.trim() ? pf.customName.trim() + originalExt : pf.file.name;
+        const fileName = pf.fileName || pf.file.name;
+        const fileType = pf.fileType || pf.file.type || 'application/octet-stream';
+        const fileSize = pf.fileSize || pf.file.size;
+
+        // ─── CRITICAL FIX: Use pre-read ArrayBuffer data instead of File object ───
+        let arrayBuffer: ArrayBuffer;
+        if (pf.fileData && pf.fileData.byteLength > 0) {
+          arrayBuffer = pf.fileData;
+          console.log(`[LectureUpload] Using pre-read data for "${fileName}", size: ${arrayBuffer.byteLength}`);
+        } else {
+          console.warn(`[LectureUpload] No pre-read data for "${fileName}", reading from File object...`);
+          try {
+            arrayBuffer = await pf.file.arrayBuffer();
+          } catch (readErr) {
+            console.error(`[LectureUpload] File object is invalid for "${fileName}":`, readErr);
+            throw new Error(`فشل في قراءة بيانات الملف "${fileName}". يرجى إعادة تحديد الملف`);
+          }
+        }
+
+        // Create a fresh Blob from the ArrayBuffer
+        const uploadBlob = new Blob([arrayBuffer], { type: fileType });
+
+        const originalExt = fileName.includes('.') ? '.' + fileName.split('.').pop() : '';
+        const displayName = pf.customName.trim() ? pf.customName.trim() + originalExt : fileName;
 
         let uploadSucceeded = false;
 
@@ -515,14 +557,14 @@ export default function LectureModal({
         // The server handles storage upload (no cross-origin client requests).
         // Subject to Vercel 4.5MB body limit.
         const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB safe margin
-        if (pf.file.size <= FILE_SIZE_LIMIT) {
+        if (fileSize <= FILE_SIZE_LIMIT) {
           try {
             setPendingFiles((prev) =>
               prev.map((p, idx) => (idx === i ? { ...p, progress: 20 } : p))
             );
 
             const formData = new FormData();
-            formData.append('file', pf.file);
+            formData.append('file', uploadBlob, fileName);
             formData.append('subjectId', subjectId);
             formData.append('uploadedBy', profile.id);
             formData.append('category', 'محاضرات');
@@ -562,14 +604,14 @@ export default function LectureModal({
             console.warn(`[LectureUpload] Server-side upload error for ${displayName}:`, serverErr instanceof Error ? serverErr.message : serverErr);
           }
         } else {
-          console.log(`[LectureUpload] File ${displayName} is ${Math.round(pf.file.size / 1024 / 1024)}MB, too large for server route`);
+          console.log(`[LectureUpload] File ${displayName} is ${Math.round(fileSize / 1024 / 1024)}MB, too large for server route`);
         }
 
         // ── STEP 2 (FALLBACK): Direct upload to Supabase Storage from client ──
         if (!uploadSucceeded) {
           const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
           const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-          const safeStorageName = `${Date.now()}_${pf.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const safeStorageName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
           const storagePath = `courses/${subjectId}/${safeStorageName}`;
           let storageUploadSuccess = false;
 
@@ -577,9 +619,9 @@ export default function LectureModal({
           try {
             const { error: uploadError } = await supabase.storage
               .from('user-files')
-              .upload(storagePath, pf.file, {
+              .upload(storagePath, uploadBlob, {
                 cacheControl: '3600',
-                contentType: pf.file.type || 'application/octet-stream',
+                contentType: fileType,
                 upsert: false,
               });
 
@@ -622,7 +664,7 @@ export default function LectureModal({
 
                 const formData = new FormData();
                 formData.append('cacheControl', '3600');
-                formData.append('file', pf.file);
+                formData.append('file', uploadBlob, fileName);
                 xhr.send(formData);
               });
 
@@ -658,8 +700,8 @@ export default function LectureModal({
                 displayName,
                 fileUrl,
                 storagePath,
-                fileSize: pf.file.size,
-                fileType: pf.file.type,
+                fileSize: fileSize,
+                fileType: fileType,
               }),
               signal: recordController.signal,
             });
@@ -915,8 +957,8 @@ export default function LectureModal({
                                   pf.status === 'error' ? 'text-rose-600' :
                                   'text-muted-foreground'
                                 }`} />
-                                <span className="text-xs text-muted-foreground truncate flex-1">{pf.file.name}</span>
-                                <span className="text-[10px] text-muted-foreground shrink-0">{(pf.file.size / 1024).toFixed(0)} KB</span>
+                                <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName || pf.file.name}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">{((pf.fileSize || pf.file.size) / 1024).toFixed(0)} KB</span>
                                 {pf.status === 'pending' && (
                                   <button
                                     onClick={() => removePendingFile(idx)}
@@ -945,9 +987,9 @@ export default function LectureModal({
                                     dir="rtl"
                                     disabled={pf.status === 'uploading'}
                                   />
-                                  {pf.file.name.includes('.') && (
+                                  {(pf.fileName || pf.file.name).includes('.') && (
                                     <span className="text-[10px] text-muted-foreground shrink-0">
-                                      .{pf.file.name.split('.').pop()}
+                                      .{(pf.fileName || pf.file.name).split('.').pop()}
                                     </span>
                                   )}
                                 </div>

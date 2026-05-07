@@ -213,6 +213,10 @@ interface SharedFileWithInfo extends UserFile {
 interface PendingUpload {
   id: string;
   file: File;
+  fileData: ArrayBuffer | null; // Pre-read data (critical for mobile PWA where File objects can become invalid)
+  fileName: string; // Store file name separately in case File object is invalidated
+  fileType: string; // Store MIME type separately
+  fileSize: number; // Store file size separately
   customName: string;
   extension: string;
   progress: number; // -1 = failed, 0-100 = progress
@@ -502,7 +506,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Handle file selection for upload
   // -------------------------------------------------------
   const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-  const handleFileSelect = (fileList: FileList | null) => {
+  const handleFileSelect = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
     const validFiles: File[] = [];
     const oversized: string[] = [];
@@ -517,15 +521,36 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       toast.error(`الملفات التالية تتجاوز 50 ميجابايت: ${oversized.join('، ')}`);
     }
     if (validFiles.length === 0) return;
-    const newUploads: PendingUpload[] = validFiles.map((file) => ({
-      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      file,
-      customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
-      extension: getFileExtension(file.name),
-      progress: 0,
-      uploading: false,
-      done: false,
-    }));
+
+    // ─── CRITICAL MOBILE FIX: Pre-read file data into ArrayBuffers ───
+    // On mobile PWA, File objects can become invalid after the <input> is cleared
+    // or the component re-renders. By reading the ArrayBuffer NOW, we ensure
+    // the file data is captured in memory regardless of what happens to the File ref.
+    // This is the SAME fix used in the summary/transcription flow.
+    const newUploads: PendingUpload[] = await Promise.all(
+      validFiles.map(async (file) => {
+        let fileData: ArrayBuffer | null = null;
+        try {
+          fileData = await file.arrayBuffer();
+          console.log(`[Upload] Pre-read file "${file.name}", size: ${fileData.byteLength} bytes`);
+        } catch (readErr) {
+          console.error(`[Upload] Failed to pre-read file "${file.name}":`, readErr);
+        }
+        return {
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          file,
+          fileData,
+          fileName: file.name,
+          fileType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+          customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
+          extension: getFileExtension(file.name),
+          progress: 0,
+          uploading: false,
+          done: false,
+        };
+      })
+    );
     setPendingUploads((prev) => [...prev, ...newUploads]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -564,9 +589,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   };
 
   // -------------------------------------------------------
-  // Upload all pending files — DIRECT to Supabase Storage
-  // Bypasses Vercel's 4.5MB body size limit for reliable mobile uploads
-  // Strategy: Try XHR direct upload first (real progress), fallback to SDK upload
+  // Upload all pending files
+  // FIX: Pre-read file data into ArrayBuffers to avoid File object
+  // invalidation on mobile PWA. Use Blobs created from ArrayBuffers
+  // for all upload methods instead of raw File objects.
   // -------------------------------------------------------
   const handleUploadAll = async () => {
     // Reset failed uploads first so they can be retried
@@ -599,7 +625,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       return;
     }
 
-    // Throttled progress updater - only update state when progress changes significantly or enough time has passed
+    // Throttled progress updater
     const progressTimers = new Map<string, { lastPct: number; lastTime: number }>();
     const PROGRESS_THROTTLE_MS = 200;
     const PROGRESS_THROTTLE_PCT = 5;
@@ -618,18 +644,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     // Simulated progress tracker for SDK uploads (no native progress)
     const startSimulatedProgress = (id: string, fileSize: number) => {
       const startTime = Date.now();
-      // Estimate 2MB/s for mobile, 10MB/s for desktop — conservative
       const estimatedMs = Math.max(3000, (fileSize / (2 * 1024 * 1024)) * 1000);
       const interval = setInterval(() => {
         const elapsed = Date.now() - startTime;
-        const ratio = Math.min(elapsed / estimatedMs, 0.85); // Cap at 85%
-        const pct = Math.round(10 + ratio * 75); // 10%–85% range
+        const ratio = Math.min(elapsed / estimatedMs, 0.85);
+        const pct = Math.round(10 + ratio * 75);
         throttledProgressUpdate(id, pct);
       }, 500);
       return interval;
     };
 
-    // Phase 1: Upload all personal files DIRECTLY to Supabase Storage + create DB records
+    // Phase 1: Upload all personal files + create DB records
     const uploadedFileIds: string[] = [];
 
     for (let i = 0; i < toUpload.length; i++) {
@@ -648,29 +673,52 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
 
       try {
-        // Build the storage path (same format as the API route)
-        const originalExt = item.file.name.includes('.') ? '.' + item.file.name.split('.').pop() : '';
-        const displayName = item.customName.trim() ? item.customName.trim() + originalExt : item.file.name;
-        const safeStorageName = `${Date.now()}_${item.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        // ─── CRITICAL FIX: Use pre-read ArrayBuffer data instead of File object ───
+        // On mobile PWA, File objects can become invalid after the <input> is cleared.
+        // We use the pre-read ArrayBuffer (item.fileData) to create a fresh Blob
+        // for each upload attempt. This ensures the data is always available.
+        const fileName = item.fileName || item.file.name;
+        const fileType = item.fileType || item.file.type || 'application/octet-stream';
+        const fileSize = item.fileSize || item.file.size;
+
+        // Try to get ArrayBuffer: prefer pre-read data, fallback to reading File
+        let arrayBuffer: ArrayBuffer;
+        if (item.fileData && item.fileData.byteLength > 0) {
+          arrayBuffer = item.fileData;
+          console.log(`[Upload] Using pre-read data for "${fileName}", size: ${arrayBuffer.byteLength}`);
+        } else {
+          // Fallback: try to read from File object (might fail on mobile PWA)
+          console.warn(`[Upload] No pre-read data for "${fileName}", reading from File object...`);
+          try {
+            arrayBuffer = await item.file.arrayBuffer();
+          } catch (readErr) {
+            console.error(`[Upload] File object is invalid for "${fileName}":`, readErr);
+            throw new Error(`فشل في قراءة بيانات الملف "${fileName}". يرجى إعادة تحديد الملف`);
+          }
+        }
+
+        // Create a fresh Blob from the ArrayBuffer — this is independent of the File object
+        const uploadBlob = new Blob([arrayBuffer], { type: fileType });
+
+        // Build the storage path
+        const originalExt = fileName.includes('.') ? '.' + fileName.split('.').pop() : '';
+        const displayName = item.customName.trim() ? item.customName.trim() + originalExt : fileName;
+        const safeStorageName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
         const storagePath = `${profile.id}/${safeStorageName}`;
-        const fileType = getFileTypeCategory(item.file.type || 'other');
+        const fileTypeCategory = getFileTypeCategory(fileType);
 
         let uploadSucceeded = false;
 
         // ── STEP 1 (PRIMARY): Server-side upload via same-origin fetch() ──
-        // This is the most reliable method on mobile PWA because:
-        //   - Same-origin request (no CORS issues)
-        //   - Uses fetch() which is proven to work on mobile PWA
-        //   - Server handles storage upload (no cross-origin client requests)
-        // Subject to Vercel 4.5MB body limit — fallback handles larger files.
-        const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB (safe margin below Vercel's 4.5MB)
-        if (item.file.size <= FILE_SIZE_LIMIT) {
+        const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB
+        if (fileSize <= FILE_SIZE_LIMIT) {
           try {
             throttledProgressUpdate(item.id, 15);
-            const simInterval = startSimulatedProgress(item.id, item.file.size);
+            const simInterval = startSimulatedProgress(item.id, fileSize);
 
+            // Use Blob (from ArrayBuffer) instead of File object
             const uploadFormData = new FormData();
-            uploadFormData.append('file', item.file);
+            uploadFormData.append('file', uploadBlob, fileName);
             uploadFormData.append('userId', profile.id);
             uploadFormData.append('customName', item.customName.trim());
 
@@ -702,12 +750,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             console.warn(`[Upload] Server-side upload error for ${displayName}:`, serverErr instanceof Error ? serverErr.message : serverErr, '— falling back to direct storage');
           }
         } else {
-          console.log(`[Upload] File ${displayName} is ${Math.round(item.file.size / 1024 / 1024)}MB, too large for server route, using direct storage`);
+          console.log(`[Upload] File ${displayName} is ${Math.round(fileSize / 1024 / 1024)}MB, too large for server route, using direct storage`);
         }
 
         // ── STEP 2 (FALLBACK): Direct upload to Supabase Storage from client ──
-        // Used when: file is too large for server route, or server upload failed.
-        // This uses XHR + SDK which may have CORS issues on mobile PWA.
         if (!uploadSucceeded) {
           let storageUploadSuccess = false;
 
@@ -719,7 +765,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
               xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
-                  // Storage upload is ~90% of total work
                   const pct = Math.round((e.loaded / e.total) * 90);
                   throttledProgressUpdate(item.id, pct);
                 }
@@ -743,29 +788,30 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               xhr.setRequestHeader('apikey', supabaseAnonKey);
               xhr.setRequestHeader('x-upsert', 'false');
 
+              // Use Blob (from ArrayBuffer) instead of File object
               const formData = new FormData();
               formData.append('cacheControl', '3600');
-              formData.append('file', item.file);
+              formData.append('file', uploadBlob, fileName);
               xhr.send(formData);
             });
 
             storageUploadSuccess = true;
           } catch (xhrErr) {
-            // XHR direct upload failed (likely CORS/RLS) — fallback to Supabase SDK
             console.warn(`[Upload] XHR failed for ${item.customName}, trying SDK:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
           }
 
           // SDK fallback for storage upload
           if (!storageUploadSuccess) {
-            const progressInterval = startSimulatedProgress(item.id, item.file.size);
+            const progressInterval = startSimulatedProgress(item.id, fileSize);
             throttledProgressUpdate(item.id, 10);
 
             try {
+              // Use Blob (from ArrayBuffer) instead of File object for SDK upload
               const { error: uploadError } = await supabase.storage
                 .from('user-files')
-                .upload(storagePath, item.file, {
+                .upload(storagePath, uploadBlob, {
                   cacheControl: '3600',
-                  contentType: item.file.type || 'application/octet-stream',
+                  contentType: fileType,
                   upsert: false,
                 });
 
@@ -803,8 +849,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               body: JSON.stringify({
                 userId: profile.id,
                 fileName: displayName,
-                fileType,
-                fileSize: item.file.size,
+                fileType: fileTypeCategory,
+                fileSize: fileSize,
                 fileUrl,
                 storagePath,
               }),
@@ -818,7 +864,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               uploadedFileIds.push(result.data.id);
               uploadSucceeded = true;
             } else {
-              // DB record creation failed — try to clean up the orphaned storage file
               console.error('[Upload] Create record error:', result.error);
               await supabase.storage.from('user-files').remove([storagePath]);
               throw new Error(result.error || 'فشل حفظ بيانات الملف');
@@ -846,13 +891,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     // Phase 2: Bulk assign all uploaded files to courses (if subjects were selected)
     if (uploadedFileIds.length > 0 && selectedSubjectForUploadIds.size > 0) {
       try {
-        // First, update visibility of all uploaded files to 'public' (required for bulk-assign)
         await supabase
           .from('user_files')
           .update({ visibility: 'public', updated_at: new Date().toISOString() })
           .in('id', uploadedFileIds);
 
-        // Then use bulk-assign API to link files to courses in a single request
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 120000);
 

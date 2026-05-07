@@ -75,7 +75,21 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
 
     // Accept either a File object or a pre-read ArrayBuffer
     const arrayBuffer = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+
+    // Create document with a timeout to prevent indefinite hangs
+    // On mobile, getDocument can hang if the worker isn't properly disabled
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+
+    // Set a per-document timeout (30s) to prevent infinite loading
+    const docTimeoutMs = 30000;
+    const docTimeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => {
+        loadingTask.destroy().catch(() => {}); // Clean up the loading task
+        reject(new Error('PDF_LOADING_TIMEOUT'));
+      }, docTimeoutMs)
+    );
+
+    const pdf = await Promise.race([loadingTask.promise, docTimeoutPromise]);
 
     const numPages = pdf.numPages;
     const textParts: string[] = [];
@@ -125,6 +139,9 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
     const errMsg = err instanceof Error ? err.message : String(err);
     console.error('[PDF Client] Extraction failed:', errMsg);
 
+    if (errMsg === 'PDF_LOADING_TIMEOUT') {
+      throw new Error('انتهت مهلة تحميل ملف PDF. يرجى المحاولة مرة أخرى');
+    }
     if (errMsg.includes('password') || errMsg.includes('encrypted')) {
       throw new Error('الملف محمي بكلمة مرور. يرجى رفع ملف غير محمي');
     }
