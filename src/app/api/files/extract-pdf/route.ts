@@ -119,20 +119,21 @@ export async function POST(request: NextRequest) {
 
 /**
  * Server-side PDF text extraction using pdfjs-dist.
- * In Node.js, we use the "fake worker" mode which runs on the main thread
- * — no web worker needed, so it's 100% reliable.
+ * In Node.js, we use the "legacy" build which does NOT depend on browser-only
+ * APIs like DOMMatrix. The default build crashes with ReferenceError in Node.js.
+ * We also disable the web worker (use "fake worker" mode) since Node.js has
+ * no DOM Worker API.
  */
 async function extractPdfTextServer(arrayBuffer: ArrayBuffer): Promise<{ text: string; pages: number }> {
-  // Dynamic import — pdfjs-dist is ESM-compatible in Node.js
-  const pdfjsLib = await import('pdfjs-dist');
+  // CRITICAL FIX: Use the LEGACY build of pdfjs-dist in Node.js.
+  // The default build (pdfjs-dist) requires browser-only APIs (DOMMatrix, etc.)
+  // and crashes with "ReferenceError: DOMMatrix is not defined" in Node.js.
+  // The legacy build is specifically designed for Node.js environments.
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
-  // CRITICAL: Disable web worker for Node.js environment
+  // Disable web worker for Node.js environment.
   // In Node.js, there's no DOM Worker API, so we must use the "fake worker"
-  // which runs parsing on the main thread. This is exactly what we want
-  // for server-side processing.
-  //
-  // Setting workerSrc to empty string tells pdfjs-dist to use its built-in
-  // fake worker that doesn't need a separate script file.
+  // which runs parsing on the main thread.
   pdfjsLib.GlobalWorkerOptions.workerSrc = '';
 
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;

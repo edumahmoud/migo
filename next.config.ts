@@ -9,6 +9,19 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
+  // Exclude pdfjs-dist from the serverless bundle — it uses browser-only APIs
+  // (DOMMatrix, etc.) that crash in Node.js. The server-side extraction route
+  // uses the legacy build (pdfjs-dist/legacy/build/pdf.mjs) via dynamic import.
+  serverExternalPackages: ['pdfjs-dist'],
+  // Ensure the pdfjs-dist legacy build is included in the serverless function
+  // output on Vercel. Dynamic imports like 'pdfjs-dist/legacy/build/pdf.mjs'
+  // are not always traced automatically by the file tracer.
+  outputFileTracingIncludes: {
+    '/api/files/extract-pdf': [
+      path.join(__dirname, 'node_modules/pdfjs-dist/legacy/build/pdf.mjs'),
+      path.join(__dirname, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'),
+    ],
+  },
   allowedDevOrigins: [
     '.space.z.ai',
     '.z.ai',
