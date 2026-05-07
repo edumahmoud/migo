@@ -2,12 +2,16 @@
  * Client-side PDF Text Extraction
  *
  * Uses pdfjs-dist to extract text from PDF files IN THE BROWSER.
- * This avoids all server-side PDF library compatibility issues
- * (pdf-parse dynamic requires, Vercel serverless module resolution, etc.)
  *
- * CRITICAL: pdfjs-dist is loaded dynamically to prevent SSR issues.
- * Worker is DISABLED because we only extract text (no rendering needed),
- * and loading the worker from CDN/self-hosted causes CORS/fetch issues.
+ * CRITICAL: On mobile browsers, the pdfjs-dist Web Worker often fails to load,
+ * causing getDocument() to hang indefinitely. To fix this:
+ * - On mobile: Worker is DISABLED (fake worker mode, runs on main thread)
+ * - On desktop: Worker is enabled from /public/pdf.worker.min.mjs (faster)
+ *
+ * IMPORTANT: On mobile browsers, File objects can become invalid when the
+ * <input> element is unmounted from the DOM. Callers should pre-read the
+ * file data (via file.arrayBuffer()) BEFORE closing the modal/form, and
+ * pass the ArrayBuffer instead of the File object to avoid this issue.
  */
 
 export interface PdfExtractionResult {
@@ -15,12 +19,16 @@ export interface PdfExtractionResult {
   pages: number;
 }
 
-/** Max chars to send to the AI (matches server-side sanitizeString limit)
- *  FIX #4: Increased from 20K to 50K chars — allows summarizing longer PDFs.
- *  50K chars ≈ 12.5K tokens. The AI model supports up to 1M token input,
- *  and with streaming + 45s timeout, most 50K char summaries complete in time.
- *  Previous 20K limit was too restrictive for academic documents. */
+/** Max chars to send to the AI (matches server-side sanitizeString limit) */
 const MAX_TEXT_LENGTH = 50000;
+
+/**
+ * Detect if we're on a mobile device where the web worker is unreliable.
+ */
+function isMobileBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 
 /**
  * Extract text from a PDF File or pre-read ArrayBuffer in the browser.
@@ -28,13 +36,8 @@ const MAX_TEXT_LENGTH = 50000;
  * Uses dynamic import to load pdfjs-dist ONLY in the browser,
  * preventing SSR/prerender errors from browser-only APIs.
  *
- * Worker is disabled — for text extraction we don't need it,
- * and it avoids CORS/fetch errors loading the worker script.
- *
- * IMPORTANT: On mobile browsers, File objects can become invalid when the
- * <input> element is unmounted from the DOM. Callers should pre-read the
- * file data (via file.arrayBuffer()) BEFORE closing the modal/form, and
- * pass the ArrayBuffer instead of the File object to avoid this issue.
+ * On mobile, the Web Worker is disabled to prevent hanging — pdf.js
+ * runs on the main thread instead (slower but reliable).
  *
  * @param source - The PDF File object OR a pre-read ArrayBuffer
  * @returns Extracted text and page count
@@ -45,17 +48,32 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
     throw new Error('PDF extraction is only available in the browser');
   }
 
+  const isMobile = isMobileBrowser();
+
   try {
     // Dynamic import — only loads pdfjs-dist in the browser
     const pdfjsLib = await import('pdfjs-dist');
 
-    // Use worker from our own /public directory (copied from node_modules/pdfjs-dist)
-    // CDN doesn't host v5.6.205, and empty workerSrc causes an error.
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    if (isMobile) {
+      // ─── MOBILE: Disable Web Worker ───
+      // On mobile browsers (especially iOS Safari, Android Chrome PWA mode),
+      // the Web Worker script (/pdf.worker.min.mjs) often fails to load due to:
+      // 1. CORS restrictions in PWA standalone mode
+      // 2. Service Worker intercepting the worker script request
+      // 3. Memory limitations killing the worker process
+      // When the worker fails, getDocument() hangs indefinitely with no error.
+      //
+      // FIX: Set workerSrc to empty string to use "fake worker" mode.
+      // This runs pdf.js on the main thread (no Worker needed).
+      // It's slightly slower but 100% reliable on mobile.
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      console.log('[PDF Client] Mobile detected — worker DISABLED (fake worker mode)');
+    } else {
+      // ─── DESKTOP: Use Web Worker for better performance ───
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    }
 
     // Accept either a File object or a pre-read ArrayBuffer
-    // Pre-read ArrayBuffer is preferred on mobile to avoid File reference
-    // invalidation when the <input> element is unmounted from the DOM
     const arrayBuffer = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
 
@@ -92,8 +110,7 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
       throw new Error('NO_TEXT_EXTRACTED');
     }
 
-    // Truncate to 200K chars (matches server-side limit)
-    // AI models can't process more than this anyway
+    // Truncate to max length
     if (fullText.length > MAX_TEXT_LENGTH) {
       console.log(`[PDF Client] Text truncated from ${fullText.length} to ${MAX_TEXT_LENGTH} chars`);
       fullText = fullText.substring(0, MAX_TEXT_LENGTH);

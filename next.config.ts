@@ -9,17 +9,22 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
-  // Exclude pdfjs-dist from the serverless bundle — it uses browser-only APIs
-  // (DOMMatrix, etc.) that crash in Node.js. The server-side extraction route
-  // uses the legacy build (pdfjs-dist/legacy/build/pdf.mjs) via dynamic import.
-  serverExternalPackages: ['pdfjs-dist'],
-  // Ensure the pdfjs-dist legacy build is included in the serverless function
-  // output on Vercel. Dynamic imports like 'pdfjs-dist/legacy/build/pdf.mjs'
-  // are not always traced automatically by the file tracer.
+  // CRITICAL: Do NOT add pdfjs-dist to serverExternalPackages.
+  // serverExternalPackages prevents Next.js from bundling the package,
+  // which means it won't be available in Vercel serverless functions.
+  // Our API route uses pdfjs-dist/legacy/build/pdf.mjs via dynamic import,
+  // which needs to be bundled by Next.js for Vercel deployment.
+  //
+  // Instead, we use outputFileTracingIncludes to ensure the legacy build
+  // files are included in the serverless function output.
   outputFileTracingIncludes: {
     '/api/files/extract-pdf': [
+      // Include the legacy build (designed for Node.js, no DOMMatrix dependency)
       path.join(__dirname, 'node_modules/pdfjs-dist/legacy/build/pdf.mjs'),
       path.join(__dirname, 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'),
+      // Also include the standard build as fallback
+      path.join(__dirname, 'node_modules/pdfjs-dist/build/pdf.mjs'),
+      path.join(__dirname, 'node_modules/pdfjs-dist/build/pdf.worker.mjs'),
     ],
   },
   allowedDevOrigins: [

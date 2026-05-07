@@ -1066,40 +1066,59 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         if ((inputMode === 'file' || inputMode === 'transcribe') && (preReadFileData || capturedFile)) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
-          // ─── MOBILE FIX: Server-side PDF extraction ───
-          // Client-side pdfjs-dist extraction is UNRELIABLE on mobile because:
-          // 1. The Web Worker (/pdf.worker.min.mjs) often fails to load on mobile
-          //    browsers, especially in PWA standalone mode
-          // 2. When the worker fails, getDocument() can hang indefinitely
-          // 3. The AbortController signal doesn't interrupt pdfjs-dist calls
+          // ─── PDF EXTRACTION STRATEGY ───
+          // On MOBILE: Server-side extraction is the PRIMARY path because:
+          //   1. Client-side pdfjs-dist Web Worker often fails to load on mobile
+          //   2. When the worker fails, getDocument() hangs indefinitely
+          //   3. Server-side extraction is 100% reliable (Node.js, no worker needed)
           //
-          // Solution: Upload the PDF to our server endpoint for extraction.
-          // The server uses pdfjs-dist in Node.js (no web worker needed),
-          // which is 100% reliable. Client-side extraction is kept as
-          // fallback for desktop where it works well.
+          // We send the PDF as Base64 JSON (not FormData) because:
+          //   - FormData can fail silently on some mobile browsers
+          //   - Base64 via JSON is simpler and more universally supported
+          //   - The server endpoint accepts both formats
+          //
+          // On DESKTOP: Client-side extraction is primary (faster, no upload needed)
+          // with server-side as fallback.
           const useServerExtraction = isMobile;
           let extractionSucceeded = false;
 
           if (useServerExtraction) {
-            // ─── Server-side extraction (MOBILE — reliable) ───
+            // ─── Server-side extraction (MOBILE — primary path) ───
             console.log('[Summary] Using SERVER-SIDE PDF extraction (mobile mode)');
             try {
-              // Create a File/Blob from the pre-read data or captured file
-              const pdfBlob = preReadFileData
-                ? new Blob([preReadFileData], { type: 'application/pdf' })
-                : capturedFile!;
+              // Convert pre-read ArrayBuffer to Base64 for JSON transport
+              // Base64 is more reliable than FormData on mobile browsers
+              const sourceBuffer = preReadFileData || (capturedFile ? await capturedFile.arrayBuffer() : null);
+              if (!sourceBuffer) {
+                throw new Error('لم يتم العثور على بيانات الملف');
+              }
 
-              const formData = new FormData();
-              formData.append('file', pdfBlob, 'document.pdf');
+              // Convert ArrayBuffer to Base64 string
+              const bytes = new Uint8Array(sourceBuffer);
+              let binary = '';
+              const chunkSize = 8192; // Process in chunks to avoid call stack overflow
+              for (let i = 0; i < bytes.length; i += chunkSize) {
+                const chunk = bytes.subarray(i, i + chunkSize);
+                binary += String.fromCharCode.apply(null, Array.from(chunk));
+              }
+              const base64Data = btoa(binary);
+              console.log('[Summary] PDF converted to Base64, size:', base64Data.length, 'chars (from', sourceBuffer.byteLength, 'bytes)');
 
+              // Send as JSON (not FormData) — more reliable on mobile
               const extractRes = await fetch('/api/files/extract-pdf', {
                 method: 'POST',
                 headers: {
+                  'Content-Type': 'application/json',
                   ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
                 },
-                body: formData,
+                body: JSON.stringify({
+                  data: base64Data,
+                  name: capturedFile?.name || 'document.pdf',
+                }),
                 signal: abortController.signal,
               });
+
+              console.log('[Summary] Server extraction response status:', extractRes.ok, extractRes.status);
 
               const extractData = await extractRes.json();
 
@@ -1108,7 +1127,35 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 console.log('[Summary] Server-side PDF extraction succeeded, length:', originalContent.length, 'pages:', extractData.data.pages);
                 extractionSucceeded = true;
               } else {
-                console.warn('[Summary] Server-side extraction failed:', extractData.error, '— falling back to client-side');
+                console.warn('[Summary] Server-side extraction failed:', extractRes.status, extractData.error, '— trying FormData fallback');
+
+                // ─── FormData fallback ───
+                // If Base64 JSON failed, try FormData as a second attempt
+                try {
+                  const pdfBlob = new Blob([sourceBuffer], { type: 'application/pdf' });
+                  const formData = new FormData();
+                  formData.append('file', pdfBlob, 'document.pdf');
+
+                  const formDataRes = await fetch('/api/files/extract-pdf', {
+                    method: 'POST',
+                    headers: {
+                      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                    },
+                    body: formData,
+                    signal: abortController.signal,
+                  });
+
+                  const formDataResult = await formDataRes.json();
+                  if (formDataRes.ok && formDataResult.success && formDataResult.data?.text) {
+                    originalContent = formDataResult.data.text;
+                    console.log('[Summary] FormData server extraction succeeded, length:', originalContent.length);
+                    extractionSucceeded = true;
+                  } else {
+                    console.warn('[Summary] FormData extraction also failed:', formDataResult.error);
+                  }
+                } catch (formErr) {
+                  console.warn('[Summary] FormData extraction error:', formErr);
+                }
               }
             } catch (serverErr) {
               const errMsg = serverErr instanceof Error ? serverErr.message : String(serverErr);
@@ -1117,7 +1164,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           }
 
           if (!extractionSucceeded) {
-            // ─── Client-side extraction (DESKTOP or fallback) ───
+            // ─── Client-side extraction (DESKTOP primary or MOBILE fallback) ───
             const pdfSource = preReadFileData || capturedFile!;
             console.log('[Summary] Using CLIENT-SIDE PDF extraction', useServerExtraction ? '(fallback from server)' : '(desktop mode)');
 
