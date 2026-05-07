@@ -574,10 +574,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
             {relatedQuiz ? (
               <div className="space-y-3">
                 {/* Quiz info */}
-                <div className="flex items-center gap-4 p-3 rounded-lg bg-teal-50/70 border border-teal-100">
-                  <div className="flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg bg-teal-50/70 border border-teal-100">
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-teal-800">{relatedQuiz.title}</p>
-                    <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-xs text-teal-600">
                         {relatedQuiz.questions?.length || 0} سؤال
                       </span>
@@ -601,7 +601,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz }: SummaryVi
                   </div>
                   <Button
                     onClick={() => onViewQuiz?.(relatedQuiz.id)}
-                    className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white"
+                    className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white shrink-0 self-start sm:self-center"
                     size="sm"
                   >
                     <Play className="h-4 w-4" />

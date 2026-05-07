@@ -443,10 +443,10 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           variant="ghost"
           size="sm"
           onClick={onBack}
-          className="absolute top-4 right-4 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm"
+          className="absolute top-4 left-4 sm:left-auto sm:right-4 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm z-10"
         >
           <ArrowRight className="h-4 w-4" />
-          العودة
+          <span className="hidden sm:inline">العودة</span>
         </Button>
 
         {/* Banner gradient */}
@@ -465,7 +465,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         </div>
 
         {/* Avatar - overlapping the banner */}
-        <div className="absolute -bottom-20 right-6 sm:right-10">
+        <div className="absolute -bottom-16 right-6 sm:right-10 sm:-bottom-20">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -477,7 +477,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
               <UserAvatar
                 name={profile.name}
                 avatarUrl={profile.avatar_url}
-                size="2xl"
+                size="xl"
                 className="ring-4 ring-emerald-400/30"
               />
             </div>
@@ -496,7 +496,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
       </motion.div>
 
       {/* Floating back button - always visible */}
-      <div className="px-6 sm:px-10 mt-4">
+      <div className="px-4 sm:px-10 mt-4">
         <Button
           variant="outline"
           size="sm"
@@ -513,7 +513,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.3 }}
-        className="mt-24 sm:mt-24 px-6 sm:px-10"
+        className="mt-20 sm:mt-24 px-4 sm:px-10"
       >
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           {/* Name & identity */}
@@ -573,7 +573,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
       </motion.div>
 
       {/* ─── Separator ─────────────────────────────────── */}
-      <div className="px-6 sm:px-10 mt-5">
+      <div className="px-4 sm:px-10 mt-5">
         <Separator />
       </div>
 
@@ -582,7 +582,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.4 }}
-        className="px-6 sm:px-10 mt-5"
+        className="px-4 sm:px-10 mt-5"
       >
         <Tabs defaultValue="files" dir="rtl" className="w-full">
           <TabsList className="mb-5 bg-muted/60">

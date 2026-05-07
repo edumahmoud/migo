@@ -215,11 +215,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [pendingSummaries, setPendingSummaries] = useState<PendingSummary[]>([]);
 
   // ─── Auto-cleanup for stale pending summaries (Bug Fix #3) ───
-  // If a pending summary has been in progress for more than 3 minutes,
+  // If a pending summary has been in progress for more than 5 minutes
+  // (mobile connections can be slow for PDF extraction + AI),
   // something went wrong — abort it and show an error.
   useEffect(() => {
     if (pendingSummaries.length === 0) return;
-    const staleThreshold = 3 * 60 * 1000; // 3 minutes
+    const staleThreshold = 5 * 60 * 1000; // 5 minutes (increased for mobile)
     const interval = setInterval(() => {
       setPendingSummaries(prev => {
         const now = Date.now();
@@ -693,6 +694,32 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     fetchAllData();
   }, [fetchAllData]);
 
+  // ─── Recover pending summaries from sessionStorage (mobile refresh recovery) ───
+  // On mobile, when the user refreshes the page while a summary is being created,
+  // the in-memory pending state is lost. This effect checks sessionStorage for
+  // any pending summaries that were being processed and shows a notification.
+  // The actual summary creation continues on the server side — we just need to
+  // poll for the result.
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem('pendingSummaries') || '[]');
+      if (Array.isArray(stored) && stored.length > 0) {
+        const now = Date.now();
+        const maxAge = 5 * 60 * 1000; // 5 minutes
+        const recent = stored.filter((p: { id: string; title: string; startedAt: number }) => 
+          now - p.startedAt < maxAge
+        );
+        if (recent.length > 0) {
+          toast.info(`جاري التحقق من ${recent.length} ملخص قيد الإنشاء...`, { duration: 5000 });
+          // Clear the stored pending summaries since we've acknowledged them
+          sessionStorage.removeItem('pendingSummaries');
+          // Re-fetch summaries to check if they've been created on the server
+          setTimeout(() => fetchSummaries(), 3000);
+        }
+      }
+    } catch { /* ignore corrupted sessionStorage */ }
+  }, [fetchSummaries]);
+
   // ─── Loading timeout safety net ───
   // If loading takes too long (slow session hydration on mobile/PWA),
   // fall back to cached data and stop showing infinite loading spinner.
@@ -951,6 +978,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     };
     setPendingSummaries(prev => [...prev, pending]);
 
+    // Persist to sessionStorage so we can recover on mobile page refresh
+    try {
+      const pendingMeta = { id: pendingId, title, mode: inputMode, startedAt: Date.now() };
+      const existing = JSON.parse(sessionStorage.getItem('pendingSummaries') || '[]');
+      existing.push(pendingMeta);
+      sessionStorage.setItem('pendingSummaries', JSON.stringify(existing));
+    } catch { /* ignore */ }
+
     // Reset form & close modal immediately
     setSummaryTitle('');
     setSummaryText('');
@@ -972,18 +1007,25 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       // ─── Client-side timeout for the entire process ───
       // Server now uses streaming AI (45s max) + short DB timeout (5s).
       // With streaming, first token arrives in 3-8s, and most responses
-      // complete within 30-40s. The 55s client timeout gives the server
-      // time to return its own error while not leaving the user waiting too long.
+      // complete within 30-40s. On mobile, PDF extraction can add 5-15s.
+      // The 90s client timeout gives mobile users enough time for:
+      //   - Session hydration (up to 15s on slow mobile)
+      //   - PDF text extraction in browser (5-15s)
+      //   - Server AI processing (30-45s)
+      //   - Network latency on mobile (5-10s)
+      const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const clientTimeoutMs = isMobile ? 90000 : 65000; // 90s mobile, 65s desktop
       const clientTimeoutId = setTimeout(() => {
         if (!abortController.signal.aborted) {
-          console.warn('[Summary] Client-side timeout (55s) — aborting...');
+          console.warn(`[Summary] Client-side timeout (${clientTimeoutMs}ms) — aborting...`);
           abortController.abort();
         }
-      }, 55000);
+      }, clientTimeoutMs);
 
       try {
         // Get auth token with robust retry (mobile session hydration can be slow)
-        const token = await waitForSession(10000);
+        // Increased timeout for mobile: 15s instead of 10s
+        const token = await waitForSession(isMobile ? 15000 : 10000);
 
         if (!token) {
           throw new Error('انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى');
@@ -1169,6 +1211,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       } finally {
         clearTimeout(clientTimeoutId);
         removePendingSummary(pendingId);
+        // Clean up sessionStorage
+        try {
+          const existing = JSON.parse(sessionStorage.getItem('pendingSummaries') || '[]');
+          const updated = existing.filter((p: { id: string }) => p.id !== pendingId);
+          sessionStorage.setItem('pendingSummaries', JSON.stringify(updated));
+        } catch { /* ignore */ }
       }
     };
 
