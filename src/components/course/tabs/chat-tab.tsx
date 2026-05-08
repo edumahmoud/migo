@@ -662,16 +662,18 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
     // Get participant IDs for direct delivery to recipients
     const participantIds = participants.map(p => p.user_id);
 
-    socket?.emit('send-message', {
-      conversationId,
-      senderId: profile.id,
-      senderName: profile.name,
-      content,
-      tempId,
-      messageId: tempId,     // explicit messageId for server
-      participantIds,
-      createdAt: optimisticMsg.created_at,
-    });
+    if (socket?.connected) {
+      socket.emit('send-message', {
+        conversationId,
+        senderId: profile.id,
+        senderName: profile.name,
+        content,
+        tempId,
+        messageId: tempId,     // explicit messageId for server
+        participantIds,
+        createdAt: optimisticMsg.created_at,
+      });
+    }
 
     // Save to database
     try {
@@ -731,10 +733,12 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         )
       );
       // Notify via socket
-      socket?.emit('message-deleted', {
-        conversationId,
-        messageId: msgId,
-      });
+      if (socket?.connected) {
+        socket.emit('message-deleted', {
+          conversationId,
+          messageId: msgId,
+        });
+      }
     } catch (err) {
       console.error('Delete message error:', err);
       toast.error('فشل حذف الرسالة');
@@ -782,13 +786,15 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         )
       );
       // Notify via socket
-      socket?.emit('message-updated', {
-        conversationId,
-        messageId: msgId,
-        content: trimmed,
-        isEdited: true,
-        editedAt: new Date().toISOString(),
-      });
+      if (socket?.connected) {
+        socket.emit('message-updated', {
+          conversationId,
+          messageId: msgId,
+          content: trimmed,
+          isEdited: true,
+          editedAt: new Date().toISOString(),
+        });
+      }
       setEditingMessageId(null);
       setEditContent('');
     } catch (err) {
@@ -806,7 +812,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
     if (conversationId) {
       if (value.trim()) {
         // Socket.IO first (no rate limit)
-        if (socket) {
+        if (socket?.connected) {
           socket.emit('typing', {
             conversationId,
             userId: profile.id,
@@ -820,7 +826,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         }, 300);
       } else {
         if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
-        if (socket) {
+        if (socket?.connected) {
           socket.emit('stop-typing', {
             conversationId,
             userId: profile.id,

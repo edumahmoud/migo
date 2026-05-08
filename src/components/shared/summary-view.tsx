@@ -24,6 +24,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -229,17 +230,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     };
   }, [fetchSummary, fetchRelatedQuiz]);
 
-  // -------------------------------------------------------
-  // Get auth headers helper
-  // -------------------------------------------------------
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
-  };
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   // -------------------------------------------------------
   // Re-generate summary
@@ -249,7 +243,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     try {
       const res = await fetch('/api/summaries', {
         method: 'PUT',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
       });
       const data = await res.json();
@@ -274,7 +268,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     try {
       const res = await fetch('/api/summaries', {
         method: 'DELETE',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
       });
       const data = await res.json();
@@ -301,7 +295,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const content = summary?.summary_content || summary?.original_content || '';
       const quizRes = await fetch('/api/gemini/quiz', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ content, questionTypes: quizConfigTypes }),
       });
       const quizData = await quizRes.json();
@@ -326,7 +320,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
       const saveRes = await fetch('/api/quizzes', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify(quizPayload),
       });
 
@@ -354,7 +348,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     try {
       const res = await fetch('/api/quizzes', {
         method: 'PUT',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ quizId: relatedQuiz.id }),
       });
       const data = await res.json();
@@ -380,7 +374,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     try {
       const res = await fetch('/api/gemini/summary', {
         method: 'PUT',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
       });
       const data = await res.json();

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { getAllUserSettings, setArchived, setHidden } from './conversation-store';
 import { authenticateRequest, requireAdmin, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
+import { notifyUsers } from '@/lib/notifications-service';
 
 /**
  * Chat API Route
@@ -9,6 +10,40 @@ import { authenticateRequest, requireAdmin, authErrorResponse, verifyOwnership }
  * GET: Fetch conversations or messages
  * POST: Send message, create conversation, mark as read, delete/edit message, archive/hide conversation
  */
+
+// =====================================================
+// Socket.IO Server Notification Helper
+// =====================================================
+// After inserting a message into the DB, we also notify the
+// Socket.IO server so it can broadcast to connected clients.
+// This makes message delivery work even when the sender's
+// browser socket is disconnected (e.g., in Realtime mode).
+
+const SOCKET_SERVER_URL = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL || 'http://localhost:3003';
+const EMIT_SECRET = process.env.EMIT_SECRET || 'attendo-internal-2024';
+
+async function notifySocketServer(payload: {
+  event: string;
+  data: Record<string, unknown>;
+  participantIds?: string[];
+  targetRoomId?: string;
+  excludeSocketId?: string;
+}): Promise<void> {
+  try {
+    await fetch(`${SOCKET_SERVER_URL}/api/emit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Emit-Secret': EMIT_SECRET,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(5000), // 5-second timeout
+    });
+  } catch (err) {
+    // Non-critical — the message is already in the DB, Realtime/polling will deliver it
+    console.warn('[Chat API] Failed to notify Socket.IO server:', err);
+  }
+}
 
 // Helper: try to add columns if they don't exist
 async function ensureColumns() {
@@ -594,6 +629,56 @@ export async function POST(request: NextRequest) {
           .select('id, name, email, avatar_url, title_id, gender, role')
           .eq('id', senderId)
           .single();
+
+        // ── Notify Socket.IO server to broadcast the message ──
+        // This is critical for real-time delivery when the sender's
+        // browser socket is disconnected (e.g., in Realtime/fallback mode).
+        // Fetch participant IDs for the conversation first.
+        try {
+          const { data: convParticipants } = await supabaseServer
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conversationId);
+
+          const otherParticipantIds = (convParticipants || [])
+            .map((p: { user_id: string }) => p.user_id)
+            .filter((pid: string) => pid !== senderId);
+
+          // Fire-and-forget: notify the Socket.IO server
+          notifySocketServer({
+            event: 'send-message',
+            data: {
+              conversationId,
+              senderId,
+              senderName: (sender as Record<string, unknown>)?.name as string || '',
+              content: content.trim(),
+              messageId: (message as Record<string, unknown>)?.id as string,
+              createdAt: (message as Record<string, unknown>)?.created_at as string,
+              participantIds: otherParticipantIds,
+            },
+            participantIds: otherParticipantIds,
+          });
+
+          // ── Send push notification for chat messages (PWA mobile) ──
+          // This creates an in-app notification + push notification so that
+          // users who are not actively viewing the chat still get notified
+          // on their mobile devices via the PWA service worker.
+          const senderName = (sender as Record<string, unknown>)?.name as string || 'مستخدم';
+          const messagePreview = content.trim().substring(0, 100);
+          notifyUsers(
+            otherParticipantIds,
+            'chat',
+            `رسالة جديدة من ${senderName}`,
+            messagePreview,
+            `chat:${conversationId}`,
+          ).catch((err) => {
+            // Non-critical — the message is already in the DB
+            console.warn('[Chat API] Failed to send push notification for chat message:', err);
+          });
+        } catch (notifyErr) {
+          // Non-critical — the message is already in the DB
+          console.warn('[Chat API] Failed to fetch participants for Socket.IO notification:', notifyErr);
+        }
 
         return NextResponse.json({ message, sender: sender || null });
       }

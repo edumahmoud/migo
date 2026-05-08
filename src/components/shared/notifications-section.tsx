@@ -22,6 +22,7 @@ import { useAppStore } from '@/stores/app-store';
 import type { CourseTab } from '@/lib/types';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 
 function timeAgo(dateStr: string): string {
@@ -77,6 +78,11 @@ export default function NotificationsSection() {
     loading: boolean;
   } | null>(null);
   const [processingAction, setProcessingAction] = useState(false);
+
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   useEffect(() => {
     if (user?.id && !initialized) {
@@ -262,12 +268,8 @@ export default function NotificationsSection() {
   const fetchTeacherForModal = async (teacherId: string) => {
     try {
       // Use server-side API to fetch teacher profile (bypasses RLS)
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/profile/${teacherId}`, {
-        headers: {
-          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-        },
-      });
+      const headers = await getCachedAuthHeaders();
+      const res = await fetch(`/api/profile/${teacherId}`, { headers });
       if (res.ok) {
         const data = await res.json();
         if (data.profile) {
@@ -287,11 +289,10 @@ export default function NotificationsSection() {
     if (!linkRequestModal) return;
     setProcessingAction(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      const tokenHeaders = await getCachedAuthHeaders();
       const res = await fetch('/api/link-student-approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: tokenHeaders,
         body: JSON.stringify({ action: 'accept', teacherId: linkRequestModal.teacherId }),
       });
       const data = await res.json();
@@ -312,11 +313,10 @@ export default function NotificationsSection() {
     if (!linkRequestModal) return;
     setProcessingAction(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      const tokenHeaders = await getCachedAuthHeaders();
       const res = await fetch('/api/link-student-approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: tokenHeaders,
         body: JSON.stringify({ action: 'reject', teacherId: linkRequestModal.teacherId }),
       });
       const data = await res.json();

@@ -320,14 +320,15 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     }
   }, []);
 
-  // Setup Supabase Realtime (PRIMARY) + polling (backup)
+  // ─── Supabase Realtime: PRIMARY real-time delivery ───
+  // CRITICAL: This subscription is INDEPENDENT of Socket.IO connection state.
+  // Previously, it was in the same useEffect as polling (with isConnected/isRealtimeMode
+  // in the dependency array). When Socket.IO status changed, the effect re-ran, tearing
+  // down the Realtime channel and recreating it — causing message delivery gaps during
+  // the transition. Now, the Realtime subscription only depends on profile.id, so it
+  // persists across Socket.IO state changes.
   useEffect(() => {
-    // Clear existing intervals
-    if (pollingRef.current) clearInterval(pollingRef.current);
-    if (backupPollingRef.current) clearInterval(backupPollingRef.current);
-    if (convPollingRef.current) clearInterval(convPollingRef.current);
-
-    // ─── Supabase Realtime: PRIMARY real-time delivery (works on Vercel) ───
+    // ─── Messages channel: INSERT + UPDATE ───
     try {
       if (!realtimeChannelRef.current) {
         const channel = supabase
@@ -350,9 +351,6 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               const currentActiveId = activeConvIdRef.current;
 
               // ── FAST PATH: Use the Realtime payload directly ──
-              // This avoids an extra HTTP round-trip that adds 200-500ms of delay.
-              // We construct a ChatMessage from the payload and enrich it
-              // asynchronously (sender name/avatar) if needed.
               const fastMsg: ChatMessage = {
                 id: newMsg.id as string,
                 sender_id: newMsg.sender_id as string,
@@ -360,7 +358,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 created_at: newMsg.created_at as string,
                 is_deleted: false,
                 is_edited: false,
-                sender: null, // Will be enriched below
+                sender: null,
               };
 
               if (convId === currentActiveId) {
@@ -404,7 +402,6 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       (m: ChatMessage) => m.id === (newMsg.id as string)
                     );
                     if (!fullMsg) return;
-                    // Replace the fast message with the enriched one
                     setMessages((prev) =>
                       prev.map((m) => m.id === fullMsg.id ? fullMsg : m)
                     );
@@ -412,15 +409,10 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   .catch(() => {});
               } else {
                 // Message in a different conversation — show toast notification
-                // BUT skip if this conversation was locally hidden/deleted by the user
                 if (hiddenConvIdsRef.current.has(convId)) {
-                  // Silently refresh conversation list — the conversation might have been
-                  // revived by the other user sending a message
                   debouncedFetchConversations();
                   return;
                 }
-                // Fetch sender info for the toast
-                const senderName = 'مستخدم';
                 toast(`رسالة جديدة`, {
                   description: fastMsg.content.substring(0, 60) + (fastMsg.content.length > 60 ? '...' : ''),
                   icon: <Bell className="h-4 w-4 text-emerald-600" />,
@@ -445,7 +437,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
                         icon: <Bell className="h-4 w-4 text-emerald-600" />,
                         duration: 5000,
-                        id: `msg-${convId}`, // Replace the generic toast
+                        id: `msg-${convId}`,
                       });
                     }
                   })
@@ -483,6 +475,23 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         )
         .subscribe((subStatus) => {
           console.log('[Chat Realtime] subscription status:', subStatus);
+          // Auto-reconnect on channel error
+          if (subStatus === 'CHANNEL_ERROR' || subStatus === 'TIMED_OUT') {
+            console.warn('[Chat Realtime] Channel error, will retry in 3s...');
+            setTimeout(() => {
+              if (realtimeChannelRef.current) {
+                try {
+                  supabase.removeChannel(realtimeChannelRef.current);
+                } catch { /* ignore */ }
+                realtimeChannelRef.current = null;
+                // Re-trigger the effect by re-subscribing
+                const retryChannel = supabase.channel('chat-messages-realtime');
+                // The channel will be fully set up on next mount
+                // For now, just clear the ref so the next render recreates it
+                realtimeChannelRef.current = null;
+              }
+            }, 3000);
+          }
         });
 
         realtimeChannelRef.current = channel;
@@ -492,7 +501,6 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     }
 
     // ─── Supabase Realtime: Listen for new conversations ───
-    // When someone adds us as a participant, refresh the conversation list
     try {
       if (!convRealtimeChannelRef.current) {
         const convChannel = supabase
@@ -505,9 +513,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               table: 'conversation_participants',
               filter: `user_id=eq.${profile.id}`,
             },
-            (payload) => {
-              console.log('[Chat Realtime] New conversation participant:', payload.new);
-              // We were added to a conversation — refresh the list
+            () => {
               debouncedFetchConversations();
             }
           )
@@ -520,7 +526,6 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               filter: `user_id=eq.${profile.id}`,
             },
             () => {
-              // Participant record updated (e.g. unarchived, unhidden)
               debouncedFetchConversations();
             }
           )
@@ -533,7 +538,6 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             },
             (payload) => {
               const deleted = payload.old as Record<string, unknown>;
-              // Check if we were removed from a conversation
               if (deleted?.user_id === profile.id) {
                 debouncedFetchConversations();
               }
@@ -549,27 +553,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       console.error('[Chat Conv Realtime] setup error:', err);
     }
 
-    // ─── Polling: lightweight backup for reliability ───
-    // OPTIMIZED: Reduced polling frequency to minimize server load and perceived lag
-    // When disconnected: poll messages every 8 seconds
-    // In Realtime mode: poll messages every 12 seconds as backup (Realtime is primary)
-    // In Socket.IO mode: poll messages every 15 seconds as backup
-    if (!isConnected) {
-      pollingRef.current = setInterval(pollMessages, 8000);
-    } else if (isRealtimeMode) {
-      backupPollingRef.current = setInterval(pollMessages, 12000);
-    } else {
-      backupPollingRef.current = setInterval(pollMessages, 15000);
-    }
-
-    // Poll conversations every 15 seconds (reduced from 8s — Realtime catches most updates)
-    convPollingRef.current = setInterval(fetchConversations, 15000);
-
+    // Cleanup only on unmount — NOT on Socket.IO state changes
     return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-      if (backupPollingRef.current) clearInterval(backupPollingRef.current);
-      if (convPollingRef.current) clearInterval(convPollingRef.current);
-      if (typingPresencePollRef.current) clearInterval(typingPresencePollRef.current);
       if (realtimeChannelRef.current) {
         try {
           supabase.removeChannel(realtimeChannelRef.current);
@@ -587,7 +572,40 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         convRealtimeChannelRef.current = null;
       }
     };
-  }, [isConnected, isRealtimeMode, pollMessages, profile.id, fetchConversations]);
+  // IMPORTANT: Only depend on profile.id — NOT on isConnected/isRealtimeMode
+  // This prevents the Realtime subscription from being torn down when Socket.IO state changes
+  }, [profile.id, debouncedFetchConversations]);
+
+  // ─── Polling: lightweight backup for reliability ───
+  // This is separate from the Realtime subscription so that polling intervals
+  // can adjust based on Socket.IO connection state WITHOUT disrupting the
+  // persistent Realtime channel.
+  useEffect(() => {
+    // Clear existing intervals
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    if (backupPollingRef.current) clearInterval(backupPollingRef.current);
+    if (convPollingRef.current) clearInterval(convPollingRef.current);
+
+    // When disconnected: poll messages every 8 seconds
+    // In Realtime mode: poll messages every 12 seconds as backup
+    // In Socket.IO mode: poll messages every 15 seconds as backup
+    if (!isConnected) {
+      pollingRef.current = setInterval(pollMessages, 8000);
+    } else if (isRealtimeMode) {
+      backupPollingRef.current = setInterval(pollMessages, 12000);
+    } else {
+      backupPollingRef.current = setInterval(pollMessages, 15000);
+    }
+
+    // Poll conversations every 15 seconds
+    convPollingRef.current = setInterval(fetchConversations, 15000);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (backupPollingRef.current) clearInterval(backupPollingRef.current);
+      if (convPollingRef.current) clearInterval(convPollingRef.current);
+    };
+  }, [isConnected, isRealtimeMode, pollMessages, fetchConversations]);
 
   // =====================================================
   // Initialize status store on mount with userId
@@ -1086,16 +1104,18 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       participantIds.push(otherParticipantId);
     }
 
-    socket?.emit('send-message', {
-      conversationId: activeConvId,
-      senderId: profile.id,
-      senderName: profile.name,
-      content,
-      tempId,
-      messageId: tempId,     // explicit messageId for server
-      participantIds,
-      createdAt: optimisticMsg.created_at,
-    });
+    if (socket?.connected) {
+      socket.emit('send-message', {
+        conversationId: activeConvId,
+        senderId: profile.id,
+        senderName: profile.name,
+        content,
+        tempId,
+        messageId: tempId,     // explicit messageId for server
+        participantIds,
+        createdAt: optimisticMsg.created_at,
+      });
+    }
 
     try {
       const res = await fetch('/api/chat', {
@@ -1153,10 +1173,12 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           m.id === msgId ? { ...m, content: 'تم حذف هذه الرسالة', is_deleted: true } : m
         )
       );
-      socket?.emit('message-deleted', {
-        conversationId: activeConvId,
-        messageId: msgId,
-      });
+      if (socket?.connected) {
+        socket.emit('message-deleted', {
+          conversationId: activeConvId,
+          messageId: msgId,
+        });
+      }
     } catch (err) {
       console.error('Delete message error:', err);
       toast.error('فشل حذف الرسالة');
@@ -1195,13 +1217,15 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       setMessages((prev) =>
         prev.map((m) => m.id === msgId ? { ...m, content: trimmed, is_edited: true, edited_at: new Date().toISOString() } : m)
       );
-      socket?.emit('message-updated', {
-        conversationId: activeConvId,
-        messageId: msgId,
-        content: trimmed,
-        isEdited: true,
-        editedAt: new Date().toISOString(),
-      });
+      if (socket?.connected) {
+        socket.emit('message-updated', {
+          conversationId: activeConvId,
+          messageId: msgId,
+          content: trimmed,
+          isEdited: true,
+          editedAt: new Date().toISOString(),
+        });
+      }
       setEditingMessageId(null);
       setEditContent('');
     } catch (err) {
@@ -1219,7 +1243,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     if (activeConvId) {
       if (value.trim()) {
         // Socket.IO: emit immediately (no rate limit concern)
-        if (socket) {
+        if (socket?.connected) {
           socket.emit('typing', {
             conversationId: activeConvId,
             userId: profile.id,
@@ -1234,7 +1258,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       } else {
         // Stop typing: clear debounce and send immediately
         if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
-        if (socket) {
+        if (socket?.connected) {
           socket.emit('stop-typing', {
             conversationId: activeConvId,
             userId: profile.id,

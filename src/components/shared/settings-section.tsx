@@ -49,6 +49,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { useAuthStore } from '@/stores/auth-store';
 import { useSharedSocket, useSocketEvent, setSocketAuth } from '@/lib/socket';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
@@ -255,15 +256,10 @@ export default function SettingsSection({
     toast.success(`تم تغيير الحالة إلى: ${statusLabel}`);
   }, [profile.id, setMyStatus]);
 
-  // ─── Auth headers helper ───
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
-  };
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   // ─── Username availability check (debounced) ───
   useEffect(() => {
@@ -286,7 +282,7 @@ export default function SettingsSection({
     setIsCheckingUsername(true);
     const timeout = setTimeout(async () => {
       try {
-        const headers = await getAuthHeaders();
+        const headers = await getCachedAuthHeaders();
         const res = await fetch('/api/username-check', {
           method: 'POST',
           headers,

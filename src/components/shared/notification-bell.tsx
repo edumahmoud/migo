@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import type { CourseTab, NotificationType } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 
@@ -123,6 +124,11 @@ export default function NotificationBell() {
   const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore();
 
   // Initialize notifications from DB when component mounts
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
+
   // The notification store already handles both Realtime subscription AND polling,
   // so we only need to trigger initialization here — no duplicate polling needed.
   useEffect(() => {
@@ -189,11 +195,10 @@ export default function NotificationBell() {
     if (!linkRequestModal) return;
     setProcessingAction(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/link-student-approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers,
         body: JSON.stringify({ action: 'accept', teacherId: linkRequestModal.teacherId }),
       });
       const data = await res.json();
@@ -215,11 +220,10 @@ export default function NotificationBell() {
     if (!linkRequestModal) return;
     setProcessingAction(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/link-student-approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers,
         body: JSON.stringify({ action: 'reject', teacherId: linkRequestModal.teacherId }),
       });
       const data = await res.json();

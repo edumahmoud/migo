@@ -18,6 +18,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { getTitleLabel } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
@@ -100,17 +101,10 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
   const [leavingCourse, setLeavingCourse] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
 
-  // -------------------------------------------------------
-  // Auth headers helper
-  // -------------------------------------------------------
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
-  };
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   // -------------------------------------------------------
   // Fetch co-teachers
@@ -119,7 +113,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
     if (role !== 'teacher') return;
     setLoadingCoTeachers(true);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch(`/api/subject-teachers?subjectId=${subjectId}`, { headers });
       const data = await res.json();
       if (data.success && data.coTeachers) {
@@ -181,7 +175,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
     }
     setAddingCoTeacher(true);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/subject-teachers', {
         method: 'POST',
         headers,
@@ -209,7 +203,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
   const handleRemoveCoTeacher = async (teacherId: string) => {
     setRemovingCoTeacherId(teacherId);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/subject-teachers', {
         method: 'DELETE',
         headers,
@@ -235,7 +229,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
   const handleLeaveCourse = async () => {
     setLeavingCourse(true);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/subject-teachers', {
         method: 'DELETE',
         headers,

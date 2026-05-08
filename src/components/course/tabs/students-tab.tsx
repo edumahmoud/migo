@@ -23,6 +23,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import type { UserProfile, Subject } from '@/lib/types';
 import StudentProfileModal from '@/components/course/tabs/student-profile-modal';
@@ -304,14 +305,10 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     }
   }, [students, pendingRequests]);
 
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
-  };
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   // -------------------------------------------------------
   // Add student (via API)
@@ -321,7 +318,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     try {
       const res = await fetch('/api/enrollment', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'add', subjectId, studentId }),
       });
       const data = await res.json();
@@ -347,7 +344,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     try {
       const res = await fetch('/api/enrollment', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'remove', subjectId, studentId }),
       });
       const data = await res.json();
@@ -378,7 +375,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     try {
       const res = await fetch('/api/enrollment', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'approve', subjectId, studentId }),
       });
       const data = await res.json();
@@ -404,7 +401,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     try {
       const res = await fetch('/api/enrollment', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'reject', subjectId, studentId }),
       });
       const data = await res.json();
@@ -429,7 +426,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     try {
       const res = await fetch('/api/enrollment', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'approveAll', subjectId }),
       });
       const data = await res.json();
@@ -456,7 +453,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     try {
       const res = await fetch('/api/enrollment', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'rejectAll', subjectId }),
       });
       const data = await res.json();
@@ -485,7 +482,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       for (const studentId of selectedStudentIds) {
         const res = await fetch('/api/enrollment', {
           method: 'POST',
-          headers: await getAuthHeaders(),
+          headers: await getCachedAuthHeaders(),
           body: JSON.stringify({ action: 'remove', subjectId, studentId }),
         });
         const data = await res.json();

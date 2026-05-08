@@ -46,6 +46,7 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
 import SettingsSection from '@/components/shared/settings-section';
@@ -220,13 +221,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const allIds = [...approvedIds, ...pendingIds];
       if (allIds.length > 0) {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const batchHeaders = await getCachedAuthHeaders();
           const res = await fetch('/api/users/batch', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-            },
+            headers: batchHeaders,
             body: JSON.stringify({ userIds: allIds }),
           });
           if (res.ok) {
@@ -248,13 +246,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       if (allLinks && allLinks.length > 0) {
         const studentIds = allLinks.map((l) => l.student_id);
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const batchHeaders = await getCachedAuthHeaders();
           const res = await fetch('/api/users/batch', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-            },
+            headers: batchHeaders,
             body: JSON.stringify({ userIds: studentIds }),
           });
           if (res.ok) {
@@ -402,8 +397,36 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
   const fetchAllData = useCallback(async () => {
     setLoadingData(true);
-    await Promise.all([fetchStudents(), fetchQuizzes(), fetchScores(), fetchTeacherSubjects(), fetchTeacherFilesCount(), fetchTeacherSubmissionsAndAssignments(), fetchTeacherAttendance()]);
+
+    // Start all fetches in parallel but don't await them all before showing UI
+    const fetchPromises = [
+      fetchStudents(),
+      fetchQuizzes(),
+      fetchScores(),
+      fetchTeacherSubjects(),
+      fetchTeacherFilesCount(),
+      fetchTeacherSubmissionsAndAssignments(),
+      fetchTeacherAttendance(),
+    ];
+
+    // Show the dashboard after 3 seconds max, even if some fetches are still running
+    const loadingTimeout = new Promise<void>((resolve) =>
+      setTimeout(() => {
+        console.warn('[TeacherDashboard] Progressive loading timeout (3s) — showing available data');
+        resolve();
+      }, 3000)
+    );
+
+    // Wait for either all fetches OR the 3-second timeout
+    await Promise.race([
+      Promise.allSettled(fetchPromises),
+      loadingTimeout,
+    ]);
+
     setLoadingData(false);
+
+    // Continue any still-pending fetches in the background
+    Promise.allSettled(fetchPromises).catch(() => {});
   }, [fetchStudents, fetchQuizzes, fetchScores, fetchTeacherSubjects, fetchTeacherFilesCount, fetchTeacherSubmissionsAndAssignments, fetchTeacherAttendance]);
 
   useEffect(() => {
@@ -454,12 +477,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // ─── Loading timeout safety net ───
   // If loading takes too long (slow session hydration on mobile/PWA),
   // stop showing infinite loading spinner and show content with available data.
+  // Reduced from 15s to 8s — the progressive loading in fetchAllData already
+  // shows content after 3s, so this is just a hard safety limit.
   useEffect(() => {
     if (!loadingData) return;
     const timeout = setTimeout(() => {
-      console.warn('[TeacherDashboard] Loading timeout (15s) — showing available data');
+      console.warn('[TeacherDashboard] Loading timeout (8s) — showing available data');
       setLoadingData(false);
-    }, 15000);
+    }, 8000);
     return () => clearTimeout(timeout);
   }, [loadingData]);
 
@@ -760,24 +785,17 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     }
   };
 
-  // -------------------------------------------------------
-  // Approve student link request (uses server-side API)
-  // -------------------------------------------------------
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
-  };
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   const handleApproveStudent = async (studentId: string) => {
     setProcessingRequestId(studentId);
     try {
       const response = await fetch('/api/link-teacher-approve', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'approve', studentId }),
       });
 
@@ -804,7 +822,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     try {
       const response = await fetch('/api/link-teacher-approve', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'reject', studentId }),
       });
 
@@ -831,7 +849,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     try {
       const response = await fetch('/api/link-teacher-approve', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'approveAll' }),
       });
 
@@ -859,7 +877,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     try {
       const response = await fetch('/api/link-teacher-approve', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'rejectAll' }),
       });
 
@@ -895,7 +913,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     try {
       const response = await fetch('/api/link-teacher-send', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ studentEmail: email, action: 'search' }),
       });
 
@@ -925,7 +943,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     try {
       const response = await fetch('/api/link-teacher-send', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ studentEmail: studentEmailInput.trim().toLowerCase() }),
       });
 
@@ -959,7 +977,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     try {
       const response = await fetch('/api/link-teacher-unlink', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ studentId }),
       });
 
@@ -989,18 +1007,15 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
   const handleDeleteAccount = async () => {
     // Get the current session token for authorization
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const deleteHeaders = await getCachedAuthHeaders();
+    if (!deleteHeaders['Authorization']) {
       throw new Error('لا يوجد جلسة نشطة');
     }
 
     // Call the server-side API to delete the account from the database
     const res = await fetch('/api/auth/delete-account', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
+      headers: deleteHeaders,
     });
 
     const data = await res.json();
@@ -2232,14 +2247,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                       }
 
                                       // Call AI evaluate
-                                      const { data: { session } } = await supabase.auth.getSession();
-                                      const token = session?.access_token || '';
+                                      const evalHeaders = await getCachedAuthHeaders();
                                       const res = await fetch('/api/gemini/evaluate', {
                                         method: 'POST',
-                                        headers: {
-                                          'Content-Type': 'application/json',
-                                          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                                        },
+                                        headers: evalHeaders,
                                         body: JSON.stringify({
                                           question: q.question,
                                           correctAnswer,

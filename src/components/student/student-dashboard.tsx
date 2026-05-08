@@ -35,7 +35,7 @@ import {
   File,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { waitForSession as waitForSessionShared } from '@/lib/client-auth';
+import { waitForSession as waitForSessionShared, getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
 import StatCard from '@/components/shared/stat-card';
@@ -563,7 +563,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const allIds = [...approvedIds, ...pendingIds, ...rejectedIds];
       if (allIds.length > 0) {
         try {
-          const batchToken = await waitForSession(15000);
+          const batchToken = await waitForSession(5000);
           const res = await fetch('/api/users/batch', {
             method: 'POST',
             headers: {
@@ -595,7 +595,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       if (approvedLinks && approvedLinks.length > 0) {
         const teacherIds = approvedLinks.map((l) => l.teacher_id);
         try {
-          const batchToken2 = await waitForSession(15000);
+          const batchToken2 = await waitForSession(5000);
           const res = await fetch('/api/users/batch', {
             method: 'POST',
             headers: {
@@ -748,11 +748,43 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     }
   }, [profile.id]);
 
-  // Load all data
+  // Load all data — PROGRESSIVE: show content as each fetch completes
+  // Instead of blocking the entire UI on all 8 parallel requests,
+  // we set loading false after a short delay (3s) or when critical data is ready.
   const fetchAllData = useCallback(async () => {
     setLoadingData(true);
-    await Promise.all([fetchSummaries(), fetchQuizzes(), fetchScores(), fetchLinkedTeachers(), fetchIncomingLinkRequests(), fetchFileCount(), fetchSubmissionsAndAssignments(), fetchAttendance()]);
+
+    // Start all fetches in parallel but don't await them all before showing UI
+    const fetchPromises = [
+      fetchSummaries(),
+      fetchQuizzes(),
+      fetchScores(),
+      fetchLinkedTeachers(),
+      fetchIncomingLinkRequests(),
+      fetchFileCount(),
+      fetchSubmissionsAndAssignments(),
+      fetchAttendance(),
+    ];
+
+    // Show the dashboard after 3 seconds max, even if some fetches are still running
+    const loadingTimeout = new Promise<void>((resolve) =>
+      setTimeout(() => {
+        console.warn('[StudentDashboard] Progressive loading timeout (3s) — showing available data');
+        resolve();
+      }, 3000)
+    );
+
+    // Wait for either all fetches OR the 3-second timeout
+    await Promise.race([
+      Promise.allSettled(fetchPromises),
+      loadingTimeout,
+    ]);
+
     setLoadingData(false);
+
+    // Continue any still-pending fetches in the background
+    // (they will update state when they complete)
+    Promise.allSettled(fetchPromises).catch(() => {});
   }, [fetchSummaries, fetchQuizzes, fetchScores, fetchLinkedTeachers, fetchIncomingLinkRequests, fetchFileCount, fetchSubmissionsAndAssignments, fetchAttendance]);
 
   // RADICAL FIX: Removed the separate loadSummariesFromCache useEffect.
@@ -792,13 +824,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Loading timeout safety net ───
   // If loading takes too long (slow session hydration on mobile/PWA),
   // fall back to cached data and stop showing infinite loading spinner.
+  // Reduced from 15s to 8s — the progressive loading in fetchAllData already
+  // shows content after 3s, so this is just a hard safety limit.
   useEffect(() => {
     if (!loadingData) return;
     const timeout = setTimeout(() => {
-      console.warn('[StudentDashboard] Loading timeout (15s) — falling back to cache');
+      console.warn('[StudentDashboard] Loading timeout (8s) — falling back to cache');
       loadSummariesFromCache();
       setLoadingData(false);
-    }, 15000);
+    }, 8000);
     return () => clearTimeout(timeout);
   }, [loadingData, loadSummariesFromCache]);
 
@@ -1841,13 +1875,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // -------------------------------------------------------
   // Link teacher handler (two-step: search then confirm)
   // -------------------------------------------------------
-  const getAuthHeadersLocal = async () => {
-    const token = await waitForSession(15000);
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
-  };
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   const handleSearchTeacher = async () => {
     const code = teacherCode.trim().toUpperCase();
@@ -1862,7 +1893,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher', {
         method: 'POST',
-        headers: await getAuthHeadersLocal(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ teacherCode: code, action: 'search' }),
       });
 
@@ -1891,7 +1922,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher', {
         method: 'POST',
-        headers: await getAuthHeadersLocal(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ teacherCode: teacherCode.trim().toUpperCase() }),
       });
 
@@ -1932,7 +1963,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher-unlink', {
         method: 'POST',
-        headers: await getAuthHeadersLocal(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ teacherId }),
       });
 
@@ -1962,7 +1993,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher-cancel', {
         method: 'POST',
-        headers: await getAuthHeadersLocal(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ teacherId, action: 'cancel' }),
       });
 
@@ -1989,7 +2020,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-teacher-cancel', {
         method: 'POST',
-        headers: await getAuthHeadersLocal(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ teacherId, action: 'dismiss' }),
       });
 
@@ -2016,7 +2047,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-student-approve', {
         method: 'POST',
-        headers: await getAuthHeadersLocal(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'approve', teacherId, notificationId }),
       });
 
@@ -2045,7 +2076,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     try {
       const response = await fetch('/api/link-student-approve', {
         method: 'POST',
-        headers: await getAuthHeadersLocal(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ action: 'reject', teacherId, notificationId }),
       });
 

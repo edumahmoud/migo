@@ -50,6 +50,7 @@ import { useStatusStore, getStatusColor as getStoreStatusColor, getStatusLabel a
 import { toast } from 'sonner';
 import type { UserProfile, UserFile, FileRequest, UserStatus, Subject } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 
 // ─── Props ───────────────────────────────────────────────
 interface UserProfilePageProps {
@@ -217,23 +218,16 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
 
   const { openProfile } = useAppStore();
 
-  // ─── Auth headers ─────────────────────────────────────
-  const getAuthHeaders = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   // ─── Fetch profile data ───────────────────────────────
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch(`/api/profile/${userId}`, { headers });
       if (!res.ok) {
         toast.error('حدث خطأ أثناء تحميل الملف الشخصي');
@@ -267,7 +261,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
     if (userId !== currentUser.id) return;
     setLoadingRequests(true);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/file-requests', {
         method: 'POST',
         headers,
@@ -340,7 +334,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
     if (!requestingFileId) return;
     setSendingRequest(true);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/file-requests', {
         method: 'POST',
         headers,
@@ -378,7 +372,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
   const handleRequestAction = async (requestId: string, action: 'approve' | 'reject') => {
     setProcessingRequestId(requestId);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/file-requests', {
         method: 'POST',
         headers,
@@ -681,7 +675,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                       if (!file.requestId) return;
                                       setProcessingRequestId(file.requestId);
                                       try {
-                                        const headers = await getAuthHeaders();
+                                        const headers = await getCachedAuthHeaders();
                                         const res = await fetch('/api/file-requests', {
                                           method: 'POST',
                                           headers,
@@ -722,7 +716,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                       if (!file.requestId) return;
                                       setProcessingRequestId(file.requestId);
                                       try {
-                                        const headers = await getAuthHeaders();
+                                        const headers = await getCachedAuthHeaders();
                                         const res = await fetch('/api/file-requests', {
                                           method: 'POST',
                                           headers,

@@ -225,6 +225,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
                   n.type === newNotif.type &&
                   now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
               );
+              // Also check by link field (more specific than content)
+              if (newNotif.link && state.notifications.some(
+                (n) => n.link === newNotif.link && n.type === newNotif.type &&
+                now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
+              )) {
+                return state;
+              }
               if (contentDuplicate) {
                 // Replace the local-only duplicate with the DB version
                 const filtered = state.notifications.filter(
@@ -378,6 +385,14 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
       );
       if (isDuplicate) return state;
+
+      // Also check by link field (more specific than content)
+      if (notification.link && state.notifications.some(
+        (n) => n.link === notification.link && n.type === notification.type &&
+        now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
+      )) {
+        return state;
+      }
 
       return {
         notifications: [newNotification, ...state.notifications].slice(0, 100),

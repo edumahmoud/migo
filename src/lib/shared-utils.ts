@@ -66,14 +66,12 @@ export function pctColorClass(pct: number): string {
  * Get auth headers for API requests
  * Duplicated in student-dashboard.tsx and teacher-dashboard.tsx
  * Must be called asynchronously because it reads the Supabase session
+ *
+ * NOTE: For most use cases, prefer getCachedAuthHeaders() from '@/lib/client-auth'
+ * which avoids the getSession() hang on mobile/PWA. This function is kept for
+ * backward compatibility but calls the cached version internally.
  */
 export async function getAuthHeaders(): Promise<Record<string, string>> {
-  // Dynamic import to avoid circular dependencies at module load time
-  const { supabase } = await import('@/lib/supabase');
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token || '';
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-  };
+  const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+  return getCachedAuthHeaders();
 }

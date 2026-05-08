@@ -23,6 +23,7 @@ import {
   GraduationCap,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject } from '@/lib/types';
@@ -64,6 +65,13 @@ const SUBJECT_COLORS = [
   '#10b981', '#14b8a6', '#f59e0b', '#ef4444',
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
 ];
+
+// -------------------------------------------------------
+// Module-level cache for subjects (reduces refetch on tab switches)
+// -------------------------------------------------------
+
+const subjectsCache = new Map<string, { data: Subject[]; teacherNames: Record<string, string>; enrollmentStatuses: Record<string, string>; timestamp: number }>();
+const SUBJECTS_CACHE_TTL = 30000; // 30 seconds
 
 // -------------------------------------------------------
 // Filter options
@@ -189,12 +197,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [filterSubLevel, setFilterSubLevel] = useState<string>('');
 
   // ─── Refs for stable real-time callbacks ───
-  const fetchSubjectsRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  const fetchSubjectsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | undefined>(undefined);
 
   // -------------------------------------------------------
   // Fetch teacher names (student only, non-blocking)
   // -------------------------------------------------------
-  const fetchTeacherNames = useCallback(async (subjectsList: Subject[]) => {
+  const fetchTeacherNames = useCallback(async (subjectsList: Subject[]): Promise<Record<string, string> | undefined> => {
     if (role !== 'student') return;
     try {
       const teacherIds = [...new Set(subjectsList.map((s) => s.teacher_id).filter(Boolean))];
@@ -213,31 +221,54 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             nameMap[t.id] = formatNameWithTitle(t.name, t.role, t.title_id, t.gender);
           });
           setTeacherNames(nameMap);
+          return nameMap;
         }
       }
     } catch (err) {
       console.error('Fetch teacher names error:', err);
     }
+    return undefined;
   }, [role]);
 
   // -------------------------------------------------------
-  // Fetch subjects — OPTIMIZED: no getSession() call, direct query
+  // Fetch subjects — OPTIMIZED: parallel queries + cache
   // -------------------------------------------------------
-  const fetchSubjects = useCallback(async () => {
+  const fetchSubjects = useCallback(async (forceRefresh = false) => {
+    // Check cache first (skip if forceRefresh is true)
+    const cacheKey = `${profile.id}-${role}`;
+    if (!forceRefresh) {
+      const cached = subjectsCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < SUBJECTS_CACHE_TTL) {
+        setSubjects(cached.data);
+        setTeacherNames(cached.teacherNames);
+        setEnrollmentStatuses(cached.enrollmentStatuses);
+        setLoadingSubjects(false);
+        return;
+      }
+    }
+
     setLoadingSubjects(true);
     try {
       if (role === 'teacher') {
-        // Fetch owned subjects
-        const { data: ownedData, error: ownedError } = await supabase
-          .from('subjects')
-          .select('*')
-          .eq('teacher_id', profile.id)
-          .order('created_at', { ascending: false });
+        // Run both queries in parallel
+        const [ownedResult, coTeacherResult] = await Promise.all([
+          supabase
+            .from('subjects')
+            .select('*')
+            .eq('teacher_id', profile.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('subject_teachers')
+            .select('subject_id, role, subjects(*)')
+            .eq('teacher_id', profile.id)
+            .eq('role', 'co_teacher'),
+        ]);
 
+        // Process owned subjects
         let ownedSubjects: Subject[] = [];
-        if (ownedError) {
-          console.error('Error fetching owned subjects:', ownedError.message, ownedError.code, ownedError.details);
-          if (isAuthError(ownedError)) {
+        if (ownedResult.error) {
+          console.error('Error fetching owned subjects:', ownedResult.error.message, ownedResult.error.code, ownedResult.error.details);
+          if (isAuthError(ownedResult.error)) {
             const refreshed = await tryRefreshSession();
             if (refreshed) {
               const retry = await supabase
@@ -249,36 +280,34 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             }
           }
         } else {
-          ownedSubjects = (ownedData as Subject[]) || [];
+          ownedSubjects = (ownedResult.data as Subject[]) || [];
         }
 
         // Mark owned subjects
         ownedSubjects = ownedSubjects.map(s => ({ ...s, is_co_teacher: false }));
 
-        // Fetch co-taught subjects from subject_teachers
+        // Process co-taught subjects
         let coTaughtSubjects: Subject[] = [];
-        try {
-          const { data: coTeacherEntries, error: coTeacherError } = await supabase
-            .from('subject_teachers')
-            .select('subject_id, role, subjects(*)')
-            .eq('teacher_id', profile.id)
-            .eq('role', 'co_teacher');
-
-          if (!coTeacherError && coTeacherEntries) {
-            (coTeacherEntries as Record<string, unknown>[]).forEach((entry) => {
-              const subject = entry.subjects as Subject | null;
-              if (subject && !ownedSubjects.find(s => s.id === subject.id)) {
-                coTaughtSubjects.push({ ...subject, is_co_teacher: true });
-              }
-            });
-          }
-        } catch {
-          // subject_teachers table may not exist yet — ignore
+        if (!coTeacherResult.error && coTeacherResult.data) {
+          (coTeacherResult.data as Record<string, unknown>[]).forEach((entry) => {
+            const subject = entry.subjects as Subject | null;
+            if (subject && !ownedSubjects.find(s => s.id === subject.id)) {
+              coTaughtSubjects.push({ ...subject, is_co_teacher: true });
+            }
+          });
         }
 
         // Combine and sort: owned first, then co-taught
         const allSubjects = [...ownedSubjects, ...coTaughtSubjects];
         setSubjects(allSubjects);
+
+        // Save to cache
+        subjectsCache.set(cacheKey, {
+          data: allSubjects,
+          teacherNames: {},
+          enrollmentStatuses: {},
+          timestamp: Date.now(),
+        });
       } else {
         // Student: single join query — also fetch enrollment status
         const { data, error } = await supabase
@@ -304,11 +333,39 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
           setSubjects(subjectsList);
           setEnrollmentStatuses(statusMap);
+
+          // Save to cache (teacherNames will be updated after fetchTeacherNames completes)
+          subjectsCache.set(cacheKey, {
+            data: subjectsList,
+            teacherNames: {},
+            enrollmentStatuses: statusMap,
+            timestamp: Date.now(),
+          });
+
           // Fetch teacher names separately (non-blocking)
-          fetchTeacherNames(subjectsList);
+          // Set loading to false first so subjects render immediately
+          setLoadingSubjects(false);
+          fetchTeacherNames(subjectsList).then((nameMap) => {
+            if (nameMap) {
+              // Update cache with teacher names
+              const cached = subjectsCache.get(cacheKey);
+              if (cached) {
+                cached.teacherNames = nameMap;
+              }
+            }
+          });
+          return; // Early return — loadingSubjects already set to false above
         } else {
           setSubjects([]);
           setEnrollmentStatuses({});
+
+          // Save empty result to cache
+          subjectsCache.set(cacheKey, {
+            data: [],
+            teacherNames: {},
+            enrollmentStatuses: {},
+            timestamp: Date.now(),
+          });
         }
       }
     } catch (err) {
@@ -347,7 +404,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           filter: `teacher_id=eq.${profile.id}`,
         },
         () => {
-          fetchSubjectsRef.current?.();
+          fetchSubjectsRef.current?.(true); // forceRefresh = true to bypass cache on real-time updates
         }
       )
       .subscribe();
@@ -449,17 +506,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
     }
   };
 
-  // -------------------------------------------------------
-  // Join subject by code - Step 1: Search for subject
-  // -------------------------------------------------------
-  const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token || '';
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
-  };
+  // ─── Keep auth cache fresh ───
+  // Initialize the auth state listener so the token cache stays up-to-date.
+  // This prevents getSession() from hanging on mobile/PWA after backgrounding.
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   const handleSearchSubject = async () => {
     const code = joinCodeInput.trim().toUpperCase();
@@ -467,15 +519,24 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       toast.error('يرجى إدخال كود الانضمام');
       return;
     }
+    // Guard against double-clicks / race conditions
+    if (searchingSubject || joiningSubject) return;
     setSearchingSubject(true);
     setSubjectPreview(null);
 
     try {
+      // Use AbortController with timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       const response = await fetch('/api/join-subject', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ joinCode: code, action: 'search' }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -486,9 +547,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
       // Show subject preview
       setSubjectPreview(data.subject);
-    } catch (err) {
-      console.error('[handleSearchSubject] Unexpected error:', err);
-      toast.error('حدث خطأ غير متوقع');
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast.error('انتهت مهلة البحث. يرجى المحاولة مرة أخرى.');
+      } else {
+        console.error('[handleSearchSubject] Unexpected error:', err);
+        toast.error('حدث خطأ غير متوقع');
+      }
     } finally {
       setSearchingSubject(false);
     }
@@ -499,14 +564,23 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   // -------------------------------------------------------
   const handleConfirmJoinSubject = async () => {
     if (!subjectPreview) return;
+    // Guard against double-clicks / race conditions
+    if (joiningSubject || searchingSubject) return;
     setJoiningSubject(true);
 
     try {
+      // Use AbortController with timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       const response = await fetch('/api/join-subject', {
         method: 'POST',
-        headers: await getAuthHeaders(),
+        headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ joinCode: joinCodeInput.trim().toUpperCase() }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -538,11 +612,15 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       setJoinCodeInput('');
       setSubjectPreview(null);
 
-      // Also do a delayed re-fetch to get accurate data from server
-      setTimeout(() => fetchSubjects(), 1000);
-    } catch (err) {
-      console.error('[handleConfirmJoinSubject] Unexpected error:', err);
-      toast.error('حدث خطأ غير متوقع');
+      // Also do a delayed re-fetch to get accurate data from server (forceRefresh to bypass cache after mutation)
+      setTimeout(() => fetchSubjects(true), 1000);
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast.error('انتهت مهلة الانضمام. يرجى المحاولة مرة أخرى.');
+      } else {
+        console.error('[handleConfirmJoinSubject] Unexpected error:', err);
+        toast.error('حدث خطأ غير متوقع');
+      }
     } finally {
       setJoiningSubject(false);
     }
@@ -560,7 +638,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
     }
     setLeavingSubjectId(subjectId);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/leave-subject', {
         method: 'POST',
         headers,
@@ -569,7 +647,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success(data.message);
-        fetchSubjects();
+        fetchSubjects(true); // forceRefresh after mutation
       } else {
         toast.error(data.error || 'حدث خطأ');
       }
@@ -586,7 +664,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
     setLeaveConfirmOpen(null);
     setLeavingSubjectId(subjectId);
     try {
-      const headers = await getAuthHeaders();
+      const headers = await getCachedAuthHeaders();
       const res = await fetch('/api/leave-subject', {
         method: 'POST',
         headers,
@@ -595,7 +673,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success(data.message);
-        fetchSubjects();
+        fetchSubjects(true); // forceRefresh after mutation
       } else {
         toast.error(data.error || 'حدث خطأ');
       }
@@ -1405,7 +1483,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     {/* Search button */}
                     <button
                       onClick={handleSearchSubject}
-                      disabled={searchingSubject || !joinCodeInput.trim()}
+                      disabled={searchingSubject || joiningSubject || !joinCodeInput.trim()}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-teal-700 active:scale-[0.98]"
                       style={{
                         boxShadow: `0 2px 12px ${hexToRgba('#14b8a6', 0.35)}`,
@@ -1484,7 +1562,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     {/* Confirm button */}
                     <button
                       onClick={handleConfirmJoinSubject}
-                      disabled={joiningSubject}
+                      disabled={joiningSubject || searchingSubject}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-teal-600 py-2.5 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-teal-700 active:scale-[0.98]"
                       style={{
                         boxShadow: `0 2px 12px ${hexToRgba('#14b8a6', 0.35)}`,

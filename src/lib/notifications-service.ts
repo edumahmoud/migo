@@ -169,6 +169,25 @@ export async function notifyUser(
   link?: string,
 ): Promise<void> {
   try {
+    // ── Dedup: Check for existing notification with same user+type+link within 5 minutes ──
+    // This prevents duplicate notifications from concurrent API calls or race conditions
+    if (link) {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: existing } = await supabaseServer
+        .from('notifications')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('type', type)
+        .eq('link', link)
+        .gte('created_at', fiveMinutesAgo)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        console.log(`[notify] Dedup: skipping duplicate notification for user ${userId}, type=${type}, link=${link}`);
+        return;
+      }
+    }
+
     const { error } = await supabaseServer.from('notifications').insert({
       user_id: userId,
       type,
@@ -205,8 +224,31 @@ export async function notifyUsers(
 ): Promise<void> {
   if (userIds.length === 0) return;
 
-  // Deduplicate
+  // Deduplicate user IDs
   const uniqueIds = [...new Set(userIds)];
+
+  // If there's a link, check for existing notifications to avoid duplicates
+  if (link) {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: existing } = await supabaseServer
+      .from('notifications')
+      .select('user_id')
+      .eq('type', type)
+      .eq('link', link)
+      .gte('created_at', fiveMinutesAgo)
+      .in('user_id', uniqueIds);
+
+    if (existing && existing.length > 0) {
+      const existingUserIds = new Set(existing.map((n: { user_id: string }) => n.user_id));
+      const newUserIds = uniqueIds.filter(id => !existingUserIds.has(id));
+      if (newUserIds.length === 0) {
+        console.log(`[notify] Dedup: skipping all duplicate notifications for type=${type}, link=${link}`);
+        return;
+      }
+      // Only notify users who don't already have this notification
+      uniqueIds.splice(0, uniqueIds.length, ...newUserIds);
+    }
+  }
 
   try {
     const rows = uniqueIds.map((userId) => ({

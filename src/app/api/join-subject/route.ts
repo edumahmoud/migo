@@ -25,22 +25,37 @@ export async function POST(request: Request) {
 
     // 1. Verify the user is authenticated and get their profile
     // Try Authorization header first, then fall back to cookie-based auth
+    // Both paths have a timeout to prevent infinite hanging on mobile/PWA
     let authUser = null;
     const authHeader = request.headers.get('authorization');
 
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      const { data: { user: headerUser }, error: headerError } = await supabaseServer.auth.getUser(token);
-      if (!headerError && headerUser) {
-        authUser = headerUser;
+      const authVerification = supabaseServer.auth.getUser(token);
+      const authTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
+      const authResult = await Promise.race([authVerification, authTimeout]);
+      if (authResult && 'data' in authResult) {
+        const { data: { user: headerUser }, error: headerError } = authResult as Awaited<typeof authVerification>;
+        if (!headerError && headerUser) {
+          authUser = headerUser;
+        }
       }
     }
 
     if (!authUser) {
-      const serverClient = await getSupabaseServerClient();
-      const { data: { user: cookieUser }, error: cookieError } = await serverClient.auth.getUser();
-      if (!cookieError && cookieUser) {
-        authUser = cookieUser;
+      try {
+        const serverClient = await getSupabaseServerClient();
+        const cookieAuthVerification = serverClient.auth.getUser();
+        const cookieAuthTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
+        const cookieAuthResult = await Promise.race([cookieAuthVerification, cookieAuthTimeout]);
+        if (cookieAuthResult && 'data' in cookieAuthResult) {
+          const { data: { user: cookieUser }, error: cookieError } = cookieAuthResult as Awaited<typeof cookieAuthVerification>;
+          if (!cookieError && cookieUser) {
+            authUser = cookieUser;
+          }
+        }
+      } catch (err) {
+        console.error('[join-subject] Cookie auth error:', err);
       }
     }
 
@@ -164,8 +179,35 @@ export async function POST(request: Request) {
     if (insertError) {
       console.error('[join-subject] Error creating enrollment:', insertError);
 
-      // Handle duplicate key error (race condition)
+      // Handle duplicate key error (race condition) — re-check the actual status
       if (insertError.code === '23505') {
+        const { data: raceEnrollments } = await supabaseServer
+          .from('subject_students')
+          .select('status')
+          .eq('subject_id', subject.id)
+          .eq('student_id', profile.id)
+          .limit(1);
+
+        const raceStatus = raceEnrollments?.[0]?.status;
+        if (raceStatus === 'approved') {
+          return NextResponse.json(
+            { error: 'أنت مسجل بالفعل في هذا المقرر' },
+            { status: 409 }
+          );
+        }
+        if (raceStatus === 'pending') {
+          return NextResponse.json(
+            { error: 'لديك طلب انضمام معلق بالفعل لهذا المقرر' },
+            { status: 409 }
+          );
+        }
+        if (raceStatus === 'rejected') {
+          return NextResponse.json(
+            { error: 'تم رفض طلب انضمامك السابق لهذا المقرر' },
+            { status: 409 }
+          );
+        }
+        // Fallback generic message if status couldn't be determined
         return NextResponse.json(
           { error: 'أنت مسجل بالفعل في هذا المقرر' },
           { status: 409 }

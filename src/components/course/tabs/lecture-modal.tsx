@@ -30,7 +30,7 @@ import {
   Search,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
+import { waitForSession, getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import type { UserProfile, LectureWithAttendance, AttendanceRecordWithStudent, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
@@ -260,7 +260,7 @@ export default function LectureModal({
         // Use server-side API to fetch student profiles (bypasses RLS)
         let studentMap = new Map<string, { name: string; email: string }>();
         try {
-          const headers = await getAuthHeaders(15000);
+          const headers = await getCachedAuthHeaders();
           const res = await fetch('/api/users/batch', {
             method: 'POST',
             headers,
@@ -314,7 +314,7 @@ export default function LectureModal({
         if (absentIds.length === 0) { setAbsentStudents([]); return; }
         // Use server-side API to fetch student profiles (bypasses RLS)
         try {
-          const headers = await getAuthHeaders(15000);
+          const headers = await getCachedAuthHeaders();
           const res = await fetch('/api/users/batch', {
             method: 'POST',
             headers,
@@ -336,7 +336,7 @@ export default function LectureModal({
 
       // Use server-side API to fetch student profiles (bypasses RLS)
       try {
-        const headers = await getAuthHeaders(15000);
+        const headers = await getCachedAuthHeaders();
         const res = await fetch('/api/users/batch', {
           method: 'POST',
           headers,
@@ -394,7 +394,7 @@ export default function LectureModal({
         // Use server-side API to fetch author profiles (bypasses RLS)
         let authorMap = new Map<string, string>();
         try {
-          const headers = await getAuthHeaders(15000);
+          const headers = await getCachedAuthHeaders();
           const res = await fetch('/api/users/batch', {
             method: 'POST',
             headers,
@@ -417,6 +417,11 @@ export default function LectureModal({
     } catch { setNotes([]); }
     finally { setLoadingNotes(false); }
   }, [lecture.id, role]);
+
+  // ─── Keep auth cache fresh ───
+  useEffect(() => {
+    initAuthCacheListener();
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -684,7 +689,7 @@ export default function LectureModal({
             prev.map((p, idx) => (idx === i ? { ...p, progress: 90 } : p))
           );
 
-          const recordHeaders = await getAuthHeaders(15000);
+          const recordHeaders = await getCachedAuthHeaders();
           const recordController = new AbortController();
           const recordTimeout = setTimeout(() => recordController.abort(), 30000);
 
