@@ -17,6 +17,10 @@ const ALLOWED_MIME_TYPES = [
   'text/plain',
   'text/csv',
   'application/zip',
+  'application/octet-stream', // FIX: Many mobile browsers send this MIME type for unknown files
+  'video/mp4',
+  'audio/mpeg',
+  'audio/wav',
 ];
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB

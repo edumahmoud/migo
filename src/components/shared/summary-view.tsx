@@ -197,29 +197,43 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   }, [fetchSummary, fetchRelatedQuiz]);
 
   // ─── Loading timeout for mobile (fix: loading stuck forever) ───
+  // FIX: Reset error state on retry so the timeout can re-trigger properly.
+  // Also increased timeout to 20s for slower mobile connections.
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
-      console.warn('[SummaryView] Loading timeout (15s) — forcing error state');
+      console.warn('[SummaryView] Loading timeout (20s) — forcing error state');
       setLoading(false);
-      if (!error) {
-        setError('انتهت مهلة تحميل الملخص. يرجى المحاولة مرة أخرى');
-      }
-    }, 15000);
+      // Only set error if we don't already have data
+      setSummary((prev) => {
+        if (!prev) {
+          setError('انتهت مهلة تحميل الملخص. يرجى المحاولة مرة أخرى');
+        }
+        return prev;
+      });
+    }, 20000);
     return () => clearTimeout(timer);
-  }, [loading, error]);
+  }, [loading]);
 
   // ─── Re-fetch summary when auth session becomes available (mobile fix) ───
   // Bug Fix #4: Also handle INITIAL_SESSION event which fires on page refresh
   // when the persisted session is re-hydrated from localStorage.
   // Without this, refreshing while viewing a summary shows "لم يتم العثور على الملخص"
   // because the fetch runs before the auth session is available.
+  //
+  // FIX: Also clear error and set loading state so the user sees a spinner
+  // instead of a stale error message while waiting for the session to be ready.
+  // This prevents the page from appearing "stuck/hung" when returning to the app.
   useEffect(() => {
     let cancelled = false;
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return;
       if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
         console.log('[SummaryView] Session ready (event:', event, '), re-fetching summary...');
+        // FIX: Clear previous error and show loading state during re-fetch
+        // This prevents the page from appearing stuck with an old error message
+        setError(null);
+        setLoading(true);
         fetchSummary();
         fetchRelatedQuiz();
       }

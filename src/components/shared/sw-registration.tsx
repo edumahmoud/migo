@@ -86,16 +86,32 @@ async function subscribeToPush(
 
 /**
  * Send the push subscription to our server for storage.
+ *
+ * CRITICAL FIX: This function MUST include the Authorization header.
+ * Without it, the /api/push/subscribe endpoint rejects the request with 401,
+ * and push subscriptions are never stored in the database.
+ * This was the root cause of push notifications not working outside the app.
  */
 async function syncSubscriptionToServer(
   subscription: PushSubscription,
   userId: string
 ) {
   try {
+    // Get a valid auth token — use waitForSession for mobile PWA reliability
+    const { waitForSession } = await import('@/lib/client-auth');
+    const token = await waitForSession(10000);
+
     const subJSON = subscription.toJSON();
-    await fetch('/api/push/subscribe', {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetch('/api/push/subscribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         userId,
         subscription: {
@@ -107,6 +123,13 @@ async function syncSubscriptionToServer(
         },
       }),
     });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error('[Push] syncSubscriptionToServer failed:', res.status, data);
+    } else {
+      console.log('[Push] Subscription synced to server successfully');
+    }
   } catch (error) {
     console.error('[Push] Failed to sync subscription to server:', error);
   }

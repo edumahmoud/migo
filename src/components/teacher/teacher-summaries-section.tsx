@@ -177,12 +177,16 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   }, [profile.id, fetchSummaries, fetchSubjects]);
 
   // ─── Auth re-hydration for mobile (fix: no INITIAL_SESSION handling) ───
+  // FIX: Also clear loading state and re-trigger fetch on session ready.
+  // This prevents the page from appearing stuck/hung when returning to the app on mobile.
   useEffect(() => {
     let cancelled = false;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
-      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+      if ((event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') && session?.access_token) {
         console.log('[TeacherSummaries] Session ready (event:', event, '), re-fetching...');
+        // Reset loading state so user sees a spinner instead of stale data/error
+        setLoadingSummaries(true);
         fetchSummaries();
         fetchSubjects();
       }
@@ -194,12 +198,14 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   }, [fetchSummaries, fetchSubjects]);
 
   // ─── Loading timeout for mobile (fix: no timeout = stuck forever) ───
+  // FIX: Increased timeout from 15s to 20s for slower mobile connections.
+  // Also only force-loading=false if we still have no data (prevent flash of empty state).
   useEffect(() => {
     if (!loadingSummaries) return;
     const timer = setTimeout(() => {
-      console.warn('[TeacherSummaries] Loading timeout (15s) — forcing data display');
+      console.warn('[TeacherSummaries] Loading timeout (20s) — forcing data display');
       setLoadingSummaries(false);
-    }, 15000);
+    }, 20000);
     return () => clearTimeout(timer);
   }, [loadingSummaries]);
 

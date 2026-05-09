@@ -329,6 +329,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   const [newPendingFiles, setNewPendingFiles] = useState<PendingFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Guard: prevent overlay click from closing modal right after file picker returns on mobile.
+  // On mobile PWA, when the native file picker closes, the browser fires a stray click
+  // event that lands on the overlay, closing the modal and losing the file selection.
+  // We track the timestamp of when the file picker was last opened, and ignore overlay
+  // clicks for 1 second after that.
+  const filePickerOpenedAtRef = useRef(0);
+
   // ─── Student: file preview ───
   const [studentPreviewFile, setStudentPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
@@ -585,16 +592,31 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
       // 2. Upload files with progress and create lecture_notes references
       if (newPendingFiles.length > 0) {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token || '';
+        // FIX: Use waitForSession() instead of getSession() for mobile PWA reliability.
+        // getSession() can return null on mobile when the session hasn't hydrated yet,
+        // causing all file uploads to fail with 401 Unauthorized.
+        const { waitForSession } = await import('@/lib/client-auth');
+        const token = await waitForSession(15000);
 
         for (let i = 0; i < newPendingFiles.length; i++) {
           const pf = newPendingFiles[i];
           try {
             setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'uploading' as const, progress: 0 } : p)));
 
+            // FIX: Pre-read file data into ArrayBuffer for mobile PWA reliability.
+            // On mobile, File objects can become invalid after the app goes to background.
+            // Using a Blob created from pre-read ArrayBuffer ensures the data is always available.
+            let uploadBlob: Blob;
+            try {
+              const arrayBuffer = await pf.file.arrayBuffer();
+              uploadBlob = new Blob([arrayBuffer], { type: pf.file.type || 'application/octet-stream' });
+            } catch {
+              // If pre-reading fails, fall back to the File object directly
+              uploadBlob = pf.file;
+            }
+
             const formData = new FormData();
-            formData.append('file', pf.file);
+            formData.append('file', uploadBlob, pf.file.name);
             formData.append('subjectId', subjectId);
             formData.append('uploadedBy', profile.id);
             formData.append('category', 'محاضرات');
@@ -1545,7 +1567,15 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
             transition={{ duration: 0.1 }}
                         className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => {
+            onClick={(e) => {
+              // Guard: on mobile, when the native file picker closes, the browser fires
+              // a stray click on the overlay. Ignore clicks within 1s of opening the picker.
+              const timeSincePickerOpened = Date.now() - filePickerOpenedAtRef.current;
+              if (filePickerOpenedAtRef.current > 0 && timeSincePickerOpened < 1000) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+              }
               if (creating) {
                 if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
                   setCreating(false);
@@ -1635,7 +1665,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   />
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      filePickerOpenedAtRef.current = Date.now();
+                      fileInputRef.current?.click();
+                    }}
                     disabled={creating}
                     className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/30 px-4 py-4 text-sm font-medium text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 transition-colors disabled:opacity-60"
                   >
@@ -1715,7 +1748,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 </div>
               </div>
               <div className="flex items-center gap-3 border-t p-5">
-                <button onClick={handleCreateLecture} disabled={creating || !newTitle.trim()} className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60">
+                <button type="button" onClick={handleCreateLecture} disabled={creating || !newTitle.trim()} className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60">
                   {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   إنشاء المحاضرة
                 </button>

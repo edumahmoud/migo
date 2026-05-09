@@ -4,18 +4,18 @@ import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/a
 
 /**
  * POST /api/files/upload
- * 
+ *
  * Server-side file upload route that handles the entire upload flow:
  *   1. Receives file via FormData from the client (same-origin request)
  *   2. Uploads file to Supabase Storage from the server (server-to-server, no CORS)
  *   3. Creates DB record in user_files table
  *   4. Returns the result
- * 
+ *
  * This is the PRIMARY upload method for mobile PWA because:
  *   - Same-origin fetch() works reliably on mobile PWA (proven by text summaries)
  *   - No cross-origin XHR/fetch to Supabase Storage (which fails on some mobile browsers)
  *   - Server-side auth uses the request's Authorization header + cookie fallback
- * 
+ *
  * Subject to Vercel's 4.5MB body size limit on Hobby plan.
  * For larger files, the client should fall back to direct Supabase Storage upload.
  */
@@ -40,6 +40,14 @@ export async function POST(request: NextRequest) {
     // Verify that the authenticated user matches the requested userId
     const ownershipError = verifyOwnership(authResult.user.id, userId);
     if (ownershipError) return authErrorResponse(ownershipError);
+
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { success: false, error: 'حجم الملف يتجاوز الحد الأقصى (50 ميجابايت)' },
+        { status: 400 }
+      );
+    }
 
     // Determine file type category
     let fileType = 'other';
