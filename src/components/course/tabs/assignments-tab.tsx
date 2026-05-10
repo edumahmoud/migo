@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePWALifecycle } from '@/hooks/use-pwa-lifecycle';
 import {
   ClipboardCheck,
   Plus,
@@ -218,6 +219,14 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
   const [myFiles, setMyFiles] = useState<UserFile[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── PWA Lifecycle protection ───
+  usePWALifecycle({
+    stateKey: `assignments-${subjectId}`,
+    isBusy: createOpen || editOpen || submitting,
+    onSave: undefined,
+    onRestore: undefined,
+  });
 
   // ─── Grading ───
   const [gradingId, setGradingId] = useState<string | null>(null);

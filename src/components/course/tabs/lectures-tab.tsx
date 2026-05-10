@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as QRCode from 'qrcode';
+import { usePWALifecycle } from '@/hooks/use-pwa-lifecycle';
 import {
   BookOpen,
   Plus,
@@ -187,9 +188,17 @@ async function getBestGpsPosition(): Promise<GeolocationPosition | null> {
 
 // -------------------------------------------------------
 // Pending file type for upload with rename + progress
+// CRITICAL: fileData stores the pre-read ArrayBuffer for mobile PWA reliability.
+// On mobile, File objects can become invalid after the native file picker closes
+// (app goes to background → Android may terminate the WebView process).
+// Storing ArrayBuffer ensures the data is always available for upload.
 // -------------------------------------------------------
 interface PendingFile {
   file: File;
+  fileData: ArrayBuffer | null; // Pre-read data — critical for mobile PWA
+  fileName: string;             // Stored separately in case File object is invalidated
+  fileType: string;             // MIME type stored separately
+  fileSize: number;             // File size stored separately
   customName: string;
   progress: number;
   status: 'pending' | 'uploading' | 'done' | 'error';
@@ -328,6 +337,45 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   const [creating, setCreating] = useState(false);
   const [newPendingFiles, setNewPendingFiles] = useState<PendingFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── PWA Lifecycle protection for create lecture modal ───
+  // Prevents page reload while modal is open and saves/restores state
+  // when the app goes to background (e.g., when opening native file picker)
+  const { clearSavedState: clearCreateState } = usePWALifecycle({
+    stateKey: `lecture-create-${subjectId}`,
+    isBusy: createOpen,
+    onSave: () => ({
+      newTitle, newDesc, newDate, newTime,
+      pendingFileNames: newPendingFiles.map(pf => ({
+        customName: pf.customName,
+        fileName: pf.fileName,
+        fileSize: pf.fileSize,
+        fileType: pf.fileType,
+        // Note: We can't serialize ArrayBuffer to sessionStorage efficiently
+        // The user will need to re-select files after a full process kill,
+        // but all text fields will be preserved.
+      })),
+    }),
+    onRestore: (state) => {
+      try {
+        if (state.newTitle) setNewTitle(state.newTitle as string);
+        if (state.newDesc) setNewDesc(state.newDesc as string);
+        if (state.newDate) setNewDate(state.newDate as string);
+        if (state.newTime) setNewTime(state.newTime as string);
+        // Show a toast that file selection was lost (if there were files)
+        const fileNames = state.pendingFileNames as Array<{ fileName: string }> | undefined;
+        if (fileNames && fileNames.length > 0) {
+          // We can't restore File objects, so inform the user
+          setTimeout(() => {
+            toast.info(`تم استعادة بيانات المحاضرة. يرجى إعادة اختيار ${fileNames.length} ملف(ات)`);
+          }, 500);
+        }
+        setCreateOpen(true);
+      } catch (err) {
+        console.warn('[LecturesTab] Failed to restore state:', err);
+      }
+    },
+  });
   // ─── Student: file preview ───
   const [studentPreviewFile, setStudentPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
@@ -595,20 +643,25 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           try {
             setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'uploading' as const, progress: 0 } : p)));
 
-            // FIX: Pre-read file data into ArrayBuffer for mobile PWA reliability.
-            // On mobile, File objects can become invalid after the app goes to background.
+            // CRITICAL FIX: Use pre-read ArrayBuffer data instead of File object.
+            // On mobile PWA, File objects can become invalid after the app goes to background.
             // Using a Blob created from pre-read ArrayBuffer ensures the data is always available.
             let uploadBlob: Blob;
-            try {
-              const arrayBuffer = await pf.file.arrayBuffer();
-              uploadBlob = new Blob([arrayBuffer], { type: pf.file.type || 'application/octet-stream' });
-            } catch {
-              // If pre-reading fails, fall back to the File object directly
-              uploadBlob = pf.file;
+            if (pf.fileData && pf.fileData.byteLength > 0) {
+              uploadBlob = new Blob([pf.fileData], { type: pf.fileType || 'application/octet-stream' });
+            } else {
+              // Fallback: try to read from File object (might fail on mobile PWA)
+              try {
+                const arrayBuffer = await pf.file.arrayBuffer();
+                uploadBlob = new Blob([arrayBuffer], { type: pf.file.type || 'application/octet-stream' });
+              } catch {
+                // Last resort: use File object directly
+                uploadBlob = pf.file;
+              }
             }
 
             const formData = new FormData();
-            formData.append('file', uploadBlob, pf.file.name);
+            formData.append('file', uploadBlob, pf.fileName || pf.file.name);
             formData.append('subjectId', subjectId);
             formData.append('uploadedBy', profile.id);
             formData.append('category', 'محاضرات');
@@ -667,6 +720,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       setNewDate('');
       setNewTime('');
       setNewPendingFiles([]);
+      clearCreateState(); // Clear PWA saved state after successful creation
       fetchLectures();
     } catch { toast.error('حدث خطأ غير متوقع'); }
     finally { setCreating(false); }
@@ -1667,14 +1721,33 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       if (e.target.files) {
-                        const newFiles: PendingFile[] = Array.from(e.target.files).map((file) => ({
-                          file,
-                          customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
-                          progress: 0,
-                          status: 'pending' as const,
-                        }));
+                        // CRITICAL FIX: Pre-read file data into ArrayBuffers immediately.
+                        // On mobile PWA, File objects can become invalid after the <input>
+                        // is cleared or the app goes to background. Reading ArrayBuffer NOW
+                        // ensures the data is always available for upload later.
+                        const newFiles: PendingFile[] = await Promise.all(
+                          Array.from(e.target.files).map(async (file) => {
+                            let fileData: ArrayBuffer | null = null;
+                            try {
+                              fileData = await file.arrayBuffer();
+                              console.log(`[LectureUpload] Pre-read file "${file.name}", size: ${fileData.byteLength} bytes`);
+                            } catch (readErr) {
+                              console.error(`[LectureUpload] Failed to pre-read file "${file.name}":`, readErr);
+                            }
+                            return {
+                              file,
+                              fileData,
+                              fileName: file.name,
+                              fileType: file.type || 'application/octet-stream',
+                              fileSize: file.size,
+                              customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
+                              progress: 0,
+                              status: 'pending' as const,
+                            };
+                          })
+                        );
                         setNewPendingFiles(prev => [...prev, ...newFiles]);
                         e.target.value = '';
                       }
@@ -1710,8 +1783,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             <FileText className={`h-4 w-4 shrink-0 ${
                               pf.status === 'done' ? 'text-emerald-600' : 'text-muted-foreground'
                             }`} />
-                            <span className="text-xs text-muted-foreground truncate flex-1">{pf.file.name}</span>
-                            <span className="text-[10px] text-muted-foreground shrink-0">{(pf.file.size / 1024).toFixed(0)} KB</span>
+                            <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName || pf.file.name}</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">{((pf.fileSize || pf.file.size) / 1024).toFixed(0)} KB</span>
                             {pf.status === 'pending' && (
                               <button
                                 onClick={() => setNewPendingFiles(prev => prev.filter((_, i) => i !== idx))}
@@ -1736,8 +1809,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 dir="rtl"
                                 disabled={pf.status === 'uploading'}
                               />
-                              {pf.file.name.includes('.') && (
-                                <span className="text-[10px] text-muted-foreground shrink-0">.{pf.file.name.split('.').pop()}</span>
+                              {(pf.fileName || pf.file.name).includes('.') && (
+                                <span className="text-[10px] text-muted-foreground shrink-0">.{(pf.fileName || pf.file.name).split('.').pop()}</span>
                               )}
                             </div>
                           )}

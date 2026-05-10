@@ -59,7 +59,10 @@ export default function RootLayout({
         <InstitutionHead />
         <link rel="apple-touch-icon" href="/api/icon/180" data-dynamic-apple />
         <meta name="mobile-web-app-capable" content="yes" />
-        {/* White screen detection: reload once if body stays empty after 8s */}
+        {/* White screen detection: reload once if body stays empty after 8s
+            FIX: Now respects __attendoBusyOperation flag — won't reload if user
+            is in the middle of a critical operation (modal open, file upload, etc.)
+            which prevents destroying user state when returning from native file picker. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -69,6 +72,11 @@ export default function RootLayout({
                 var start = Date.now();
                 function check() {
                   var elapsed = Date.now() - start;
+                  // FIX: Don't reload if user is in a busy operation
+                  if (window.__attendoBusyOperation) {
+                    if (elapsed < 12000) requestAnimationFrame(check);
+                    return;
+                  }
                   var body = document.body;
                   var hasContent = body && (body.children.length > 0 || body.textContent.trim().length > 0);
                   if (!hasContent && elapsed > 8000) {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePWALifecycle } from '@/hooks/use-pwa-lifecycle';
 import {
   FileText,
   Image as ImageIcon,
@@ -251,6 +252,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const pendingUploadsRef = useRef<PendingUpload[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
+
+  // ─── PWA Lifecycle protection ───
+  // Prevents page reload while upload modal is open and files are being uploaded
+  usePWALifecycle({
+    stateKey: `personal-files-${profile.id}`,
+    isBusy: uploadModalOpen || pendingUploads.some(p => p.uploading),
+    onSave: undefined,
+    onRestore: undefined,
+  });
 
   // ─── Course assignment state ───
   const [subjects, setSubjects] = useState<Subject[]>([]);

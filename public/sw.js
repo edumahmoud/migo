@@ -9,10 +9,10 @@ const API_CACHE = 'atendo-api-v4';
 // BUILD_VERSION: 2.0.0
 
 // Static assets to precache
+// NOTE: /manifest.json is removed — the app uses the dynamic manifest at /api/manifest
 const PRECACHE_URLS = [
   '/',
   '/offline',
-  '/manifest.json',
   '/icon-192x192.png',
   '/icon-512x512.png',
   '/favicon.ico',

@@ -21,6 +21,44 @@ export function getSWRegistration(): Promise<ServiceWorkerRegistration | null> {
   return navigator.serviceWorker.ready.then(r => r as ServiceWorkerRegistration).catch(() => null);
 }
 
+// ─── PWA Busy Operation Flag ───
+// When the user is in the middle of a critical operation (modal open, file upload,
+// form filling), components set this flag to TRUE. The controllerchange handler
+// checks this flag before reloading — if busy, the reload is deferred until the
+// operation completes. This prevents the page from reloading while the user is
+// picking a file from the native file picker on mobile PWA.
+let _busyOperation = false;
+
+export function setPWABusyOperation(busy: boolean): void {
+  _busyOperation = busy;
+  // Also set on window for the inline white-screen detection script in layout.tsx
+  if (typeof window !== 'undefined') {
+    (window as any).__attendoBusyOperation = busy;
+  }
+}
+
+export function isPWABusyOperation(): boolean {
+  return _busyOperation || (typeof window !== 'undefined' && !!(window as any).__attendoBusyOperation);
+}
+
+/**
+ * Perform a safe SW reload — checks for pending deferred reloads.
+ * Called by components when they close modals / finish operations.
+ */
+export function checkAndApplyPendingSWReload(): void {
+  if (sessionStorage.getItem('_sw_reload_pending') && !isPWABusyOperation()) {
+    sessionStorage.removeItem('_sw_reload_pending');
+    console.log('[PWA] Applying deferred SW reload now');
+    window.location.reload();
+  }
+}
+
+/** Internal: do the reload (immediate or from deferred check) */
+function _doSWReload(): void {
+  sessionStorage.removeItem('_sw_reload_pending');
+  window.location.reload();
+}
+
 // VAPID public key from environment (with fallback hardcoded key)
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
 
@@ -170,8 +208,18 @@ export default function ServiceWorkerRegistration() {
         });
 
         // When the controlling SW changes (after SKIP_WAITING), reload the page
+        // CRITICAL FIX: Do NOT reload unconditionally. On mobile PWA, when the user opens
+        // the native file picker and returns, a pending SW update can trigger controllerchange.
+        // Reloading here destroys the modal, file selection, and all form state.
+        // Instead: defer the reload if a busy operation is in progress.
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          window.location.reload();
+          if (isPWABusyOperation()) {
+            console.log('[PWA] SW controller changed but user is busy — deferring reload');
+            sessionStorage.setItem('_sw_reload_pending', '1');
+            return;
+          }
+          // Check for a pending reload that was deferred
+          _doSWReload();
         });
 
         console.log('[PWA] Service Worker registered successfully');

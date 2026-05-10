@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePWALifecycle } from '@/hooks/use-pwa-lifecycle';
 // xlsx is dynamically imported in handleExportExcel to reduce initial bundle size
 import {
   BookOpen,
@@ -242,6 +243,15 @@ export default function LectureModal({
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── PWA Lifecycle protection ───
+  // Prevents page reload while modal is open and files are being uploaded
+  usePWALifecycle({
+    stateKey: `lecture-modal-${lecture.id}`,
+    isBusy: open && (uploadingFiles || pendingFiles.some(pf => pf.status === 'uploading')),
+    onSave: undefined, // No state restoration needed — modal re-fetches on mount
+    onRestore: undefined,
+  });
 
   // ─── Fetch attendance records ───
   const fetchAttendanceRecords = useCallback(async () => {
