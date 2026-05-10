@@ -328,17 +328,6 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   const [creating, setCreating] = useState(false);
   const [newPendingFiles, setNewPendingFiles] = useState<PendingFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // Guard: tracks when the native file picker is active to prevent
-  // the modal backdrop click from closing the modal when the picker returns on mobile.
-  // Uses a timestamp-based approach for reliability — mobile browsers (especially Android)
-  // can fire synthetic click events on the backdrop even 500-800ms after the file picker closes.
-  const filePickerActiveAtRef = useRef(0); // timestamp when file picker was last activated
-
-  // Returns true if the file picker was recently active (within the last 1200ms)
-  const isFilePickerRecentlyActive = useCallback(() => {
-    return Date.now() - filePickerActiveAtRef.current < 1200;
-  }, []);
-
   // ─── Student: file preview ───
   const [studentPreviewFile, setStudentPreviewFile] = useState<{ url: string; name: string } | null>(null);
 
@@ -987,6 +976,43 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   };
 
   // -------------------------------------------------------
+  // Escape key handler for modals
+  // Since we removed onClick from backdrops (to prevent mobile file picker
+  // synthetic clicks from closing modals), we provide Escape as an alternative
+  // close method. This is standard UX for modals.
+  // -------------------------------------------------------
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Close modals in priority order (top-most first)
+      if (studentPreviewFile) { setStudentPreviewFile(null); return; }
+      if (deleteConfirmOpen) { setDeleteConfirmOpen(false); setDeleteTargetLecture(null); return; }
+      if (scanningSessionId) { handleStopScan(); return; }
+      if (qrModalOpen) { setQrModalOpen(false); setQrLecture(null); setQrDataUrl(''); return; }
+      if (modalOpen) { setModalOpen(false); setSelectedLecture(null); return; }
+      if (editOpen) { if (!savingEdit) setEditOpen(false); return; }
+      if (createOpen) {
+        if (creating) {
+          if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
+            setCreating(false);
+            setCreateOpen(false);
+            setNewTitle('');
+            setNewDesc('');
+            setNewDate('');
+            setNewTime('');
+            setNewPendingFiles([]);
+          }
+        } else {
+          setCreateOpen(false);
+        }
+        return;
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [createOpen, creating, editOpen, savingEdit, modalOpen, qrModalOpen, deleteConfirmOpen, scanningSessionId, studentPreviewFile, handleStopScan]);
+
+  // -------------------------------------------------------
   // Student: Perform check-in with GPS verification
   // -------------------------------------------------------
   const performCheckIn = async (sessionId: string, method: 'qr' | 'gps') => {
@@ -1565,10 +1591,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       <AnimatePresence>
         {createOpen && (
           <>
-            {/* Backdrop — separate div with NO click handler to prevent mobile file picker issues.
-                On mobile (especially Android), when the native file picker closes, the browser
-                fires a synthetic click/pointer event on whatever element is under the finger.
-                By using a pure backdrop div without onClick, we eliminate this attack vector. */}
+            {/* Backdrop — NO onClick handler!
+                CRITICAL: On mobile (especially Android), when the native file picker closes,
+                the browser fires a synthetic click/pointer event on whatever element is under
+                the finger. If this backdrop had an onClick, it would close the modal when the
+                user returns from picking a file — regardless of any timestamp guard, because
+                the user may spend seconds or minutes browsing files before returning.
+                Users can close the modal via: X button, Cancel button, or Escape key. */}
             <motion.div
               key="create-backdrop"
               initial={{ opacity: 0 }}
@@ -1576,27 +1605,6 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
               className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-              onClick={() => {
-                // Extra guard: even though we want to allow closing via backdrop,
-                // we MUST NOT close if the file picker was recently active
-                if (isFilePickerRecentlyActive()) {
-                  console.log('[CreateModal] Ignoring backdrop click — file picker was recently active');
-                  return;
-                }
-                if (creating) {
-                  if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
-                    setCreating(false);
-                    setCreateOpen(false);
-                    setNewTitle('');
-                    setNewDesc('');
-                    setNewDate('');
-                    setNewTime('');
-                    setNewPendingFiles([]);
-                  }
-                } else {
-                  setCreateOpen(false);
-                }
-              }}
             />
             <motion.div
               key="create-modal-content"
@@ -1609,7 +1617,6 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             <div
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl pointer-events-auto"
               dir="rtl"
-              onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -1634,7 +1641,6 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              {/* Separate backdrop div without onClick to prevent modal close on mobile file picker return */}
               <div className="p-5 space-y-4">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المحاضرة <span className="text-rose-500">*</span></label>
@@ -1662,9 +1668,6 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     type="file"
                     multiple
                     onChange={(e) => {
-                      // Keep the guard active for a bit longer — on mobile, the onChange fires but
-                      // a synthetic click event may still be queued on the backdrop.
-                      // The timestamp-based guard in isFilePickerRecentlyActive() handles this.
                       if (e.target.files) {
                         const newFiles: PendingFile[] = Array.from(e.target.files).map((file) => ({
                           file,
@@ -1683,10 +1686,6 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      // Set timestamp guard — this prevents the backdrop onClick from closing
-                      // the modal for 1200ms after the file picker opens (and potentially closes).
-                      // Mobile browsers fire synthetic click events when the file picker returns.
-                      filePickerActiveAtRef.current = Date.now();
                       fileInputRef.current?.click();
                     }}
                     disabled={creating}
@@ -1801,8 +1800,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => { if (!savingEdit) setEditOpen(false); }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 pointer-events-none"
+            // NO onClick on backdrop — prevents mobile synthetic click issues.
+            // Close via: X button, Cancel button, or Escape key.
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
@@ -1810,8 +1810,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl pointer-events-auto"
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -1861,16 +1860,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-            onClick={() => { setQrModalOpen(false); setQrLecture(null); setQrDataUrl(''); }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 pointer-events-none"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-lg rounded-3xl bg-background shadow-2xl p-8 text-center"
+              className="relative w-full max-w-lg rounded-3xl bg-background shadow-2xl p-8 text-center pointer-events-auto"
               dir="rtl"
             >
               {/* Close */}
@@ -1943,16 +1940,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => { setDeleteConfirmOpen(false); setDeleteTargetLecture(null); }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 pointer-events-none"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center"
+              className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center pointer-events-auto"
               dir="rtl"
             >
               <div className="flex justify-center mb-4">
@@ -1995,16 +1990,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-            onClick={handleStopScan}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 pointer-events-none"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-2xl border bg-background shadow-xl overflow-hidden"
+              className="w-full max-w-md rounded-2xl border bg-background shadow-xl overflow-hidden pointer-events-auto"
               dir="rtl"
             >
               {/* Header */}
@@ -2055,16 +2048,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-            onClick={() => setStudentPreviewFile(null)}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 pointer-events-none"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden"
+              className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden pointer-events-auto"
               dir="rtl"
             >
               {/* Header */}

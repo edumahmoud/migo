@@ -423,6 +423,18 @@ export default function LectureModal({
     initAuthCacheListener();
   }, []);
 
+  // ─── Escape key handler ───
+  // Since we removed onClick from backdrop (to prevent mobile synthetic click issues
+  // when returning from native file picker), we provide Escape as a close method.
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   useEffect(() => {
     if (open) {
       fetchAttendanceRecords();
@@ -801,11 +813,13 @@ export default function LectureModal({
       <AnimatePresence>
         {open && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            onClick={onClose}
+            // NO onClick on backdrop — prevents mobile synthetic click issues when
+            // returning from native file picker or other system dialogs.
+            // Close via: X button or Escape key.
           >
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
@@ -814,8 +828,7 @@ export default function LectureModal({
               initial="hidden"
               animate="visible"
               exit="exit"
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border bg-background shadow-2xl"
+              className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border bg-background shadow-2xl pointer-events-auto"
               dir="rtl"
             >
               {/* ─── Header ─── */}
@@ -1417,16 +1430,14 @@ export default function LectureModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-            onClick={() => setPreviewFile(null)}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 pointer-events-none"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden"
+              className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden pointer-events-auto"
               dir="rtl"
             >
               {/* Header */}
