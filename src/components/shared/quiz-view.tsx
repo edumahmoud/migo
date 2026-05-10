@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
@@ -90,6 +90,11 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
+  // Track whether we already have valid data to avoid unnecessary loading resets on mobile.
+  // When returning from background, INITIAL_SESSION fires and previously would
+  // reset the page to loading — causing the "infinity loading" crash.
+  const hasValidDataRef = useRef(false);
+
   // ─── Quiz taking state ───
   const [currentIdx, setCurrentIdx] = useState(0);
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>([]);
@@ -124,7 +129,12 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   // Fetch quiz
   // -------------------------------------------------------
   const fetchQuiz = useCallback(async () => {
-    setLoading(true);
+    // Only show loading spinner if we don't already have data.
+    // This prevents the page from collapsing to a loading state on mobile
+    // when the auth state change triggers a re-fetch after returning from background.
+    if (!hasValidDataRef.current) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const { data, error: fetchError } = await supabase
@@ -134,17 +144,23 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         .single();
 
       if (fetchError || !data) {
-        setError('لم يتم العثور على الاختبار');
+        // If we already have data, don't overwrite with error
+        if (!hasValidDataRef.current) {
+          setError('لم يتم العثور على الاختبار');
+        }
         return;
       }
 
       const quizData = data as Quiz;
       if (!quizData.questions || quizData.questions.length === 0) {
-        setError('لا توجد أسئلة في هذا الاختبار');
+        if (!hasValidDataRef.current) {
+          setError('لا توجد أسئلة في هذا الاختبار');
+        }
         return;
       }
 
       setQuiz(quizData);
+      hasValidDataRef.current = true;
 
       // Check if student already completed this quiz
       const { data: existingScore } = await supabase
@@ -165,19 +181,30 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         }
       }
     } catch {
-      setError('حدث خطأ أثناء تحميل الاختبار');
+      if (!hasValidDataRef.current) {
+        setError('حدث خطأ أثناء تحميل الاختبار');
+      }
     } finally {
       setLoading(false);
     }
   }, [quizId, profile.id]);
 
-  // ─── Auth re-hydration for mobile (fix: no INITIAL_SESSION handling) ───
+  // ─── Auth re-hydration for mobile ───
+  // CRITICAL: Only reset to loading if we don't already have data.
+  // On mobile, returning from background triggers INITIAL_SESSION, which previously
+  // reset the page to loading — causing the "infinity loading" crash.
   useEffect(() => {
     let cancelled = false;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (cancelled) return;
-      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
         setAuthReady(true);
+        // Only reset to loading if we don't have data yet
+        if (!hasValidDataRef.current) {
+          setError(null);
+          setLoading(true);
+        }
+        // Always re-fetch in background to refresh data
         fetchQuiz();
       }
     });

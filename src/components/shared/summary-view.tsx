@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -90,22 +90,27 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   // Fetch summary — with robust retry for mobile/PWA
   // -------------------------------------------------------
+  // Track whether we already have valid data to avoid unnecessary loading resets on mobile
+  const hasValidDataRef = useRef(false);
+
   const fetchSummary = useCallback(async () => {
-    setLoading(true);
+    // Only show loading spinner if we don't already have data
+    // This prevents the page from collapsing to a loading state on mobile
+    // when the auth state change triggers a re-fetch after returning from background
+    if (!hasValidDataRef.current) {
+      setLoading(true);
+    }
     setError(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      let token = session?.access_token || '';
-
-      // If session not yet hydrated, wait with progressive backoff (critical on mobile/PWA)
+      // Use waitForSession for reliable auth token on mobile PWA
+      const { waitForSession } = await import('@/lib/client-auth');
+      const token = await waitForSession(8000);
       if (!token) {
-        console.warn('[fetchSummary] No token yet, waiting for session...');
-        for (const delay of [800, 1500, 3000]) {
-          await new Promise(resolve => setTimeout(resolve, delay));
-          const { data: { session: retrySession } } = await supabase.auth.getSession();
-          token = retrySession?.access_token || '';
-          if (token) break;
-        }
+        console.warn('[fetchSummary] No token available after waiting');
+        // If we already have data, don't show error — just keep existing data
+        if (hasValidDataRef.current) return;
+        setError('جاري تحميل الجلسة...');
+        return;
       }
 
       // ─── Strategy 1: Fetch by ID using the new ?id= endpoint (efficient) ───
@@ -118,14 +123,18 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         const { data } = await res.json();
         if (data) {
           setSummary(data as Summary);
+          hasValidDataRef.current = true;
           return; // Success!
         }
       }
 
-      // ─── Strategy 2: If 401 and no token, auth not ready yet ───
-      if (res.status === 401 && !token) {
-        console.warn('[fetchSummary] Auth not ready, will retry on auth state change');
-        setError('جاري تحميل الجلسة...');
+      // ─── Strategy 2: If 401, auth not ready yet ───
+      if (res.status === 401) {
+        console.warn('[fetchSummary] Auth not ready (401), will retry on auth state change');
+        // If we already have data, don't overwrite with error
+        if (!hasValidDataRef.current) {
+          setError('جاري تحميل الجلسة...');
+        }
         return;
       }
 
@@ -144,6 +153,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         const found = (data as Summary[])?.find((s) => s.id === summaryId);
         if (found) {
           setSummary(found);
+          hasValidDataRef.current = true;
           return;
         }
       }
@@ -156,12 +166,19 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         .single();
 
       if (fetchError || !data) {
-        setError('لم يتم العثور على الملخص');
+        // If we already have data, don't overwrite with error
+        if (!hasValidDataRef.current) {
+          setError('لم يتم العثور على الملخص');
+        }
         return;
       }
       setSummary(data as Summary);
+      hasValidDataRef.current = true;
     } catch {
-      setError('حدث خطأ أثناء تحميل الملخص');
+      // If we already have data, don't overwrite with error
+      if (!hasValidDataRef.current) {
+        setError('حدث خطأ أثناء تحميل الملخص');
+      }
     } finally {
       setLoading(false);
     }
@@ -216,24 +233,22 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   }, [loading]);
 
   // ─── Re-fetch summary when auth session becomes available (mobile fix) ───
-  // Bug Fix #4: Also handle INITIAL_SESSION event which fires on page refresh
-  // when the persisted session is re-hydrated from localStorage.
-  // Without this, refreshing while viewing a summary shows "لم يتم العثور على الملخص"
-  // because the fetch runs before the auth session is available.
-  //
-  // FIX: Also clear error and set loading state so the user sees a spinner
-  // instead of a stale error message while waiting for the session to be ready.
-  // This prevents the page from appearing "stuck/hung" when returning to the app.
+  // This handles the case where the initial fetch fails because auth isn't ready yet.
+  // CRITICAL: Only show loading state if we don't already have data.
+  // On mobile, returning from background triggers INITIAL_SESSION, which previously
+  // reset the page to loading — causing the "infinity loading" crash.
   useEffect(() => {
     let cancelled = false;
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (cancelled) return;
       if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
-        console.log('[SummaryView] Session ready (event:', event, '), re-fetching summary...');
-        // FIX: Clear previous error and show loading state during re-fetch
-        // This prevents the page from appearing stuck with an old error message
-        setError(null);
-        setLoading(true);
+        console.log('[SummaryView] Session event:', event, ', hasValidData:', hasValidDataRef.current);
+        // Only reset to loading if we don't have data yet
+        if (!hasValidDataRef.current) {
+          setError(null);
+          setLoading(true);
+        }
+        // Always re-fetch in background to refresh data, but don't disrupt the UI if we already have data
         fetchSummary();
         fetchRelatedQuiz();
       }
@@ -263,6 +278,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const data = await res.json();
       if (res.ok && data.success) {
         setSummary(data.data as Summary);
+        hasValidDataRef.current = true;
         toast.success('تم إعادة توليد الملخص بنجاح');
       } else {
         toast.error(data.error || 'فشل إعادة توليد الملخص');
@@ -394,6 +410,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const data = await res.json();
       if (res.ok && data.success) {
         setSummary(data.data as Summary);
+        hasValidDataRef.current = true;
         toast.success('تم تنقيح وتنسيق النص بنجاح');
       } else {
         toast.error(data.error || 'فشل تنقيح النص');

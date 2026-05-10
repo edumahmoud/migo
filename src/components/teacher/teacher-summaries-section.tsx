@@ -103,6 +103,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   // ─── Deleting ───
   const [deletingSummaryId, setDeletingSummaryId] = useState<string | null>(null);
 
+  // Track recently deleted IDs to filter them from stale re-fetch results
+  const recentlyDeletedIdsRef = useRef<Set<string>>(new Set());
+
   // -------------------------------------------------------
   // Fetch summaries
   // -------------------------------------------------------
@@ -114,7 +117,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      setSummaries(data as Summary[]);
+      // Filter out recently deleted IDs to prevent stale data from re-appearing
+      const filtered = (data as Summary[]).filter(s => !recentlyDeletedIdsRef.current.has(s.id));
+      setSummaries(filtered);
     }
     setLoadingSummaries(false);
   }, [profile.id]);
@@ -241,6 +246,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success('تم حذف الملخص بنجاح');
+        // Add to recently deleted set to prevent stale re-fetch from re-adding it
+        recentlyDeletedIdsRef.current.add(summaryId);
+        setTimeout(() => recentlyDeletedIdsRef.current.delete(summaryId), 10000);
         setSummaries(prev => prev.filter(s => s.id !== summaryId));
       } else {
         toast.error(data.error || 'فشل حذف الملخص');

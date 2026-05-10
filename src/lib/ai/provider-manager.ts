@@ -361,7 +361,39 @@ export async function generateQuiz(
   }
 
   // Deduplicate questions and options
-  return deduplicateQuestions(questions);
+  const deduped = deduplicateQuestions(questions);
+
+  // Trim questions to match the requested count per type.
+  // The AI may generate more questions than requested, so we take only
+  // the requested number for each type (preserving order).
+  const requestedCounts: Record<string, number> = {};
+  if (mcqCount > 0) requestedCounts['mcq'] = mcqCount;
+  if (booleanCount > 0) requestedCounts['boolean'] = booleanCount;
+  if (completionCount > 0) requestedCounts['completion'] = completionCount;
+  if (matchingCount > 0) requestedCounts['matching'] = matchingCount;
+
+  const typeCounters: Record<string, number> = { mcq: 0, boolean: 0, completion: 0, matching: 0 };
+  const trimmed: QuizQuestion[] = [];
+
+  for (const q of deduped) {
+    const maxAllowed = requestedCounts[q.type] ?? 0;
+    if (maxAllowed > 0 && typeCounters[q.type] < maxAllowed) {
+      trimmed.push(q);
+      typeCounters[q.type]++;
+    }
+  }
+
+  // If trimming removed all questions (unlikely), fall back to deduped list
+  if (trimmed.length === 0 && deduped.length > 0) {
+    console.warn('[Quiz] Trimming removed all questions, falling back to deduped list');
+    return deduped;
+  }
+
+  if (trimmed.length < totalCount) {
+    console.warn(`[Quiz] Generated ${trimmed.length} questions, requested ${totalCount}`);
+  }
+
+  return trimmed;
 }
 
 /**

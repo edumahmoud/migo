@@ -328,13 +328,16 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   const [creating, setCreating] = useState(false);
   const [newPendingFiles, setNewPendingFiles] = useState<PendingFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Guard: tracks when the native file picker is active to prevent
+  // the modal backdrop click from closing the modal when the picker returns on mobile.
+  // Uses a timestamp-based approach for reliability — mobile browsers (especially Android)
+  // can fire synthetic click events on the backdrop even 500-800ms after the file picker closes.
+  const filePickerActiveAtRef = useRef(0); // timestamp when file picker was last activated
 
-  // Guard: prevent overlay click from closing modal right after file picker returns on mobile.
-  // On mobile PWA, when the native file picker closes, the browser fires a stray click
-  // event that lands on the overlay, closing the modal and losing the file selection.
-  // We track the timestamp of when the file picker was last opened, and ignore overlay
-  // clicks for 1 second after that.
-  const filePickerOpenedAtRef = useRef(0);
+  // Returns true if the file picker was recently active (within the last 1200ms)
+  const isFilePickerRecentlyActive = useCallback(() => {
+    return Date.now() - filePickerActiveAtRef.current < 1200;
+  }, []);
 
   // ─── Student: file preview ───
   const [studentPreviewFile, setStudentPreviewFile] = useState<{ url: string; name: string } | null>(null);
@@ -1561,44 +1564,52 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       {/* ─── Create Lecture Modal ─── */}
       <AnimatePresence>
         {createOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            transition={{ duration: 0.1 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={(e) => {
-              // Guard: on mobile, when the native file picker closes, the browser fires
-              // a stray click on the overlay. Ignore clicks within 1s of opening the picker.
-              const timeSincePickerOpened = Date.now() - filePickerOpenedAtRef.current;
-              if (filePickerOpenedAtRef.current > 0 && timeSincePickerOpened < 1000) {
-                e.preventDefault();
-                e.stopPropagation();
-                return;
-              }
-              if (creating) {
-                if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
-                  setCreating(false);
-                  setCreateOpen(false);
-                  setNewTitle('');
-                  setNewDesc('');
-                  setNewDate('');
-                  setNewTime('');
-                  setNewPendingFiles([]);
-                }
-              } else {
-                setCreateOpen(false);
-              }
-            }}
-          >
+          <>
+            {/* Backdrop — separate div with NO click handler to prevent mobile file picker issues.
+                On mobile (especially Android), when the native file picker closes, the browser
+                fires a synthetic click/pointer event on whatever element is under the finger.
+                By using a pure backdrop div without onClick, we eliminate this attack vector. */}
             <motion.div
+              key="create-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+              onClick={() => {
+                // Extra guard: even though we want to allow closing via backdrop,
+                // we MUST NOT close if the file picker was recently active
+                if (isFilePickerRecentlyActive()) {
+                  console.log('[CreateModal] Ignoring backdrop click — file picker was recently active');
+                  return;
+                }
+                if (creating) {
+                  if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
+                    setCreating(false);
+                    setCreateOpen(false);
+                    setNewTitle('');
+                    setNewDesc('');
+                    setNewDate('');
+                    setNewTime('');
+                    setNewPendingFiles([]);
+                  }
+                } else {
+                  setCreateOpen(false);
+                }
+              }}
+            />
+            <motion.div
+              key="create-modal-content"
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+            <div
+              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl pointer-events-auto"
               dir="rtl"
+              onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -1623,6 +1634,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   <X className="h-4 w-4" />
                 </button>
               </div>
+              {/* Separate backdrop div without onClick to prevent modal close on mobile file picker return */}
               <div className="p-5 space-y-4">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المحاضرة <span className="text-rose-500">*</span></label>
@@ -1650,6 +1662,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     type="file"
                     multiple
                     onChange={(e) => {
+                      // Keep the guard active for a bit longer — on mobile, the onChange fires but
+                      // a synthetic click event may still be queued on the backdrop.
+                      // The timestamp-based guard in isFilePickerRecentlyActive() handles this.
                       if (e.target.files) {
                         const newFiles: PendingFile[] = Array.from(e.target.files).map((file) => ({
                           file,
@@ -1665,8 +1680,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      filePickerOpenedAtRef.current = Date.now();
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      // Set timestamp guard — this prevents the backdrop onClick from closing
+                      // the modal for 1200ms after the file picker opens (and potentially closes).
+                      // Mobile browsers fire synthetic click events when the file picker returns.
+                      filePickerActiveAtRef.current = Date.now();
                       fileInputRef.current?.click();
                     }}
                     disabled={creating}
@@ -1768,8 +1788,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   }
                 }} className="rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">إلغاء</button>
               </div>
+            </div>
             </motion.div>
-          </motion.div>
+          </>
         )}
       </AnimatePresence>
 

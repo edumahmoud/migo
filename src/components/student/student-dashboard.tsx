@@ -186,6 +186,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // This also allows newer empty lists to replace older non-empty data.
   const fetchGenerationRef = useRef(0);
 
+  // Track recently deleted summary IDs to filter stale re-fetch results
+  const recentlyDeletedSummaryIdsRef = useRef<Set<string>>(new Set());
+
   // ─── FIX #8: Fallback polling for auto-update ───
   // Poll every 60s as a fallback for Realtime disconnections
   const POLL_INTERVAL_MS = 60000;
@@ -348,7 +351,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         localStorage.removeItem(`summaries_${profile.id}_ts`);
       } catch { /* ignore */ }
     }
-    setSummaries(newSummaries);
+    // Filter out recently deleted IDs before setting state
+    const filtered = newSummaries.filter(s => !recentlyDeletedSummaryIdsRef.current.has(s.id));
+    setSummaries(filtered);
   }, [profile.id]);
 
   // -------------------------------------------------------
@@ -1735,6 +1740,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success('تم حذف الملخص بنجاح');
+        // Add to recently deleted set to prevent stale re-fetch from re-adding it
+        recentlyDeletedSummaryIdsRef.current.add(summaryId);
+        setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
         // RADICAL FIX: Update local state directly instead of re-fetching.
         // Re-fetching after delete can cause race conditions where the API
         // returns stale data (before the delete is committed), re-adding
@@ -1748,6 +1756,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           toast.error(data.error || 'حدث خطأ أثناء حذف الملخص');
         } else {
           toast.success('تم حذف الملخص بنجاح');
+          recentlyDeletedSummaryIdsRef.current.add(summaryId);
+          setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
           const remaining = summaries.filter(s => s.id !== summaryId);
           safeSetSummaries(remaining, 0, remaining.length === 0);
         }
@@ -1760,6 +1770,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           toast.error('حدث خطأ أثناء حذف الملخص');
         } else {
           toast.success('تم حذف الملخص بنجاح');
+          recentlyDeletedSummaryIdsRef.current.add(summaryId);
+          setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
           const remaining = summaries.filter(s => s.id !== summaryId);
           safeSetSummaries(remaining, 0, remaining.length === 0);
         }
