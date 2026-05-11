@@ -220,8 +220,37 @@ function HomeContent() {
     return <SupabaseConfigError />;
   }
 
-  // Loading state
-  if (loading || !initialized || !setupCheckDone) {
+  // ─── PWA Process Restore: Skip full loading spinner if we have a persisted session ───
+  // On mobile PWA, when Android kills the WebView process (e.g., while the native
+  // file picker is open) and restores it, the app remounts from scratch. The auth
+  // initialization calls supabase.auth.getSession() which can take 1-15 seconds on
+  // mobile. During this time, the user sees a full-page "جاري التحميل..." spinner,
+  // which they perceive as "infinity loading".
+  //
+  // FIX: If the Zustand app-store has a persisted navigation state that's NOT 'auth',
+  // it means the user was logged in before the process was killed. We skip the full
+  // loading spinner and render the app shell immediately. Auth initializes in the
+  // background. This makes process restore feel instant.
+  const [hasPersistedSession] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      // Check if the app-store has a persisted user session
+      const raw = localStorage.getItem('attendo-app-store');
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      // If the user was on a non-auth page, they were logged in
+      const currentPage = parsed?.state?.currentPage;
+      return currentPage && currentPage !== 'auth';
+    } catch {
+      return false;
+    }
+  });
+
+  // Show loading spinner ONLY if:
+  // 1. Auth is still loading AND we don't have a persisted session (fresh start)
+  // 2. OR setup check isn't done yet AND we don't have a persisted session
+  const showFullLoading = (loading || !initialized) && !hasPersistedSession;
+  if (showFullLoading || !setupCheckDone) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50" dir="rtl">
         <motion.div

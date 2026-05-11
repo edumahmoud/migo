@@ -16,12 +16,16 @@ import { setPWABusyOperation, checkAndApplyPendingSWReload } from '@/components/
  * 2. Service Worker updates trigger controllerchange → page reload, destroying modals.
  * 3. White screen detection script may reload during slow hydration after returning
  *    from background.
+ * 4. After Android kills the PWA process and restores it, the page loads from scratch.
+ *    The `pageshow` event has `persisted=false` (not a bfcache restore), so the
+ *    previous version of this hook never restored the saved state.
  *
  * SOLUTION:
  * - Sets a global busy flag when modals/forms are open
  * - Saves component state to sessionStorage when app goes to background
- * - Restores state when app comes back to foreground
- * - Checks for deferred SW reloads when modals close
+ * - Restores state on component MOUNT if saved state exists (handles process kill)
+ * - Also restores on `pageshow` with `persisted=true` (handles bfcache restore)
+ * - Checks for deferred SW reloads when modals close (with reload-loop prevention)
  *
  * Usage:
  *   const { saveState, restoreState, clearSavedState } = usePWALifecycle({
@@ -54,6 +58,7 @@ export function usePWALifecycle({
   const isBusyRef = useRef(isBusy);
   const onSaveRef = useRef(onSave);
   const onRestoreRef = useRef(onRestore);
+  const hasRestoredOnMount = useRef(false);
 
   // Keep refs in sync with latest values (avoid stale closures)
   useEffect(() => {
@@ -67,7 +72,8 @@ export function usePWALifecycle({
     setPWABusyOperation(isBusy);
 
     // When becoming not-busy, check if there's a pending SW reload
-    if (!isBusy) {
+    // (but only after the initial mount to avoid triggering it too early)
+    if (!isBusy && hasRestoredOnMount.current) {
       checkAndApplyPendingSWReload();
     }
 
@@ -123,6 +129,32 @@ export function usePWALifecycle({
       sessionStorage.removeItem(`_pwa_state_${stateKey}`);
     } catch {}
   }, [stateKey]);
+
+  // ─── CRITICAL FIX: Restore state on component MOUNT ───
+  // When Android kills the PWA process and restores it, the page loads from scratch.
+  // The `pageshow` event has `persisted=false` (NOT a bfcache restore), so the
+  // previous version of this hook never restored the saved state.
+  //
+  // This effect runs ONCE on mount and checks if there's saved state in sessionStorage.
+  // If there is, it means the app was interrupted (process kill, crash, etc.) and we
+  // should restore the user's previous state (re-open the modal, fill form fields, etc.)
+  useEffect(() => {
+    if (hasRestoredOnMount.current) return; // Only run once
+    hasRestoredOnMount.current = true;
+
+    // Small delay to allow React state setters to be ready
+    const timer = setTimeout(() => {
+      const restored = restoreState();
+      if (restored) {
+        console.log(`[PWALifecycle] Restored state on mount for "${stateKey}" (process was likely killed)`);
+        // Now check for pending SW reload (safe because we've restored state)
+        checkAndApplyPendingSWReload();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionally empty — run once on mount
 
   // ─── Auto-save when app goes to background (visibilitychange + pagehide) ───
   useEffect(() => {

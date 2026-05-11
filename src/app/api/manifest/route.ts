@@ -69,7 +69,10 @@ export async function GET() {
     name: `${displayName} - منصة تعليمية ذكية`,
     short_name: shortName,
     description,
-    start_url: '/',
+    // CRITICAL: start_url must be '/' with a restore hint so the app knows
+    // it was launched by Android process restore (not a fresh user visit).
+    // The app checks for ?pwa=1 to skip the full auth loading spinner.
+    start_url: '/?pwa=1',
     display: 'standalone' as const,
     orientation: 'portrait-primary' as const,
     dir: 'rtl' as const,

@@ -239,7 +239,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
+      // ─── CRITICAL MOBILE FIX: Retry getSession() for mobile PWA ───
+      // On mobile PWA, after Android kills the WebView process and restores it,
+      // the Supabase session in localStorage may not be fully hydrated yet.
+      // getSession() can return null even though a valid session exists.
+      // This causes the user to be logged out, which they perceive as "infinity loading"
+      // or a stuck app.
+      //
+      // FIX: If getSession() returns null on the first try, retry up to 3 times
+      // with a 1-second delay between each attempt. This gives localStorage time
+      // to hydrate on mobile devices.
+      let { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        const isMobile = typeof navigator !== 'undefined' &&
+          /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (isMobile) {
+          console.log('[Auth] No session on first try (mobile PWA), retrying...');
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            await new Promise(r => setTimeout(r, 1000));
+            const retryResult = await supabase.auth.getSession();
+            session = retryResult.data.session;
+            if (session) {
+              console.log(`[Auth] Session recovered on retry ${attempt}`);
+              break;
+            }
+            console.log(`[Auth] Retry ${attempt}/3: still no session`);
+          }
+        }
+      }
       
       if (session?.user) {
         // ─── Use server-side API to fetch profile (bypasses RLS) ───

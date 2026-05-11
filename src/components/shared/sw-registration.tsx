@@ -41,12 +41,37 @@ export function isPWABusyOperation(): boolean {
   return _busyOperation || (typeof window !== 'undefined' && !!(window as any).__attendoBusyOperation);
 }
 
+// Timestamp of the last page load (used to prevent reload loops)
+let _lastLoadTime = typeof window !== 'undefined' ? Date.now() : 0;
+// Minimum time between SW-triggered reloads (prevents rapid reload loops)
+const MIN_RELOAD_INTERVAL_MS = 30_000; // 30 seconds
+
 /**
  * Perform a safe SW reload — checks for pending deferred reloads.
  * Called by components when they close modals / finish operations.
+ *
+ * CRITICAL: Includes a time-based guard to prevent reload loops.
+ * If the page was loaded less than 30 seconds ago (e.g., Android just
+ * restored the PWA after killing the process), we DON'T reload again.
+ * This prevents the "infinity loading" loop where:
+ *   1. Android kills the PWA process while file picker is open
+ *   2. User returns → page loads from scratch
+ *   3. _sw_reload_pending is still in sessionStorage
+ *   4. usePWALifecycle fires with isBusy=false → triggers reload
+ *   5. Page reloads again → step 3 repeats
  */
 export function checkAndApplyPendingSWReload(): void {
   if (sessionStorage.getItem('_sw_reload_pending') && !isPWABusyOperation()) {
+    const timeSinceLoad = Date.now() - _lastLoadTime;
+    if (timeSinceLoad < MIN_RELOAD_INTERVAL_MS) {
+      // Page was loaded recently — don't create a reload loop
+      console.log(`[PWA] Deferring SW reload (page loaded ${Math.round(timeSinceLoad / 1000)}s ago, need ${MIN_RELOAD_INTERVAL_MS / 1000}s)`);
+      // Schedule a delayed retry instead
+      setTimeout(() => {
+        checkAndApplyPendingSWReload();
+      }, MIN_RELOAD_INTERVAL_MS - timeSinceLoad + 1000);
+      return;
+    }
     sessionStorage.removeItem('_sw_reload_pending');
     console.log('[PWA] Applying deferred SW reload now');
     window.location.reload();
@@ -177,6 +202,25 @@ export default function ServiceWorkerRegistration() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!('serviceWorker' in navigator)) return;
+
+    // Record the page load time for reload-loop prevention
+    _lastLoadTime = Date.now();
+
+    // CRITICAL: Clear any stale _sw_reload_pending flag from a previous
+    // session that was interrupted (e.g., by Android killing the PWA process
+    // while the native file picker was open). If we don't clear this, the
+    // usePWALifecycle hook will immediately trigger a page reload when it
+    // fires with isBusy=false (because the modal state was lost on process kill),
+    // creating an infinite reload loop.
+    if (sessionStorage.getItem('_sw_reload_pending')) {
+      const timeSinceLoad = Date.now() - _lastLoadTime;
+      // If page just loaded (within 10s), this is likely a fresh start after process kill
+      // → clear the stale flag to prevent reload loop
+      if (timeSinceLoad < 10000) {
+        sessionStorage.removeItem('_sw_reload_pending');
+        console.log('[PWA] Cleared stale _sw_reload_pending from previous session');
+      }
+    }
 
     let updateIntervalId: ReturnType<typeof setInterval> | null = null;
 
