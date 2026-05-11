@@ -351,7 +351,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         fileName: pf.fileName,
         fileSize: pf.fileSize,
         fileType: pf.fileType,
-        // Note: We can't serialize ArrayBuffer to sessionStorage efficiently
+        // Note: We can't serialize ArrayBuffer to localStorage efficiently
         // The user will need to re-select files after a full process kill,
         // but all text fields will be preserved.
       })),

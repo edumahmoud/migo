@@ -155,6 +155,21 @@ function HomeContent() {
   // Initialize auth on mount
   useEffect(() => {
     initialize();
+    // Clear the white-screen-reload flag on successful mount
+    // (so the detection script can run again if needed in a future session)
+    try { localStorage.removeItem('_wsr'); } catch {}
+    // Clean up ?pwa=1 query param from the URL (set by manifest start_url
+    // to indicate PWA process restore). We don't want it lingering in the URL.
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('pwa')) {
+        params.delete('pwa');
+        const cleanUrl = params.toString()
+          ? `${window.location.pathname}?${params.toString()}`
+          : window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+      }
+    } catch {}
   }, [initialize]);
 
   // Set correct page when user state changes
@@ -231,16 +246,43 @@ function HomeContent() {
   // it means the user was logged in before the process was killed. We skip the full
   // loading spinner and render the app shell immediately. Auth initializes in the
   // background. This makes process restore feel instant.
+  //
+  // ALSO: Check for ?pwa=1 query param (set as start_url in manifest) which indicates
+  // this is a PWA process restore, not a fresh browser visit. This provides an
+  // additional signal to skip the loading spinner.
   const [hasPersistedSession] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
-      // Check if the app-store has a persisted user session
+      // Check 1: Is this a PWA process restore? (start_url = /?pwa=1)
+      const params = new URLSearchParams(window.location.search);
+      const isPwaRestore = params.has('pwa');
+
+      // Check 2: Does the app-store have a persisted user session?
       const raw = localStorage.getItem('attendo-app-store');
-      if (!raw) return false;
-      const parsed = JSON.parse(raw);
-      // If the user was on a non-auth page, they were logged in
-      const currentPage = parsed?.state?.currentPage;
-      return currentPage && currentPage !== 'auth';
+      if (!raw && !isPwaRestore) return false;
+
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // If the user was on a non-auth page, they were logged in
+        const storedPage = parsed?.state?.currentPage;
+        if (storedPage && storedPage !== 'auth') return true;
+      }
+
+      // Check 3: PWA restore with busy operation flag (localStorage)
+      // This means the app was killed while the user was in the middle of something
+      if (isPwaRestore) {
+        const busyRaw = localStorage.getItem('_attendo_busy');
+        if (busyRaw) {
+          try {
+            const entry = JSON.parse(busyRaw);
+            if (entry.busy && Date.now() - entry.ts < 5 * 60 * 1000) {
+              return true; // User was in a busy operation — definitely logged in
+            }
+          } catch {}
+        }
+      }
+
+      return false;
     } catch {
       return false;
     }
@@ -248,9 +290,10 @@ function HomeContent() {
 
   // Show loading spinner ONLY if:
   // 1. Auth is still loading AND we don't have a persisted session (fresh start)
-  // 2. OR setup check isn't done yet AND we don't have a persisted session
+  // 2. Setup check isn't done yet — BUT if we have a persisted session, skip this too!
+  //    (setupCheckDone requires a network call that can be slow on mobile)
   const showFullLoading = (loading || !initialized) && !hasPersistedSession;
-  if (showFullLoading || !setupCheckDone) {
+  if (showFullLoading || (!setupCheckDone && !hasPersistedSession)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50" dir="rtl">
         <motion.div

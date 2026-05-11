@@ -17,26 +17,17 @@ import { setPWABusyOperation, checkAndApplyPendingSWReload } from '@/components/
  * 3. White screen detection script may reload during slow hydration after returning
  *    from background.
  * 4. After Android kills the PWA process and restores it, the page loads from scratch.
- *    The `pageshow` event has `persisted=false` (not a bfcache restore), so the
- *    previous version of this hook never restored the saved state.
+ *    sessionStorage is LOST (tied to the process), so any state saved there is gone.
  *
  * SOLUTION:
- * - Sets a global busy flag when modals/forms are open
- * - Saves component state to sessionStorage when app goes to background
+ * - Uses localStorage instead of sessionStorage (survives process kills!)
+ * - Sets a global busy flag when modals/forms are open (also persisted to localStorage)
+ * - Saves component state to localStorage when app goes to background
  * - Restores state on component MOUNT if saved state exists (handles process kill)
- * - Also restores on `pageshow` with `persisted=true` (handles bfcache restore)
  * - Checks for deferred SW reloads when modals close (with reload-loop prevention)
- *
- * Usage:
- *   const { saveState, restoreState, clearSavedState } = usePWALifecycle({
- *     stateKey: 'lecture-create-{subjectId}',
- *     isBusy: createOpen,
- *     onSave: () => ({ title: newTitle, desc: newDesc, ... }),
- *     onRestore: (state) => { setNewTitle(state.title); ... },
- *   });
  */
 interface PWALifecycleOptions {
-  /** Unique key for sessionStorage (include dynamic IDs like subjectId) */
+  /** Unique key for localStorage (include dynamic IDs like subjectId) */
   stateKey: string;
   /** Whether the user is in a busy operation (modal open, form active, etc.) */
   isBusy: boolean;
@@ -47,6 +38,9 @@ interface PWALifecycleOptions {
   /** Maximum age of saved state in ms before it's considered stale (default: 30 minutes) */
   maxAgeMs?: number;
 }
+
+// Prefix for localStorage keys
+const STATE_PREFIX = '_pwa_state_';
 
 export function usePWALifecycle({
   stateKey,
@@ -85,34 +79,37 @@ export function usePWALifecycle({
     };
   }, [isBusy]);
 
-  // ─── Save state to sessionStorage ───
+  // ─── Save state to localStorage ───
+  // CRITICAL: Uses localStorage instead of sessionStorage because sessionStorage
+  // is LOST when Android kills the PWA process. localStorage persists across
+  // process kills, so the user's state can be restored when the app restarts.
   const saveState = useCallback(() => {
     if (!onSaveRef.current) return;
     try {
       const state = onSaveRef.current();
       const entry = { data: state, _ts: Date.now() };
-      sessionStorage.setItem(`_pwa_state_${stateKey}`, JSON.stringify(entry));
-      console.log(`[PWALifecycle] Saved state for "${stateKey}"`);
+      localStorage.setItem(`${STATE_PREFIX}${stateKey}`, JSON.stringify(entry));
+      console.log(`[PWALifecycle] Saved state for "${stateKey}" to localStorage`);
     } catch (err) {
       console.warn(`[PWALifecycle] Failed to save state for "${stateKey}":`, err);
     }
   }, [stateKey]);
 
-  // ─── Restore state from sessionStorage ───
+  // ─── Restore state from localStorage ───
   const restoreState = useCallback((): Record<string, unknown> | null => {
     try {
-      const raw = sessionStorage.getItem(`_pwa_state_${stateKey}`);
+      const raw = localStorage.getItem(`${STATE_PREFIX}${stateKey}`);
       if (!raw) return null;
 
       const entry = JSON.parse(raw);
       // Check staleness
       if (entry._ts && Date.now() - entry._ts > maxAgeMs) {
         console.log(`[PWALifecycle] Saved state for "${stateKey}" is stale, discarding`);
-        sessionStorage.removeItem(`_pwa_state_${stateKey}`);
+        localStorage.removeItem(`${STATE_PREFIX}${stateKey}`);
         return null;
       }
 
-      console.log(`[PWALifecycle] Restoring state for "${stateKey}"`);
+      console.log(`[PWALifecycle] Restoring state for "${stateKey}" from localStorage`);
       if (onRestoreRef.current && entry.data) {
         onRestoreRef.current(entry.data);
       }
@@ -126,16 +123,14 @@ export function usePWALifecycle({
   // ─── Clear saved state ───
   const clearSavedState = useCallback(() => {
     try {
-      sessionStorage.removeItem(`_pwa_state_${stateKey}`);
+      localStorage.removeItem(`${STATE_PREFIX}${stateKey}`);
     } catch {}
   }, [stateKey]);
 
   // ─── CRITICAL FIX: Restore state on component MOUNT ───
   // When Android kills the PWA process and restores it, the page loads from scratch.
-  // The `pageshow` event has `persisted=false` (NOT a bfcache restore), so the
-  // previous version of this hook never restored the saved state.
-  //
-  // This effect runs ONCE on mount and checks if there's saved state in sessionStorage.
+  // sessionStorage is LOST, but localStorage persists.
+  // This effect runs ONCE on mount and checks if there's saved state in localStorage.
   // If there is, it means the app was interrupted (process kill, crash, etc.) and we
   // should restore the user's previous state (re-open the modal, fill form fields, etc.)
   useEffect(() => {
@@ -147,10 +142,16 @@ export function usePWALifecycle({
       const restored = restoreState();
       if (restored) {
         console.log(`[PWALifecycle] Restored state on mount for "${stateKey}" (process was likely killed)`);
-        // Now check for pending SW reload (safe because we've restored state)
-        checkAndApplyPendingSWReload();
+        // Clear the busy flag from localStorage since we've restored the state
+        // (the modal will re-open and set it again via its isBusy prop)
+        try {
+          localStorage.removeItem('_attendo_busy');
+        } catch {}
+        // Check for pending SW reload — but DON'T trigger it immediately
+        // because the user just had their state restored (modal re-opened).
+        // The pending reload will be checked when the modal closes.
       }
-    }, 100);
+    }, 150); // Slightly longer delay to ensure React hydration
 
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps

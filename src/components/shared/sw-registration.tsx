@@ -27,6 +27,14 @@ export function getSWRegistration(): Promise<ServiceWorkerRegistration | null> {
 // checks this flag before reloading — if busy, the reload is deferred until the
 // operation completes. This prevents the page from reloading while the user is
 // picking a file from the native file picker on mobile PWA.
+//
+// CRITICAL: We use BOTH a module-level variable AND localStorage.
+// - Module-level var: Fast, synchronous, works within the same process
+// - localStorage: Survives Android process kills! When Android kills the WebView
+//   and restores it, the module-level var is gone, but localStorage persists.
+//   The restored page reads localStorage to know the user was busy.
+const BUSY_FLAG_KEY = '_attendo_busy';
+
 let _busyOperation = false;
 
 export function setPWABusyOperation(busy: boolean): void {
@@ -34,54 +42,88 @@ export function setPWABusyOperation(busy: boolean): void {
   // Also set on window for the inline white-screen detection script in layout.tsx
   if (typeof window !== 'undefined') {
     (window as any).__attendoBusyOperation = busy;
+    // CRITICAL: Also persist to localStorage so it survives Android process kills.
+    // When Android kills the PWA process while the native file picker is open,
+    // sessionStorage is lost but localStorage persists.
+    try {
+      if (busy) {
+        localStorage.setItem(BUSY_FLAG_KEY, JSON.stringify({ busy: true, ts: Date.now() }));
+      } else {
+        localStorage.removeItem(BUSY_FLAG_KEY);
+      }
+    } catch { /* localStorage might be full or unavailable */ }
   }
 }
 
 export function isPWABusyOperation(): boolean {
-  return _busyOperation || (typeof window !== 'undefined' && !!(window as any).__attendoBusyOperation);
+  if (_busyOperation || (typeof window !== 'undefined' && !!(window as any).__attendoBusyOperation)) {
+    return true;
+  }
+  // Check localStorage (survives process kills)
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(BUSY_FLAG_KEY);
+      if (raw) {
+        const entry = JSON.parse(raw);
+        // Only consider it busy if less than 5 minutes old (prevent stale flags)
+        if (entry.busy && Date.now() - entry.ts < 5 * 60 * 1000) {
+          return true;
+        }
+        // Stale flag — clean it up
+        localStorage.removeItem(BUSY_FLAG_KEY);
+      }
+    } catch { /* ignore */ }
+  }
+  return false;
 }
 
 // Timestamp of the last page load (used to prevent reload loops)
 let _lastLoadTime = typeof window !== 'undefined' ? Date.now() : 0;
 // Minimum time between SW-triggered reloads (prevents rapid reload loops)
-const MIN_RELOAD_INTERVAL_MS = 30_000; // 30 seconds
+const MIN_RELOAD_INTERVAL_MS = 60_000; // 60 seconds — generous to prevent infinity loading
 
 /**
- * Perform a safe SW reload — checks for pending deferred reloads.
- * Called by components when they close modals / finish operations.
+ * Check if there's a pending SW reload and apply it safely.
  *
- * CRITICAL: Includes a time-based guard to prevent reload loops.
- * If the page was loaded less than 30 seconds ago (e.g., Android just
- * restored the PWA after killing the process), we DON'T reload again.
- * This prevents the "infinity loading" loop where:
+ * CRITICAL: Uses localStorage instead of sessionStorage because sessionStorage
+ * is LOST when Android kills the PWA process. This prevents the "infinity loading"
+ * loop where:
  *   1. Android kills the PWA process while file picker is open
  *   2. User returns → page loads from scratch
- *   3. _sw_reload_pending is still in sessionStorage
- *   4. usePWALifecycle fires with isBusy=false → triggers reload
- *   5. Page reloads again → step 3 repeats
+ *   3. _sw_reload_pending was in sessionStorage (now lost)
+ *   4. No reload happens — good! No infinity loading.
+ *
+ * Also includes a time-based guard: if the page was loaded recently
+ * (within 60 seconds), we DON'T reload again.
  */
 export function checkAndApplyPendingSWReload(): void {
-  if (sessionStorage.getItem('_sw_reload_pending') && !isPWABusyOperation()) {
-    const timeSinceLoad = Date.now() - _lastLoadTime;
-    if (timeSinceLoad < MIN_RELOAD_INTERVAL_MS) {
-      // Page was loaded recently — don't create a reload loop
-      console.log(`[PWA] Deferring SW reload (page loaded ${Math.round(timeSinceLoad / 1000)}s ago, need ${MIN_RELOAD_INTERVAL_MS / 1000}s)`);
-      // Schedule a delayed retry instead
-      setTimeout(() => {
-        checkAndApplyPendingSWReload();
-      }, MIN_RELOAD_INTERVAL_MS - timeSinceLoad + 1000);
+  try {
+    const raw = localStorage.getItem('_sw_reload_pending');
+    if (!raw) return;
+    if (isPWABusyOperation()) {
+      console.log('[PWA] SW reload pending but user is busy — keeping pending flag');
       return;
     }
-    sessionStorage.removeItem('_sw_reload_pending');
+    const timeSinceLoad = Date.now() - _lastLoadTime;
+    if (timeSinceLoad < MIN_RELOAD_INTERVAL_MS) {
+      console.log(`[PWA] Deferring SW reload (page loaded ${Math.round(timeSinceLoad / 1000)}s ago, need ${MIN_RELOAD_INTERVAL_MS / 1000}s)`);
+      setTimeout(() => {
+        checkAndApplyPendingSWReload();
+      }, MIN_RELOAD_INTERVAL_MS - timeSinceLoad + 2000);
+      return;
+    }
+    localStorage.removeItem('_sw_reload_pending');
     console.log('[PWA] Applying deferred SW reload now');
     window.location.reload();
-  }
+  } catch { /* ignore localStorage errors */ }
 }
 
-/** Internal: do the reload (immediate or from deferred check) */
-function _doSWReload(): void {
-  sessionStorage.removeItem('_sw_reload_pending');
-  window.location.reload();
+/** Internal: defer the reload instead of doing it immediately */
+function _deferSWReload(): void {
+  try {
+    localStorage.setItem('_sw_reload_pending', JSON.stringify({ ts: Date.now() }));
+  } catch { /* ignore */ }
+  console.log('[PWA] SW reload deferred (user is busy or page just loaded)');
 }
 
 // VAPID public key from environment (with fallback hardcoded key)
@@ -206,21 +248,36 @@ export default function ServiceWorkerRegistration() {
     // Record the page load time for reload-loop prevention
     _lastLoadTime = Date.now();
 
-    // CRITICAL: Clear any stale _sw_reload_pending flag from a previous
-    // session that was interrupted (e.g., by Android killing the PWA process
-    // while the native file picker was open). If we don't clear this, the
-    // usePWALifecycle hook will immediately trigger a page reload when it
-    // fires with isBusy=false (because the modal state was lost on process kill),
-    // creating an infinite reload loop.
-    if (sessionStorage.getItem('_sw_reload_pending')) {
-      const timeSinceLoad = Date.now() - _lastLoadTime;
-      // If page just loaded (within 10s), this is likely a fresh start after process kill
-      // → clear the stale flag to prevent reload loop
-      if (timeSinceLoad < 10000) {
-        sessionStorage.removeItem('_sw_reload_pending');
-        console.log('[PWA] Cleared stale _sw_reload_pending from previous session');
+    // CRITICAL: Clear any stale _sw_reload_pending flag from localStorage.
+    // When Android kills the PWA process (e.g., while the native file picker is open)
+    // and the user returns, the page loads from scratch. If there's a pending SW reload
+    // flag from before the kill, it could trigger an immediate reload → infinity loading.
+    // We clear it if the page just loaded (likely a process restore), preventing the loop.
+    try {
+      const raw = localStorage.getItem('_sw_reload_pending');
+      if (raw) {
+        const entry = JSON.parse(raw);
+        // If the pending flag is older than 10 seconds, it's from a previous session
+        // (before the process was killed) — clear it to prevent infinity loading
+        if (Date.now() - entry.ts > 10_000) {
+          localStorage.removeItem('_sw_reload_pending');
+          console.log('[PWA] Cleared stale _sw_reload_pending (from killed process)');
+        }
       }
-    }
+    } catch { /* ignore */ }
+
+    // Also clear stale busy flag from localStorage if it's from a killed process
+    // (older than 5 minutes = definitely stale)
+    try {
+      const raw = localStorage.getItem('_attendo_busy');
+      if (raw) {
+        const entry = JSON.parse(raw);
+        if (Date.now() - entry.ts > 5 * 60 * 1000) {
+          localStorage.removeItem('_attendo_busy');
+          console.log('[PWA] Cleared stale busy flag from killed process');
+        }
+      }
+    } catch { /* ignore */ }
 
     let updateIntervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -251,19 +308,19 @@ export default function ServiceWorkerRegistration() {
           });
         });
 
-        // When the controlling SW changes (after SKIP_WAITING), reload the page
-        // CRITICAL FIX: Do NOT reload unconditionally. On mobile PWA, when the user opens
-        // the native file picker and returns, a pending SW update can trigger controllerchange.
-        // Reloading here destroys the modal, file selection, and all form state.
-        // Instead: defer the reload if a busy operation is in progress.
+        // When the controlling SW changes (after SKIP_WAITING), NEVER reload immediately.
+        // CRITICAL FIX: On mobile PWA, when the user opens the native file picker and
+        // returns, a pending SW update can trigger controllerchange. Reloading here
+        // destroys the modal, file selection, and all form state, causing the bug
+        // where the page collapses to infinity loading.
+        //
+        // SOLUTION: Always defer the reload. Store the pending flag in localStorage
+        // (survives process kills). The checkAndApplyPendingSWReload() function is
+        // called when modals close / operations finish, and it has a time-based guard
+        // to prevent reload loops.
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (isPWABusyOperation()) {
-            console.log('[PWA] SW controller changed but user is busy — deferring reload');
-            sessionStorage.setItem('_sw_reload_pending', '1');
-            return;
-          }
-          // Check for a pending reload that was deferred
-          _doSWReload();
+          console.log('[PWA] SW controller changed — deferring reload (never auto-reload on mobile)');
+          _deferSWReload();
         });
 
         console.log('[PWA] Service Worker registered successfully');
