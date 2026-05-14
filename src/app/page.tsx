@@ -74,6 +74,48 @@ function HomeContent() {
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
 
+  // ─── PWA Process Restore: Check for persisted session ───
+  // MUST be defined BEFORE the useEffect that references it.
+  // On mobile PWA, when Android kills the WebView process and restores it,
+  // the app remounts from scratch. We check if the user was logged in before
+  // to skip the loading spinner and render the app shell immediately.
+  const [hasPersistedSession] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      // Check 1: Is this a PWA process restore? (start_url = /?pwa=1)
+      const params = new URLSearchParams(window.location.search);
+      const isPwaRestore = params.has('pwa');
+
+      // Check 2: Does the app-store have a persisted user session?
+      const raw = localStorage.getItem('attendo-app-store');
+      if (!raw && !isPwaRestore) return false;
+
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // If the user was on a non-auth page, they were logged in
+        const storedPage = parsed?.state?.currentPage;
+        if (storedPage && storedPage !== 'auth') return true;
+      }
+
+      // Check 3: PWA restore with busy operation flag (localStorage)
+      if (isPwaRestore) {
+        const busyRaw = localStorage.getItem('_attendo_busy');
+        if (busyRaw) {
+          try {
+            const entry = JSON.parse(busyRaw);
+            if (entry.busy && Date.now() - entry.ts < 5 * 60 * 1000) {
+              return true;
+            }
+          } catch {}
+        }
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
   // ─── Close sidebar when navigating to quiz view ───
   // Quiz view doesn't include the sidebar component, so we need to ensure
   // the mobile Sheet (portal) is closed and desktop sidebar state is reset
@@ -251,58 +293,8 @@ function HomeContent() {
     return <SupabaseConfigError />;
   }
 
-  // ─── PWA Process Restore: Skip full loading spinner if we have a persisted session ───
-  // On mobile PWA, when Android kills the WebView process (e.g., while the native
-  // file picker is open) and restores it, the app remounts from scratch. The auth
-  // initialization calls supabase.auth.getSession() which can take 1-15 seconds on
-  // mobile. During this time, the user sees a full-page "جاري التحميل..." spinner,
-  // which they perceive as "infinity loading".
-  //
-  // FIX: If the Zustand app-store has a persisted navigation state that's NOT 'auth',
-  // it means the user was logged in before the process was killed. We skip the full
-  // loading spinner and render the app shell immediately. Auth initializes in the
-  // background. This makes process restore feel instant.
-  //
-  // ALSO: Check for ?pwa=1 query param (set as start_url in manifest) which indicates
-  // this is a PWA process restore, not a fresh browser visit. This provides an
-  // additional signal to skip the loading spinner.
-  const [hasPersistedSession] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      // Check 1: Is this a PWA process restore? (start_url = /?pwa=1)
-      const params = new URLSearchParams(window.location.search);
-      const isPwaRestore = params.has('pwa');
-
-      // Check 2: Does the app-store have a persisted user session?
-      const raw = localStorage.getItem('attendo-app-store');
-      if (!raw && !isPwaRestore) return false;
-
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        // If the user was on a non-auth page, they were logged in
-        const storedPage = parsed?.state?.currentPage;
-        if (storedPage && storedPage !== 'auth') return true;
-      }
-
-      // Check 3: PWA restore with busy operation flag (localStorage)
-      // This means the app was killed while the user was in the middle of something
-      if (isPwaRestore) {
-        const busyRaw = localStorage.getItem('_attendo_busy');
-        if (busyRaw) {
-          try {
-            const entry = JSON.parse(busyRaw);
-            if (entry.busy && Date.now() - entry.ts < 5 * 60 * 1000) {
-              return true; // User was in a busy operation — definitely logged in
-            }
-          } catch {}
-        }
-      }
-
-      return false;
-    } catch {
-      return false;
-    }
-  });
+  // hasPersistedSession is defined at the top of the component (before useEffects)
+  // to avoid ReferenceError from temporal dead zone.
 
   // Show loading spinner ONLY if:
   // 1. Auth is still loading AND we don't have a persisted session (fresh start)

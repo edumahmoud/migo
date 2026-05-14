@@ -141,11 +141,18 @@ function uploadFileWithProgress(
     };
 
     xhr.onload = () => {
-      try {
-        const result = JSON.parse(xhr.responseText);
-        resolve(result);
-      } catch {
-        resolve({ success: false, error: 'حدث خطأ غير متوقع' });
+      // FIX: Check HTTP status code before parsing response
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { resolve({ success: false, error: 'حدث خطأ غير متوقع' }); }
+      } else {
+        // Server returned an error status — parse the error message
+        try {
+          const result = JSON.parse(xhr.responseText);
+          resolve({ success: false, error: result.error || `خطأ HTTP: ${xhr.status}` });
+        } catch {
+          resolve({ success: false, error: `خطأ HTTP: ${xhr.status}` });
+        }
       }
     };
 
@@ -552,9 +559,13 @@ export default function LectureModal({
       );
 
       try {
-        const fileName = pf.fileName || pf.file.name;
-        const fileType = pf.fileType || pf.file.type || 'application/octet-stream';
-        const fileSize = pf.fileSize || pf.file.size;
+        // SAFETY: Only use pre-read properties (pf.fileName, pf.fileType, pf.fileSize).
+        // Never access pf.file.name / pf.file.type / pf.file.size — on mobile PWA,
+        // the File object can become invalidated after the native file picker closes,
+        // and accessing its properties throws TypeError during render/execution.
+        const fileName = pf.fileName || 'unknown';
+        const fileType = pf.fileType || 'application/octet-stream';
+        const fileSize = pf.fileSize || 0;
 
         // ─── CRITICAL FIX: Use pre-read ArrayBuffer data instead of File object ───
         let arrayBuffer: ArrayBuffer;
@@ -611,7 +622,16 @@ export default function LectureModal({
 
             clearTimeout(timeoutId);
 
-            const result = await res.json();
+            // FIX: Check HTTP status before parsing JSON to avoid SyntaxError on HTML error pages
+            let result: { success: boolean; data?: Record<string, unknown>; error?: string };
+            if (res.ok) {
+              try { result = await res.json(); }
+              catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+            } else {
+              const errorText = await res.text();
+              try { result = JSON.parse(errorText); }
+              catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+            }
 
             if (result.success && result.data) {
               const fileData = result.data as { file_url: string; file_name: string };
@@ -734,7 +754,16 @@ export default function LectureModal({
             });
 
             clearTimeout(recordTimeout);
-            const createResult = await createRes.json();
+            // FIX: Safely parse JSON — server may return HTML on error
+            let createResult: { success: boolean; data?: Record<string, unknown>; error?: string };
+            if (createRes.ok) {
+              try { createResult = await createRes.json(); }
+              catch { createResult = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+            } else {
+              const errorText = await createRes.text();
+              try { createResult = JSON.parse(errorText); }
+              catch { createResult = { success: false, error: `خطأ HTTP: ${createRes.status}` }; }
+            }
 
             if (createRes.ok && createResult.success && createResult.data) {
               const fileData = createResult.data as { file_url: string; file_name: string };
@@ -991,8 +1020,8 @@ export default function LectureModal({
                                   pf.status === 'error' ? 'text-rose-600' :
                                   'text-muted-foreground'
                                 }`} />
-                                <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName || pf.file.name}</span>
-                                <span className="text-[10px] text-muted-foreground shrink-0">{((pf.fileSize || pf.file.size) / 1024).toFixed(0)} KB</span>
+                                <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName}</span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">{((pf.fileSize) / 1024).toFixed(0)} KB</span>
                                 {pf.status === 'pending' && (
                                   <button
                                     onClick={() => removePendingFile(idx)}
@@ -1021,9 +1050,9 @@ export default function LectureModal({
                                     dir="rtl"
                                     disabled={pf.status === 'uploading'}
                                   />
-                                  {(pf.fileName || pf.file.name).includes('.') && (
+                                  {pf.fileName.includes('.') && (
                                     <span className="text-[10px] text-muted-foreground shrink-0">
-                                      .{(pf.fileName || pf.file.name).split('.').pop()}
+                                      .{pf.fileName.split('.').pop()}
                                     </span>
                                   )}
                                 </div>

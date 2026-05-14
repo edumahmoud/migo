@@ -796,6 +796,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     fetchAllData();
   }, [fetchAllData]);
 
+  // ─── Refresh data when navigating back to the dashboard section ───
+  // The initial fetchAllData only runs on mount. When the user navigates
+  // away (e.g., to "Subjects") and comes back to "dashboard", the data
+  // is stale. This effect triggers a lightweight refresh on section change.
+  useEffect(() => {
+    if (activeSection === 'dashboard') {
+      fetchSummaries();
+      fetchQuizzes();
+      fetchScores();
+    }
+  }, [activeSection, fetchSummaries, fetchQuizzes, fetchScores]);
+
   // ─── Recover pending summaries from sessionStorage (mobile refresh recovery) ───
   // On mobile, when the user refreshes the page while a summary is being created,
   // the in-memory pending state is lost. This effect checks sessionStorage for
@@ -986,6 +998,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       if (document.visibilityState === 'visible') {
         // Refresh on visibility change (catches up on missed Realtime events)
         fetchSummaries();
+        fetchQuizzes();
+        fetchScores();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);

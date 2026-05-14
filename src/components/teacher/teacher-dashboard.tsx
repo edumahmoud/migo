@@ -434,6 +434,17 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     fetchAllData();
   }, [fetchAllData]);
 
+  // ─── Refresh data when navigating back to the dashboard section ───
+  // The initial fetchAllData only runs on mount. When the user navigates
+  // away (e.g., to "Subjects") and comes back to "dashboard", the data
+  // is stale. This effect triggers a lightweight refresh on section change.
+  useEffect(() => {
+    if (activeSection === 'dashboard') {
+      fetchQuizzes();
+      fetchScores();
+    }
+  }, [activeSection, fetchQuizzes, fetchScores]);
+
   // ─── Auth re-hydration for mobile (fix: no INITIAL_SESSION handling) ───
   useEffect(() => {
     let cancelled = false;

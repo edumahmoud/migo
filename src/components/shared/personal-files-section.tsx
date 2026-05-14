@@ -689,9 +689,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         // On mobile PWA, File objects can become invalid after the <input> is cleared.
         // We use the pre-read ArrayBuffer (item.fileData) to create a fresh Blob
         // for each upload attempt. This ensures the data is always available.
-        const fileName = item.fileName || item.file.name;
-        const fileType = item.fileType || item.file.type || 'application/octet-stream';
-        const fileSize = item.fileSize || item.file.size;
+        // SAFETY: Only use pre-read properties (item.fileName, item.fileType, item.fileSize).
+        // Never access item.file.name / item.file.type / item.file.size — on mobile PWA,
+        // the File object can become invalidated after the native file picker closes,
+        // and accessing its properties throws TypeError during render/execution.
+        const fileName = item.fileName || 'unknown';
+        const fileType = item.fileType || 'application/octet-stream';
+        const fileSize = item.fileSize || 0;
 
         // Try to get ArrayBuffer: prefer pre-read data, fallback to reading File
         let arrayBuffer: ArrayBuffer;
@@ -749,10 +753,19 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             clearTimeout(timeoutId);
             clearInterval(simInterval);
 
-            const result = await res.json();
+            // FIX: Safely parse JSON — server may return HTML on error
+            let result: { success: boolean; data?: Record<string, unknown>; error?: string };
+            if (res.ok) {
+              try { result = await res.json(); }
+              catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+            } else {
+              const errorText = await res.text();
+              try { result = JSON.parse(errorText); }
+              catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+            }
 
             if (result.success && result.data?.id) {
-              uploadedFileIds.push(result.data.id);
+              uploadedFileIds.push(String(result.data.id));
               uploadSucceeded = true;
               console.log(`[Upload] Server-side upload succeeded for ${displayName}`);
             } else {
@@ -869,11 +882,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               signal: controller2.signal,
             });
 
-            const result = await res.json();
+            // FIX: Safely parse JSON — server may return HTML on error
+            let result: { success: boolean; data?: Record<string, unknown>; error?: string };
+            if (res.ok) {
+              try { result = await res.json(); }
+              catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+            } else {
+              const errorText = await res.text();
+              try { result = JSON.parse(errorText); }
+              catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+            }
             clearTimeout(timeoutId2);
 
             if (result.success && result.data?.id) {
-              uploadedFileIds.push(result.data.id);
+              uploadedFileIds.push(String(result.data.id));
               uploadSucceeded = true;
             } else {
               console.error('[Upload] Create record error:', result.error);
@@ -925,9 +947,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             }),
             signal: controller.signal,
           });
-          const result = await res.json();
-          if (result.success) {
-            if (result.data?.skipped > 0) {
+          let result: { success: boolean; data?: { created: number; skipped: number }; error?: string };
+          try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+          if (result.success && result.data) {
+            if (result.data.skipped > 0) {
               toast.info(`تم إسناد ${result.data.created} ملف للمقررات، تم تخطي ${result.data.skipped} (موجودة مسبقاً)`);
             }
           } else {
@@ -1103,8 +1126,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         }),
       });
 
-      const result = await res.json();
-      if (result.success) {
+      let result: { success: boolean; data?: { created: number; skipped: number }; error?: string };
+      try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+      if (result.success && result.data) {
         const { created, skipped } = result.data;
         let msg = `تمت المشاركة بنجاح`;
         if (created > 0) msg += ` (${created} مشاركة جديدة)`;
@@ -1145,13 +1169,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         }),
       });
 
-      const result = await res.json();
-      if (result.success) {
+      let result: { success: boolean; data?: { created: number; updated: number; user: { name?: string; email?: string } }; error?: string };
+      try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+      if (result.success && result.data) {
         const { created, updated, user } = result.data;
         if (created > 0) {
-          toast.success(`تمت المشاركة مع ${user.name || user.email} بنجاح`);
+          toast.success(`تمت المشاركة مع ${user?.name || user?.email || 'المستخدم'} بنجاح`);
         } else if (updated > 0) {
-          toast.success(`تم تحديث صلاحية المشاركة مع ${user.name || user.email}`);
+          toast.success(`تم تحديث صلاحية المشاركة مع ${user?.name || user?.email || 'المستخدم'}`);
         } else {
           toast.info('المشاركة موجودة مسبقاً');
         }
@@ -1194,10 +1219,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           }),
         });
 
-        const result = await res.json();
-        if (result.success) {
-          totalCreated += result.data.created;
-          totalUpdated += result.data.updated;
+        let result: { success: boolean; data?: { created: number; updated: number }; error?: string };
+        try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+        if (result.success && result.data) {
+          totalCreated += result.data.created || 0;
+          totalUpdated += result.data.updated || 0;
         } else {
           lastError = result.error;
         }
@@ -1465,8 +1491,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           userId: profile.id,
         }),
       });
-      const result = await res.json();
-      if (result.success) {
+      let result: { success: boolean; data?: { created: number; skipped: number }; error?: string };
+      try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+      if (result.success && result.data) {
         const { created, skipped } = result.data;
         let msg = `تم إسناد ${created} ملف بنجاح`;
         if (skipped > 0) msg += ` (تم تخطي ${skipped} إسناد موجود)`;
@@ -1583,8 +1610,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           sharedBy: profile.id,
         }),
       });
-      const result = await res.json();
-      if (result.success) {
+      let result: { success: boolean; data?: { created: number; skipped: number }; error?: string };
+      try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+      if (result.success && result.data) {
         const { created, skipped } = result.data;
         let msg = `تمت المشاركة بنجاح (${created} مشاركة جديدة)`;
         if (skipped > 0) msg += ` - تم تخطي ${skipped} مشاركة موجودة`;
@@ -2452,7 +2480,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       <div className="flex items-center gap-2">
                         {/* File icon */}
                         <div className="shrink-0">
-                          {getFileIcon(item.file.type || 'other')}
+                          {getFileIcon(item.fileType || 'other')}
                         </div>
                         {/* Rename input */}
                         <div className="flex-1 flex items-center gap-1 min-w-0">
@@ -2494,7 +2522,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] text-muted-foreground">
-                              {formatFileSize(item.file.size)}
+                              {formatFileSize(item.fileSize)}
                             </span>
                             <span className={`text-[10px] font-medium ${
                               item.progress === -1 ? 'text-rose-500' : item.done ? 'text-sky-700' : 'text-sky-700'

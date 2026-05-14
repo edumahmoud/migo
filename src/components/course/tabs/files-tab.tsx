@@ -186,8 +186,8 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
   // -------------------------------------------------------
   // Fetch files with uploader names
   // -------------------------------------------------------
-  const fetchFiles = useCallback(async () => {
-    setLoading(true);
+  const fetchFiles = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('subject_files')
@@ -247,9 +247,9 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
   useEffect(() => {
     const channel = supabase
       .channel(`subject-files-${subjectId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => fetchFiles())
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => fetchFiles())
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => fetchFiles())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => fetchFiles(false))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => fetchFiles(false))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => fetchFiles(false))
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [subjectId, fetchFiles]);

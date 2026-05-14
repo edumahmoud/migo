@@ -381,10 +381,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   }, [fetchSubjects]);
 
   // -------------------------------------------------------
-  // Initial data load
+  // Initial data load — force refresh to bypass stale cache on remount
   // -------------------------------------------------------
   useEffect(() => {
-    fetchSubjects();
+    fetchSubjects(true);
   }, [fetchSubjects]);
 
   // -------------------------------------------------------
