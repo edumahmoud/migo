@@ -243,7 +243,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
     return (
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
           <span className="text-sm text-muted-foreground">جاري تحميل بيانات المؤسسة...</span>
         </div>
       </div>
@@ -273,7 +273,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-emerald-600" />
+            <Building2 className="h-6 w-6 text-sky-700" />
             بيانات المؤسسة
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">إدارة بيانات وإعدادات المؤسسة التعليمية</p>
@@ -295,7 +295,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           )}
         </div>
         {institution.name && (
-          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
+          <Badge className="bg-sky-100 text-sky-800 border-sky-200 text-xs">
             {typeLabelMap[institution.type]}
           </Badge>
         )}
@@ -314,7 +314,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={0}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <ImagePlus className="h-4 w-4 text-emerald-600" />
+              <ImagePlus className="h-4 w-4 text-sky-700" />
               <h3 className="font-semibold text-foreground text-sm">شعار المؤسسة</h3>
             </div>
             <div className="p-4 flex flex-col items-center gap-4">
@@ -323,12 +323,12 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   <img
                     src={institution.logo_url}
                     alt="شعار المؤسسة"
-                    className="h-28 w-28 rounded-2xl object-cover border-2 border-emerald-200 shadow-sm"
+                    className="h-28 w-28 rounded-2xl object-cover border-2 border-sky-200 shadow-sm"
                   />
                 ) : (
-                  <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-dashed border-emerald-300 flex flex-col items-center justify-center gap-2">
-                    <Building2 className="h-10 w-10 text-emerald-400" />
-                    <span className="text-[10px] text-emerald-500">لا يوجد شعار</span>
+                  <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-sky-50 to-teal-50 border-2 border-dashed border-sky-300 flex flex-col items-center justify-center gap-2">
+                    <Building2 className="h-10 w-10 text-sky-400" />
+                    <span className="text-[10px] text-sky-600">لا يوجد شعار</span>
                   </div>
                 )}
                 {uploadingLogo && (
@@ -381,7 +381,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={1}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <School className="h-4 w-4 text-emerald-600" />
+              <School className="h-4 w-4 text-sky-700" />
               <h3 className="font-semibold text-foreground text-sm">نوع المؤسسة</h3>
             </div>
             <div className="p-4 space-y-2">
@@ -392,19 +392,19 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   onClick={() => updateField('type', key)}
                   className={`w-full flex items-center gap-3 rounded-xl p-3 border-2 transition-all duration-200 ${
                     institution.type === key
-                      ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
-                      : 'border-border text-muted-foreground hover:border-emerald-200 hover:bg-emerald-50/50'
+                      ? 'border-sky-600 bg-sky-50 text-sky-800 shadow-sm'
+                      : 'border-border text-muted-foreground hover:border-sky-200 hover:bg-sky-50/50'
                   }`}
                   disabled={saving}
                 >
                   <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                    institution.type === key ? 'bg-emerald-100' : 'bg-muted/50'
+                    institution.type === key ? 'bg-sky-100' : 'bg-muted/50'
                   }`}>
                     {icon}
                   </div>
                   <span className="text-sm font-medium">{label}</span>
                   {institution.type === key && (
-                    <CheckCircle2 className="h-4 w-4 mr-auto text-emerald-500" />
+                    <CheckCircle2 className="h-4 w-4 mr-auto text-sky-600" />
                   )}
                 </button>
               ))}
@@ -414,7 +414,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           {/* Quick info card */}
           {institution.name && (
             <motion.div
-              className="rounded-xl border bg-emerald-50/50 shadow-sm overflow-hidden"
+              className="rounded-xl border bg-sky-50/50 shadow-sm overflow-hidden"
               variants={sectionVariants}
               initial="hidden"
               animate="visible"
@@ -422,8 +422,8 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             >
               <div className="p-4 space-y-2">
                 <div className="flex items-center gap-2 mb-3">
-                  <AlertCircle className="h-4 w-4 text-emerald-600" />
-                  <span className="text-xs font-medium text-emerald-700">ملخص المؤسسة</span>
+                  <AlertCircle className="h-4 w-4 text-sky-700" />
+                  <span className="text-xs font-medium text-sky-800">ملخص المؤسسة</span>
                 </div>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between">
@@ -473,7 +473,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={3}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <FileText className="h-4 w-4 text-emerald-600" />
+              <FileText className="h-4 w-4 text-sky-700" />
               <h3 className="font-semibold text-foreground text-sm">المعلومات الأساسية</h3>
             </div>
             <div className="p-4 space-y-4">
@@ -583,7 +583,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={4}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <Phone className="h-4 w-4 text-emerald-600" />
+              <Phone className="h-4 w-4 text-sky-700" />
               <h3 className="font-semibold text-foreground text-sm">بيانات التواصل</h3>
             </div>
             <div className="p-4 space-y-4">
@@ -662,7 +662,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   <select
                     value={institution.timezone || 'Africa/Cairo'}
                     onChange={(e) => updateField('timezone', e.target.value)}
-                    className="h-10 w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 appearance-none"
+                    className="h-10 w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/20 focus:border-sky-600 appearance-none"
                     disabled={saving}
                     dir="ltr"
                   >
@@ -709,7 +709,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={5}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <FileText className="h-4 w-4 text-emerald-600" />
+              <FileText className="h-4 w-4 text-sky-700" />
               <h3 className="font-semibold text-foreground text-sm">وصف المؤسسة</h3>
             </div>
             <div className="p-4">
@@ -717,7 +717,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                 placeholder="نبذة مختصرة عن المؤسسة..."
                 value={institution.description || ''}
                 onChange={(e) => updateField('description', e.target.value)}
-                className="w-full rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-emerald-400 focus:ring-emerald-400/20 px-3 py-2.5 text-sm resize-none h-24"
+                className="w-full rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-sky-400 focus:ring-sky-400/20 px-3 py-2.5 text-sm resize-none h-24"
                 disabled={saving}
               />
             </div>
@@ -736,7 +736,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             <Button
               onClick={handleSave}
               disabled={saving || !hasChanges}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-10 min-w-[140px]"
+              className="bg-sky-700 hover:bg-sky-800 text-white gap-1.5 h-10 min-w-[140px]"
             >
               {saving ? (
                 <span className="flex items-center gap-1.5">

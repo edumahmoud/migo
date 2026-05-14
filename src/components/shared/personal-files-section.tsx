@@ -143,10 +143,10 @@ function getFileIcon(fileType: string) {
     lower.includes('svg') ||
     lower.includes('webp')
   ) {
-    return <ImageIcon className="h-5 w-5 text-emerald-500" />;
+    return <ImageIcon className="h-5 w-5 text-sky-600" />;
   }
   if (lower.includes('video') || lower.includes('mp4') || lower.includes('avi') || lower.includes('mov')) {
-    return <FileVideo className="h-5 w-5 text-purple-500" />;
+    return <FileVideo className="h-5 w-5 text-sky-600" />;
   }
   if (lower.includes('audio') || lower.includes('mp3') || lower.includes('wav') || lower.includes('ogg')) {
     return <FileAudio className="h-5 w-5 text-amber-500" />;
@@ -1778,7 +1778,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   if (e.key === 'Enter') handleRenameFile(file.id);
                   if (e.key === 'Escape') setRenamingFileId(null);
                 }}
-                className="flex-1 rounded-md border border-emerald-500 bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                className="flex-1 rounded-md border border-sky-600 bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30"
                 autoFocus
                 dir="rtl"
               />
@@ -1786,7 +1786,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <button
                 onClick={() => handleRenameFile(file.id)}
                 disabled={renaming}
-                className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-60"
               >
                 {renaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
               </button>
@@ -1819,7 +1819,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {(file.file_type.toLowerCase().includes('image') || file.file_type.toLowerCase().includes('pdf') || file.file_type.toLowerCase().includes('video') || file.file_type.toLowerCase().includes('audio')) && (
               <button
                 onClick={(e) => { e.stopPropagation(); handlePreview(file); }}
-                className="touch-target shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors touch-manipulation"
+                className="touch-target shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-sky-700 hover:bg-sky-50 transition-colors touch-manipulation"
                 title="معاينة"
               >
                 <Eye className="h-4 w-4" />
@@ -1831,7 +1831,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               onClick={() => toggleFileSelection(file.id)}
               className={`touch-target shrink-0 flex items-center justify-center rounded-md transition-colors ${
                 selectedFileIds.has(file.id)
-                  ? 'text-emerald-600'
+                  ? 'text-sky-700'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -1913,7 +1913,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </span>
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                 file.visibility === 'public'
-                  ? 'bg-emerald-50 text-emerald-700'
+                  ? 'bg-sky-50 text-sky-800'
                   : 'bg-amber-50 text-amber-700'
               }`}>
                 {file.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
@@ -1921,7 +1921,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </span>
             </div>
             {categoryFilter === 'الكل' && (
-              <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-[10px] font-medium">
+              <span className="inline-flex items-center rounded-full bg-sky-50 text-sky-800 px-2 py-0.5 text-[10px] font-medium">
                 {fileCategory}
               </span>
             )}
@@ -1979,7 +1979,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         ) : (
           <button
             onClick={openUploadModal}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 active:bg-emerald-800 touch-manipulation"
+            className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 active:bg-sky-900 touch-manipulation"
           >
             <Upload className="h-4 w-4" />
             رفع ملف
@@ -2000,16 +2000,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
               visibilityFilter === vf.key
                 ? vf.key === 'public'
-                  ? 'bg-emerald-100 text-emerald-700'
+                  ? 'bg-sky-100 text-sky-800'
                   : vf.key === 'private'
                     ? 'bg-amber-100 text-amber-700'
-                    : 'bg-emerald-100 text-emerald-700'
+                    : 'bg-sky-100 text-sky-800'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
             {vf.icon}
             {vf.label}
-            <span className={`text-[10px] ${visibilityFilter === vf.key ? (vf.key === 'private' ? 'text-amber-600' : 'text-emerald-600') : 'text-muted-foreground'}`}>
+            <span className={`text-[10px] ${visibilityFilter === vf.key ? (vf.key === 'private' ? 'text-amber-600' : 'text-sky-700') : 'text-muted-foreground'}`}>
               ({vf.count})
             </span>
           </button>
@@ -2026,12 +2026,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               onClick={() => setCategoryFilter(cat)}
               className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
                 categoryFilter === cat
-                  ? 'bg-emerald-100 text-emerald-700'
+                  ? 'bg-sky-100 text-sky-800'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
               {cat}
-              <span className={`text-[10px] ${categoryFilter === cat ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+              <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700' : 'text-muted-foreground'}`}>
                 ({count})
               </span>
             </button>
@@ -2047,14 +2047,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
-              <CheckSquare className="h-4 w-4 text-emerald-600" />
+              <CheckSquare className="h-4 w-4 text-sky-700" />
             ) : (
               <Square className="h-4 w-4" />
             )}
             تحديد الكل
           </button>
           {selectedFileIds.size > 0 && (
-            <span className="text-xs text-emerald-600 font-medium">
+            <span className="text-xs text-sky-700 font-medium">
               تم تحديد {selectedFileIds.size} ملف
             </span>
           )}
@@ -2064,15 +2064,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {/* Files grid */}
       {loadingFiles ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         </div>
       ) : filteredFiles.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-            <FileText className="h-8 w-8 text-emerald-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+            <FileText className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملفات بعد</p>
           <p className="text-sm text-muted-foreground">
@@ -2127,7 +2127,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <>
                 <DropdownMenu dir="rtl">
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-1.5 rounded-md bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-emerald-700 transition-colors">
+                    <button className="flex items-center gap-1.5 rounded-md bg-sky-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-sky-800 transition-colors">
                       إجراءات
                     </button>
                   </DropdownMenuTrigger>
@@ -2220,15 +2220,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {/* Shared files list */}
       {loadingShared ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         </div>
       ) : sharedWithMe.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-            <Share2 className="h-8 w-8 text-emerald-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+            <Share2 className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملفات مشاركة</p>
           <p className="text-sm text-muted-foreground">عندما يشاركك أحد ملفاً سيظهر هنا</p>
@@ -2249,7 +2249,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       شارك معك{' '}
                       <button
                         onClick={() => file.shared_by_user?.id && openProfile(file.shared_by_user.id)}
-                        className="font-medium text-foreground hover:text-emerald-600 transition-colors cursor-pointer"
+                        className="font-medium text-foreground hover:text-sky-700 transition-colors cursor-pointer"
                       >
                         {formatNameWithTitle(file.shared_by_user?.name || 'مستخدم', file.shared_by_user?.role, file.shared_by_user?.title_id, file.shared_by_user?.gender)}
                       </button>
@@ -2286,7 +2286,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   <div className="mb-3">
                     <button
                       onClick={() => setShowRecipientsFile(file)}
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-emerald-600 transition-colors w-full"
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-sky-700 transition-colors w-full"
                     >
                       <Users className="h-3.5 w-3.5" />
                       <span>مشارك مع {file.total_recipients_count || (file.other_recipients.length + 1)} شخص</span>
@@ -2317,7 +2317,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   {/* Preview button */}
                   <button
                     onClick={() => handlePreview(file)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-50 text-emerald-700 px-3 py-2 text-xs font-medium hover:bg-emerald-100 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-sky-50 text-sky-800 px-3 py-2 text-xs font-medium hover:bg-sky-100 transition-colors"
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
                     معاينة
@@ -2369,7 +2369,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Modal header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Upload className="h-5 w-5 text-emerald-600" />
+                <Upload className="h-5 w-5 text-sky-700" />
                 رفع ملفات
               </h3>
               <button
@@ -2414,7 +2414,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                               return next;
                             });
                           }}
-                          className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                          className="rounded border-gray-300 text-sky-700 focus:ring-sky-600"
                         />
                         <span className="text-sm text-foreground">{s.name}</span>
                       </label>
@@ -2437,9 +2437,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-emerald-300 bg-emerald-50/30 p-6 transition-colors hover:border-emerald-400 hover:bg-emerald-50/50 active:bg-emerald-50/70 touch-manipulation"
+                  className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-sky-300 bg-sky-50/30 p-6 transition-colors hover:border-sky-400 hover:bg-sky-50/50 active:bg-sky-50/70 touch-manipulation"
                 >
-                  <Upload className="h-8 w-8 text-emerald-400" />
+                  <Upload className="h-8 w-8 text-sky-400" />
                   <span className="text-sm font-medium text-muted-foreground">اضغط لاختيار ملفات</span>
                   <span className="text-xs text-muted-foreground">يمكنك اختيار أكثر من ملف</span>
                   <span className="text-[10px] text-muted-foreground/70">الحد الأقصى 50 ميجابايت لكل ملف</span>
@@ -2466,7 +2466,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                             value={item.customName}
                             onChange={(e) => updatePendingName(item.id, e.target.value)}
                             disabled={item.uploading || item.done}
-                            className="flex-1 rounded-md border bg-background px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 min-w-0"
+                            className="flex-1 rounded-md border bg-background px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-sky-600 disabled:opacity-60 min-w-0"
                             placeholder="اسم الملف"
                             dir="rtl"
                           />
@@ -2485,13 +2485,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         )}
                         {/* Status icon */}
                         {item.done && (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                          <CheckCircle2 className="h-4 w-4 text-sky-600 shrink-0" />
                         )}
                         {item.progress === -1 && (
                           <X className="h-4 w-4 text-rose-500 shrink-0" />
                         )}
                         {item.uploading && (
-                          <Loader2 className="h-4 w-4 animate-spin text-emerald-600 shrink-0" />
+                          <Loader2 className="h-4 w-4 animate-spin text-sky-700 shrink-0" />
                         )}
                       </div>
                       {/* Progress bar */}
@@ -2502,7 +2502,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                               {formatFileSize(item.file.size)}
                             </span>
                             <span className={`text-[10px] font-medium ${
-                              item.progress === -1 ? 'text-rose-500' : item.done ? 'text-emerald-600' : 'text-emerald-600'
+                              item.progress === -1 ? 'text-rose-500' : item.done ? 'text-sky-700' : 'text-sky-700'
                             }`}>
                               {item.progress === -1 ? 'فشل' : `${Math.round(item.progress)}%`}
                             </span>
@@ -2513,7 +2513,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                               item.progress === -1
                                 ? '[&>[data-slot=progress-indicator]]:bg-rose-500'
                                 : item.done
-                                  ? '[&>[data-slot=progress-indicator]]:bg-emerald-500'
+                                  ? '[&>[data-slot=progress-indicator]]:bg-sky-600'
                                   : ''
                             }`}
                           />
@@ -2547,7 +2547,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     <button
                       type="button"
                       onClick={handleUploadAll}
-                      className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 transition-colors touch-manipulation min-h-[44px]"
+                      className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-800 active:bg-sky-900 transition-colors touch-manipulation min-h-[44px]"
                     >
                       <Upload className="h-4 w-4" />
                       {pendingUploads.some((p) => p.progress === -1) ? 'إعادة المحاولة' : 'رفع الكل'}
@@ -2586,7 +2586,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           >
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Info className="h-5 w-5 text-emerald-600" />
+                <Info className="h-5 w-5 text-sky-700" />
                 تفاصيل الملف
               </h3>
               <button
@@ -2654,7 +2654,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         <div className="flex items-center gap-2">
                           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                             course.visibility === 'public'
-                              ? 'bg-emerald-50 text-emerald-700'
+                              ? 'bg-sky-50 text-sky-800'
                               : 'bg-amber-50 text-amber-700'
                           }`}>
                             {course.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
@@ -2698,7 +2698,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {/* Download button */}
               <button
                 onClick={() => handleDownload(detailsFile)}
-                className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-emerald-700 transition-colors"
+                className="flex items-center justify-center gap-2 w-full rounded-lg bg-sky-700 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-800 transition-colors"
               >
                 <Download className="h-4 w-4" />
                 تحميل الملف
@@ -2735,7 +2735,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Modal header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Share2 className="h-5 w-5 text-emerald-600" />
+                <Share2 className="h-5 w-5 text-sky-700" />
                 مشاركة الملف
               </h3>
               <button
@@ -2775,7 +2775,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       onClick={() => setSelectedPermission(perm)}
                       className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                         selectedPermission === perm
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          ? 'border-sky-600 bg-sky-50 text-sky-800'
                           : 'border-border bg-background text-muted-foreground hover:bg-muted'
                       }`}
                     >
@@ -2796,12 +2796,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     value={shareSearchQuery}
                     onChange={(e) => handleSearchUsers(e.target.value)}
                     placeholder="ابحث بالاسم أو البريد الإلكتروني..."
-                    className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                    className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                     dir="rtl"
                     disabled={searchingUsers}
                   />
                   {searchingUsers && (
-                    <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-emerald-600" />
+                    <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-sky-700" />
                   )}
                 </div>
 
@@ -2849,7 +2849,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       value={shareByEmail}
                       onChange={(e) => setShareByEmail(e.target.value)}
                       placeholder="أدخل البريد الإلكتروني للمستخدم..."
-                      className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                      className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                       dir="ltr"
                       disabled={shareByEmailLoading}
                       onKeyDown={(e) => {
@@ -2869,7 +2869,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         onClick={() => setShareByEmailPermission(perm)}
                         className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                           shareByEmailPermission === perm
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            ? 'border-sky-600 bg-sky-50 text-sky-800'
                             : 'border-border bg-background text-muted-foreground hover:bg-muted'
                         }`}
                       >
@@ -2882,7 +2882,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <button
                   onClick={handleShareByEmail}
                   disabled={shareByEmailLoading || !shareByEmail.trim()}
-                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-sky-700 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-800 transition-colors disabled:opacity-60"
                 >
                   {shareByEmailLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -2917,7 +2917,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   <button
                     onClick={handleShareWithSelected}
                     disabled={sharingUsers}
-                    className="mt-3 flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                    className="mt-3 flex items-center justify-center gap-2 w-full rounded-lg bg-sky-700 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-800 transition-colors disabled:opacity-60"
                   >
                     {sharingUsers ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2932,7 +2932,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {/* Already shared with list */}
               {loadingShares ? (
                 <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+                  <Loader2 className="h-5 w-5 animate-spin text-sky-700" />
                 </div>
               ) : fileShares.length > 0 ? (
                 <div>
@@ -3000,7 +3000,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           >
             <div className="flex items-center justify-between border-b p-5">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <FolderPlus className="h-5 w-5 text-emerald-600" />
+                <FolderPlus className="h-5 w-5 text-sky-700" />
                 اسناد لمقرر
               </h3>
               <button
@@ -3014,8 +3014,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {/* File info */}
               {bulkAssignMode ? (
                 <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                    <FolderPlus className="h-4 w-4 text-emerald-600" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                    <FolderPlus className="h-4 w-4 text-sky-700" />
                   </div>
                   <p className="text-sm font-medium text-foreground">
                     {selectedFileIds.size} ملف محدد
@@ -3058,7 +3058,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                               return next;
                             });
                           }}
-                          className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                          className="rounded border-gray-300 text-sky-700 focus:ring-sky-600"
                         />
                         <span className="text-sm text-foreground">{s.name}</span>
                       </label>
@@ -3076,7 +3076,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <button
                 onClick={handleAssignToCourse}
                 disabled={assigning || assignSubjectIds.size === 0}
-                className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                className="flex items-center justify-center gap-2 w-full rounded-lg bg-sky-700 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-800 transition-colors disabled:opacity-60"
               >
                 {assigning ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -3177,7 +3177,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               ) : previewFile.file_type.toLowerCase().includes('audio') ? (
                 <div className="flex items-center justify-center p-8 min-h-[200px]">
                   <div className="w-full max-w-md text-center space-y-4">
-                    <FileAudio className="h-16 w-16 mx-auto text-emerald-500" />
+                    <FileAudio className="h-16 w-16 mx-auto text-sky-600" />
                     <p className="text-sm font-medium text-foreground truncate">{previewFile.file_name}</p>
                     <audio
                       src={previewFile.file_url}
@@ -3194,7 +3194,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   <p className="text-sm text-muted-foreground">لا يمكن معاينة هذا الملف مباشرة</p>
                   <button
                     onClick={() => handleDownload(previewFile)}
-                    className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
+                    className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-800 transition-colors"
                   >
                     <Download className="h-4 w-4" />
                     تحميل الملف
@@ -3233,7 +3233,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Share2 className="h-5 w-5 text-emerald-600" />
+                <Share2 className="h-5 w-5 text-sky-700" />
                 مشاركة جماعية
               </h3>
               <button
@@ -3248,8 +3248,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar min-h-0">
               {/* Selected files info */}
               <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                  <Users className="h-4 w-4 text-emerald-600" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                  <Users className="h-4 w-4 text-sky-700" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">
@@ -3271,7 +3271,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       onClick={() => setBulkSharePermission(perm)}
                       className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                         bulkSharePermission === perm
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          ? 'border-sky-600 bg-sky-50 text-sky-800'
                           : 'border-border bg-background text-muted-foreground hover:bg-muted'
                       }`}
                     >
@@ -3292,12 +3292,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     value={bulkShareSearchQuery}
                     onChange={(e) => handleBulkShareSearch(e.target.value)}
                     placeholder="ابحث بالاسم أو البريد الإلكتروني..."
-                    className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                    className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                     dir="rtl"
                     disabled={bulkShareSearching}
                   />
                   {bulkShareSearching && (
-                    <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-emerald-600" />
+                    <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-sky-700" />
                   )}
                 </div>
                 {/* Search results */}
@@ -3351,7 +3351,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <button
                 onClick={handleBulkShare}
                 disabled={bulkShareLoading || bulkShareSelectedUsers.length === 0}
-                className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                className="flex items-center justify-center gap-2 w-full rounded-lg bg-sky-700 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-800 transition-colors disabled:opacity-60"
               >
                 {bulkShareLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -3382,7 +3382,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       value={bulkShareByEmail}
                       onChange={(e) => setBulkShareByEmail(e.target.value)}
                       placeholder="أدخل البريد الإلكتروني للمستخدم..."
-                      className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                      className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                       dir="ltr"
                       disabled={bulkShareByEmailLoading}
                       onKeyDown={(e) => {
@@ -3402,7 +3402,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         onClick={() => setBulkShareByEmailPermission(perm)}
                         className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                           bulkShareByEmailPermission === perm
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            ? 'border-sky-600 bg-sky-50 text-sky-800'
                             : 'border-border bg-background text-muted-foreground hover:bg-muted'
                         }`}
                       >
@@ -3415,7 +3415,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <button
                   onClick={handleBulkShareByEmail}
                   disabled={bulkShareByEmailLoading || !bulkShareByEmail.trim()}
-                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-sky-700 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-800 transition-colors disabled:opacity-60"
                 >
                   {bulkShareByEmailLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -3457,7 +3457,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Users className="h-5 w-5 text-emerald-600" />
+                <Users className="h-5 w-5 text-sky-700" />
                 المستلمون
               </h3>
               <button
@@ -3547,7 +3547,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           onClick={() => setActiveTab('my-files')}
           className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
             activeTab === 'my-files'
-              ? 'bg-emerald-600 text-white shadow-sm'
+              ? 'bg-sky-700 text-white shadow-sm'
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
         >
@@ -3557,7 +3557,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           onClick={() => setActiveTab('shared')}
           className={`rounded-full px-4 py-2 text-sm font-medium transition-all flex items-center gap-1.5 ${
             activeTab === 'shared'
-              ? 'bg-emerald-600 text-white shadow-sm'
+              ? 'bg-sky-700 text-white shadow-sm'
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
         >
@@ -3566,7 +3566,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <span className={`inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[18px] h-[18px] px-1 ${
               activeTab === 'shared'
                 ? 'bg-white/20 text-white'
-                : 'bg-emerald-100 text-emerald-700'
+                : 'bg-sky-100 text-sky-800'
             }`}>
               {sharedWithMe.length}
             </span>

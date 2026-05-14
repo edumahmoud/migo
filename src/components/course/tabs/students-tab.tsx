@@ -652,8 +652,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             onClick={() => setShowAddSearch(!showAddSearch)}
             className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
               showAddSearch
-                ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                : 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                : 'border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100'
             }`}
           >
             <UserPlus className="h-4 w-4" />
@@ -675,7 +675,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             <div className="rounded-xl border bg-card p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <UserPlus className="h-4 w-4 text-emerald-600" />
+                  <UserPlus className="h-4 w-4 text-sky-700" />
                   إضافة طالب جديد للمقرر
                 </h4>
                 <button
@@ -692,7 +692,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                   value={addSearchQuery}
                   onChange={(e) => handleAddSearch(e.target.value)}
                   placeholder="البحث عن طالب بالاسم أو البريد الإلكتروني..."
-                  className="w-full rounded-lg border bg-background pr-9 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                  className="w-full rounded-lg border bg-background pr-9 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                   dir="rtl"
                   autoFocus
                 />
@@ -702,7 +702,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 <div className="rounded-lg border bg-background overflow-hidden max-h-60 overflow-y-auto">
                   {addSearching ? (
                     <div className="flex items-center justify-center py-6">
-                      <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+                      <Loader2 className="h-5 w-5 animate-spin text-sky-700" />
                     </div>
                   ) : addSearchResults.length === 0 ? (
                     <div className="p-4 text-center text-muted-foreground text-sm">لا توجد نتائج</div>
@@ -723,7 +723,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                           <button
                             onClick={() => handleAdd(student.id)}
                             disabled={addingId === student.id}
-                            className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                            className="flex items-center gap-1 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                           >
                             {addingId === student.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
                             إضافة
@@ -748,7 +748,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             value={enrolledSearchQuery}
             onChange={(e) => setEnrolledSearchQuery(e.target.value)}
             placeholder="البحث في الطلاب المسجلين بالاسم أو البريد الإلكتروني..."
-            className="w-full rounded-lg border bg-background pr-9 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+            className="w-full rounded-lg border bg-background pr-9 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir="rtl"
           />
         </motion.div>
@@ -757,15 +757,15 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       {/* Students list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         </div>
       ) : students.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-            <Users className="h-8 w-8 text-emerald-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+            <Users className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا يوجد طلاب مسجلون</p>
           <p className="text-sm text-muted-foreground">ابحث عن طالب وأضفه للمقرر</p>
@@ -773,7 +773,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       ) : filteredStudents.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-12"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-12"
         >
           <Search className="h-8 w-8 text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground">لا توجد نتائج مطابقة للبحث</p>
@@ -787,8 +787,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 onClick={toggleSelectAll}
                 className={`flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
                   selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0
-                    ? 'bg-emerald-600 border-emerald-600 text-white'
-                    : 'border-muted-foreground/30 hover:border-emerald-500'
+                    ? 'bg-sky-700 border-sky-700 text-white'
+                    : 'border-muted-foreground/30 hover:border-sky-600'
                 }`}
               >
                 {selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0 && <Check className="h-3 w-3" />}
@@ -804,7 +804,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 key={student.id}
                 variants={itemVariants}
                 className={`px-4 py-3 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center space-y-2 sm:space-y-0 transition-colors ${
-                  selectedStudentIds.has(student.id) ? 'bg-emerald-50/30' : 'hover:bg-muted/30'
+                  selectedStudentIds.has(student.id) ? 'bg-sky-50/30' : 'hover:bg-muted/30'
                 }`}
               >
                 <div className="col-span-1 flex items-center justify-center">
@@ -812,8 +812,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                     onClick={() => toggleStudentSelection(student.id)}
                     className={`flex h-5 w-5 items-center justify-center rounded-md border transition-colors ${
                       selectedStudentIds.has(student.id)
-                        ? 'bg-emerald-600 border-emerald-600 text-white'
-                        : 'border-muted-foreground/30 hover:border-emerald-500'
+                        ? 'bg-sky-700 border-sky-700 text-white'
+                        : 'border-muted-foreground/30 hover:border-sky-600'
                     }`}
                   >
                     {selectedStudentIds.has(student.id) && <Check className="h-3 w-3" />}
@@ -841,7 +841,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                       setPerformanceStudentId(student.id);
                       fetchStudentPerformance(student.id);
                     }}
-                    className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                    className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
                     title="أداء الطالب"
                   >
                     <BarChart3 className="h-3.5 w-3.5" />
@@ -888,7 +888,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             dir="rtl"
           >
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-sky-800">
                 <span className="text-xs font-bold">{selectedStudentIds.size}</span>
               </div>
               <span className="text-sm font-semibold text-foreground">طالب محدد</span>
@@ -993,7 +993,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
                 <div className="flex items-center gap-3">
-                  <BarChart3 className="h-5 w-5 text-emerald-600" />
+                  <BarChart3 className="h-5 w-5 text-sky-700" />
                   <h3 className="text-lg font-bold text-foreground">أداء الطالب</h3>
                 </div>
                 <button
@@ -1008,14 +1008,14 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               <div className="p-5 space-y-5">
                 {loadingPerformance ? (
                   <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-8 w-8 text-emerald-500 animate-spin" />
+                    <Loader2 className="h-8 w-8 text-sky-600 animate-spin" />
                   </div>
                 ) : performanceData ? (
                   <>
                     {/* Average Grade */}
                     <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-                        <Award className="h-6 w-6 text-emerald-600" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100">
+                        <Award className="h-6 w-6 text-sky-700" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground">متوسط الدرجات</p>
@@ -1044,7 +1044,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                         <div className="h-2 rounded-full bg-muted">
                           <div
                             className={`h-2 rounded-full transition-all ${
-                              performanceData.attendance.percentage >= 75 ? 'bg-emerald-500' :
+                              performanceData.attendance.percentage >= 75 ? 'bg-sky-600' :
                               performanceData.attendance.percentage >= 50 ? 'bg-amber-500' : 'bg-rose-500'
                             }`}
                             style={{ width: `${performanceData.attendance.percentage}%` }}
@@ -1068,10 +1068,10 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                             return (
                               <div key={i} className="flex items-center gap-3 rounded-lg border p-3">
                                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                                  pct >= 75 ? 'bg-emerald-50' : pct >= 50 ? 'bg-amber-50' : 'bg-rose-50'
+                                  pct >= 75 ? 'bg-sky-50' : pct >= 50 ? 'bg-amber-50' : 'bg-rose-50'
                                 }`}>
                                   <span className={`text-xs font-bold ${
-                                    pct >= 75 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-rose-600'
+                                    pct >= 75 ? 'text-sky-700' : pct >= 50 ? 'text-amber-600' : 'text-rose-600'
                                   }`}>{pct}%</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -1135,11 +1135,11 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               dir="rtl"
             >
               {/* Modal Header - warm gradient */}
-              <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-emerald-50/30 to-transparent">
+              <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-sky-50/30 to-transparent">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 shadow-sm shadow-emerald-200/50">
-                      <UserPlus className="h-5.5 w-5.5 text-emerald-600" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-teal-100 shadow-sm shadow-sky-200/50">
+                      <UserPlus className="h-5.5 w-5.5 text-sky-700" />
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-foreground">طلبات الانضمام</h3>
@@ -1168,7 +1168,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                     <button
                       onClick={() => setAcceptAllConfirmOpen(true)}
                       disabled={bulkProcessing}
-                      className="flex items-center gap-2 rounded-xl bg-emerald-600/90 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-emerald-200/50 hover:bg-emerald-600 hover:shadow-md hover:shadow-emerald-200/60 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
+                      className="flex items-center gap-2 rounded-xl bg-sky-700/90 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-sky-200/50 hover:bg-sky-700 hover:shadow-md hover:shadow-sky-200/60 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
                     >
                       {bulkProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       قبول الكل ({pendingRequests.length})
@@ -1193,7 +1193,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 {loadingPending ? (
                   <div className="flex flex-col items-center justify-center py-16">
                     <div className="relative">
-                      <div className="h-12 w-12 rounded-full border-2 border-emerald-200 border-t-emerald-500 animate-spin" />
+                      <div className="h-12 w-12 rounded-full border-2 border-sky-200 border-t-sky-600 animate-spin" />
                     </div>
                     <p className="text-sm text-muted-foreground mt-4">جارٍ تحميل الطلبات...</p>
                   </div>
@@ -1204,8 +1204,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                     transition={{ duration: 0.35, delay: 0.1 }}
                     className="flex flex-col items-center justify-center py-14"
                   >
-                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100/50 mb-5 shadow-sm">
-                      <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-50 to-teal-50 border border-sky-100/50 mb-5 shadow-sm">
+                      <CheckCircle2 className="h-10 w-10 text-sky-400" />
                     </div>
                     <p className="text-base font-semibold text-foreground mb-1.5">كل شيء جاهز! 🎉</p>
                     <p className="text-sm text-muted-foreground text-center leading-relaxed">
@@ -1223,7 +1223,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -8, scale: 0.97, transition: { duration: 0.2 } }}
                         transition={{ duration: 0.35, delay: 0.08 + index * 0.07, ease: [0.25, 0.46, 0.45, 0.94] }}
-                        className="group rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm hover:shadow-md hover:border-emerald-200/50 transition-all duration-250"
+                        className="group rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm hover:shadow-md hover:border-sky-200/50 transition-all duration-250"
                       >
                         <div className="flex items-center gap-3.5 mb-3.5">
                           <UserLink
@@ -1242,7 +1242,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                           <button
                             onClick={() => handleApproveRequest(student.id)}
                             disabled={processingId === student.id}
-                            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-600/90 px-3 py-2.5 text-xs font-bold text-white shadow-sm shadow-emerald-200/50 hover:bg-emerald-600 hover:shadow-md hover:shadow-emerald-200/60 active:scale-[0.98] disabled:opacity-50 disabled:shadow-none transition-all duration-200"
+                            className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-sky-700/90 px-3 py-2.5 text-xs font-bold text-white shadow-sm shadow-sky-200/50 hover:bg-sky-700 hover:shadow-md hover:shadow-sky-200/60 active:scale-[0.98] disabled:opacity-50 disabled:shadow-none transition-all duration-200"
                           >
                             {processingId === student.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-4 w-4" />}
                             قبول

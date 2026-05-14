@@ -26,6 +26,8 @@ import {
   Bell,
   RotateCcw,
   Smartphone,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -54,6 +56,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useSharedSocket, useSocketEvent, setSocketAuth } from '@/lib/socket';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import type { UserProfile, UserStatus } from '@/lib/types';
+import ThemeToggle from '@/components/shared/theme-toggle';
 
 // -------------------------------------------------------
 // Types
@@ -94,10 +97,10 @@ const STATUS_OPTIONS: {
   {
     value: 'online',
     label: 'متصل',
-    color: 'bg-emerald-500',
-    textColor: 'text-emerald-700',
-    borderColor: 'border-emerald-500',
-    bgColor: 'bg-emerald-50',
+    color: 'bg-sky-600',
+    textColor: 'text-sky-800',
+    borderColor: 'border-sky-600',
+    bgColor: 'bg-sky-50',
     description: 'متاح',
   },
   {
@@ -354,9 +357,9 @@ export default function SettingsSection({
   const roleBadgeClass = profile.role === 'superadmin'
     ? 'bg-amber-100 text-amber-700 border-amber-200'
     : profile.role === 'admin'
-      ? 'bg-purple-100 text-purple-700 border-purple-200'
+      ? 'bg-sky-100 text-sky-800 border-sky-200'
       : profile.role === 'teacher'
-        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+        ? 'bg-sky-100 text-sky-800 border-sky-200'
         : 'bg-sky-100 text-sky-700 border-sky-200';
 
   // ─── Server-side profile update (bypasses RLS) ───
@@ -740,7 +743,7 @@ export default function SettingsSection({
             custom={0}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <User className="h-4 w-4 text-emerald-600" />
+              <User className="h-4 w-4 text-sky-700" />
               <h3 className="font-semibold text-foreground text-sm">الملف الشخصي</h3>
             </div>
 
@@ -749,11 +752,11 @@ export default function SettingsSection({
               <div className="flex items-start gap-4">
                 <div className="relative shrink-0 group">
                   <Avatar
-                    className="h-20 w-20 border-2 border-emerald-200 shadow-sm cursor-pointer"
+                    className="h-20 w-20 border-2 border-sky-200 shadow-sm cursor-pointer"
                     onClick={() => profile.avatar_url && setAvatarPreviewOpen(true)}
                   >
                     <AvatarImage src={avatarSrc} alt={profile.name} className="object-cover" />
-                    <AvatarFallback className="bg-emerald-100 text-emerald-700">
+                    <AvatarFallback className="bg-sky-100 text-sky-800">
                       <User className="h-8 w-8" />
                     </AvatarFallback>
                   </Avatar>
@@ -823,7 +826,7 @@ export default function SettingsSection({
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                           )}
                           {!isCheckingUsername && usernameAvailable === true && username.trim().length >= 3 && (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-sky-600" />
                           )}
                           {!isCheckingUsername && usernameAvailable === false && (
                             <X className="h-3.5 w-3.5 text-rose-500" />
@@ -861,7 +864,7 @@ export default function SettingsSection({
                         onClick={() => setGender(gender === opt.value ? '' : opt.value)}
                         className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                           gender === opt.value
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            ? 'border-sky-600 bg-sky-50 text-sky-800'
                             : 'border-border text-muted-foreground hover:bg-muted/50'
                         }`}
                         disabled={isSaving}
@@ -918,7 +921,7 @@ export default function SettingsSection({
                           onClick={() => setTitleId(title.value)}
                           className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
                             titleId === title.value
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                              ? 'border-sky-600 bg-sky-50 text-sky-800'
                               : 'border-border text-muted-foreground hover:bg-muted/50'
                           }`}
                           disabled={isSaving}
@@ -930,7 +933,7 @@ export default function SettingsSection({
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="text-[10px] text-muted-foreground">سيظهر كـ:</span>
-                    <span className="text-xs font-semibold text-emerald-700">
+                    <span className="text-xs font-semibold text-sky-800">
                       {(() => {
                         const t = ACADEMIC_TITLES.find((t) => t.value === titleId);
                         if (!t) return '';
@@ -946,7 +949,7 @@ export default function SettingsSection({
                 <Button
                   onClick={handleSave}
                   disabled={isSaving || !hasChanges}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9 min-w-[120px]"
+                  className="bg-sky-700 hover:bg-sky-800 text-white gap-1.5 h-9 min-w-[120px]"
                 >
                   {isSaving ? (
                     <span className="flex items-center gap-1.5">
@@ -974,7 +977,7 @@ export default function SettingsSection({
           >
             {/* Header */}
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-100">
+              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-sky-100">
                 <div className={`h-2.5 w-2.5 rounded-full ${currentStatusInfo.color} ${userStatus === 'online' && isConnected ? 'animate-pulse' : ''}`} />
               </div>
               <h3 className="font-semibold text-foreground text-sm">الحالة والظهور</h3>
@@ -1001,12 +1004,12 @@ export default function SettingsSection({
                         : 'غير متصل بالخادم'
                     }>
                       <div className={`h-1.5 w-1.5 rounded-full ${
-                        isConnected ? 'bg-emerald-500' 
+                        isConnected ? 'bg-sky-600' 
                           : socketStatus === 'connecting' ? 'bg-amber-400 animate-pulse' 
                           : 'bg-red-400'
                       }`} />
                       <span className={`text-[10px] ${
-                        isConnected ? 'text-emerald-600' 
+                        isConnected ? 'text-sky-700' 
                           : socketStatus === 'connecting' ? 'text-amber-600' 
                           : 'text-red-500'
                       }`}>
@@ -1092,7 +1095,7 @@ export default function SettingsSection({
             custom={2}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <Smartphone className="h-4 w-4 text-emerald-600" />
+              <Smartphone className="h-4 w-4 text-sky-700" />
               <h3 className="font-semibold text-foreground text-sm">إعدادات التطبيق</h3>
             </div>
 
@@ -1102,7 +1105,7 @@ export default function SettingsSection({
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
                     pushPermission === 'granted'
-                      ? 'bg-emerald-100 text-emerald-600'
+                      ? 'bg-sky-100 text-sky-700'
                       : pushPermission === 'denied'
                         ? 'bg-rose-100 text-rose-600'
                         : 'bg-amber-100 text-amber-600'
@@ -1131,7 +1134,7 @@ export default function SettingsSection({
                   disabled={isTogglingPush || pushPermission === 'denied'}
                   className={`relative shrink-0 h-6 w-11 rounded-full transition-colors duration-200 ${
                     pushPermission === 'granted'
-                      ? 'bg-emerald-500'
+                      ? 'bg-sky-600'
                       : pushPermission === 'denied'
                         ? 'bg-rose-300 cursor-not-allowed'
                         : 'bg-muted-foreground/30'
@@ -1143,7 +1146,7 @@ export default function SettingsSection({
                   }`}>
                     {isTogglingPush && (
                       <div className="flex h-full w-full items-center justify-center">
-                        <Loader2 className="h-3 w-3 animate-spin text-emerald-600" />
+                        <Loader2 className="h-3 w-3 animate-spin text-sky-700" />
                       </div>
                     )}
                   </div>
@@ -1154,7 +1157,7 @@ export default function SettingsSection({
               {pushPermission === 'granted' && (
                 <button
                   onClick={handleTestNotification}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/50 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-100/60 active:bg-emerald-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-sky-300 bg-sky-50/50 px-3 py-2 text-xs font-medium text-sky-800 hover:bg-sky-100/60 active:bg-sky-100 transition-colors"
                 >
                   <BellRing className="h-3.5 w-3.5" />
                   إرسال إشعار تجريبي
@@ -1211,6 +1214,12 @@ export default function SettingsSection({
                   </p>
                 </div>
               )}
+
+              {/* Divider */}
+              <div className="border-t" />
+
+              {/* Theme Toggle (Appearance) */}
+              <ThemeToggle />
             </div>
           </motion.div>
 
@@ -1223,7 +1232,7 @@ export default function SettingsSection({
             custom={2}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <Lock className="h-4 w-4 text-emerald-600" />
+              <Lock className="h-4 w-4 text-sky-700" />
               <h3 className="font-semibold text-foreground text-sm">تغيير كلمة المرور</h3>
             </div>
 
@@ -1309,7 +1318,7 @@ export default function SettingsSection({
               <Button
                 onClick={handleChangePassword}
                 disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9 text-xs"
+                className="bg-sky-700 hover:bg-sky-800 text-white gap-1.5 h-9 text-xs"
               >
                 {isChangingPassword ? (
                   <span className="flex items-center gap-1.5">

@@ -692,7 +692,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         </div>
         <button
           onClick={() => setNewSummaryOpen(true)}
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+          className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <Plus className="h-4 w-4" />
           جديد
@@ -701,17 +701,17 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
       {/* Pending summaries progress */}
       {pendingSummaries.length > 0 && (
-        <motion.div variants={itemVariants} className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+        <motion.div variants={itemVariants} className="rounded-xl border border-sky-200 bg-sky-50/50 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-            <span className="text-sm font-medium text-emerald-700">
+            <Loader2 className="h-4 w-4 animate-spin text-sky-700" />
+            <span className="text-sm font-medium text-sky-800">
               جاري إنشاء {pendingSummaries.length} عنصر...
             </span>
           </div>
           {pendingSummaries.map(ps => (
-            <div key={ps.id} className="flex items-center gap-2 text-xs text-emerald-700 py-1 mr-6">
+            <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 py-1 mr-6">
               <span className="font-medium">{ps.title}</span>
-              <span className="text-emerald-600/70">
+              <span className="text-sky-700/70">
                 {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
                 {ps.status === 'summarizing' && '• توليد الملخص...'}
                 {ps.status === 'saving' && '• حفظ...'}
@@ -735,22 +735,22 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       {/* Summaries grid */}
       {loadingSummaries ? (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-4" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 mb-4" />
           <p className="text-muted-foreground text-sm">جاري تحميل الملخصات...</p>
         </div>
       ) : summaries.length === 0 && pendingSummaries.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-            <FileText className="h-8 w-8 text-emerald-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+            <FileText className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملخصات</p>
           <p className="text-sm text-muted-foreground mb-4">ابدأ بتفريغ محتوى ملف أو إنشاء ملخص دراسي لطلابك</p>
           <button
             onClick={() => setNewSummaryOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
+            className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
             إنشاء ملخص
@@ -787,7 +787,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                       isTranscribed
                         ? 'bg-teal-100 text-teal-700'
-                        : 'bg-emerald-100 text-emerald-700'
+                        : 'bg-sky-100 text-sky-800'
                     }`}>
                       {isTranscribed ? (
                         <><BookOpen className="h-3 w-3" /> تفريغ</>
@@ -859,7 +859,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                     value={summaryTitle}
                     onChange={(e) => setSummaryTitle(e.target.value)}
                     placeholder="مثال: ملخص محاضرة الفيزياء..."
-                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
                     dir="rtl"
                   />
                 </div>
@@ -870,7 +870,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                   <select
                     value={selectedSubjectId}
                     onChange={(e) => setSelectedSubjectId(e.target.value)}
-                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
                     dir="rtl"
                   >
                     <option value="">بدون مقرر</option>
@@ -888,7 +888,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       onClick={() => setSummaryInputMode('text')}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'text'
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          ? 'border-sky-600 bg-sky-50 text-sky-800'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -910,7 +910,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       onClick={() => setSummaryInputMode('file')}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'file'
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          ? 'border-sky-600 bg-sky-50 text-sky-800'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -965,7 +965,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                           onClick={() => setExistingFileTranscribe(false)}
                           className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
                             !existingFileTranscribe
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                              ? 'border-sky-600 bg-sky-50 text-sky-800'
                               : 'border-border text-muted-foreground hover:bg-muted/50'
                           }`}
                         >
@@ -1003,7 +1003,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       onChange={(e) => setSummaryText(e.target.value)}
                       placeholder="الصق المحتوى الدراسي هنا..."
                       rows={6}
-                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors resize-none"
+                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors resize-none"
                       dir="rtl"
                     />
                   </div>
@@ -1025,18 +1025,18 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       className={`flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
                         summaryInputMode === 'transcribe'
                           ? 'border-teal-300 bg-teal-50/30 hover:border-teal-400 hover:bg-teal-50/50'
-                          : 'border-emerald-300 bg-emerald-50/30 hover:border-emerald-400 hover:bg-emerald-50/50'
+                          : 'border-sky-300 bg-sky-50/30 hover:border-sky-400 hover:bg-sky-50/50'
                       }`}
                     >
                       {summaryFile ? (
                         <>
-                          <FileText className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-600' : 'text-emerald-600'}`} />
-                          <span className={`text-sm font-medium ${summaryInputMode === 'transcribe' ? 'text-teal-700' : 'text-emerald-700'}`}>{summaryFile.name}</span>
+                          <FileText className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-600' : 'text-sky-700'}`} />
+                          <span className={`text-sm font-medium ${summaryInputMode === 'transcribe' ? 'text-teal-700' : 'text-sky-800'}`}>{summaryFile.name}</span>
                           <span className="text-xs text-muted-foreground">{(summaryFile.size / 1024 / 1024).toFixed(2)} MB</span>
                         </>
                       ) : (
                         <>
-                          <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-emerald-400'}`} />
+                          <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-sky-400'}`} />
                           <span className="text-sm text-muted-foreground">اضغط لاختيار ملف</span>
                           <span className="text-xs text-muted-foreground/60">PDF أو Word (بحد أقصى 10 MB)</span>
                         </>
@@ -1111,7 +1111,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                   className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     summaryInputMode === 'transcribe' ? 'bg-teal-600 hover:bg-teal-700' :
                     summaryInputMode === 'existing' ? (existingFileTranscribe ? 'bg-teal-600 hover:bg-teal-700' : 'bg-violet-600 hover:bg-violet-700') :
-                    'bg-emerald-600 hover:bg-emerald-700'
+                    'bg-sky-700 hover:bg-sky-800'
                   }`}
                 >
                   {summaryInputMode === 'transcribe' ? <BookOpen className="h-4 w-4" /> :

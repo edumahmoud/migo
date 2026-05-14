@@ -62,7 +62,7 @@ async function tryRefreshSession(): Promise<boolean> {
 // -------------------------------------------------------
 
 const SUBJECT_COLORS = [
-  '#10b981', '#14b8a6', '#f59e0b', '#ef4444',
+  '#0369A1', '#14b8a6', '#f59e0b', '#ef4444',
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
 ];
 
@@ -744,7 +744,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           {role === 'teacher' && (
             <button
               onClick={() => setCreateSubjectOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition-all hover:bg-emerald-700 hover:shadow-md hover:shadow-emerald-200 active:scale-[0.97]"
+              className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-200 transition-all hover:bg-sky-800 hover:shadow-md hover:shadow-sky-200 active:scale-[0.97]"
             >
               <Plus className="h-4 w-4" />
               مقرر جديد
@@ -770,7 +770,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <select
                 value={filterLevel}
                 onChange={(e) => setFilterLevel(e.target.value)}
-                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer min-w-[140px]"
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
                 dir="rtl"
               >
                 <option value="">جميع الفرق</option>
@@ -786,7 +786,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <select
                 value={filterSubLevel}
                 onChange={(e) => setFilterSubLevel(e.target.value)}
-                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer min-w-[140px]"
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
                 dir="rtl"
               >
                 <option value="">جميع المستويات</option>
@@ -813,7 +813,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {/* ─── Loading State ─── */}
       {loadingSubjects && (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
           <p className="mt-3 text-sm text-muted-foreground">جاري تحميل المقررات...</p>
         </div>
       )}
@@ -822,10 +822,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {!loadingSubjects && subjects.length === 0 && (
         <motion.div
           variants={cardVariants}
-          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-gradient-to-b from-emerald-50/50 to-transparent py-20"
+          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 bg-gradient-to-b from-sky-50/50 to-transparent py-20"
         >
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-100 mb-5">
-            <BookOpen className="h-10 w-10 text-emerald-600" />
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 mb-5">
+            <BookOpen className="h-10 w-10 text-sky-700" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1.5">
             {role === 'teacher' ? 'لا توجد مقررات بعد' : 'لست مسجلاً في أي مقرر'}
@@ -848,7 +848,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             {role === 'teacher' && (
               <button
                 onClick={() => setCreateSubjectOpen(true)}
-                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-[0.97]"
+                className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]"
               >
                 <Plus className="h-4 w-4" />
                 إنشاء مقرر
@@ -896,7 +896,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
               >
                 {approvedSubjects.map((subject) => {
-                  const color = subject.color || '#10b981';
+                  const color = subject.color || '#0D9488';
                   return (
                     <motion.div key={subject.id} variants={cardVariants}>
                       <div
@@ -958,7 +958,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 {subject.join_code}
                               </span>
                               {copiedCodeId === subject.id ? (
-                                <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                <Check className="h-3.5 w-3.5 text-sky-700 shrink-0" />
                               ) : (
                                 <Copy
                                   className="h-3.5 w-3.5 shrink-0 opacity-50"
@@ -978,7 +978,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 </div>
                               )}
                               {subject.sub_level && (
-                                <div className="inline-flex items-center gap-1 rounded-full bg-purple-50 border border-purple-200 px-2.5 py-1 text-xs text-purple-700">
+                                <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 border border-sky-200 px-2.5 py-1 text-xs text-sky-800">
                                   <Calendar className="h-3 w-3 shrink-0" />
                                   <span className="font-medium">{subject.sub_level}</span>
                                 </div>
@@ -1040,7 +1040,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                   {/* Pending subjects */}
                   {pendingSubjects.map((subject) => {
-                    const color = subject.color || '#10b981';
+                    const color = subject.color || '#0D9488';
                     return (
                       <motion.div key={subject.id} variants={cardVariants}>
                         <div className="group relative rounded-2xl border border-amber-200 bg-card shadow-sm overflow-hidden opacity-90">
@@ -1110,7 +1110,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
                   {/* Rejected subjects */}
                   {rejectedSubjects.map((subject) => {
-                    const color = subject.color || '#10b981';
+                    const color = subject.color || '#0D9488';
                     return (
                       <motion.div key={subject.id} variants={cardVariants}>
                         <div className="group relative rounded-2xl border border-rose-200 bg-card shadow-sm overflow-hidden opacity-80">
@@ -1248,7 +1248,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     value={newSubjectName}
                     onChange={(e) => setNewSubjectName(e.target.value)}
                     placeholder="مثال: الرياضيات 101"
-                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all"
+                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
                     dir="rtl"
                     disabled={creatingSubject}
                     onKeyDown={(e) => {
@@ -1267,7 +1267,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     onChange={(e) => setNewSubjectDesc(e.target.value)}
                     placeholder="وصف اختياري للمقرر..."
                     rows={3}
-                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all resize-none"
+                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none"
                     dir="rtl"
                     disabled={creatingSubject}
                   />
@@ -1282,7 +1282,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     <select
                       value={newSubjectLevel}
                       onChange={(e) => setNewSubjectLevel(e.target.value)}
-                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
                       dir="rtl"
                       disabled={creatingSubject}
                     >
@@ -1299,7 +1299,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     <select
                       value={newSubjectSubLevel}
                       onChange={(e) => setNewSubjectSubLevel(e.target.value)}
-                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
                       dir="rtl"
                       disabled={creatingSubject}
                     >

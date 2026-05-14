@@ -190,11 +190,11 @@ export default function NotificationPermission() {
       <button
         onClick={handleDisable}
         disabled={loading}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 transition-colors touch-manipulation"
+        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-sky-700 hover:bg-sky-50 active:bg-sky-100 transition-colors touch-manipulation"
         aria-label="الإشعارات مفعّلة - اضغط لإيقافها"
         title="الإشعارات مفعّلة"
       >
-        {loading ? <span className="h-4 w-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /> : <BellRing className="h-5 w-5" />}
+        {loading ? <span className="h-4 w-4 border-2 border-sky-700 border-t-transparent rounded-full animate-spin" /> : <BellRing className="h-5 w-5" />}
       </button>
     );
   }

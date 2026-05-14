@@ -758,7 +758,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" dir="rtl">
-        <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+        <Loader2 className="h-10 w-10 animate-spin text-sky-700" />
         <p className="text-muted-foreground text-sm">جاري تحميل الاختبار...</p>
       </div>
     );
@@ -777,7 +777,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         <Button
           onClick={onBack}
           variant="outline"
-          className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
         >
           <ChevronLeft className="h-4 w-4" />
           العودة
@@ -800,7 +800,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         <Button
           onClick={onBack}
           variant="outline"
-          className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+          className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
         >
           <ChevronLeft className="h-4 w-4" />
           العودة للرئيسية
@@ -817,19 +817,19 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     const percentage = totalQuestions > 0 ? Math.round((finalScore / totalQuestions) * 100) : 0;
     const scoreColor =
       percentage >= 80
-        ? 'text-emerald-700'
+        ? 'text-sky-800'
         : percentage >= 60
           ? 'text-amber-600'
           : 'text-rose-600';
     const scoreBg =
       percentage >= 80
-        ? 'bg-emerald-100'
+        ? 'bg-sky-100'
         : percentage >= 60
           ? 'bg-amber-100'
           : 'bg-rose-100';
     const scoreRing =
       percentage >= 80
-        ? 'ring-emerald-200'
+        ? 'ring-sky-200'
         : percentage >= 60
           ? 'ring-amber-200'
           : 'ring-rose-200';
@@ -877,7 +877,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
           <Button
             onClick={() => setShowReview(true)}
             variant="outline"
-            className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
           >
             <Eye className="h-4 w-4" />
             مراجعة الإجابات
@@ -893,7 +893,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
           </Button>
           <Button
             onClick={onBack}
-            className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+            className="gap-2 bg-sky-700 text-white hover:bg-sky-800"
           >
             <Home className="h-4 w-4" />
             العودة للرئيسية
@@ -912,7 +912,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             >
               <div className="border-t pt-4">
                 <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-emerald-600" />
+                  <Eye className="h-5 w-5 text-sky-700" />
                   مراجعة الإجابات
                 </h3>
                 {quiz.questions.map((q, idx) => {
@@ -950,7 +950,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-200 text-sky-800 hover:bg-sky-50 transition-colors"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -967,7 +967,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                 ? 'bg-rose-100 text-rose-700 animate-pulse'
                 : timeLeft <= 300
                   ? 'bg-amber-100 text-amber-700'
-                  : 'bg-emerald-100 text-emerald-700'
+                  : 'bg-sky-100 text-sky-800'
             }`}>
               <Clock className="h-4 w-4" />
               {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{(timeLeft % 60).toString().padStart(2, '0')}
@@ -977,7 +977,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
 
         {/* Progress bar */}
         <div className="space-y-1.5">
-          <Progress value={progressPct} className="h-2.5 bg-emerald-100 [&>div]:bg-emerald-600" />
+          <Progress value={progressPct} className="h-2.5 bg-sky-100 [&>div]:bg-sky-700" />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{currentIdx + 1}</span>
             <span>{totalQuestions}</span>
@@ -995,13 +995,13 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
           exit="exit"
         >
           {currentQuestion && (
-            <Card className="border-emerald-200 bg-white shadow-sm">
+            <Card className="border-sky-200 bg-white shadow-sm">
               <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">
                 {/* Type badge + question */}
                 <div className="space-y-3">
                   <Badge
                     variant="outline"
-                    className="gap-1.5 border-emerald-300 bg-emerald-50 text-emerald-700 text-xs"
+                    className="gap-1.5 border-sky-300 bg-sky-50 text-sky-800 text-xs"
                   >
                     {typeIcons[currentQuestion.type]}
                     {typeLabels[currentQuestion.type]}
@@ -1069,7 +1069,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                       animate={{ opacity: 1, y: 0 }}
                       className={`flex items-center gap-2 rounded-lg p-3 ${
                         isCorrect
-                          ? 'bg-emerald-50 text-emerald-700'
+                          ? 'bg-sky-50 text-sky-800'
                           : 'bg-rose-50 text-rose-700'
                       }`}
                     >
@@ -1142,7 +1142,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                         setCurrentIdx(prev => prev - 1);
                       }}
                       variant="outline"
-                      className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                      className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
                     >
                       <ChevronRight className="h-4 w-4" />
                       السؤال السابق
@@ -1157,7 +1157,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     >
                       <Button
                         onClick={handleNext}
-                        className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+                        className="gap-2 bg-sky-700 text-white hover:bg-sky-800"
                       >
                         {currentIdx < totalQuestions - 1 ? (
                           <>
@@ -1215,7 +1215,7 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
           if (showCorrectness) {
             // Show correct/incorrect colors
             if (isCorrectOption) {
-              btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
+              btnClass += ' border-sky-600 bg-sky-50 text-sky-800';
             } else if (isSelected && !isCorrect) {
               btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
             } else {
@@ -1231,7 +1231,7 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
           }
         } else {
           btnClass +=
-            ' border-emerald-200 bg-white text-foreground hover:border-emerald-400 hover:bg-emerald-50/50 cursor-pointer';
+            ' border-sky-200 bg-white text-foreground hover:border-sky-400 hover:bg-sky-50/50 cursor-pointer';
         }
 
         return (
@@ -1247,12 +1247,12 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 showCorrectness && answered && isCorrectOption
-                  ? 'bg-emerald-600 text-white'
+                  ? 'bg-sky-700 text-white'
                   : showCorrectness && answered && isSelected && !isCorrect
                     ? 'bg-rose-600 text-white'
                     : answered && isSelected
                       ? 'bg-teal-600 text-white'
-                      : 'bg-emerald-100 text-emerald-700'
+                      : 'bg-sky-100 text-sky-800'
               }`}
             >
               {String.fromCharCode(1571 + idx)}
@@ -1262,7 +1262,7 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
 
             {/* Feedback icon — only when showing correctness */}
             {showCorrectness && answered && isCorrectOption && (
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-sky-700" />
             )}
             {showCorrectness && answered && isSelected && !isCorrect && (
               <XCircle className="h-5 w-5 shrink-0 text-rose-600" />
@@ -1311,7 +1311,7 @@ function BooleanQuestion({
         if (answered) {
           if (showCorrectness) {
             if (isCorrectOption) {
-              btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
+              btnClass += ' border-sky-600 bg-sky-50 text-sky-800';
             } else if (isSelected && !isCorrect) {
               btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
             } else {
@@ -1326,7 +1326,7 @@ function BooleanQuestion({
           }
         } else {
           btnClass +=
-            ' border-emerald-200 bg-white text-foreground hover:border-emerald-400 hover:bg-emerald-50/50 cursor-pointer';
+            ' border-sky-200 bg-white text-foreground hover:border-sky-400 hover:bg-sky-50/50 cursor-pointer';
         }
 
         return (
@@ -1341,7 +1341,7 @@ function BooleanQuestion({
             {opt.icon}
             {opt.label}
             {showCorrectness && answered && isCorrectOption && (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CheckCircle2 className="h-4 w-4 text-sky-700" />
             )}
             {showCorrectness && answered && isSelected && !isCorrect && (
               <XCircle className="h-4 w-4 text-rose-600" />
@@ -1383,7 +1383,7 @@ function CompletionQuestion({
           onChange={(e) => onInputChange(e.target.value)}
           placeholder="اكتب إجابتك هنا..."
           disabled={answered || evaluating}
-          className="h-12 text-base border-emerald-200 focus:border-emerald-500 focus:ring-emerald-500/20"
+          className="h-12 text-base border-sky-200 focus:border-sky-600 focus:ring-sky-600/20"
           dir="rtl"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !answered && !evaluating) {
@@ -1396,7 +1396,7 @@ function CompletionQuestion({
         <Button
           onClick={onCheck}
           disabled={evaluating || !inputValue.trim()}
-          className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+          className="gap-2 bg-sky-700 text-white hover:bg-sky-800"
         >
           {evaluating ? (
             <>
@@ -1433,11 +1433,11 @@ interface MatchingQuestionProps {
 
 // Pair colors for visual connection
 const PAIR_COLORS = [
-  { bg: 'bg-emerald-100', border: 'border-emerald-400', text: 'text-emerald-700', badge: 'bg-emerald-500', ring: 'ring-emerald-300' },
+  { bg: 'bg-sky-100', border: 'border-sky-400', text: 'text-sky-800', badge: 'bg-sky-600', ring: 'ring-sky-300' },
   { bg: 'bg-teal-100', border: 'border-teal-400', text: 'text-teal-700', badge: 'bg-teal-500', ring: 'ring-teal-300' },
   { bg: 'bg-amber-100', border: 'border-amber-400', text: 'text-amber-700', badge: 'bg-amber-500', ring: 'ring-amber-300' },
   { bg: 'bg-rose-100', border: 'border-rose-400', text: 'text-rose-700', badge: 'bg-rose-500', ring: 'ring-rose-300' },
-  { bg: 'bg-purple-100', border: 'border-purple-400', text: 'text-purple-700', badge: 'bg-purple-500', ring: 'ring-purple-300' },
+  { bg: 'bg-sky-100', border: 'border-sky-400', text: 'text-sky-800', badge: 'bg-sky-600', ring: 'ring-sky-300' },
   { bg: 'bg-cyan-100', border: 'border-cyan-400', text: 'text-cyan-700', badge: 'bg-cyan-500', ring: 'ring-cyan-300' },
 ];
 
@@ -1522,8 +1522,8 @@ function MatchingQuestion({
         {/* Keys column (القائمة أ) */}
         <div className="space-y-2">
           <div className="flex items-center justify-center gap-1.5 mb-2">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            <p className="text-xs font-bold text-emerald-700">القائمة أ</p>
+            <div className="h-1.5 w-1.5 rounded-full bg-sky-600" />
+            <p className="text-xs font-bold text-sky-800">القائمة أ</p>
           </div>
           {keys.map((key) => {
             const isMatched = matchedKeysSet.has(key);
@@ -1539,17 +1539,17 @@ function MatchingQuestion({
               const userValue = matchedPairs[key];
               const isPairCorrect = userValue === correctValue;
               if (isPairCorrect) {
-                btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
+                btnClass += ' border-sky-600 bg-sky-50 text-sky-800';
               } else {
                 btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
               }
             } else if (isMatched && color) {
               btnClass += ` ${color.border} ${color.bg} ${color.text}`;
             } else if (isSelected) {
-              btnClass += ' border-emerald-500 bg-emerald-100 text-emerald-700 ring-2 ring-emerald-300';
+              btnClass += ' border-sky-600 bg-sky-100 text-sky-800 ring-2 ring-sky-300';
             } else {
               btnClass +=
-                ' border-emerald-200 bg-white text-foreground hover:border-emerald-400 hover:bg-emerald-50/50 cursor-pointer';
+                ' border-sky-200 bg-white text-foreground hover:border-sky-400 hover:bg-sky-50/50 cursor-pointer';
             }
 
             return (
@@ -1565,11 +1565,11 @@ function MatchingQuestion({
                 <span className={`absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white shadow-sm ${
                   answered
                     ? matchedPairs[key] === question.pairs?.find((p) => p.key === key)?.value
-                      ? 'bg-emerald-500'
+                      ? 'bg-sky-600'
                       : 'bg-rose-500'
                     : isMatched && color
                       ? color.badge
-                      : 'bg-emerald-400'
+                      : 'bg-sky-400'
                 }`}>
                   {pairNum}
                 </span>
@@ -1591,7 +1591,7 @@ function MatchingQuestion({
                 {answered && matchedPairs[key] && (
                   <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${
                     matchedPairs[key] === question.pairs?.find((p) => p.key === key)?.value
-                      ? 'bg-emerald-200 text-emerald-700'
+                      ? 'bg-sky-200 text-sky-800'
                       : 'bg-rose-200 text-rose-700'
                   }`}>
                     {matchedPairs[key] === question.pairs?.find((p) => p.key === key)?.value
@@ -1628,7 +1628,7 @@ function MatchingQuestion({
               )?.[0];
               const isPairCorrect = userKey === correctKey;
               if (isPairCorrect) {
-                btnClass += ' border-emerald-500 bg-emerald-50 text-emerald-700';
+                btnClass += ' border-sky-600 bg-sky-50 text-sky-800';
               } else {
                 btnClass += ' border-rose-500 bg-rose-50 text-rose-700';
               }
@@ -1657,7 +1657,7 @@ function MatchingQuestion({
                       ? (() => {
                           const correctKey = question.pairs?.find((p) => p.value === value)?.key;
                           const userKey = Object.entries(matchedPairs).find(([, v]) => v === value)?.[0];
-                          return userKey === correctKey ? 'bg-emerald-500' : 'bg-rose-500';
+                          return userKey === correctKey ? 'bg-sky-600' : 'bg-rose-500';
                         })()
                       : color
                         ? color.badge
@@ -1679,7 +1679,7 @@ function MatchingQuestion({
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-muted-foreground">التوصيلات ({Object.keys(matchedPairs).length}/{question.pairs?.length || 0})</p>
             {!answered && allPairsMatched && (
-              <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">جميع العناصر متصلة ✓</span>
+              <span className="text-[10px] font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full">جميع العناصر متصلة ✓</span>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1696,14 +1696,14 @@ function MatchingQuestion({
                   animate={{ opacity: 1, scale: 1 }}
                   className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
                     isPairCorrect
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                      ? 'bg-sky-50 border-sky-300 text-sky-800'
                       : isPairWrong
                         ? 'bg-rose-50 border-rose-300 text-rose-700'
                         : `${color.bg} ${color.border} ${color.text}`
                   }`}
                 >
                   <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-white ${
-                    isPairCorrect ? 'bg-emerald-500' : isPairWrong ? 'bg-rose-500' : color.badge
+                    isPairCorrect ? 'bg-sky-600' : isPairWrong ? 'bg-rose-500' : color.badge
                   }`}>
                     {pairNum}
                   </span>
@@ -1718,7 +1718,7 @@ function MatchingQuestion({
                       <XCircle className="h-3 w-3" />
                     </button>
                   )}
-                  {answered && (isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-emerald-500" /> : isPairWrong ? <XCircle className="h-3 w-3 text-rose-500" /> : null)}
+                  {answered && (isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-sky-600" /> : isPairWrong ? <XCircle className="h-3 w-3 text-rose-500" /> : null)}
                 </motion.div>
               );
             })}
@@ -1731,7 +1731,7 @@ function MatchingQuestion({
         <Button
           onClick={onCheck}
           disabled={!allPairsMatched}
-          className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700 w-full sm:w-auto px-6 py-2.5 text-sm font-semibold"
+          className="gap-2 bg-sky-700 text-white hover:bg-sky-800 w-full sm:w-auto px-6 py-2.5 text-sm font-semibold"
         >
           <ArrowLeftRight className="h-4 w-4" />
           {allPairsMatched ? 'تحقق من التوصيل' : `توصيل (${Object.keys(matchedPairs).length}/${question.pairs?.length || 0})`}
@@ -1743,9 +1743,9 @@ function MatchingQuestion({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"
+          className="rounded-xl border border-sky-200 bg-sky-50 p-4"
         >
-          <p className="text-xs font-bold text-emerald-700 mb-3 flex items-center gap-1.5">
+          <p className="text-xs font-bold text-sky-800 mb-3 flex items-center gap-1.5">
             <CheckCircle2 className="h-3.5 w-3.5" />
             التوصيل الصحيح:
           </p>
@@ -1753,14 +1753,14 @@ function MatchingQuestion({
             {question.pairs.map((pair, idx) => (
               <div
                 key={pair.key}
-                className="flex items-center gap-2 rounded-lg bg-white border border-emerald-200 px-3 py-2"
+                className="flex items-center gap-2 rounded-lg bg-white border border-sky-200 px-3 py-2"
               >
                 <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${PAIR_COLORS[idx % PAIR_COLORS.length].badge}`}>
                   {idx + 1}
                 </span>
                 <span className="text-xs font-medium text-foreground">{pair.key}</span>
-                <Link2 className="h-3 w-3 text-emerald-500 shrink-0" />
-                <span className="text-xs font-medium text-emerald-700">{pair.value}</span>
+                <Link2 className="h-3 w-3 text-sky-600 shrink-0" />
+                <span className="text-xs font-medium text-sky-800">{pair.value}</span>
               </div>
             ))}
           </div>
@@ -1794,7 +1794,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
         <div
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
             userAnswer?.isCorrect
-              ? 'bg-emerald-100 text-emerald-700'
+              ? 'bg-sky-100 text-sky-800'
               : 'bg-rose-100 text-rose-700'
           }`}
         >
@@ -1807,7 +1807,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground">سؤال {index + 1}</span>
-            <Badge variant="outline" className="text-[10px] border-emerald-300 bg-emerald-50 text-emerald-700">
+            <Badge variant="outline" className="text-[10px] border-sky-300 bg-sky-50 text-sky-800">
               {typeLabels[question.type]}
             </Badge>
           </div>
@@ -1825,17 +1825,17 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                       const isPairCorrect = question.pairs?.find(p => p.key === k)?.value === v;
                       return (
                         <div key={k} className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs ${
-                          isPairCorrect ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'
+                          isPairCorrect ? 'bg-sky-50 border border-sky-200' : 'bg-rose-50 border border-rose-200'
                         }`}>
                           <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white ${
-                            isPairCorrect ? 'bg-emerald-500' : 'bg-rose-500'
+                            isPairCorrect ? 'bg-sky-600' : 'bg-rose-500'
                           }`}>
                             {idx + 1}
                           </span>
                           <span className="font-medium">{k}</span>
                           <Link2 className="h-3 w-3 shrink-0" />
-                          <span className={isPairCorrect ? 'text-emerald-700 font-medium' : 'text-rose-700 font-medium'}>{v}</span>
-                          {isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-emerald-500 mr-auto" /> : <XCircle className="h-3 w-3 text-rose-500 mr-auto" />}
+                          <span className={isPairCorrect ? 'text-sky-800 font-medium' : 'text-rose-700 font-medium'}>{v}</span>
+                          {isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-sky-600 mr-auto" /> : <XCircle className="h-3 w-3 text-rose-500 mr-auto" />}
                         </div>
                       );
                     }
@@ -1845,16 +1845,16 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
               {/* Correct matching */}
               {!userAnswer?.isCorrect && (
                 <div>
-                  <p className="text-xs font-medium text-emerald-700 mb-1.5">التوصيل الصحيح:</p>
+                  <p className="text-xs font-medium text-sky-800 mb-1.5">التوصيل الصحيح:</p>
                   <div className="space-y-1.5">
                     {question.pairs.map((p, idx) => (
-                      <div key={p.key} className="flex items-center gap-2 rounded-lg bg-white border border-emerald-200 px-2.5 py-1.5 text-xs">
+                      <div key={p.key} className="flex items-center gap-2 rounded-lg bg-white border border-sky-200 px-2.5 py-1.5 text-xs">
                         <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white ${PAIR_COLORS[idx % PAIR_COLORS.length].badge}`}>
                           {idx + 1}
                         </span>
                         <span className="font-medium">{p.key}</span>
-                        <Link2 className="h-3 w-3 text-emerald-500 shrink-0" />
-                        <span className="text-emerald-700 font-medium">{p.value}</span>
+                        <Link2 className="h-3 w-3 text-sky-600 shrink-0" />
+                        <span className="text-sky-800 font-medium">{p.value}</span>
                       </div>
                     ))}
                   </div>
@@ -1867,7 +1867,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                 إجابتك: <span className="font-medium">{String(userAnswer?.answer || '—')}</span>
               </p>
               {question.correctAnswer && (
-                <p className="text-xs text-emerald-700">
+                <p className="text-xs text-sky-800">
                   الإجابة الصحيحة: <span className="font-medium">{question.correctAnswer}</span>
                 </p>
               )}

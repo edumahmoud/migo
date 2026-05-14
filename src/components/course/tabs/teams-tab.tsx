@@ -80,7 +80,7 @@ interface TeamsTabProps {
 // Color options
 // -------------------------------------------------------
 const TEAM_COLORS = [
-  '#6366f1', '#ec4899', '#f59e0b', '#10b981',
+  '#6366f1', '#ec4899', '#f59e0b', '#0D9488',
   '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16',
   '#f97316', '#14b8a6', '#a855f7', '#e11d48',
 ];
@@ -467,7 +467,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         <span className="mr-3 text-muted-foreground">جاري تحميل المجموعات...</span>
       </div>
     );
@@ -517,7 +517,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             <Button variant="outline" onClick={() => { setCreateOpen(false); setEditTeam(null); }}>
               إلغاء
             </Button>
-            <Button onClick={isEdit ? handleUpdateTeam : handleCreateTeam} disabled={saving || !formName.trim()} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button onClick={isEdit ? handleUpdateTeam : handleCreateTeam} disabled={saving || !formName.trim()} className="bg-sky-700 hover:bg-sky-800">
               {saving ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : null}
               {isEdit ? 'حفظ التعديلات' : 'إنشاء'}
             </Button>
@@ -555,7 +555,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => setAutoAssignOpen(false)}>إلغاء</Button>
-          <Button onClick={handleAutoAssign} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={handleAutoAssign} disabled={saving} className="bg-sky-700 hover:bg-sky-800">
             {saving ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Shuffle className="h-4 w-4 ml-2" />}
             توزيع تلقائي
           </Button>
@@ -594,7 +594,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                       handleAddMember(addMemberTeamId, student.id);
                     }
                   }}
-                  className="text-emerald-600 hover:text-emerald-700"
+                  className="text-sky-700 hover:text-sky-800"
                 >
                   <UserPlus className="h-4 w-4 ml-1" />
                   إضافة
@@ -711,7 +711,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Users className="h-5 w-5 text-emerald-600" />
+            <Users className="h-5 w-5 text-sky-700" />
             المجموعات والمستويات
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -756,7 +756,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               setFormColor(TEAM_COLORS[teams.length % TEAM_COLORS.length]);
               setCreateOpen(true);
             }}
-            className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+            className="bg-sky-700 hover:bg-sky-800 gap-2"
           >
             <Plus className="h-4 w-4" />
             مجموعة جديدة
@@ -791,7 +791,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             </Button>
             <Button
               onClick={() => setCreateOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+              className="bg-sky-700 hover:bg-sky-800 gap-2"
             >
               <Plus className="h-4 w-4" />
               إنشاء مجموعة
@@ -833,7 +833,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         <DialogContent className="sm:max-w-md" dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+              <FileSpreadsheet className="h-5 w-5 text-sky-700" />
               تحديد مجموعات للتنزيل
             </DialogTitle>
           </DialogHeader>
@@ -844,7 +844,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               className="flex items-center gap-2 w-full rounded-lg border p-3 hover:bg-muted/50 transition-colors text-sm font-medium"
             >
               {selectedTeamIds.size === teams.length ? (
-                <CheckSquare className="h-4 w-4 text-emerald-600 shrink-0" />
+                <CheckSquare className="h-4 w-4 text-sky-700 shrink-0" />
               ) : (
                 <Square className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
@@ -863,7 +863,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                   >
                     <div className="flex items-center gap-3">
                       {isSelected ? (
-                        <CheckSquare className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <CheckSquare className="h-4 w-4 text-sky-700 shrink-0" />
                       ) : (
                         <Square className="h-4 w-4 text-muted-foreground shrink-0" />
                       )}
@@ -888,7 +888,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             <Button
               onClick={handleExportSelected}
               disabled={selectedTeamIds.size === 0}
-              className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+              className="bg-sky-700 hover:bg-sky-800 gap-2"
             >
               <Download className="h-4 w-4" />
               تنزيل ({selectedTeamIds.size})

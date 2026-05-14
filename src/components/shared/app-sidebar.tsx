@@ -105,21 +105,21 @@ function NavItems({
                   : 'px-4 py-3'
               } ${
                 isActive
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground border border-transparent'
+                  ? 'bg-sky-800/50 text-white border border-sky-400 shadow-sm'
+                  : 'text-slate-200 hover:bg-sky-800/30 hover:text-white border border-transparent'
               }`}
               title={collapsed ? item.label : undefined}
             >
               <span
                 className={`transition-colors duration-200 shrink-0 relative ${
-                  isActive ? 'text-emerald-600' : 'text-muted-foreground'
+                  isActive ? 'text-sky-300' : 'text-slate-400'
                 }`}
               >
                 {item.icon}
                 {/* Notification badge on chat icon - always visible */}
                 {item.id === 'chat' && chatUnreadCount > 0 && (
                   <span
-                    className={`absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-emerald-600 text-white font-bold ${
+                    className={`absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-amber-500 text-white font-bold ${
                       collapsed ? 'h-4 min-w-4 text-[8px] px-0.5' : 'h-5 min-w-5 text-[10px] px-1.5'
                     }`}
                   >
@@ -133,7 +133,7 @@ function NavItems({
                   {isActive && item.id !== 'chat' && (
                     <motion.div
                       layoutId="activeIndicator"
-                      className="mr-auto h-2 w-2 rounded-full bg-emerald-500"
+                      className="mr-auto h-2 w-2 rounded-full bg-teal-400"
                       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                     />
                   )}
@@ -170,13 +170,13 @@ export default function AppSidebar({
   if (isMobile) {
     return (
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="right" className="w-72 p-0">
+        <SheetContent side="right" className="w-72 p-0 bg-sky-950 border-sky-800/50">
           <SheetHeader className="sr-only">
             <SheetTitle>القائمة الرئيسية</SheetTitle>
           </SheetHeader>
           <div className="flex h-full flex-col overflow-hidden pt-2" dir="rtl">
             <ScrollArea className="flex-1 min-h-0">
-              <nav className="px-3 py-4">
+              <nav className="px-3 py-4 text-slate-200">
                 <NavItems
                   navItems={navItems}
                   activeSection={activeSection}
@@ -195,7 +195,7 @@ export default function AppSidebar({
   // Desktop: Fixed right sidebar (RTL), collapsible
   return (
     <aside
-      className={`fixed right-0 top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-l bg-background shadow-sm transition-all duration-300 ease-in-out ${
+      className={`fixed right-0 top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-sky-800/50 bg-sky-950 shadow-sm transition-all duration-300 ease-in-out ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
     >
@@ -213,10 +213,10 @@ export default function AppSidebar({
         </ScrollArea>
 
         {/* Collapse toggle button at bottom */}
-        <div className={`shrink-0 border-t p-2 ${collapsed ? 'flex justify-center' : ''}`}>
+        <div className={`shrink-0 border-sky-800/50 border-t p-2 ${collapsed ? 'flex justify-center' : ''}`}>
           <button
             onClick={handleToggle}
-            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all ${
+            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-sky-800/30 transition-all ${
               collapsed ? 'justify-center' : ''
             }`}
           >

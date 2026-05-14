@@ -57,7 +57,7 @@ interface StatusState {
 
 export function getStatusColor(status: UserStatus): string {
   switch (status) {
-    case 'online': return 'bg-emerald-500';
+    case 'online': return 'bg-sky-600';
     case 'busy': return 'bg-amber-500';
     case 'away': return 'bg-orange-500';
     default: return 'bg-gray-400';
@@ -75,7 +75,7 @@ export function getStatusLabel(status: UserStatus): string {
 
 export function getStatusTextColor(status: UserStatus): string {
   switch (status) {
-    case 'online': return 'text-emerald-600';
+    case 'online': return 'text-sky-700';
     case 'busy': return 'text-amber-600';
     case 'away': return 'text-orange-600';
     default: return 'text-gray-500';
@@ -84,7 +84,7 @@ export function getStatusTextColor(status: UserStatus): string {
 
 export function getStatusBorderColor(status: UserStatus): string {
   switch (status) {
-    case 'online': return 'border-emerald-300';
+    case 'online': return 'border-sky-300';
     case 'busy': return 'border-amber-300';
     case 'away': return 'border-orange-300';
     default: return 'border-gray-300';

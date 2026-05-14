@@ -875,7 +875,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         {/* Active session check loading */}
         {checkingActiveSession ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+            <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
           </div>
         ) : activeSession ? (
           // ─── Active Session Panel ───
@@ -885,7 +885,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
           <motion.div variants={itemVariants}>
             <div className="rounded-xl border bg-card p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-foreground flex items-center gap-2 mb-5">
-                <Play className="h-5 w-5 text-emerald-600" />
+                <Play className="h-5 w-5 text-sky-700" />
                 بدء جلسة حضور جديدة
               </h3>
 
@@ -899,7 +899,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                       setSelectedSubjectId(e.target.value);
                       setSelectedLectureId('');
                     }}
-                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                     dir="rtl"
                   >
                     <option value="">اختر المقرر...</option>
@@ -918,7 +918,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                     value={selectedLectureId}
                     onChange={(e) => setSelectedLectureId(e.target.value)}
                     disabled={!selectedSubjectId || loadingLectures}
-                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     dir="rtl"
                   >
                     <option value="">
@@ -936,7 +936,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                 <button
                   onClick={handleStartSession}
                   disabled={startingSession || !selectedSubjectId || !selectedLectureId}
-                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 rounded-lg bg-sky-700 px-6 py-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {startingSession ? (
                     <>
@@ -960,18 +960,18 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4 text-emerald-600" />
+                <Clock className="h-4 w-4 text-sky-700" />
                 سجل جلسات الحضور السابقة
               </h3>
             </div>
             {loadingPastSessions ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
               </div>
             ) : pastSessions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 mb-3">
-                  <ClipboardCheck className="h-6 w-6 text-emerald-600" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 mb-3">
+                  <ClipboardCheck className="h-6 w-6 text-sky-700" />
                 </div>
                 <p className="text-sm font-medium text-foreground">لا توجد جلسات سابقة</p>
                 <p className="text-xs text-muted-foreground mt-1">ستظهر هنا بعد إنهاء جلسات الحضور</p>
@@ -984,8 +984,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                       key={session.id}
                       className="flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors"
                     >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                        <ClipboardCheck className="h-5 w-5 text-emerald-600" />
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                        <ClipboardCheck className="h-5 w-5 text-sky-700" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">
@@ -996,19 +996,19 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        <span className="text-xs bg-emerald-100 text-emerald-700 rounded-full px-2.5 py-0.5 font-bold">
+                        <span className="text-xs bg-sky-100 text-sky-800 rounded-full px-2.5 py-0.5 font-bold">
                           {session.record_count} حاضر
                         </span>
                         <button
                           onClick={() => handleViewPastSession(session)}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
                           title="عرض التفاصيل"
                         >
                           <Eye className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleExportExcel(session, [])}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
                           title="تصدير Excel"
                         >
                           <Download className="h-4 w-4" />
@@ -1039,15 +1039,15 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         className="space-y-4"
       >
         {/* Active session info card */}
-        <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50/50 p-5 shadow-sm">
+        <div className="rounded-xl border-2 border-sky-300 bg-sky-50/50 p-5 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-600" />
                 </span>
-                <span className="text-sm font-bold text-emerald-700">جلسة حضور نشطة</span>
+                <span className="text-sm font-bold text-sky-800">جلسة حضور نشطة</span>
               </div>
               <h3 className="text-lg font-bold text-foreground">{lectureTitle}</h3>
               <p className="text-sm text-muted-foreground mt-1">{subjectName}</p>
@@ -1059,8 +1059,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
 
             <div className="flex flex-wrap items-center gap-3">
               {/* Live counter */}
-              <div className="flex flex-col items-center rounded-xl bg-white border border-emerald-200 px-5 py-3 shadow-sm">
-                <span className="text-2xl font-bold text-emerald-700">{attendanceRecords.length}</span>
+              <div className="flex flex-col items-center rounded-xl bg-white border border-sky-200 px-5 py-3 shadow-sm">
+                <span className="text-2xl font-bold text-sky-800">{attendanceRecords.length}</span>
                 <span className="text-xs text-muted-foreground">حاضر من {enrolledStudents.length}</span>
               </div>
 
@@ -1085,12 +1085,12 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="flex items-center justify-between border-b p-4">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
-              <Users className="h-4 w-4 text-emerald-600" />
+              <Users className="h-4 w-4 text-sky-700" />
               قائمة الطلاب
             </h3>
             <button
               onClick={handleExportActiveSession}
-              className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-medium text-sky-700 hover:text-sky-800 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
               تصدير Excel
@@ -1098,7 +1098,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
           </div>
           {loadingRecords ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+              <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
             </div>
           ) : enrolledStudents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
@@ -1126,8 +1126,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                       <div className="shrink-0">
                         {isCheckedIn ? (
                           <div className="flex items-center gap-1.5">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            <span className="text-xs font-medium text-emerald-700">حاضر</span>
+                            <CheckCircle2 className="h-4 w-4 text-sky-700" />
+                            <span className="text-xs font-medium text-sky-800">حاضر</span>
                             {record && (
                               <span className="text-xs text-muted-foreground">
                                 {formatTime(record.checked_in_at)}
@@ -1189,12 +1189,12 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-1">عدد الحاضرين</p>
-            <p className="text-sm font-bold text-emerald-700">{selectedPastSession!.record_count}</p>
+            <p className="text-sm font-bold text-sky-800">{selectedPastSession!.record_count}</p>
           </div>
           <div className="flex items-end">
             <button
               onClick={() => handleExportExcel(selectedPastSession!, pastSessionRecords)}
-              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+              className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
             >
               <Download className="h-4 w-4" />
               تصدير Excel
@@ -1207,13 +1207,13 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
       <motion.div variants={itemVariants} className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b p-4">
           <h3 className="font-semibold text-foreground flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-emerald-600" />
+            <UserCheck className="h-4 w-4 text-sky-700" />
             سجل الحضور
           </h3>
         </div>
         {loadingPastSessionRecords ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+            <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
           </div>
         ) : pastSessionRecords.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
@@ -1233,7 +1233,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                     <p className="text-xs text-muted-foreground truncate">{record.student_email}</p>
                   </div>
                   <div className="shrink-0 flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <CheckCircle2 className="h-4 w-4 text-sky-700" />
                     <span className="text-xs text-muted-foreground">{formatTime(record.checked_in_at)}</span>
                   </div>
                 </div>
@@ -1259,18 +1259,18 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
       {/* Active session check loading */}
       {checkingStudentSession ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         </div>
       ) : studentActiveSession ? (
         // ─── Active session - Check in ───
         <motion.div variants={itemVariants}>
-          <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50/50 p-6 shadow-sm">
+          <div className="rounded-xl border-2 border-sky-300 bg-sky-50/50 p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-600" />
               </span>
-              <span className="text-sm font-bold text-emerald-700">جلسة حضور نشطة</span>
+              <span className="text-sm font-bold text-sky-800">جلسة حضور نشطة</span>
             </div>
 
             <h3 className="text-lg font-bold text-foreground">{studentSessionLecture}</h3>
@@ -1289,17 +1289,17 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
-                    className="flex flex-col items-center gap-3 rounded-xl bg-emerald-100 border border-emerald-200 p-6"
+                    className="flex flex-col items-center gap-3 rounded-xl bg-sky-100 border border-sky-200 p-6"
                   >
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
                       transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.1 }}
                     >
-                      <CheckCircle2 className="h-12 w-12 text-emerald-600" />
+                      <CheckCircle2 className="h-12 w-12 text-sky-700" />
                     </motion.div>
-                    <p className="text-lg font-bold text-emerald-700">تم تسجيل حضورك بنجاح!</p>
-                    <p className="text-sm text-emerald-600/80">
+                    <p className="text-lg font-bold text-sky-800">تم تسجيل حضورك بنجاح!</p>
+                    <p className="text-sm text-sky-700/80">
                       {formatDateTime(new Date().toISOString())}
                     </p>
                   </motion.div>
@@ -1314,7 +1314,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                     <button
                       onClick={handleCheckIn}
                       disabled={checkingIn}
-                      className="flex w-full sm:w-auto items-center justify-center gap-3 rounded-xl bg-emerald-600 px-6 sm:px-8 py-4 text-lg font-bold text-white shadow-lg transition-all hover:bg-emerald-700 hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed active:scale-95"
+                      className="flex w-full sm:w-auto items-center justify-center gap-3 rounded-xl bg-sky-700 px-6 sm:px-8 py-4 text-lg font-bold text-white shadow-lg transition-all hover:bg-sky-800 hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed active:scale-95"
                     >
                       {checkingIn ? (
                         <>
@@ -1338,9 +1338,9 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
       ) : (
         // ─── No active session ───
         <motion.div variants={itemVariants}>
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-              <ClipboardCheck className="h-8 w-8 text-emerald-600" />
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+              <ClipboardCheck className="h-8 w-8 text-sky-700" />
             </div>
             <p className="text-lg font-semibold text-foreground mb-1">لا توجد جلسة حضور نشطة</p>
             <p className="text-sm text-muted-foreground">
@@ -1355,13 +1355,13 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="flex items-center justify-between border-b p-4">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-emerald-600" />
+              <Calendar className="h-4 w-4 text-sky-700" />
               سجل الحضور السابق
             </h3>
           </div>
           {loadingStudentHistory ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+              <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
             </div>
           ) : studentPastRecords.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
@@ -1378,8 +1378,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                   const sessionInfo = studentPastSessions.find((s) => s.id === record.session_id);
                   return (
                     <div key={record.id} className="flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                        <CheckCircle2 className="h-4 w-4 text-sky-700" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">
@@ -1389,7 +1389,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                           {sessionInfo?.subject_name || 'مقرر'} • {formatDate(record.checked_in_at)}
                         </p>
                       </div>
-                      <span className="shrink-0 text-xs bg-emerald-100 text-emerald-700 rounded-full px-2.5 py-0.5 font-medium">
+                      <span className="shrink-0 text-xs bg-sky-100 text-sky-800 rounded-full px-2.5 py-0.5 font-medium">
                         {formatTime(record.checked_in_at)}
                       </span>
                     </div>

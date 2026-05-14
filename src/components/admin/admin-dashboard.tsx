@@ -62,6 +62,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
+import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SettingsSection from '@/components/shared/settings-section';
 import ChatSection from '@/components/shared/chat-section';
 import InstitutionSection from '@/components/admin/institution-section';
@@ -171,9 +172,9 @@ function getRoleBadgeClass(role: string): string {
     case 'superadmin':
       return 'bg-amber-100 text-amber-700 border-amber-200';
     case 'admin':
-      return 'bg-purple-100 text-purple-700 border-purple-200';
+      return 'bg-sky-100 text-sky-800 border-sky-200';
     case 'teacher':
-      return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      return 'bg-teal-100 text-teal-700 border-teal-200';
     case 'student':
       return 'bg-blue-100 text-blue-700 border-blue-200';
     default:
@@ -187,9 +188,9 @@ function getRoleCardClass(role: string): string {
     case 'superadmin':
       return 'border-amber-200 hover:border-amber-400';
     case 'admin':
-      return 'border-purple-200 hover:border-purple-400';
+      return 'border-sky-200 hover:border-sky-400';
     case 'teacher':
-      return 'border-emerald-200 hover:border-emerald-400';
+      return 'border-teal-200 hover:border-teal-400';
     case 'student':
       return 'border-sky-200 hover:border-sky-400';
     default:
@@ -203,9 +204,9 @@ function getRoleAccentClass(role: string): string {
     case 'superadmin':
       return 'bg-amber-500';
     case 'admin':
-      return 'bg-purple-500';
+      return 'bg-sky-600';
     case 'teacher':
-      return 'bg-emerald-500';
+      return 'bg-teal-500';
     case 'student':
       return 'bg-sky-500';
     default:
@@ -222,7 +223,7 @@ function scorePercentage(score: number, total: number): number {
 }
 
 function pctColorClass(pct: number): string {
-  if (pct >= 90) return 'text-emerald-700 bg-emerald-100';
+  if (pct >= 90) return 'text-teal-700 bg-teal-100';
   if (pct >= 75) return 'text-teal-700 bg-teal-100';
   if (pct >= 60) return 'text-amber-700 bg-amber-100';
   return 'text-rose-700 bg-rose-100';
@@ -1046,7 +1047,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const renderLoading = () => (
     <div className="flex items-center justify-center py-32">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         <span className="text-sm text-muted-foreground">جاري تحميل البيانات...</span>
       </div>
     </div>
@@ -1071,7 +1072,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           icon={<Users className="h-5 w-5" />}
           label="إجمالي المستخدمين"
           value={allUsers.length}
-          color="emerald"
+          color="sky"
         />
         <StatCard
           icon={<GraduationCap className="h-5 w-5" />}
@@ -1102,12 +1103,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <UserCircle className="h-4 w-4 text-purple-600" />
+                <UserCircle className="h-4 w-4 text-sky-700" />
                 أحدث المستخدمين
               </h3>
               <button
                 onClick={() => setActiveSection('users')}
-                className="text-xs text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+                className="text-xs text-sky-700 hover:text-sky-800 font-medium flex items-center gap-1"
               >
                 عرض الكل
                 <ChevronLeft className="h-3 w-3" />
@@ -1175,15 +1176,15 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-purple-600" />
+                <BarChart3 className="h-4 w-4 text-sky-700" />
                 إحصائيات المنصة
               </h3>
             </div>
             <div className="p-5 space-y-4">
               {/* Total quizzes */}
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-100">
-                  <ClipboardList className="h-4 w-4 text-purple-600" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                  <ClipboardList className="h-4 w-4 text-sky-700" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-muted-foreground">إجمالي الاختبارات</p>
@@ -1193,8 +1194,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
               {/* Total submissions */}
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                  <Award className="h-4 w-4 text-emerald-600" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                  <Award className="h-4 w-4 text-sky-700" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-muted-foreground">إجمالي التسليمات</p>
@@ -1234,12 +1235,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <span className="text-sm font-bold text-foreground">{studentCount}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-full bg-emerald-500" />
+                    <div className="h-3 w-3 rounded-full bg-sky-600" />
                     <span className="text-sm text-muted-foreground flex-1">المعلمون</span>
                     <span className="text-sm font-bold text-foreground">{teacherCount}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-full bg-purple-500" />
+                    <div className="h-3 w-3 rounded-full bg-sky-600" />
                     <span className="text-sm text-muted-foreground flex-1">المشرفون</span>
                     <span className="text-sm font-bold text-foreground">{adminCount}</span>
                   </div>
@@ -1302,7 +1303,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             value={userSearch}
             onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
             placeholder="بحث بالاسم أو البريد الإلكتروني..."
-            className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-colors"
+            className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir="rtl"
           />
         </div>
@@ -1313,7 +1314,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               onClick={() => { setRoleFilter(role); setUserPage(1); }}
               className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all whitespace-nowrap ${
                 roleFilter === role
-                  ? 'border-purple-500 bg-purple-50 text-purple-700'
+                  ? 'border-sky-600 bg-sky-50 text-sky-800'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -1349,7 +1350,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   onClick={() => setUserPage(item)}
                   className={`flex items-center justify-center h-8 w-8 rounded-lg border text-xs font-medium transition-colors ${
                     userPage === item
-                      ? 'bg-purple-600 text-white border-purple-600'
+                      ? 'bg-sky-700 text-white border-sky-700'
                       : 'hover:bg-muted/50 text-muted-foreground'
                   }`}
                 >
@@ -1371,10 +1372,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {filteredUsers.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-purple-300 bg-purple-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-purple-100 mb-4">
-            <Users className="h-8 w-8 text-purple-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+            <Users className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
             {userSearch || roleFilter !== 'all' ? 'لا توجد نتائج للبحث' : 'لا يوجد مستخدمون'}
@@ -1430,7 +1431,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <div className="flex items-center gap-2 pt-2 border-t border-border/50">
                       {user.role === 'teacher' && (
                         <>
-                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 rounded-md px-1.5 py-0.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-teal-700 bg-teal-50 rounded-md px-1.5 py-0.5">
                             <BookOpen className="h-3 w-3" />
                             {user.subjectCount ?? 0} مقرر
                           </span>
@@ -1442,11 +1443,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       )}
                       {user.role === 'student' && (
                         <>
-                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 bg-emerald-50 rounded-md px-1.5 py-0.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-teal-700 bg-teal-50 rounded-md px-1.5 py-0.5">
                             <BookOpen className="h-3 w-3" />
                             {user.subjectCount ?? 0} مقرر
                           </span>
-                          <span className="inline-flex items-center gap-1 text-[11px] text-purple-600 bg-purple-50 rounded-md px-1.5 py-0.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 rounded-md px-1.5 py-0.5">
                             <GraduationCap className="h-3 w-3" />
                             {user.teacherCount ?? 0} معلم
                           </span>
@@ -1529,9 +1530,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 {/* Stats for teacher */}
                 {selectedUser.role === 'teacher' && (
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-center">
-                      <p className="text-lg font-bold text-emerald-700">{selectedUser.subjectCount ?? 0}</p>
-                      <p className="text-xs text-emerald-600">مقرر دراسي</p>
+                    <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-center">
+                      <p className="text-lg font-bold text-teal-700">{selectedUser.subjectCount ?? 0}</p>
+                      <p className="text-xs text-teal-600">مقرر دراسي</p>
                     </div>
                     <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-center">
                       <p className="text-lg font-bold text-teal-700">{selectedUser.studentCount ?? 0}</p>
@@ -1543,25 +1544,25 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 {/* Stats for student */}
                 {selectedUser.role === 'student' && (
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg bg-purple-50 border border-purple-200 p-3 text-center">
-                      <p className="text-lg font-bold text-purple-700">{selectedUser.teacherCount ?? 0}</p>
-                      <p className="text-xs text-purple-600">معلم مربوط</p>
+                    <div className="rounded-lg bg-sky-50 border border-sky-200 p-3 text-center">
+                      <p className="text-lg font-bold text-sky-800">{selectedUser.teacherCount ?? 0}</p>
+                      <p className="text-xs text-sky-700">معلم مربوط</p>
                     </div>
-                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-center">
-                      <p className="text-lg font-bold text-emerald-700">{selectedUser.subjectCount ?? 0}</p>
-                      <p className="text-xs text-emerald-600">مقرر دراسي</p>
+                    <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-center">
+                      <p className="text-lg font-bold text-teal-700">{selectedUser.subjectCount ?? 0}</p>
+                      <p className="text-xs text-teal-600">مقرر دراسي</p>
                     </div>
                   </div>
                 )}
 
                 {/* Role change section - not for self */}
                 {!isSelf(selectedUser.id) && (
-                  <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-4">
+                  <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <Shield className="h-4 w-4 text-purple-500" />
-                      <span className="text-sm font-semibold text-purple-600">تغيير الدور</span>
+                      <Shield className="h-4 w-4 text-sky-600" />
+                      <span className="text-sm font-semibold text-sky-700">تغيير الدور</span>
                     </div>
-                    <p className="text-xs text-purple-600 mb-3">
+                    <p className="text-xs text-sky-700 mb-3">
                       تغيير دور المستخدم في المنصة
                     </p>
                     <div className="flex gap-2 flex-wrap">
@@ -1578,8 +1579,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                             disabled={changingRole || selectedUser.role === role}
                             className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                               selectedUser.role === role
-                                ? 'bg-purple-600 text-white cursor-default'
-                                : 'border border-purple-200 text-purple-700 hover:bg-purple-100 disabled:opacity-50'
+                                ? 'bg-sky-700 text-white cursor-default'
+                                : 'border border-sky-200 text-sky-800 hover:bg-sky-100 disabled:opacity-50'
                             }`}
                           >
                             {changingRole ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -1648,7 +1649,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         <button
                           onClick={() => handleUnbanUser(selectedUser.email, userBan?.id)}
                           disabled={unbanningEmail === selectedUser.email}
-                          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                          className="flex items-center gap-2 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-800 transition-colors disabled:opacity-60"
                         >
                           {unbanningEmail === selectedUser.email ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2001,7 +2002,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="flex items-start gap-3 mb-3">
                     <div
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-110"
-                      style={{ backgroundColor: subject.color ? `${subject.color}20` : '#ecfdf5', color: subject.color || '#059669' }}
+                      style={{ backgroundColor: subject.color ? `${subject.color}20` : '#f0f9ff', color: subject.color || '#0369a1' }}
                     >
                       <BookOpen className="h-5 w-5" />
                     </div>
@@ -2041,7 +2042,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleViewSubject(subject)}
-                        className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium"
+                        className="flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 font-medium"
                       >
                         <Eye className="h-3.5 w-3.5" />
                         عرض
@@ -2110,7 +2111,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <div className="flex items-center gap-3">
                   <div
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                    style={{ backgroundColor: selectedSubject.color ? `${selectedSubject.color}20` : '#ecfdf5', color: selectedSubject.color || '#059669' }}
+                    style={{ backgroundColor: selectedSubject.color ? `${selectedSubject.color}20` : '#f0f9ff', color: selectedSubject.color || '#0369a1' }}
                   >
                     <BookOpen className="h-5 w-5" />
                   </div>
@@ -2133,7 +2134,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <div className="p-5 space-y-4">
                 {loadingSubjectDetail ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                    <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
                   </div>
                 ) : (
                   <>
@@ -2242,7 +2243,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         </div>
         <button
           onClick={fetchBannedUsers}
-          className="flex items-center gap-2 rounded-lg border border-purple-200 px-3 py-2 text-xs font-medium text-purple-700 hover:bg-purple-50 transition-colors"
+          className="flex items-center gap-2 rounded-lg border border-sky-200 px-3 py-2 text-xs font-medium text-sky-800 hover:bg-sky-50 transition-colors"
         >
           <Loader2 className={`h-3.5 w-3.5 ${loadingBanned ? 'animate-spin' : 'hidden'}`} />
           تحديث
@@ -2355,7 +2356,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       <button
                         onClick={() => handleUnbanUser(banned.email, banned.id)}
                         disabled={unbanningEmail === banned.email}
-                        className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                        className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-800 transition-colors disabled:opacity-60"
                       >
                         {unbanningEmail === banned.email ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2395,7 +2396,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       switch (p) {
         case 'urgent': return 'bg-rose-100 text-rose-700 border-rose-200';
         case 'high': return 'bg-amber-100 text-amber-700 border-amber-200';
-        case 'normal': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+        case 'normal': return 'bg-sky-100 text-sky-700 border-sky-200';
         case 'low': return 'bg-gray-100 text-gray-700 border-gray-200';
         default: return 'bg-gray-100 text-gray-700 border-gray-200';
       }
@@ -2411,7 +2412,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           </div>
           <button
             onClick={() => setCreateAnnouncementOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-700"
+            className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
             إعلان جديد
@@ -2421,16 +2422,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {announcements.length === 0 ? (
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-purple-300 bg-purple-50/30 py-16"
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-purple-100 mb-4">
-              <Megaphone className="h-8 w-8 text-purple-600" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+              <Megaphone className="h-8 w-8 text-sky-700" />
             </div>
             <p className="text-lg font-semibold text-foreground mb-1">لا توجد إعلانات</p>
             <p className="text-sm text-muted-foreground mb-4">ابدأ بإنشاء إعلان جديد للمستخدمين</p>
             <button
               onClick={() => setCreateAnnouncementOpen(true)}
-              className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-700"
+              className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
             >
               <Plus className="h-4 w-4" />
               إنشاء إعلان
@@ -2442,8 +2443,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <motion.div key={ann.id} variants={itemVariants}>
                 <div className={`group rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow ${!ann.is_active ? 'opacity-60' : ''}`}>
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-100 transition-transform group-hover:scale-110">
-                      <Megaphone className="h-5 w-5 text-purple-600" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 transition-transform group-hover:scale-110">
+                      <Megaphone className="h-5 w-5 text-sky-700" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
@@ -2468,7 +2469,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="flex items-center gap-2 mt-3 pt-3 border-t">
                     <button
                       onClick={() => handleToggleAnnouncement(ann.id, ann.is_active)}
-                      className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors border-purple-200 text-purple-700 hover:bg-purple-50"
+                      className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors border-sky-200 text-sky-800 hover:bg-sky-50"
                     >
                       {ann.is_active ? (
                         <>
@@ -2522,7 +2523,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               >
                 <div className="flex items-center justify-between border-b p-5">
                   <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    <Megaphone className="h-5 w-5 text-purple-600" />
+                    <Megaphone className="h-5 w-5 text-sky-700" />
                     إعلان جديد
                   </h3>
                   <button
@@ -2541,7 +2542,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       value={newAnnTitle}
                       onChange={(e) => setNewAnnTitle(e.target.value)}
                       placeholder="عنوان الإعلان..."
-                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-colors"
+                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                       disabled={creatingAnnouncement}
                       dir="rtl"
                     />
@@ -2554,7 +2555,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       onChange={(e) => setNewAnnContent(e.target.value)}
                       placeholder="محتوى الإعلان..."
                       rows={4}
-                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 transition-colors resize-none"
+                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
                       disabled={creatingAnnouncement}
                       dir="rtl"
                     />
@@ -2570,7 +2571,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           disabled={creatingAnnouncement}
                           className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                             newAnnPriority === p
-                              ? 'border-purple-500 bg-purple-50 text-purple-700'
+                              ? 'border-sky-600 bg-sky-50 text-sky-800'
                               : 'border-border text-muted-foreground hover:bg-muted/50'
                           }`}
                         >
@@ -2583,7 +2584,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <button
                     onClick={handleCreateAnnouncement}
                     disabled={creatingAnnouncement || !newAnnTitle.trim() || !newAnnContent.trim()}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-purple-700 transition-colors disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-800 transition-colors disabled:opacity-60"
                   >
                     {creatingAnnouncement ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2623,7 +2624,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <div className="flex items-center gap-3">
           <button
             onClick={handleExportReport}
-            className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-700 whitespace-nowrap"
+            className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 whitespace-nowrap"
           >
             <Download className="h-4 w-4" />
             تصدير التقرير
@@ -2636,21 +2637,21 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Active Lectures */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-emerald-400 to-emerald-600" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-sky-500 to-sky-700" />
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
-                <Radio className="h-5 w-5 text-emerald-600" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100">
+                <Radio className="h-5 w-5 text-sky-700" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                   المحاضرات النشطة
                   <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-600" />
                   </span>
                 </p>
                 <p className="text-2xl font-bold text-foreground">
-                  {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-emerald-600 inline" /> : (usageStats?.activeLectures ?? 0)}
+                  {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 inline" /> : (usageStats?.activeLectures ?? 0)}
                 </p>
               </div>
             </div>
@@ -2672,7 +2673,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-teal-600 inline" /> : (usageStats?.activeUsers ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.activeUsers >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.activeUsers >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
                       {usageStats.changes.activeUsers >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.activeUsers)}%
                     </span>
@@ -2698,7 +2699,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-amber-600 inline" /> : (usageStats?.newRegistrations ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.newRegistrations >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.newRegistrations >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
                       {usageStats.changes.newRegistrations >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.newRegistrations)}%
                     </span>
@@ -2712,19 +2713,19 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Attendance Sessions */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-purple-400 to-purple-600" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-700" />
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-100">
-                <ClipboardList className="h-5 w-5 text-purple-600" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100">
+                <ClipboardList className="h-5 w-5 text-sky-700" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground">جلسات الحضور ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
-                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-purple-600 inline" /> : (usageStats?.attendanceSessions ?? 0)}
+                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 inline" /> : (usageStats?.attendanceSessions ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.attendanceSessions >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.attendanceSessions >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
                       {usageStats.changes.attendanceSessions >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.attendanceSessions)}%
                     </span>
@@ -2750,7 +2751,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-rose-600 inline" /> : (usageStats?.quizzesTaken ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.quizzesTaken >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.quizzesTaken >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
                       {usageStats.changes.quizzesTaken >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.quizzesTaken)}%
                     </span>
@@ -2776,7 +2777,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-600 inline" /> : (usageStats?.lecturesCreated ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.lecturesCreated >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.lecturesCreated >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
                       {usageStats.changes.lecturesCreated >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.lecturesCreated)}%
                     </span>
@@ -2802,7 +2803,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-orange-600 inline" /> : (usageStats?.assignmentsCreated ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.assignmentsCreated >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.assignmentsCreated >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
                       {usageStats.changes.assignmentsCreated >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.assignmentsCreated)}%
                     </span>
@@ -2824,7 +2825,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               onClick={() => setUsagePeriod(p)}
               className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
                 usagePeriod === p
-                  ? 'border-purple-500 bg-purple-50 text-purple-700 shadow-sm'
+                  ? 'border-sky-600 bg-sky-50 text-sky-800 shadow-sm'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -2840,7 +2841,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm p-5">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-purple-600" />
+              <BarChart3 className="h-4 w-4 text-sky-700" />
               النشاط اليومي
               <span className="text-xs font-normal text-muted-foreground mr-1">آخر 30 يوم</span>
             </h3>
@@ -2878,7 +2879,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     />
                     <Bar dataKey="users" name="تسجيلات جديدة" fill="#f59e0b" radius={[2, 2, 0, 0]} />
                     <Bar dataKey="sessions" name="جلسات حضور" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="quizzes" name="اختبارات" fill="#10b981" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="quizzes" name="اختبارات" fill="#0284c7" radius={[2, 2, 0, 0]} />
                     <Legend wrapperStyle={{ fontSize: '12px', direction: 'rtl' }} />
                   </RechartsBarChart>
                 </ResponsiveContainer>
@@ -2984,7 +2985,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       dataKey="value"
                       label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
                     >
-                      <Cell fill="#10b981" />
+                      <Cell fill="#0284c7" />
                       <Cell fill="#14b8a6" />
                       <Cell fill="#f59e0b" />
                       <Cell fill="#ef4444" />
@@ -3040,7 +3041,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       return (
                         <div className="space-y-2">
                           <div className="flex items-center gap-3">
-                            <div className="h-3 w-3 rounded-full bg-emerald-500 shrink-0" />
+                            <div className="h-3 w-3 rounded-full bg-sky-600 shrink-0" />
                             <span className="text-sm text-muted-foreground flex-1">ممتاز (90%+)</span>
                             <span className="text-sm font-bold text-foreground">{excellent}</span>
                             <span className="text-xs text-muted-foreground">({total > 0 ? Math.round((excellent / total) * 100) : 0}%)</span>
@@ -3100,7 +3101,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="flex items-center justify-between border-b p-4">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
+              <TrendingUp className="h-4 w-4 text-sky-700" />
               إحصائيات تفصيلية
             </h3>
             <span className="text-xs text-muted-foreground">مقارنة مع الفترة السابقة</span>
@@ -3135,7 +3136,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </td>
                       <td className="p-3 text-center">
                         {usageStats.changes && (
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.activeUsers >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.activeUsers >= 0 ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>
                             {usageStats.changes.activeUsers >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                             {Math.abs(usageStats.changes.activeUsers)}%
                           </span>
@@ -3159,7 +3160,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </td>
                       <td className="p-3 text-center">
                         {usageStats.changes && (
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.newRegistrations >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.newRegistrations >= 0 ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>
                             {usageStats.changes.newRegistrations >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                             {Math.abs(usageStats.changes.newRegistrations)}%
                           </span>
@@ -3169,8 +3170,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <tr className="hover:bg-muted/30 transition-colors">
                       <td className="p-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-100">
-                            <ClipboardList className="h-3.5 w-3.5 text-purple-600" />
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                            <ClipboardList className="h-3.5 w-3.5 text-sky-700" />
                           </div>
                           <span className="text-sm font-medium text-foreground">جلسات الحضور</span>
                         </div>
@@ -3183,7 +3184,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </td>
                       <td className="p-3 text-center">
                         {usageStats.changes && (
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.attendanceSessions >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.attendanceSessions >= 0 ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>
                             {usageStats.changes.attendanceSessions >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                             {Math.abs(usageStats.changes.attendanceSessions)}%
                           </span>
@@ -3193,8 +3194,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <tr className="hover:bg-muted/30 transition-colors">
                       <td className="p-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                            <Award className="h-3.5 w-3.5 text-emerald-600" />
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                            <Award className="h-3.5 w-3.5 text-sky-700" />
                           </div>
                           <span className="text-sm font-medium text-foreground">الاختبارات المؤدّاة</span>
                         </div>
@@ -3207,7 +3208,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </td>
                       <td className="p-3 text-center">
                         {usageStats.changes && (
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.quizzesTaken >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.quizzesTaken >= 0 ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>
                             {usageStats.changes.quizzesTaken >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                             {Math.abs(usageStats.changes.quizzesTaken)}%
                           </span>
@@ -3228,8 +3229,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           {usageStats.activeLectures}
                           {usageStats.activeLectures > 0 && (
                             <span className="relative flex h-2.5 w-2.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-600" />
                             </span>
                           )}
                         </span>
@@ -3238,7 +3239,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         <span className="text-xs text-muted-foreground">—</span>
                       </td>
                       <td className="p-3 text-center">
-                        <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold bg-emerald-100 text-emerald-700">
+                        <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold bg-sky-100 text-sky-700">
                           مباشر
                         </span>
                       </td>
@@ -3268,17 +3269,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <motion.div variants={itemVariants}>
         <div className="rounded-xl border bg-card shadow-sm p-5">
           <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-purple-600" />
+            <BarChart3 className="h-4 w-4 text-sky-700" />
             ملخص إحصائيات المنصة
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="text-center p-3 rounded-lg bg-purple-50 border border-purple-100">
-              <p className="text-2xl font-bold text-purple-700">{allUsers.length}</p>
-              <p className="text-xs text-purple-600 mt-1">مستخدم</p>
+            <div className="text-center p-3 rounded-lg bg-sky-50 border border-sky-100">
+              <p className="text-2xl font-bold text-sky-800">{allUsers.length}</p>
+              <p className="text-xs text-sky-700 mt-1">مستخدم</p>
             </div>
-            <div className="text-center p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-              <p className="text-2xl font-bold text-emerald-700">{allSubjects.length}</p>
-              <p className="text-xs text-emerald-600 mt-1">مقرر</p>
+            <div className="text-center p-3 rounded-lg bg-sky-50 border border-sky-100">
+              <p className="text-2xl font-bold text-sky-700">{allSubjects.length}</p>
+              <p className="text-xs text-sky-700 mt-1">مقرر</p>
             </div>
             <div className="text-center p-3 rounded-lg bg-teal-50 border border-teal-100">
               <p className="text-2xl font-bold text-teal-700">{totalQuizzes}</p>
@@ -3297,12 +3298,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-purple-100">
-                <Shield className="h-5 w-5 text-purple-600" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                <Shield className="h-5 w-5 text-sky-700" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">المشرفون</p>
-                <p className="text-2xl font-bold text-purple-700">{adminCount}</p>
+                <p className="text-2xl font-bold text-sky-800">{adminCount}</p>
               </div>
             </div>
           </div>
@@ -3311,12 +3312,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                <GraduationCap className="h-5 w-5 text-emerald-600" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                <GraduationCap className="h-5 w-5 text-sky-700" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">المعلمون</p>
-                <p className="text-2xl font-bold text-emerald-700">{teacherCount}</p>
+                <p className="text-2xl font-bold text-sky-800">{teacherCount}</p>
               </div>
             </div>
           </div>
@@ -3367,7 +3368,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
-      <main className={`flex-1 pt-14 sm:pt-16 transition-all duration-300 pl-0 ${
+      <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 pl-0 ${
         sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
       }`}>
         <div className="mx-auto max-w-6xl p-3 md:p-8">
@@ -3422,6 +3423,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           )}
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav
+        role={profile.role as 'admin' | 'superadmin'}
+        activeSection={activeSection}
+        onSectionChange={handleSectionChange}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+      />
     </div>
   );
 }

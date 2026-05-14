@@ -91,14 +91,14 @@ function getNotifIcon(type: string, title?: string) {
   }
   switch (type) {
     case 'assignment': return <ClipboardList className="h-4 w-4 text-amber-600" />;
-    case 'grade': return <Award className="h-4 w-4 text-emerald-600" />;
+    case 'grade': return <Award className="h-4 w-4 text-teal-600" />;
     case 'enrollment': return <BookOpen className="h-4 w-4 text-teal-600" />;
     case 'file_request': return <FileText className="h-4 w-4 text-orange-600" />;
     case 'file': return <FileText className="h-4 w-4 text-blue-600" />;
     case 'attendance': return <UserCheck className="h-4 w-4 text-violet-600" />;
     case 'lecture': return <BookOpen className="h-4 w-4 text-teal-600" />;
     case 'chat': return <Bell className="h-4 w-4 text-sky-600" />;
-    default: return <Info className="h-4 w-4 text-purple-600" />;
+    default: return <Info className="h-4 w-4 text-sky-700" />;
   }
 }
 
@@ -554,7 +554,7 @@ export default function NotificationBell() {
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-50 transition-colors"
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-sky-700 hover:bg-sky-50 transition-colors"
                   >
                     <CheckCheck className="h-3.5 w-3.5" />
                     تعيين الكل كمقروء
@@ -590,11 +590,11 @@ export default function NotificationBell() {
                       layout
                       onClick={() => handleNotificationClick(notif)}
                       className={`group flex items-start gap-3 p-3 cursor-pointer transition-colors hover:bg-muted/30 ${
-                        !notif.read ? 'bg-emerald-50/30' : ''
+                        !notif.read ? 'bg-sky-50/30' : ''
                       } ${notif.link ? 'hover:bg-muted/50' : ''}`}
                     >
                       <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        !notif.read ? 'bg-emerald-100' : 'bg-muted/50'
+                        !notif.read ? 'bg-sky-100' : 'bg-muted/50'
                       }`}>
                         {getNotifIcon(notif.type, notif.title)}
                       </div>
@@ -611,7 +611,7 @@ export default function NotificationBell() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {!notif.read && (
-                          <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                          <div className="h-2 w-2 rounded-full bg-teal-500" />
                         )}
                         <button
                           onClick={(e) => {
@@ -665,7 +665,7 @@ export default function NotificationBell() {
             >
               <div className="flex flex-col items-center text-center">
                 {linkRequestModal.loading ? (
-                  <Loader2 className="h-12 w-12 text-emerald-500 animate-spin mb-4" />
+                  <Loader2 className="h-12 w-12 text-sky-500 animate-spin mb-4" />
                 ) : (
                   <>
                     <UserAvatar name={linkRequestModal.teacher?.name || 'معلم'} avatarUrl={linkRequestModal.teacher?.avatar_url} size="lg" />
@@ -677,7 +677,7 @@ export default function NotificationBell() {
                       <button
                         onClick={handleAcceptLinkRequest}
                         disabled={processingAction}
-                        className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
                       >
                         {processingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                         قبول

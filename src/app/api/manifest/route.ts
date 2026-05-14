@@ -77,7 +77,7 @@ export async function GET() {
     orientation: 'portrait-primary' as const,
     dir: 'rtl' as const,
     lang: 'ar',
-    theme_color: '#059669',
+    theme_color: '#0369a1',
     background_color: '#ffffff',
     scope: '/',
     icons: [

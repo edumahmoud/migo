@@ -22,7 +22,7 @@ export function getPasswordStrength(password: string): {
   if (score <= 1) return { score, label: 'ضعيفة', color: 'bg-red-500' };
   if (score <= 2) return { score, label: 'متوسطة', color: 'bg-yellow-500' };
   if (score <= 3) return { score, label: 'جيدة', color: 'bg-blue-500' };
-  return { score, label: 'قوية', color: 'bg-emerald-500' };
+  return { score, label: 'قوية', color: 'bg-sky-600' };
 }
 
 /**
@@ -56,7 +56,7 @@ export function scorePercentage(score: number, total: number): number {
  * Duplicated in admin-dashboard.tsx and teacher-dashboard.tsx
  */
 export function pctColorClass(pct: number): string {
-  if (pct >= 90) return 'text-emerald-700 bg-emerald-100';
+  if (pct >= 90) return 'text-sky-800 bg-sky-100';
   if (pct >= 75) return 'text-teal-700 bg-teal-100';
   if (pct >= 60) return 'text-amber-700 bg-amber-100';
   return 'text-rose-700 bg-rose-100';

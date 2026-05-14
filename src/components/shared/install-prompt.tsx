@@ -91,7 +91,7 @@ export default function InstallPrompt() {
           className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md sm:bottom-6 sm:left-auto sm:right-6"
           dir="rtl"
         >
-          <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-xl sm:p-5">
+          <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-xl sm:p-5">
             <button
               onClick={handleDismiss}
               className="absolute top-3 left-3 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/50 transition-colors"
@@ -101,8 +101,8 @@ export default function InstallPrompt() {
             </button>
 
             <div className="flex items-start gap-3 pr-2">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100">
-                <Smartphone className="h-6 w-6 text-emerald-600" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-100">
+                <Smartphone className="h-6 w-6 text-sky-700" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-foreground">تثبيت أتيندو</h3>
@@ -111,7 +111,7 @@ export default function InstallPrompt() {
                 </p>
                 <button
                   onClick={handleInstall}
-                  className="mt-3 flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 transition-colors"
+                  className="mt-3 flex items-center gap-2 rounded-xl bg-sky-700 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-sky-800 active:bg-sky-900 transition-colors"
                 >
                   <Download className="h-3.5 w-3.5" />
                   تثبيت التطبيق

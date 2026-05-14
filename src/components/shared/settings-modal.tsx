@@ -240,7 +240,7 @@ export default function SettingsModal({
       <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir="rtl">
         <DialogHeader className="text-right">
           <DialogTitle className="flex items-center gap-2 text-right">
-            <Settings className="h-5 w-5 text-emerald-600" />
+            <Settings className="h-5 w-5 text-sky-700" />
             الإعدادات
           </DialogTitle>
           <DialogDescription className="text-right">
@@ -258,7 +258,7 @@ export default function SettingsModal({
             custom={0}
           >
             <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-emerald-600" />
+              <User className="h-4 w-4 text-sky-700" />
               <h3 className="text-sm font-semibold text-foreground">الملف الشخصي</h3>
             </div>
 
@@ -271,10 +271,10 @@ export default function SettingsModal({
                     <img
                       src={profile.avatar_url}
                       alt={profile.name}
-                      className="h-16 w-16 rounded-full object-cover border-2 border-emerald-200"
+                      className="h-16 w-16 rounded-full object-cover border-2 border-sky-200"
                     />
                   ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-lg border-2 border-emerald-200">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-sky-800 font-bold text-lg border-2 border-sky-200">
                       {initials || 'م'}
                     </div>
                   )}
@@ -338,7 +338,7 @@ export default function SettingsModal({
             <div className="space-y-2">
               <Label className="text-sm text-muted-foreground">الدور</Label>
               <div>
-                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                <Badge className="bg-sky-100 text-sky-800 border-sky-200">
                   {roleLabel}
                 </Badge>
               </div>
@@ -356,7 +356,7 @@ export default function SettingsModal({
             custom={1}
           >
             <div className="flex items-center gap-2">
-              <Lock className="h-4 w-4 text-emerald-600" />
+              <Lock className="h-4 w-4 text-sky-700" />
               <h3 className="text-sm font-semibold text-foreground">تغيير كلمة المرور</h3>
             </div>
 
@@ -441,7 +441,7 @@ export default function SettingsModal({
             <Button
               onClick={handleChangePassword}
               disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+              className="bg-sky-700 hover:bg-sky-800 text-white gap-2"
             >
               {isChangingPassword ? (
                 <span className="flex items-center gap-2">
@@ -526,7 +526,7 @@ export default function SettingsModal({
           <Button
             onClick={handleSave}
             disabled={isUpdating || name === profile.name}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+            className="bg-sky-700 hover:bg-sky-800 text-white gap-2"
           >
             {isUpdating ? (
               <span className="flex items-center gap-2">

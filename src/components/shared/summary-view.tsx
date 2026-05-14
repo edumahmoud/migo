@@ -474,7 +474,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           <Button
             onClick={() => fetchSummary()}
             variant="outline"
-            className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
           >
             <RefreshCw className="h-4 w-4" />
             إعادة المحاولة
@@ -482,7 +482,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           <Button
             onClick={onBack}
             variant="outline"
-            className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
           >
             <ChevronLeft className="h-4 w-4" />
             العودة
@@ -498,7 +498,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   if (loading) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" dir="rtl">
-        <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+        <Loader2 className="h-10 w-10 animate-spin text-sky-700" />
         <p className="text-muted-foreground text-sm">جاري تحميل الملخص...</p>
       </div>
     );
@@ -531,7 +531,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       <motion.div variants={fadeInUp} className="flex items-start gap-3">
         <button
           onClick={onBack}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 text-sky-800 hover:bg-sky-50 transition-colors"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
@@ -548,11 +548,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             onClick={handleCopyContent}
             variant="outline"
             size="sm"
-            className="gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 print:hidden"
+            className="gap-1.5 border-sky-300 text-sky-800 hover:bg-sky-50 print:hidden"
             title="نسخ المحتوى"
           >
             {copied ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              <CheckCircle2 className="h-4 w-4 text-sky-600" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
@@ -563,7 +563,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             onClick={handlePrint}
             variant="outline"
             size="sm"
-            className="gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 print:hidden"
+            className="gap-1.5 border-sky-300 text-sky-800 hover:bg-sky-50 print:hidden"
           >
             <Printer className="h-4 w-4" />
             <span className="hidden sm:inline">طباعة</span>
@@ -573,19 +573,19 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
       {/* Summary content card */}
       <motion.div variants={fadeInUp}>
-        <Card className={`${isTranscribed ? 'border-teal-200' : 'border-emerald-200'} bg-white shadow-sm print:shadow-none print:border-none`}>
+        <Card className={`${isTranscribed ? 'border-teal-200' : 'border-sky-200'} bg-white shadow-sm print:shadow-none print:border-none`}>
           <CardContent className="p-6 sm:p-8">
             {/* Decorative header */}
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-emerald-100 print:hidden">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-sky-100 print:hidden">
               <div className="flex items-center gap-3">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isTranscribed ? 'bg-teal-100' : 'bg-emerald-100'}`}>
-                  {isTranscribed ? <BookOpen className="h-5 w-5 text-teal-600" /> : <Sparkles className="h-5 w-5 text-emerald-600" />}
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isTranscribed ? 'bg-teal-100' : 'bg-sky-100'}`}>
+                  {isTranscribed ? <BookOpen className="h-5 w-5 text-teal-600" /> : <Sparkles className="h-5 w-5 text-sky-700" />}
                 </div>
                 <div>
-                  <h2 className={`text-sm font-bold ${isTranscribed ? 'text-teal-700' : 'text-emerald-700'}`}>
+                  <h2 className={`text-sm font-bold ${isTranscribed ? 'text-teal-700' : 'text-sky-800'}`}>
                     {isTranscribed ? 'النص المفرّغ' : 'الملخص'}
                   </h2>
-                  <p className={`text-xs ${isTranscribed ? 'text-teal-600/70' : 'text-emerald-600/70'}`}>
+                  <p className={`text-xs ${isTranscribed ? 'text-teal-600/70' : 'text-sky-700/70'}`}>
                     {isTranscribed
                       ? sourceFileType === 'docx'
                         ? 'تم استخراج النص من ملف Word'
@@ -608,7 +608,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   disabled={regenerating}
                   variant="ghost"
                   size="sm"
-                  className="gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                  className="gap-1.5 text-sky-700 hover:text-sky-800 hover:bg-sky-50"
                 title="إعادة التلخيص"
               >
                 {regenerating ? (
@@ -642,7 +642,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             {/* Markdown content with RTL typography */}
             {regenerating ? (
               <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
                 <p className="text-sm text-muted-foreground">جاري إعادة توليد الملخص...</p>
               </div>
             ) : refining ? (

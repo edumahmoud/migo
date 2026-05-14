@@ -14,6 +14,7 @@ import { useInstitutionStore } from '@/stores/institution-store';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import NotificationBell from '@/components/shared/notification-bell';
 import UserAvatar from '@/components/shared/user-avatar';
+import ThemeToggle from '@/components/shared/theme-toggle';
 
 // -------------------------------------------------------
 // Props
@@ -164,7 +165,7 @@ export default function AppHeader({
                   <span className="text-sm font-semibold text-foreground truncate max-w-[140px]">
                     {userName}
                   </span>
-                  <span className="text-xs text-emerald-600 font-medium">
+                  <span className="text-xs text-sky-700 font-medium">
                     {roleLabel}
                   </span>
                 </div>
@@ -197,7 +198,7 @@ export default function AppHeader({
                   {/* User info in dropdown */}
                   <div className="border-b px-4 py-3 bg-muted/20">
                     <p className="text-sm font-semibold text-foreground truncate">{userName}</p>
-                    <p className="text-xs text-emerald-600 font-medium mt-0.5">{roleLabel}</p>
+                    <p className="text-xs text-sky-700 font-medium mt-0.5">{roleLabel}</p>
                   </div>
 
                   <div className="py-1">
@@ -221,6 +222,7 @@ export default function AppHeader({
                       <Settings className="h-4 w-4 text-muted-foreground" />
                       الإعدادات
                     </button>
+                    <ThemeToggle />
                     <button
                       onClick={() => {
                         setDropdownOpen(false);
@@ -296,13 +298,13 @@ function HeaderLogo() {
       <img
         src={institution.logo_url}
         alt={institution.name}
-        className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-xl object-cover border border-emerald-200 shadow-sm"
+        className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-xl object-cover border border-sky-200 shadow-sm"
       />
     );
   }
 
   return (
-    <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 shadow-sm">
+    <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-sky-700 shadow-sm">
       <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
     </div>
   );
@@ -320,11 +322,11 @@ function HeaderTitle() {
 
   return (
     <div className="flex flex-col min-w-0">
-      <h1 className="text-base sm:text-lg font-bold text-emerald-600 whitespace-nowrap truncate max-w-[180px] sm:max-w-[250px]">
+      <h1 className="text-base sm:text-lg font-bold text-sky-700 whitespace-nowrap truncate max-w-[180px] sm:max-w-[250px]">
         {loaded ? (institution?.name || 'أتيندو') : '\u00A0'}
       </h1>
       {loaded && institution?.tagline && (
-        <span className="text-[10px] sm:text-xs text-emerald-600/60 whitespace-nowrap truncate max-w-[180px] sm:max-w-[250px] -mt-0.5">
+        <span className="text-[10px] sm:text-xs text-sky-700/60 whitespace-nowrap truncate max-w-[180px] sm:max-w-[250px] -mt-0.5">
           {institution.tagline}
         </span>
       )}

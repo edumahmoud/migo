@@ -105,9 +105,9 @@ export default function UserAvatar({ name, avatarUrl, size = 'md', className = '
   }, [avatarUrl]);
 
   return (
-    <Avatar className={`${sizeMap[size]} border-2 border-emerald-200 shrink-0 ${className}`}>
+    <Avatar className={`${sizeMap[size]} border-2 border-sky-200 shrink-0 ${className}`}>
       {cacheBustedUrl && <AvatarImage src={cacheBustedUrl} alt={name} />}
-      <AvatarFallback className="bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-700 font-bold select-none">
+      <AvatarFallback className="bg-gradient-to-br from-sky-100 to-teal-100 text-sky-800 font-bold select-none">
         {initials || <User className={iconSizeMap[size]} />}
       </AvatarFallback>
     </Avatar>

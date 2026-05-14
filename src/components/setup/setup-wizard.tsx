@@ -53,7 +53,7 @@ function getPasswordStrength(password: string) {
   if (score <= 1) return { score, label: 'ضعيفة', color: 'bg-red-500' };
   if (score <= 2) return { score, label: 'متوسطة', color: 'bg-yellow-500' };
   if (score <= 3) return { score, label: 'جيدة', color: 'bg-blue-500' };
-  return { score, label: 'قوية', color: 'bg-emerald-500' };
+  return { score, label: 'قوية', color: 'bg-teal-500' };
 }
 
 // ─── Step Indicator ───
@@ -79,9 +79,9 @@ function StepIndicator({ currentStep, showMigration }: { currentStep: WizardStep
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-all duration-300 ${
                   isDone
-                    ? 'bg-emerald-500 text-white'
+                    ? 'bg-sky-600 text-white'
                     : isActive
-                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                    ? 'bg-sky-700 text-white shadow-lg shadow-sky-500/30'
                     : 'bg-white/20 text-white/60'
                 }`}
               >
@@ -89,7 +89,7 @@ function StepIndicator({ currentStep, showMigration }: { currentStep: WizardStep
               </div>
               <span
                 className={`text-xs font-medium transition-colors ${
-                  isActive ? 'text-white' : isDone ? 'text-emerald-200' : 'text-white/50'
+                  isActive ? 'text-white' : isDone ? 'text-sky-200' : 'text-white/50'
                 }`}
               >
                 {step.label}
@@ -98,7 +98,7 @@ function StepIndicator({ currentStep, showMigration }: { currentStep: WizardStep
             {idx < steps.length - 1 && (
               <div
                 className={`h-0.5 w-8 rounded-full transition-colors ${
-                  idx < currentIndex ? 'bg-emerald-400' : 'bg-white/20'
+                  idx < currentIndex ? 'bg-sky-400' : 'bg-white/20'
                 }`}
               />
             )}
@@ -431,7 +431,7 @@ $$;`;
             <GraduationCap className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-white">تهيئة قاعدة البيانات</h2>
-          <p className="text-emerald-100 mt-2 text-sm">يجب إنشاء جدول المؤسسة في قاعدة البيانات قبل البدء</p>
+          <p className="text-sky-100 mt-2 text-sm">يجب إنشاء جدول المؤسسة في قاعدة البيانات قبل البدء</p>
         </div>
 
         <div className="rounded-xl bg-amber-500/20 border border-amber-400/30 p-3 text-xs text-amber-100 flex items-start gap-2">
@@ -440,7 +440,7 @@ $$;`;
         </div>
 
         <div className="relative">
-          <pre className="rounded-xl bg-black/30 border border-white/10 p-4 text-xs text-emerald-200 overflow-x-auto max-h-64 overflow-y-auto font-mono" dir="ltr">
+          <pre className="rounded-xl bg-black/30 border border-white/10 p-4 text-xs text-sky-200 overflow-x-auto max-h-64 overflow-y-auto font-mono" dir="ltr">
             {migrationSQL}
           </pre>
           <Button
@@ -492,12 +492,12 @@ $$;`;
           <User className="h-8 w-8 text-white" />
         </div>
         <h2 className="text-2xl font-bold text-white">إنشاء حساب مدير المنصة</h2>
-        <p className="text-emerald-100 mt-2 text-sm">هذا الحساب سيكون المدير الرئيسي للنظام بصلاحيات كاملة</p>
+        <p className="text-sky-100 mt-2 text-sm">هذا الحساب سيكون المدير الرئيسي للنظام بصلاحيات كاملة</p>
       </div>
 
       {/* Admin Name */}
       <div className="space-y-1.5">
-        <Label className="text-emerald-100 font-medium text-sm">اسم المدير</Label>
+        <Label className="text-sky-100 font-medium text-sm">اسم المدير</Label>
         <div className="relative">
           <Input
             type="text"
@@ -514,7 +514,7 @@ $$;`;
 
       {/* Admin Email */}
       <div className="space-y-1.5">
-        <Label className="text-emerald-100 font-medium text-sm">البريد الإلكتروني</Label>
+        <Label className="text-sky-100 font-medium text-sm">البريد الإلكتروني</Label>
         <div className="relative">
           <Input
             type="email"
@@ -532,7 +532,7 @@ $$;`;
 
       {/* Admin Password */}
       <div className="space-y-1.5">
-        <Label className="text-emerald-100 font-medium text-sm">كلمة المرور</Label>
+        <Label className="text-sky-100 font-medium text-sm">كلمة المرور</Label>
         <div className="relative">
           <Input
             type={showPassword ? 'text' : 'password'}
@@ -569,7 +569,7 @@ $$;`;
 
       {/* Confirm Password */}
       <div className="space-y-1.5">
-        <Label className="text-emerald-100 font-medium text-sm">تأكيد كلمة المرور</Label>
+        <Label className="text-sky-100 font-medium text-sm">تأكيد كلمة المرور</Label>
         <div className="relative">
           <Input
             type={showConfirmPassword ? 'text' : 'password'}
@@ -636,16 +636,16 @@ $$;`;
         className="space-y-5"
       >
         <div className="text-center mb-6">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-teal-500 shadow-lg">
             <Building2 className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-white">بيانات المؤسسة</h2>
-          <p className="text-emerald-100 mt-2 text-sm">أدخل بيانات مؤسستك التعليمية لتهيئة النظام</p>
+          <p className="text-sky-100 mt-2 text-sm">أدخل بيانات مؤسستك التعليمية لتهيئة النظام</p>
         </div>
 
         {/* Institution Type Selector */}
         <div className="space-y-2">
-          <Label className="text-emerald-100 font-medium text-sm">نوع المؤسسة</Label>
+          <Label className="text-sky-100 font-medium text-sm">نوع المؤسسة</Label>
           <div className="grid grid-cols-3 gap-3">
             {institutionTypes.map(({ key, label, icon }) => (
               <button
@@ -667,14 +667,14 @@ $$;`;
 
         {/* Institution Name (Arabic) */}
         <div className="space-y-1.5">
-          <Label className="text-emerald-100 font-medium text-sm">اسم المؤسسة <span className="text-red-300">*</span></Label>
+          <Label className="text-sky-100 font-medium text-sm">اسم المؤسسة <span className="text-red-300">*</span></Label>
           <div className="relative">
             <Input
               type="text"
               placeholder={`اسم ال${institutionType === 'center' ? 'سنتر' : institutionType === 'school' ? 'مدرسة' : 'الجامعة'}`}
               value={institutionName}
               onChange={(e) => setInstitutionName(e.target.value)}
-              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
               disabled={savingInstitution}
             />
             <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
@@ -683,14 +683,14 @@ $$;`;
 
         {/* Institution Name (English) */}
         <div className="space-y-1.5">
-          <Label className="text-emerald-100 font-medium text-sm">اسم المؤسسة بالإنجليزية</Label>
+          <Label className="text-sky-100 font-medium text-sm">اسم المؤسسة بالإنجليزية</Label>
           <div className="relative">
             <Input
               type="text"
               placeholder="Institution Name"
               value={institutionNameEn}
               onChange={(e) => setInstitutionNameEn(e.target.value)}
-              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
               disabled={savingInstitution}
               dir="ltr"
             />
@@ -700,47 +700,47 @@ $$;`;
 
         {/* Tagline */}
         <div className="space-y-1.5">
-          <Label className="text-emerald-100 font-medium text-sm">شعار المؤسسة (Tagline)</Label>
+          <Label className="text-sky-100 font-medium text-sm">شعار المؤسسة (Tagline)</Label>
           <div className="relative">
             <Input
               type="text"
               placeholder="عبارة قصيرة تصف المؤسسة..."
               value={institutionTagline}
               onChange={(e) => setInstitutionTagline(e.target.value)}
-              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
               disabled={savingInstitution}
               maxLength={200}
             />
             <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
           </div>
-          <p className="text-[10px] text-emerald-200/60">عبارة وصفية قصيرة تظهر بجانب اسم المؤسسة</p>
+          <p className="text-[10px] text-sky-200/60">عبارة وصفية قصيرة تظهر بجانب اسم المؤسسة</p>
         </div>
 
         {/* Country + City */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-emerald-100 font-medium text-sm">الدولة</Label>
+            <Label className="text-sky-100 font-medium text-sm">الدولة</Label>
             <div className="relative">
               <Input
                 type="text"
                 placeholder="الدولة"
                 value={institutionCountry}
                 onChange={(e) => setInstitutionCountry(e.target.value)}
-                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
                 disabled={savingInstitution}
               />
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-emerald-100 font-medium text-sm">المدينة</Label>
+            <Label className="text-sky-100 font-medium text-sm">المدينة</Label>
             <div className="relative">
               <Input
                 type="text"
                 placeholder="المدينة"
                 value={institutionCity}
                 onChange={(e) => setInstitutionCity(e.target.value)}
-                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
                 disabled={savingInstitution}
               />
             </div>
@@ -749,14 +749,14 @@ $$;`;
 
         {/* Address */}
         <div className="space-y-1.5">
-          <Label className="text-emerald-100 font-medium text-sm">العنوان</Label>
+          <Label className="text-sky-100 font-medium text-sm">العنوان</Label>
           <div className="relative">
             <Input
               type="text"
               placeholder="العنوان التفصيلي"
               value={institutionAddress}
               onChange={(e) => setInstitutionAddress(e.target.value)}
-              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+              className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
               disabled={savingInstitution}
             />
           </div>
@@ -765,14 +765,14 @@ $$;`;
         {/* Phone + Email */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-emerald-100 font-medium text-sm">رقم الهاتف</Label>
+            <Label className="text-sky-100 font-medium text-sm">رقم الهاتف</Label>
             <div className="relative">
               <Input
                 type="tel"
                 placeholder="+966 5x xxx xxxx"
                 value={institutionPhone}
                 onChange={(e) => setInstitutionPhone(e.target.value)}
-                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
                 disabled={savingInstitution}
                 dir="ltr"
               />
@@ -780,14 +780,14 @@ $$;`;
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-emerald-100 font-medium text-sm">البريد الإلكتروني</Label>
+            <Label className="text-sky-100 font-medium text-sm">البريد الإلكتروني</Label>
             <div className="relative">
               <Input
                 type="email"
                 placeholder="info@institution.com"
                 value={institutionEmail}
                 onChange={(e) => setInstitutionEmail(e.target.value)}
-                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
                 disabled={savingInstitution}
                 dir="ltr"
               />
@@ -799,14 +799,14 @@ $$;`;
         {/* Website + Academic Year */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-emerald-100 font-medium text-sm">الموقع الإلكتروني</Label>
+            <Label className="text-sky-100 font-medium text-sm">الموقع الإلكتروني</Label>
             <div className="relative">
               <Input
                 type="url"
                 placeholder="www.institution.com"
                 value={institutionWebsite}
                 onChange={(e) => setInstitutionWebsite(e.target.value)}
-                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
                 disabled={savingInstitution}
                 dir="ltr"
               />
@@ -814,14 +814,14 @@ $$;`;
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-emerald-100 font-medium text-sm">العام الدراسي</Label>
+            <Label className="text-sky-100 font-medium text-sm">العام الدراسي</Label>
             <div className="relative">
               <Input
                 type="text"
                 placeholder="2025/2026"
                 value={institutionAcademicYear}
                 onChange={(e) => setInstitutionAcademicYear(e.target.value)}
-                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20"
+                className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
                 disabled={savingInstitution}
                 dir="ltr"
               />
@@ -832,12 +832,12 @@ $$;`;
 
         {/* Description */}
         <div className="space-y-1.5">
-          <Label className="text-emerald-100 font-medium text-sm">وصف المؤسسة</Label>
+          <Label className="text-sky-100 font-medium text-sm">وصف المؤسسة</Label>
           <textarea
             placeholder="نبذة مختصرة عن المؤسسة..."
             value={institutionDescription}
             onChange={(e) => setInstitutionDescription(e.target.value)}
-            className="w-full rounded-xl border border-white/20 bg-white/10 text-white placeholder:text-white/40 focus:border-emerald-400 focus:ring-emerald-400/20 px-3 py-2.5 text-sm resize-none h-20"
+            className="w-full rounded-xl border border-white/20 bg-white/10 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20 px-3 py-2.5 text-sm resize-none h-20"
             disabled={savingInstitution}
           />
         </div>
@@ -848,7 +848,7 @@ $$;`;
             type="button"
             variant="outline"
             onClick={() => setStep('admin-account')}
-            className="flex-1 h-11 border-emerald-400/50 text-emerald-100 hover:bg-emerald-500/20 hover:text-white hover:border-emerald-300/70"
+            className="flex-1 h-11 border-sky-400/50 text-sky-100 hover:bg-sky-500/20 hover:text-white hover:border-sky-300/70"
           >
             <ArrowRight className="h-4 w-4 ml-1" />
             رجوع
@@ -856,7 +856,7 @@ $$;`;
           <Button
             onClick={handleSaveInstitution}
             disabled={savingInstitution}
-            className="flex-[2] h-11 text-base font-bold bg-gradient-to-l from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-500/25 transition-all duration-300 rounded-xl"
+            className="flex-[2] h-11 text-base font-bold bg-gradient-to-l from-sky-600 to-teal-500 hover:from-sky-700 hover:to-teal-600 shadow-lg shadow-sky-500/25 transition-all duration-300 rounded-xl"
           >
             {savingInstitution ? (
               <>
@@ -888,14 +888,14 @@ $$;`;
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-        className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-400 to-teal-500 shadow-2xl shadow-emerald-500/30"
+        className="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-500 to-teal-500 shadow-2xl shadow-sky-500/30"
       >
         <CheckCircle2 className="h-12 w-12 text-white" />
       </motion.div>
 
       <div>
         <h2 className="text-3xl font-bold text-white mb-2">تم الإعداد بنجاح! 🎉</h2>
-        <p className="text-emerald-100 text-lg">
+        <p className="text-sky-100 text-lg">
           تم تهيئة نظام <span className="font-bold text-amber-300">{institutionName}</span> بنجاح
         </p>
       </div>
@@ -919,7 +919,7 @@ $$;`;
 
       <Button
         onClick={onComplete}
-        className="w-full h-12 text-base font-bold bg-gradient-to-l from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-500/25 transition-all duration-300 rounded-xl"
+        className="w-full h-12 text-base font-bold bg-gradient-to-l from-sky-600 to-teal-500 hover:from-sky-700 hover:to-teal-600 shadow-lg shadow-sky-500/25 transition-all duration-300 rounded-xl"
       >
         <span>ابدأ استخدام النظام</span>
         <ArrowLeft className="h-5 w-5 mr-1" />
@@ -928,12 +928,12 @@ $$;`;
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-emerald-700 via-teal-800 to-emerald-900" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-800 via-teal-800 to-sky-900" dir="rtl">
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-400/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/3 left-1/3 w-72 h-72 bg-emerald-400/10 rounded-full blur-2xl" />
+        <div className="absolute top-1/3 left-1/3 w-72 h-72 bg-sky-400/10 rounded-full blur-2xl" />
       </div>
 
       <div className="relative z-10 w-full max-w-lg">
@@ -943,7 +943,7 @@ $$;`;
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-6"
         >
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg shadow-sky-500/30">
             <GraduationCap className="h-7 w-7 text-white" />
           </div>
           <h1 className="text-xl font-bold text-white">تهيئة النظام لأول مرة</h1>

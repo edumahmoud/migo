@@ -258,7 +258,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
       </div>
     );
   }
@@ -271,7 +271,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           icon={<BookOpen className="h-5 w-5" />}
           label="المحاضرات"
           value={stats.totalLectures}
-          color="emerald"
+          color="ocean"
         />
         <StatCard
           icon={<Users className="h-5 w-5" />}
@@ -300,7 +300,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-emerald-600" />
+                <BookOpen className="h-4 w-4 text-sky-700" />
                 أحدث المحاضرات
               </h3>
             </div>
@@ -313,8 +313,8 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                 <div className="divide-y">
                   {recentLectures.map((lecture) => (
                     <div key={lecture.id} className="flex items-center gap-3 p-4">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                        <BookOpen className="h-4 w-4 text-emerald-600" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                        <BookOpen className="h-4 w-4 text-sky-700" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{lecture.title}</p>
@@ -323,7 +323,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                             <Calendar className="h-3 w-3" />
                             {formatDate(lecture.lecture_date)}
                             {(lecture.description?.match(/__LECTURE_TIME__:([0-9]{1,2}:[0-9]{2})__/) || [])[1] && (
-                              <span className="text-emerald-700 font-medium flex items-center gap-0.5">
+                              <span className="text-sky-800 font-medium flex items-center gap-0.5">
                                 <Clock className="h-3 w-3" />
                                 {(() => {
                                   const t = lecture.description!.match(/__LECTURE_TIME__:([0-9]{1,2}:[0-9]{2})__/)![1];
@@ -374,7 +374,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                         </p>
                       </div>
                       {file.category && (
-                        <span className="shrink-0 rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[10px] font-medium">
+                        <span className="shrink-0 rounded-full bg-sky-100 text-sky-800 px-2 py-0.5 text-[10px] font-medium">
                           {file.category}
                         </span>
                       )}
@@ -395,13 +395,13 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <UserCog className="h-4 w-4 text-emerald-600" />
+                <UserCog className="h-4 w-4 text-sky-700" />
                 المعلمون المشاركون
               </h3>
               {isOwner && (
                 <button
                   onClick={() => setAddCoTeacherOpen(true)}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+                  className="flex items-center gap-1.5 rounded-lg bg-sky-50 border border-sky-200 px-3 py-1.5 text-xs font-medium text-sky-800 hover:bg-sky-100 transition-colors"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
                   إضافة معلم مشارك
@@ -429,7 +429,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
 
               {loadingCoTeachers ? (
                 <div className="flex items-center justify-center py-6">
-                  <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+                  <Loader2 className="h-5 w-5 animate-spin text-sky-700" />
                 </div>
               ) : coTeachers.length === 0 ? (
                 <div className="py-6 text-center text-muted-foreground text-sm">
@@ -462,10 +462,10 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                           <button
                             type="button"
                             onClick={() => openProfile(ct.teacher_id)}
-                            className="text-sm font-medium text-foreground hover:text-emerald-600 transition-colors"
+                            className="text-sm font-medium text-foreground hover:text-sky-700 transition-colors"
                           >
                             {titleLabel && (
-                              <span className="text-emerald-600 ml-0.5 text-xs font-normal">{titleLabel}</span>
+                              <span className="text-sky-700 ml-0.5 text-xs font-normal">{titleLabel}</span>
                             )}
                             {ct.teacher_name || 'معلم'}
                           </button>
@@ -480,7 +480,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                         <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
                           ct.role === 'owner'
                             ? 'bg-amber-100 text-amber-700'
-                            : 'bg-emerald-100 text-emerald-700'
+                            : 'bg-sky-100 text-sky-800'
                         }`}>
                           {ct.role === 'owner' ? (
                             <><Shield className="h-3 w-3" /> مالك</>
@@ -601,7 +601,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             {/* Header */}
             <div className="flex items-center justify-between border-b px-6 pt-5 pb-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
                   <UserPlus className="h-5 w-5" />
                 </div>
                 <div>
@@ -628,7 +628,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                   value={teacherCodeInput}
                   onChange={(e) => setTeacherCodeInput(e.target.value.toUpperCase())}
                   placeholder="أدخل كود المعلم (مثال: ABC123)"
-                  className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all font-mono tracking-wider"
+                  className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all font-mono tracking-wider"
                   dir="ltr"
                   disabled={addingCoTeacher}
                   onKeyDown={(e) => {
@@ -644,7 +644,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
               <button
                 onClick={handleAddCoTeacher}
                 disabled={addingCoTeacher || !teacherCodeInput.trim()}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700 active:scale-[0.98]"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-700 py-2.5 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-sky-800 active:scale-[0.98]"
               >
                 {addingCoTeacher ? (
                   <>

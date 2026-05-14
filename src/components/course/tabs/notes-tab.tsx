@@ -469,7 +469,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
         variants={itemVariants}
         className={`rounded-xl border bg-card shadow-sm hover:shadow-md transition-all overflow-hidden ${
           note.visibility === 'public' && isGeneral
-            ? 'border-emerald-200/60'
+            ? 'border-sky-200/60'
             : note.visibility === 'public'
               ? 'border-amber-200/60'
               : 'border-muted'
@@ -482,7 +482,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       >
         {/* Top bar for public general notes */}
         {note.visibility === 'public' && isGeneral && (
-          <div className="h-1 bg-emerald-500" />
+          <div className="h-1 bg-sky-600" />
         )}
 
         <div className="p-4">
@@ -493,7 +493,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               {note.visibility === 'public' ? (
                 <Badge
                   variant="outline"
-                  className="text-[10px] border-emerald-300 bg-emerald-50 text-emerald-700"
+                  className="text-[10px] border-sky-300 bg-sky-50 text-sky-800"
                 >
                   <Globe className="h-2.5 w-2.5 ml-1" />
                   {isGeneral ? 'إعلان' : 'عامة'}
@@ -588,7 +588,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
         {role === 'teacher' && (
           <button
             onClick={() => { setShowCreateForm(true); setEditingNoteId(null); setNoteContent(''); setNoteVisibility('public'); setNoteLectureId(''); }}
-            className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-[0.97]"
+            className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]"
           >
             <Plus className="h-4 w-4" />
             ملاحظة جديدة
@@ -606,10 +606,10 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
             transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/30 p-4 space-y-3">
+            <div className="rounded-xl border-2 border-sky-200 bg-sky-50/30 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <StickyNote className="h-4 w-4 text-emerald-600" />
+                  <StickyNote className="h-4 w-4 text-sky-700" />
                   {editingNoteId ? 'تعديل الملاحظة' : 'كتابة ملاحظة جديدة'}
                 </h4>
                 <button
@@ -627,7 +627,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   onClick={() => setNoteVisibility('public')}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                     noteVisibility === 'public'
-                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                      ? 'bg-sky-100 text-sky-800 border border-sky-200'
                       : 'text-muted-foreground hover:bg-muted border border-transparent'
                   }`}
                 >
@@ -654,7 +654,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   <select
                     value={noteLectureId}
                     onChange={(e) => setNoteLectureId(e.target.value)}
-                    className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                    className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                     dir="rtl"
                   >
                     <option value="">بدون محاضرة (ملاحظة عامة)</option>
@@ -673,7 +673,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                 onChange={(e) => setNoteContent(e.target.value)}
                 placeholder={noteVisibility === 'public' ? 'اكتب ملاحظة أو إعلان يراه جميع الطلاب...' : 'اكتب ملاحظتك الخاصة هنا...'}
                 rows={4}
-                className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors resize-none"
+                className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
                 dir="rtl"
                 disabled={savingNote}
                 autoFocus
@@ -684,7 +684,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                 <button
                   onClick={handleSaveNote}
                   disabled={savingNote || !noteContent.trim()}
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
+                  className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60"
                 >
                   {savingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : noteVisibility === 'public' ? <Send className="h-3 w-3" /> : <StickyNote className="h-3 w-3" />}
                   {editingNoteId ? 'تحديث' : noteVisibility === 'public' ? 'نشر للطلاب' : 'حفظ كمسودة'}
@@ -704,12 +704,12 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       {/* Notes content */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         </div>
       ) : visibleNotes.length === 0 ? (
-        <motion.div variants={itemVariants} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/30 py-20">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-100 mb-5">
-            <StickyNote className="h-10 w-10 text-emerald-600" />
+        <motion.div variants={itemVariants} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 bg-sky-50/30 py-20">
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 mb-5">
+            <StickyNote className="h-10 w-10 text-sky-700" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1">لا توجد ملاحظات بعد</p>
           <p className="text-sm text-muted-foreground">
@@ -722,9 +722,9 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           {generalNotes.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Megaphone className="h-4 w-4 text-emerald-600" />
+                <Megaphone className="h-4 w-4 text-sky-700" />
                 <h4 className="text-sm font-bold text-foreground">إعلانات وملاحظات عامة</h4>
-                <Badge variant="outline" className="text-[10px] border-emerald-200 bg-emerald-50 text-emerald-700">
+                <Badge variant="outline" className="text-[10px] border-sky-200 bg-sky-50 text-sky-800">
                   {generalNotes.length}
                 </Badge>
               </div>
@@ -772,7 +772,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
             >
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-emerald-600" />
+                  <Eye className="h-4 w-4 text-sky-700" />
                   مشاهدي الملاحظة
                 </h4>
                 <button

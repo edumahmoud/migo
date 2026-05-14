@@ -886,7 +886,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         );
       case 'graded':
         return (
-          <span className={`inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-700 font-medium ${sizeClasses}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-medium ${sizeClasses}`}>
             <CheckCircle2 className={size === 'sm' ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
             تم التقييم
           </span>
@@ -932,7 +932,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
   // -------------------------------------------------------
   const getScoreColor = (score: number, maxScore: number) => {
     const pct = (score / maxScore) * 100;
-    if (pct >= 80) return 'text-emerald-600';
+    if (pct >= 80) return 'text-sky-700';
     if (pct >= 60) return 'text-amber-600';
     return 'text-rose-600';
   };
@@ -953,7 +953,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         {role === 'teacher' && (
           <button
             onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+            className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
             إنشاء مهمة
@@ -969,7 +969,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           onClick={() => setActiveTab('active')}
           className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-all ${
             activeTab === 'active'
-              ? 'bg-emerald-600 text-white shadow-sm'
+              ? 'bg-sky-700 text-white shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted'
           }`}
         >
@@ -1012,7 +1012,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               onClick={() => setSubmissionFilter(opt.key)}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                 submissionFilter === opt.key
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-sky-700 text-white shadow-sm'
                   : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
@@ -1025,15 +1025,15 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       {/* Assignments grid */}
       {loadingAssignments ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         </div>
       ) : displayAssignments.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-            <ClipboardList className="h-8 w-8 text-emerald-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+            <ClipboardList className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
             {submissionFilter !== 'all'
@@ -1073,7 +1073,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 >
                   {/* Top accent bar */}
                   <div className={`absolute top-0 right-0 left-0 h-1.5 rounded-t-xl ${
-                    pastDue ? 'bg-rose-500' : countdown?.urgent ? 'bg-amber-500' : 'bg-emerald-500'
+                    pastDue ? 'bg-rose-500' : countdown?.urgent ? 'bg-amber-500' : 'bg-sky-600'
                   }`} />
 
                   {/* Teacher actions */}
@@ -1081,7 +1081,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     <div className="absolute top-3 left-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); openEditModal(assignment); }}
-                        className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600"
+                        className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700"
                         title="تعديل"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1103,10 +1103,10 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
 
                   <div className="flex items-center gap-3 mb-3 mt-1">
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                      pastDue ? 'bg-rose-100' : countdown?.urgent ? 'bg-amber-100' : 'bg-emerald-100'
+                      pastDue ? 'bg-rose-100' : countdown?.urgent ? 'bg-amber-100' : 'bg-sky-100'
                     }`}>
                       <ClipboardList className={`h-5 w-5 ${
-                        pastDue ? 'text-rose-600' : countdown?.urgent ? 'text-amber-600' : 'text-emerald-600'
+                        pastDue ? 'text-rose-600' : countdown?.urgent ? 'text-amber-600' : 'text-sky-700'
                       }`} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -1133,7 +1133,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                         <Calendar className="h-3 w-3" />
                         {formatDateTime(assignment.due_date)}
                         {!pastDue && countdown && (
-                          <span className={`font-medium ${countdown.urgent ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          <span className={`font-medium ${countdown.urgent ? 'text-amber-600' : 'text-sky-700'}`}>
                             ({countdown.text})
                           </span>
                         )}
@@ -1238,7 +1238,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         </div>
         <button
           onClick={() => openEditModal(selectedAssignment!)}
-          className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
         >
           <Pencil className="h-3 w-3" />
           تعديل المهمة
@@ -1255,15 +1255,15 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         )}
         <div className="flex items-center gap-4 flex-wrap text-sm">
           <div className="flex items-center gap-1.5">
-            <Award className="h-4 w-4 text-emerald-600" />
+            <Award className="h-4 w-4 text-sky-700" />
             <span className="text-muted-foreground">الدرجة القصوى:</span>
             <span className="font-semibold text-foreground">{selectedAssignment!.max_score}</span>
           </div>
           <div className="flex items-center gap-1.5">
             {selectedAssignment!.allow_file_submission ? (
               <>
-                <FileText className="h-4 w-4 text-emerald-600" />
-                <span className="text-emerald-600 font-medium">يسمح برفع ملفات</span>
+                <FileText className="h-4 w-4 text-sky-700" />
+                <span className="text-sky-700 font-medium">يسمح برفع ملفات</span>
               </>
             ) : (
               <>
@@ -1278,7 +1278,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       {/* Submissions list */}
       <motion.div variants={itemVariants}>
         <h3 className="text-lg font-bold text-foreground flex items-center gap-2 mb-4">
-          <Users className="h-5 w-5 text-emerald-600" />
+          <Users className="h-5 w-5 text-sky-700" />
           التسليمات
           {submissions.length > 0 && (
             <span className="text-xs font-normal text-muted-foreground bg-muted rounded-full px-2 py-0.5">
@@ -1289,12 +1289,12 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
 
         {loadingSubmissions ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+            <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
           </div>
         ) : submissions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-12">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 mb-3">
-              <Users className="h-7 w-7 text-emerald-600" />
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-12">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 mb-3">
+              <Users className="h-7 w-7 text-sky-700" />
             </div>
             <p className="text-base font-semibold text-foreground mb-1">لا توجد تسليمات بعد</p>
             <p className="text-sm text-muted-foreground">سيظهر تسليمات الطلاب هنا</p>
@@ -1346,7 +1346,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                           setGradeScore('');
                           setGradeFeedback('');
                         }}
-                        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+                        className="flex items-center gap-1 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
                       >
                         <Award className="h-3 w-3" />
                         تقييم
@@ -1369,7 +1369,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                           const { data } = await supabase.from('user_files').select('file_url, file_name').eq('id', sub.file_id!).single();
                           if (data) window.open((data as { file_url: string }).file_url, '_blank');
                         }}
-                        className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 rounded-lg px-2.5 py-1.5 w-fit hover:bg-emerald-100 transition-colors"
+                        className="flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 transition-colors"
                       >
                         <FileText className="h-3 w-3" />
                         معاينة الملف
@@ -1380,7 +1380,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   {gradingSubmissionId === sub.id && (
                     <div className="col-span-12 mt-2 rounded-lg border bg-muted/30 p-3 space-y-3">
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <Award className="h-4 w-4 text-emerald-600" />
+                        <Award className="h-4 w-4 text-sky-700" />
                         تقييم تسليم {sub.student_name}
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1393,7 +1393,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                             value={gradeScore}
                             onChange={(e) => setGradeScore(e.target.value)}
                             placeholder={`0 - ${selectedAssignment!.max_score}`}
-                            className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                            className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                             dir="ltr"
                           />
                         </div>
@@ -1404,7 +1404,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                             onChange={(e) => setGradeFeedback(e.target.value)}
                             placeholder="أضف ملاحظاتك هنا..."
                             rows={2}
-                            className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors resize-none"
+                            className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
                             dir="rtl"
                           />
                         </div>
@@ -1413,7 +1413,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                         <button
                           onClick={() => handleSaveGrade(sub.id)}
                           disabled={savingGrade}
-                          className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
+                          className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60"
                         >
                           {savingGrade ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
@@ -1482,7 +1482,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     {formatDateTime(selectedAssignment!.due_date)}
                     {pastDue && <span className="font-medium">(انتهى)</span>}
                     {!pastDue && countdown && (
-                      <span className={`font-medium ${countdown.urgent ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      <span className={`font-medium ${countdown.urgent ? 'text-amber-600' : 'text-sky-700'}`}>
                         ({countdown.text} متبقي)
                       </span>
                     )}
@@ -1507,15 +1507,15 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           )}
           <div className="flex items-center gap-4 flex-wrap text-sm">
             <div className="flex items-center gap-1.5">
-              <Award className="h-4 w-4 text-emerald-600" />
+              <Award className="h-4 w-4 text-sky-700" />
               <span className="text-muted-foreground">الدرجة القصوى:</span>
               <span className="font-semibold text-foreground">{selectedAssignment!.max_score}</span>
             </div>
             <div className="flex items-center gap-1.5">
               {selectedAssignment!.allow_file_submission ? (
                 <>
-                  <FileText className="h-4 w-4 text-emerald-600" />
-                  <span className="text-emerald-600 font-medium">يسمح برفع ملفات</span>
+                  <FileText className="h-4 w-4 text-sky-700" />
+                  <span className="text-sky-700 font-medium">يسمح برفع ملفات</span>
                 </>
               ) : (
                 <>
@@ -1549,19 +1549,19 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   const { data } = await supabase.from('user_files').select('file_url, file_name').eq('id', mySub.file_id!).single();
                   if (data) window.open((data as { file_url: string }).file_url, '_blank');
                 }}
-                className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 rounded-lg px-2.5 py-1.5 w-fit hover:bg-emerald-100 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 transition-colors"
               >
                 <FileText className="h-3 w-3" />
                 معاينة الملف
               </button>
             )}
             {mySub.score !== undefined && mySub.score !== null && selectedAssignment!.show_grade !== false && (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50">
-                <Award className="h-4 w-4 text-emerald-600" />
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-sky-50">
+                <Award className="h-4 w-4 text-sky-700" />
                 <span className={`text-sm font-bold ${getScoreColor(mySub.score, selectedAssignment!.max_score)}`}>
                   {mySub.score} / {selectedAssignment!.max_score}
                 </span>
-                <span className="text-xs text-emerald-600">
+                <span className="text-xs text-sky-700">
                   ({Math.round((mySub.score / selectedAssignment!.max_score) * 100)}%)
                 </span>
               </div>
@@ -1586,7 +1586,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 onClick={() => setSubmitMode('text')}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                   submitMode === 'text'
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                    ? 'border-sky-600 bg-sky-50 text-sky-800'
                     : 'border-border text-muted-foreground hover:bg-muted/50'
                 }`}
               >
@@ -1599,7 +1599,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     onClick={() => setSubmitMode('upload')}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                       submitMode === 'upload'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        ? 'border-sky-600 bg-sky-50 text-sky-800'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1610,7 +1610,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     onClick={() => { setSubmitMode('existing'); fetchMyFiles(); }}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                       submitMode === 'existing'
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        ? 'border-sky-600 bg-sky-50 text-sky-800'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1628,7 +1628,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 onChange={(e) => setSubmitContent(e.target.value)}
                 placeholder="اكتب إجابتك هنا..."
                 rows={5}
-                className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-none"
+                className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none"
                 dir="rtl"
                 disabled={submitting}
               />
@@ -1641,12 +1641,12 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
-                  isDragOver ? 'border-emerald-500 bg-emerald-50/50' : 'border-muted-foreground/20 hover:border-emerald-300'
+                  isDragOver ? 'border-sky-600 bg-sky-50/50' : 'border-muted-foreground/20 hover:border-sky-300'
                 }`}
               >
                 {submitFile ? (
                   <div className="flex items-center gap-3 justify-center">
-                    <FileText className="h-8 w-8 text-emerald-600" />
+                    <FileText className="h-8 w-8 text-sky-700" />
                     <div className="text-right">
                       <p className="text-sm font-medium text-foreground">{submitFile.name}</p>
                       <p className="text-xs text-muted-foreground">{(submitFile.size / 1024).toFixed(1)} KB</p>
@@ -1664,7 +1664,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     <p className="text-sm text-muted-foreground">اسحب الملف هنا أو</p>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="mt-2 text-sm font-medium text-emerald-600 hover:text-emerald-700"
+                      className="mt-2 text-sm font-medium text-sky-700 hover:text-sky-800"
                     >
                       اختر ملف
                     </button>
@@ -1701,19 +1701,19 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                       onClick={() => setSelectedExistingFile(selectedExistingFile?.id === file.id ? null : file)}
                       className={`w-full flex items-center gap-3 rounded-lg border p-3 text-right transition-all ${
                         selectedExistingFile?.id === file.id
-                          ? 'border-emerald-500 bg-emerald-50'
+                          ? 'border-sky-600 bg-sky-50'
                           : 'hover:bg-muted/50'
                       }`}
                     >
                       <FileText className={`h-5 w-5 shrink-0 ${
-                        selectedExistingFile?.id === file.id ? 'text-emerald-600' : 'text-muted-foreground'
+                        selectedExistingFile?.id === file.id ? 'text-sky-700' : 'text-muted-foreground'
                       }`} />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
                         <p className="text-xs text-muted-foreground">{(file.file_size / 1024).toFixed(1)} KB</p>
                       </div>
                       {selectedExistingFile?.id === file.id && (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <CheckCircle2 className="h-4 w-4 text-sky-700 shrink-0" />
                       )}
                     </button>
                   ))
@@ -1724,7 +1724,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
             <button
               onClick={handleSubmit}
               disabled={submitting || (submitMode === 'text' && !submitContent.trim() && !submitFile) || (submitMode === 'upload' && !submitFile) || (submitMode === 'existing' && !selectedExistingFile)}
-              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60"
+              className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               تسليم
@@ -1775,7 +1775,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-emerald-600" />
+                  <ClipboardList className="h-5 w-5 text-sky-700" />
                   {mode === 'create' ? 'إنشاء مهمة جديدة' : 'تعديل المهمة'}
                 </h3>
                 <button onClick={() => { if (!isProcessing) setIsOpen(false); }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
@@ -1789,7 +1789,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     <select
                       value={newSubjectId}
                       onChange={(e) => setNewSubjectId(e.target.value)}
-                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30"
                       dir="rtl"
                       disabled={isProcessing}
                     >
@@ -1802,34 +1802,34 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 )}
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المهمة</label>
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: واجب الفصل الثاني" className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" dir="rtl" disabled={isProcessing} />
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: واجب الفصل الثاني" className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir="rtl" disabled={isProcessing} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
-                  <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="وصف المهمة..." rows={3} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-none" dir="rtl" disabled={isProcessing} />
+                  <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="وصف المهمة..." rows={3} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none" dir="rtl" disabled={isProcessing} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                    <Calendar className="h-3.5 w-3.5 text-sky-700" />
                     الموعد النهائي (التاريخ والوقت)
                   </label>
-                  <input type="datetime-local" value={dueDatetime} onChange={(e) => setDueDatetime(e.target.value)} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" dir="ltr" disabled={isProcessing} required />
+                  <input type="datetime-local" value={dueDatetime} onChange={(e) => setDueDatetime(e.target.value)} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir="ltr" disabled={isProcessing} required />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">الدرجة القصوى</label>
-                    <input type="number" min={1} value={maxScore} onChange={(e) => setMaxScore(Number(e.target.value))} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30" dir="ltr" disabled={isProcessing} />
+                    <input type="number" min={1} value={maxScore} onChange={(e) => setMaxScore(Number(e.target.value))} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir="ltr" disabled={isProcessing} />
                   </div>
                   <div className="flex items-end">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={allowFile} onChange={(e) => setAllowFile(e.target.checked)} className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500" disabled={isProcessing} />
+                      <input type="checkbox" checked={allowFile} onChange={(e) => setAllowFile(e.target.checked)} className="h-4 w-4 rounded border-sky-300 text-sky-700 focus:ring-sky-600" disabled={isProcessing} />
                       <span className="text-sm font-medium text-foreground">السماح برفع ملفات</span>
                     </label>
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-3 border-t p-5">
-                <button onClick={onSubmit} disabled={isProcessing} className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60">
+                <button onClick={onSubmit} disabled={isProcessing} className="flex items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-800 disabled:opacity-60">
                   {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'create' ? <Plus className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                   {mode === 'create' ? 'إنشاء المهمة' : 'حفظ التعديلات'}
                 </button>

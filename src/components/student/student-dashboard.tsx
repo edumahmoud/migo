@@ -38,6 +38,7 @@ import { supabase } from '@/lib/supabase';
 import { waitForSession as waitForSessionShared, getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
+import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import StatCard from '@/components/shared/stat-card';
 import SubjectsSection from '@/components/shared/subjects-section';
 import PersonalFilesSection from '@/components/shared/personal-files-section';
@@ -2290,7 +2291,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           icon={<FileText className="h-5 w-5" />}
           label="ملخصات"
           value={summaries.length}
-          color="emerald"
+          color="sky"
         />
         <StatCard
           icon={<Folder className="h-5 w-5" />}
@@ -2313,12 +2314,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-emerald-600" />
+                <BookOpen className="h-4 w-4 text-sky-700" />
                 أحدث الملخصات
               </h3>
               <button
                 onClick={() => setActiveSection('summaries')}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                className="text-xs text-sky-700 hover:text-sky-800 font-medium flex items-center gap-1"
               >
                 عرض الكل
                 <ChevronLeft className="h-3 w-3" />
@@ -2327,16 +2328,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             <div className="max-h-80 overflow-y-auto custom-scrollbar">
               {/* Pending summaries banner */}
               {pendingSummaries.length > 0 && (
-                <div className="p-3 border-b bg-emerald-50/50">
+                <div className="p-3 border-b bg-sky-50/50">
                   {pendingSummaries.map(ps => (
-                    <div key={ps.id} className="flex items-center gap-2 text-xs text-emerald-700 py-1">
+                    <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 py-1">
                       {ps.status !== 'cancelled' ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         <XCircle className="h-3.5 w-3.5 text-rose-400" />
                       )}
                       <span className="font-medium">{ps.title}</span>
-                      <span className="text-emerald-600/70">
+                      <span className="text-sky-600/70">
                         {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
                         {ps.status === 'summarizing' && '• توليد الملخص...'}
                         {ps.status === 'saving' && '• حفظ...'}
@@ -2368,8 +2369,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       onClick={() => setViewingSummaryId(summary.id)}
                       className="flex w-full items-start gap-3 p-4 text-right transition-colors"
                     >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                        <FileText className="h-4 w-4 text-emerald-600" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                        <FileText className="h-4 w-4 text-sky-700" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{summary.title}</p>
@@ -2406,7 +2407,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     const pct = scorePercentage(score.score, score.total);
                     const pctColor =
                       pct >= 80
-                        ? 'text-emerald-700 bg-emerald-100'
+                        ? 'text-teal-700 bg-teal-50'
                         : pct >= 60
                           ? 'text-amber-700 bg-amber-100'
                           : 'text-rose-700 bg-rose-100';
@@ -2449,7 +2450,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         </div>
         <button
           onClick={() => setNewSummaryOpen(true)}
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+          className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <Plus className="h-4 w-4" />
           ملخص جديد
@@ -2458,17 +2459,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
       {/* Pending summaries progress */}
       {pendingSummaries.length > 0 && (
-        <motion.div variants={itemVariants} className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+        <motion.div variants={itemVariants} className="rounded-xl border border-sky-200 bg-sky-50/50 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-            <span className="text-sm font-medium text-emerald-700">
+            <Loader2 className="h-4 w-4 animate-spin text-sky-700" />
+            <span className="text-sm font-medium text-sky-800">
               جاري إنشاء {pendingSummaries.length} ملخص...
             </span>
           </div>
           {pendingSummaries.map(ps => (
-            <div key={ps.id} className="flex items-center gap-2 text-xs text-emerald-700 py-1 mr-6">
+            <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 py-1 mr-6">
               <span className="font-medium">{ps.title}</span>
-              <span className="text-emerald-600/70">
+              <span className="text-sky-600/70">
                 {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
                 {ps.status === 'summarizing' && '• توليد الملخص...'}
                 {ps.status === 'saving' && '• حفظ...'}
@@ -2493,16 +2494,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {summaries.length === 0 && pendingSummaries.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-            <FileText className="h-8 w-8 text-emerald-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+            <FileText className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملخصات</p>
           <p className="text-sm text-muted-foreground mb-4">ابدأ بإنشاء ملخصك الأول من محتوى دراسي</p>
           <button
             onClick={() => setNewSummaryOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
+            className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
             إنشاء ملخص
@@ -2550,8 +2551,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   className="w-full text-right"
                 >
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 transition-transform group-hover:scale-110">
-                      <FileText className="h-5 w-5 text-emerald-600" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 transition-transform group-hover:scale-110">
+                      <FileText className="h-5 w-5 text-sky-700" />
                     </div>
                     <h3 className="font-semibold text-foreground truncate">{summary.title}</h3>
                   </div>
@@ -2716,7 +2717,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-emerald-600" />
+                  <FileText className="h-5 w-5 text-sky-700" />
                   ملخص جديد
                 </h3>
                 <button
@@ -2737,7 +2738,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     value={summaryTitle}
                     onChange={(e) => setSummaryTitle(e.target.value)}
                     placeholder="مثال: ملخص الفصل الثالث - الفيزياء"
-                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
                     dir="rtl"
                   />
                 </div>
@@ -2751,7 +2752,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'text'
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          ? 'border-sky-500 bg-sky-50 text-sky-700'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -2765,7 +2766,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'file'
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          ? 'border-sky-500 bg-sky-50 text-sky-700'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -2838,7 +2839,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           onClick={() => setExistingFileTranscribe(false)}
                           className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
                             !existingFileTranscribe
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                              ? 'border-sky-500 bg-sky-50 text-sky-700'
                               : 'border-border text-muted-foreground hover:bg-muted/50'
                           }`}
                         >
@@ -2878,7 +2879,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       onChange={(e) => setSummaryText(e.target.value)}
                       placeholder="الصق المحتوى الدراسي هنا..."
                       rows={6}
-                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors resize-none"
+                      className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors resize-none"
   
                       dir="rtl"
                     />
@@ -2911,20 +2912,20 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       className={`flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
                         summaryInputMode === 'transcribe'
                           ? 'border-teal-300 bg-teal-50/30 hover:border-teal-400 hover:bg-teal-50/50'
-                          : 'border-emerald-300 bg-emerald-50/30 hover:border-emerald-400 hover:bg-emerald-50/50'
+                          : 'border-sky-300 bg-sky-50/30 hover:border-sky-400 hover:bg-sky-50/50'
                       }`}
                     >
                       {summaryFile ? (
                         <>
-                          <FileUp className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-600' : 'text-emerald-600'}`} />
-                          <span className={`text-sm font-medium ${summaryInputMode === 'transcribe' ? 'text-teal-700' : 'text-emerald-700'}`}>{summaryFile.name}</span>
+                          <FileUp className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-600' : 'text-sky-700'}`} />
+                          <span className={`text-sm font-medium ${summaryInputMode === 'transcribe' ? 'text-teal-700' : 'text-sky-800'}`}>{summaryFile.name}</span>
                           <span className="text-xs text-muted-foreground">
                             {(summaryFile.size / 1024 / 1024).toFixed(2)} MB
                           </span>
                         </>
                       ) : (
                         <>
-                          <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-emerald-400'}`} />
+                          <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-sky-400'}`} />
                           <span className="text-sm text-muted-foreground">اضغط لاختيار ملف PDF أو Word</span>
                           <span className="text-xs text-muted-foreground/60">الحد الأقصى 10 MB</span>
                         </>
@@ -3006,7 +3007,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     summaryInputMode === 'transcribe' ? 'bg-teal-600 hover:bg-teal-700' :
                     summaryInputMode === 'existing' ? (existingFileTranscribe ? 'bg-teal-600 hover:bg-teal-700' : 'bg-violet-600 hover:bg-violet-700') :
-                    'bg-emerald-600 hover:bg-emerald-700'
+                    'bg-sky-700 hover:bg-sky-800'
                   }`}
                 >
                   <>
@@ -3101,7 +3102,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       <span
                         className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
                           pct >= 80
-                            ? 'text-emerald-700 bg-emerald-100'
+                            ? 'text-teal-700 bg-teal-50'
                             : pct >= 60
                               ? 'text-amber-700 bg-amber-100'
                               : 'text-rose-700 bg-rose-100'
@@ -3116,7 +3117,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     {isCompleted ? (
                       <button
                         onClick={() => setViewingQuizId(quiz.id)}
-                        className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                        className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 transition-colors hover:bg-sky-100"
                       >
                         <Eye className="h-3.5 w-3.5" />
                         عرض النتائج
@@ -3174,7 +3175,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           </button>
           <button
             onClick={() => setLinkTeacherOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+            className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
           >
             <UserPlus className="h-4 w-4" />
             الارتباط بمعلم جديد
@@ -3186,10 +3187,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {!hasAnyTeachers && (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-            <Users className="h-8 w-8 text-emerald-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+            <Users className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا يوجد معلمون</p>
           <p className="text-sm text-muted-foreground mb-4">
@@ -3197,7 +3198,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           </p>
           <button
             onClick={() => setLinkTeacherOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
+            className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
           >
             <Link2 className="h-4 w-4" />
             الارتباط بمعلم جديد
@@ -3236,7 +3237,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               dir="rtl"
             >
               {/* Modal Header */}
-              <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-emerald-50/30 to-transparent">
+              <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-sky-50/30 to-transparent">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 shadow-sm shadow-amber-200/50">
@@ -3269,7 +3270,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <button
                       onClick={() => setConfirmIncomingAcceptAllOpen(true)}
                       disabled={processingIncomingBulk}
-                      className="flex items-center gap-2 rounded-xl bg-emerald-600/90 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-emerald-200/50 hover:bg-emerald-600 hover:shadow-md hover:shadow-emerald-200/60 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
+                      className="flex items-center gap-2 rounded-xl bg-sky-700/90 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-sky-200/50 hover:bg-sky-700 hover:shadow-md hover:shadow-sky-200/60 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
                     >
                       {processingIncomingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       قبول الكل ({incomingLinkRequests.length})
@@ -3320,7 +3321,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         <button
                           onClick={() => handleAcceptIncomingRequest(teacher.id, notificationId)}
                           disabled={processingIncomingId === teacher.id || processingIncomingBulk}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-all duration-200 active:scale-90"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50 transition-all duration-200 active:scale-90"
                           title="قبول"
                         >
                           {processingIncomingId === teacher.id ? (
@@ -3380,7 +3381,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <button
                     onClick={handleAcceptAllIncoming}
                     disabled={processingIncomingBulk}
-                    className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                    className="flex-1 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                   >
                     {processingIncomingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : `قبول الكل (${incomingLinkRequests.length})`}
                   </button>
@@ -3603,7 +3604,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <Users className="h-5 w-5 text-emerald-600" />
+                  <Users className="h-5 w-5 text-sky-700" />
                   بيانات المعلم
                 </h3>
                 <button
@@ -3635,15 +3636,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {/* Teacher's subjects */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <BookMarked className="h-4 w-4 text-emerald-600" />
+                    <BookMarked className="h-4 w-4 text-sky-700" />
                     المقررات
                   </h4>
                   {loadingTeacherSubjects ? (
                     <div className="flex items-center justify-center py-6">
-                      <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                      <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
                     </div>
                   ) : teacherSubjects.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-emerald-200 bg-emerald-50/30 p-4 text-center">
+                    <div className="rounded-lg border border-dashed border-sky-200 bg-sky-50/30 p-4 text-center">
                       <p className="text-sm text-muted-foreground">لا توجد مقررات لهذا المعلم</p>
                     </div>
                   ) : (
@@ -3653,8 +3654,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           key={subject.id}
                           className="flex items-center gap-3 rounded-lg border bg-card p-3"
                         >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                            <BookOpen className="h-4 w-4 text-emerald-600" />
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                            <BookOpen className="h-4 w-4 text-sky-700" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-foreground truncate">{subject.name}</p>
@@ -3742,7 +3743,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <UserPlus className="h-5 w-5 text-emerald-600" />
+                  <UserPlus className="h-5 w-5 text-sky-700" />
                   الارتباط بمعلم جديد
                 </h3>
                 <button
@@ -3764,8 +3765,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {!teacherPreview && (
                   <>
                     <div className="flex flex-col items-center gap-3 py-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100">
-                        <Search className="h-7 w-7 text-emerald-600" />
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100">
+                        <Search className="h-7 w-7 text-sky-700" />
                       </div>
                       <p className="text-sm text-muted-foreground text-center">
                         أدخل رمز المعلم الخاص للبحث عنه
@@ -3781,7 +3782,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           setTeacherPreview(null);
                         }}
                         placeholder="مثال: ABC123"
-                        className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors text-center tracking-widest font-mono"
+                        className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors text-center tracking-widest font-mono"
                         disabled={searchingTeacher}
                         dir="ltr"
                         maxLength={10}
@@ -3795,7 +3796,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                 {/* Step 2: Teacher preview card */}
                 {teacherPreview && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-3">
+                  <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-4 space-y-3">
                     <UserLink
                       userId={teacherPreview.id}
                       name={teacherPreview.name || 'معلم'}
@@ -3807,9 +3808,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       showAvatar={true}
                       showUsername={false}
                     />
-                    <div className="flex items-center gap-2 rounded-lg bg-emerald-100/60 px-3 py-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span className="text-xs text-emerald-700 font-medium">تم العثور على المعلم — اضغط "إرسال طلب" للتأكيد</span>
+                    <div className="flex items-center gap-2 rounded-lg bg-sky-100/60 px-3 py-2">
+                      <CheckCircle2 className="h-4 w-4 text-sky-700 shrink-0" />
+                      <span className="text-xs text-sky-800 font-medium">تم العثور على المعلم — اضغط "إرسال طلب" للتأكيد</span>
                     </div>
                     <button
                       onClick={() => {
@@ -3832,7 +3833,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <button
                       onClick={handleSearchTeacher}
                       disabled={searchingTeacher || !teacherCode.trim()}
-                      className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="flex items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {searchingTeacher ? (
                         <>
@@ -3852,7 +3853,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <button
                       onClick={handleConfirmLinkTeacher}
                       disabled={linkingTeacher}
-                      className="flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="flex items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {linkingTeacher ? (
                         <>
@@ -3908,7 +3909,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     if (loadingData) {
       return (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-4" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 mb-4" />
           <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
         </div>
       );
@@ -3966,7 +3967,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       />
 
       {/* Main Content - dynamic offset for collapsible sidebar */}
-      <main className={`min-h-screen pt-14 sm:pt-16 transition-all duration-300 ${
+      <main className={`min-h-screen pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
         sidebarOpen ? 'md:mr-64' : 'md:mr-[68px]'
       }`}>
         <div className="p-3 sm:p-6 lg:p-8 space-y-4">
@@ -4013,6 +4014,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           overflow: hidden;
         }
       `}</style>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav
+        role="student"
+        activeSection={activeSection}
+        onSectionChange={handleSectionChange}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+      />
     </div>
   );
 }

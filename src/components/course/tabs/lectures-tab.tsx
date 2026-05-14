@@ -309,10 +309,10 @@ function LectureTimer({ startedAt }: { startedAt: string }) {
   const pad = (n: number) => n.toString().padStart(2, '0');
 
   return (
-    <span className="flex items-center gap-1 font-mono font-bold text-emerald-700 tabular-nums" dir="ltr">
+    <span className="flex items-center gap-1 font-mono font-bold text-sky-800 tabular-nums" dir="ltr">
       <span className="relative flex h-2 w-2 ml-1">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
       </span>
       {hours > 0 ? `${pad(hours)}:` : ''}{pad(minutes)}:{pad(seconds)}
     </span>
@@ -1320,7 +1320,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <p className="text-muted-foreground text-sm mt-1">{lectures.length} محاضرة</p>
         </div>
         {role === 'teacher' && (
-          <button onClick={() => setCreateOpen(true)} className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-[0.97]">
+          <button onClick={() => setCreateOpen(true)} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]">
             <Plus className="h-4 w-4" />
             محاضرة جديدة
           </button>
@@ -1329,11 +1329,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
       {/* Lectures list */}
       {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-emerald-600" /></div>
+        <div className="flex items-center justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-sky-700" /></div>
       ) : lectures.length === 0 ? (
-        <motion.div variants={itemVariants} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/30 py-20">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-100 mb-5">
-            <BookOpen className="h-10 w-10 text-emerald-600" />
+        <motion.div variants={itemVariants} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 bg-sky-50/30 py-20">
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 mb-5">
+            <BookOpen className="h-10 w-10 text-sky-700" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1">لا توجد محاضرات بعد</p>
           <p className="text-sm text-muted-foreground">{role === 'teacher' ? 'ابدأ بإضافة محاضرة جديدة' : 'لم يتم إضافة محاضرات بعد'}</p>
@@ -1351,12 +1351,12 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <motion.div key={lecture.id} variants={itemVariants}>
                 <div
                   className={`group relative rounded-2xl border bg-card shadow-sm hover:shadow-md transition-all overflow-hidden ${
-                    isActive ? 'ring-2 ring-emerald-500/30' : ''
+                    isActive ? 'ring-2 ring-sky-600/30' : ''
                   } cursor-pointer`}
                   onClick={() => handleLectureClick(lecture)}
                 >
                   {/* Active top bar */}
-                  {isActive && <div className="h-1.5 bg-emerald-500" />}
+                  {isActive && <div className="h-1.5 bg-sky-600" />}
 
                   <div className="p-5">
                     {/* ─── Teacher Card Layout ─── */}
@@ -1364,17 +1364,17 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       <>
                         {/* Row 1: Title + Status + Action Buttons */}
                         <div className="flex items-start gap-3 mb-3">
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-emerald-100' : 'bg-muted'}`}>
-                            <BookOpen className={`h-5 w-5 ${isActive ? 'text-emerald-600' : 'text-muted-foreground'}`} />
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-sky-100' : 'bg-muted'}`}>
+                            <BookOpen className={`h-5 w-5 ${isActive ? 'text-sky-700' : 'text-muted-foreground'}`} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <h4 className="font-bold text-foreground truncate">{lecture.title}</h4>
                               {isActive ? (
-                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] shrink-0">
+                                <Badge className="bg-sky-100 text-sky-800 border-sky-200 text-[10px] shrink-0">
                                   <span className="relative flex h-2 w-2 ml-1">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
                                   </span>
                                   جارية
                                 </Badge>
@@ -1393,7 +1393,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             {isActive && (
                               <button
                                 onClick={(e) => handleOpenQrModal(lecture, e)}
-                                className="touch-target flex items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                className="touch-target flex items-center justify-center rounded-lg text-sky-700 hover:bg-sky-50 transition-colors"
                                 title="عرض رمز QR"
                               >
                                 <QrCode className="h-4 w-4" />
@@ -1428,14 +1428,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date)}</span>
                             )}
                             {extractLectureTime(lecture.description) && (
-                              <span className="flex items-center gap-1 text-emerald-700 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description))}</span>
+                              <span className="flex items-center gap-1 text-sky-800 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description))}</span>
                             )}
                             {isActive && lecture.attendance_session?.started_at && (
                               <LectureTimer startedAt={lecture.attendance_session.started_at} />
                             )}
                           </div>
                           {hasSession && (
-                            <span className="flex items-center gap-1 font-semibold text-emerald-700">
+                            <span className="flex items-center gap-1 font-semibold text-sky-800">
                               <Users className="h-3.5 w-3.5" />
                               {lecture.attendance_count || 0}/{lecture.total_students || totalStudents}
                             </span>
@@ -1448,7 +1448,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             <button
                               onClick={(e) => handleStartAttendance(lecture.id, e)}
                               disabled={!!startingAttendance}
-                              className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                              className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                             >
                               {startingAttendance === lecture.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                               بدء المحاضرة
@@ -1476,17 +1476,17 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       <>
                         {/* ─── Student Card Layout ─── */}
                         <div className="flex items-start gap-3 mb-3">
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-emerald-100' : 'bg-muted'}`}>
-                            <BookOpen className={`h-5 w-5 ${isActive ? 'text-emerald-600' : 'text-muted-foreground'}`} />
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-sky-100' : 'bg-muted'}`}>
+                            <BookOpen className={`h-5 w-5 ${isActive ? 'text-sky-700' : 'text-muted-foreground'}`} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <h4 className="font-bold text-foreground truncate">{lecture.title}</h4>
                               {isActive ? (
-                                <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] shrink-0">
+                                <Badge className="bg-sky-100 text-sky-800 border-sky-200 text-[10px] shrink-0">
                                   <span className="relative flex h-2 w-2 ml-1">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
                                   </span>
                                   جارية
                                 </Badge>
@@ -1507,14 +1507,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date)}</span>
                             )}
                             {extractLectureTime(lecture.description) && (
-                              <span className="flex items-center gap-1 text-emerald-700 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description))}</span>
+                              <span className="flex items-center gap-1 text-sky-800 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description))}</span>
                             )}
                             {isActive && lecture.attendance_session?.started_at && (
                               <LectureTimer startedAt={lecture.attendance_session.started_at} />
                             )}
                           </div>
                           {/* Expand/collapse hint for students */}
-                          <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                          <span className="flex items-center gap-1 text-sky-700 font-medium">
                             <StickyNote className="h-3 w-3" />
                             {isExpanded ? 'إخفاء الملاحظات' : 'اضغط لعرض الملاحظات'}
                             {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -1528,7 +1528,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleStartScan(lecture.attendance_session!.id); }}
                                 disabled={checkingIn}
-                                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                               >
                                 <Scan className="h-4 w-4" />
                                 مسح QR Code
@@ -1536,7 +1536,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleGpsCheckIn(lecture.attendance_session!.id); }}
                                 disabled={checkingIn || gpsCheckingIn === lecture.attendance_session!.id}
-                                className="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 transition-colors"
+                                className="flex items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-800 hover:bg-sky-100 disabled:opacity-60 transition-colors"
                               >
                                 {(gpsCheckingIn === lecture.attendance_session!.id || checkingIn) ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1552,7 +1552,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         {/* Student: Already checked in */}
                         {role === 'student' && isCheckedIn && (
                           <div className="mt-4 pt-4 border-t">
-                            <div className="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-700">
+                            <div className="flex items-center justify-center gap-2 rounded-xl bg-sky-50 border border-sky-200 px-4 py-3 text-sm font-semibold text-sky-800">
                               <CheckCircle2 className="h-5 w-5" />
                               تم تسجيل الحضور
                             </div>
@@ -1593,23 +1593,23 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 const fileRef = parseFileNote(note.content);
                                 if (fileRef.isFile) {
                                   return (
-                                    <div key={note.id} className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3">
+                                    <div key={note.id} className="rounded-lg border border-sky-200 bg-sky-50/50 p-3">
                                       <div className="flex items-center gap-2 mb-1">
                                         <span className="text-xs font-medium text-foreground">{note.author_name}</span>
                                         <span className="text-[10px] text-muted-foreground">{formatTime(note.created_at)}</span>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+                                        <FileText className="h-4 w-4 text-sky-700 shrink-0" />
                                         <button
                                           onClick={(e) => { e.stopPropagation(); setStudentPreviewFile({ url: fileRef.url, name: fileRef.name }); }}
-                                          className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:text-emerald-800 transition-colors min-w-0"
+                                          className="flex items-center gap-1.5 text-sm font-medium text-sky-800 hover:text-sky-900 transition-colors min-w-0"
                                         >
                                           <Eye className="h-3.5 w-3.5 shrink-0" />
                                           <span className="truncate">{fileRef.name}</span>
                                         </button>
                                         <button
                                           onClick={(e) => { e.stopPropagation(); downloadWithCustomName(fileRef.url, fileRef.name); }}
-                                          className="touch-target shrink-0 flex items-center justify-center rounded-md text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                          className="touch-target shrink-0 flex items-center justify-center rounded-md text-sky-800 hover:bg-sky-100 transition-colors"
                                           title="تحميل"
                                         >
                                           <Download className="h-3.5 w-3.5" />
@@ -1674,7 +1674,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-emerald-600" />
+                  <BookOpen className="h-5 w-5 text-sky-700" />
                   محاضرة جديدة
                 </h3>
                 <button onClick={() => {
@@ -1698,20 +1698,20 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <div className="p-5 space-y-4">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المحاضرة <span className="text-rose-500">*</span></label>
-                  <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="مثال: المحاضرة الأولى" className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all" dir="rtl" disabled={creating} />
+                  <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="مثال: المحاضرة الأولى" className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="rtl" disabled={creating} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
-                  <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all resize-none" dir="rtl" disabled={creating} />
+                  <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir="rtl" disabled={creating} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">تاريخ المحاضرة</label>
-                    <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all" dir="ltr" disabled={creating} />
+                    <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="ltr" disabled={creating} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">وقت المحاضرة</label>
-                    <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all" dir="ltr" disabled={creating} />
+                    <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="ltr" disabled={creating} />
                   </div>
                 </div>
                 <div>
@@ -1762,7 +1762,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       fileInputRef.current?.click();
                     }}
                     disabled={creating}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/30 px-4 py-4 text-sm font-medium text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400 transition-colors disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-sky-300 bg-sky-50/30 px-4 py-4 text-sm font-medium text-sky-800 hover:bg-sky-50 hover:border-sky-400 transition-colors disabled:opacity-60"
                   >
                     <Upload className="h-5 w-5" />
                     اختر ملفات
@@ -1773,7 +1773,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         <div
                           key={idx}
                           className={`rounded-lg border p-3 ${
-                            pf.status === 'done' ? 'border-emerald-200 bg-emerald-50/30' :
+                            pf.status === 'done' ? 'border-sky-200 bg-sky-50/30' :
                             pf.status === 'error' ? 'border-rose-200 bg-rose-50/30' :
                             pf.status === 'uploading' ? 'border-amber-200 bg-amber-50/30' :
                             'border-border bg-muted/20'
@@ -1781,7 +1781,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <FileText className={`h-4 w-4 shrink-0 ${
-                              pf.status === 'done' ? 'text-emerald-600' : 'text-muted-foreground'
+                              pf.status === 'done' ? 'text-sky-700' : 'text-muted-foreground'
                             }`} />
                             <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName || pf.file.name}</span>
                             <span className="text-[10px] text-muted-foreground shrink-0">{((pf.fileSize || pf.file.size) / 1024).toFixed(0)} KB</span>
@@ -1794,7 +1794,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 <X className="h-3 w-3" />
                               </button>
                             )}
-                            {pf.status === 'done' && <Check className="h-4 w-4 text-emerald-600 shrink-0" />}
+                            {pf.status === 'done' && <Check className="h-4 w-4 text-sky-700 shrink-0" />}
                           </div>
                           {/* Rename field */}
                           {pf.status !== 'done' && (
@@ -1805,7 +1805,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 value={pf.customName}
                                 onChange={(e) => setNewPendingFiles(prev => prev.map((p, i) => (i === idx ? { ...p, customName: e.target.value } : p)))}
                                 placeholder="اسم الملف (بدون الامتداد)"
-                                className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                                className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                                 dir="rtl"
                                 disabled={pf.status === 'uploading'}
                               />
@@ -1819,7 +1819,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             <div className="space-y-1">
                               <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
                                 <div
-                                  className={`h-full rounded-full transition-all duration-300 ${pf.status === 'done' ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                  className={`h-full rounded-full transition-all duration-300 ${pf.status === 'done' ? 'bg-sky-600' : 'bg-amber-500'}`}
                                   style={{ width: `${pf.progress}%` }}
                                 />
                               </div>
@@ -1827,7 +1827,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 <span className="text-[10px] text-muted-foreground">
                                   {pf.status === 'done' ? 'تم الرفع ✓' : 'جارٍ الرفع...'}
                                 </span>
-                                <span className={`text-[10px] font-medium ${pf.status === 'done' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                <span className={`text-[10px] font-medium ${pf.status === 'done' ? 'text-sky-700' : 'text-amber-600'}`}>
                                   {pf.progress}%
                                 </span>
                               </div>
@@ -1840,7 +1840,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 </div>
               </div>
               <div className="flex items-center gap-3 border-t p-5">
-                <button type="button" onClick={handleCreateLecture} disabled={creating || !newTitle.trim()} className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60">
+                <button type="button" onClick={handleCreateLecture} disabled={creating || !newTitle.trim()} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60">
                   {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   إنشاء المحاضرة
                 </button>
@@ -1887,7 +1887,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <Pencil className="h-5 w-5 text-emerald-600" />
+                  <Pencil className="h-5 w-5 text-sky-700" />
                   تعديل المحاضرة
                 </h3>
                 <button onClick={() => { if (!savingEdit) setEditOpen(false); }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
@@ -1897,25 +1897,25 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <div className="p-5 space-y-4">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المحاضرة <span className="text-rose-500">*</span></label>
-                  <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all" dir="rtl" disabled={savingEdit} />
+                  <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="rtl" disabled={savingEdit} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
-                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all resize-none" dir="rtl" disabled={savingEdit} />
+                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir="rtl" disabled={savingEdit} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">تاريخ المحاضرة</label>
-                    <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all" dir="ltr" disabled={savingEdit} />
+                    <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="ltr" disabled={savingEdit} />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">وقت المحاضرة</label>
-                    <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all" dir="ltr" disabled={savingEdit} />
+                    <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="ltr" disabled={savingEdit} />
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-3 border-t p-5">
-                <button onClick={handleSaveEdit} disabled={savingEdit || !editTitle.trim()} className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-60">
+                <button onClick={handleSaveEdit} disabled={savingEdit || !editTitle.trim()} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60">
                   {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   حفظ التعديلات
                 </button>
@@ -1958,16 +1958,16 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               {/* QR Code with auto-refresh */}
               <div className="flex justify-center mb-4">
                 {qrDataUrl ? (
-                  <div className="relative rounded-2xl border-2 border-emerald-200 bg-white p-4 shadow-lg">
+                  <div className="relative rounded-2xl border-2 border-sky-200 bg-white p-4 shadow-lg">
                     <img src={qrDataUrl} alt="QR Code" className="w-64 h-64 rounded-lg" />
                     {/* Refresh countdown ring */}
-                    <div className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-bold shadow-lg">
+                    <div className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-sky-700 text-white text-xs font-bold shadow-lg">
                       <QrRefreshTimer />
                     </div>
                   </div>
                 ) : (
                   <div className="w-64 h-64 flex items-center justify-center rounded-2xl border bg-muted">
-                    <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                    <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
                   </div>
                 )}
               </div>
@@ -1978,11 +1978,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               </p>
 
               {/* Attendee count */}
-              <div className="inline-flex items-center gap-3 rounded-2xl border bg-emerald-50 px-6 py-3">
-                <Users className="h-6 w-6 text-emerald-600" />
+              <div className="inline-flex items-center gap-3 rounded-2xl border bg-sky-50 px-6 py-3">
+                <Users className="h-6 w-6 text-sky-700" />
                 <div className="text-right">
-                  <p className="text-2xl font-bold text-emerald-700">{qrAttendeeCount}</p>
-                  <p className="text-xs text-emerald-600 font-medium">مسجل حضور حتى الآن</p>
+                  <p className="text-2xl font-bold text-sky-800">{qrAttendeeCount}</p>
+                  <p className="text-xs text-sky-700 font-medium">مسجل حضور حتى الآن</p>
                 </div>
               </div>
 
@@ -2076,8 +2076,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                    <Scan className="h-5 w-5 text-emerald-600" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                    <Scan className="h-5 w-5 text-sky-700" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-foreground">مسح رمز QR</h3>
@@ -2134,8 +2134,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100">
-                    <FileText className="h-5 w-5 text-emerald-600" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                    <FileText className="h-5 w-5 text-sky-700" />
                   </div>
                   <h3 className="text-sm font-bold text-foreground truncate">{studentPreviewFile.name}</h3>
                 </div>
@@ -2172,7 +2172,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       <p className="text-sm text-muted-foreground mb-4">لا يمكن معاينة هذا الملف مباشرة</p>
                       <button
                         onClick={() => downloadWithCustomName(studentPreviewFile.url, studentPreviewFile.name)}
-                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+                        className="inline-flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 transition-colors"
                       >
                         <Download className="h-4 w-4" />
                         تحميل الملف

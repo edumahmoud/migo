@@ -59,7 +59,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg"
+              className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg"
             >
               <GraduationCap className="h-8 w-8 text-white" />
             </motion.div>
@@ -81,8 +81,8 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                 animate={{ opacity: 1, scale: 1 }}
                 className="text-center space-y-3 sm:space-y-4"
               >
-                <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-emerald-100 mx-auto">
-                  <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+                <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-sky-100 mx-auto">
+                  <CheckCircle2 className="h-8 w-8 text-sky-600" />
                 </div>
                 <p className="text-sm text-gray-600">
                   تم إرسال رابط إعادة تعيين كلمة المرور إلى <span className="font-semibold">{email}</span>
@@ -117,7 +117,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                       placeholder="أدخل بريدك الإلكتروني المسجل"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500/20 text-right"
+                      className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
                       disabled={isLoading}
                       dir="ltr"
                       maxLength={254}
@@ -134,7 +134,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   <Button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full h-11 text-base font-semibold bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg shadow-emerald-500/25 transition-all duration-300"
+                    className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300"
                   >
                     {isLoading ? (
                       <>
@@ -156,7 +156,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   <button
                     type="button"
                     onClick={onBackToLogin}
-                    className="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors inline-flex items-center gap-1"
+                    className="text-sm text-sky-600 hover:text-sky-700 font-medium transition-colors inline-flex items-center gap-1"
                   >
                     <ArrowRight className="h-4 w-4" />
                     العودة لتسجيل الدخول

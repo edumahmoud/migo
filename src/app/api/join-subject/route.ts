@@ -159,7 +159,7 @@ export async function POST(request: Request) {
           id: subject.id,
           name: subject.name,
           description: subject.description,
-          color: subject.color || '#10b981',
+          color: subject.color || '#0D9488',
           teacher_name: teacherName,
         },
       });

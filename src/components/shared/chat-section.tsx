@@ -119,13 +119,13 @@ function TypingIndicator({ names }: { names: string[] }) {
         : `${names[0]} وآخرون يكتبون الآن`;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/80 border border-emerald-100">
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50/80 border border-sky-100">
       <div className="flex items-center gap-1">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+        <span className="h-1.5 w-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '0ms' }} />
+        <span className="h-1.5 w-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '150ms' }} />
+        <span className="h-1.5 w-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '300ms' }} />
       </div>
-      <span className="text-xs text-emerald-700 font-medium">{label}...</span>
+      <span className="text-xs text-sky-800 font-medium">{label}...</span>
     </div>
   );
 }
@@ -415,7 +415,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 }
                 toast(`رسالة جديدة`, {
                   description: fastMsg.content.substring(0, 60) + (fastMsg.content.length > 60 ? '...' : ''),
-                  icon: <Bell className="h-4 w-4 text-emerald-600" />,
+                  icon: <Bell className="h-4 w-4 text-sky-700" />,
                   duration: 5000,
                 });
                 setLocalUnread((prev) => {
@@ -435,7 +435,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     if (fullMsg?.sender?.name) {
                       toast(`رسالة جديدة من ${fullMsg.sender.name}`, {
                         description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
-                        icon: <Bell className="h-4 w-4 text-emerald-600" />,
+                        icon: <Bell className="h-4 w-4 text-sky-700" />,
                         duration: 5000,
                         id: `msg-${convId}`,
                       });
@@ -745,7 +745,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         const content = (data.content as string) || msg.content || '';
         toast(`رسالة جديدة من ${senderName}`, {
           description: content.substring(0, 60) + (content.length > 60 ? '...' : ''),
-          icon: <Bell className="h-4 w-4 text-emerald-600" />,
+          icon: <Bell className="h-4 w-4 text-sky-700" />,
           duration: 5000,
         });
         setLocalUnread((prev) => {
@@ -773,7 +773,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     // since there are no messages yet
     toast(`محادثة جديدة من ${data.fromUser.name}`, {
       description: 'تم إنشاء محادثة جديدة',
-      icon: <MessageCircle className="h-4 w-4 text-emerald-600" />,
+      icon: <MessageCircle className="h-4 w-4 text-sky-700" />,
       duration: 5000,
     });
     debouncedFetchConversations();
@@ -1621,7 +1621,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
   // =====================================================
   // Render message bubble
-  // Own messages LEFT (emerald bg), others RIGHT (muted bg)
+  // Own messages LEFT (sky bg), others RIGHT (muted bg)
   // =====================================================
   const renderMessage = (msg: ChatMessage, index: number) => {
     const isOwn = msg.sender_id === profile.id;
@@ -1660,7 +1660,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openProfile(msg.sender_id); }}
-              className="text-[10px] text-muted-foreground mb-0.5 font-medium px-1 hover:text-emerald-600 transition-colors"
+              className="text-[10px] text-muted-foreground mb-0.5 font-medium px-1 hover:text-sky-700 transition-colors"
             >
               {senderName}
             </button>
@@ -1676,14 +1676,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   if (e.key === 'Enter') handleSaveEdit(msg.id);
                   if (e.key === 'Escape') handleCancelEdit();
                 }}
-                className="rounded-xl border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all"
+                className="rounded-xl border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
                 dir="rtl"
                 autoFocus
               />
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => handleSaveEdit(msg.id)}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-700 text-white hover:bg-sky-800 transition-colors"
                 >
                   <Check className="h-3.5 w-3.5" />
                 </button>
@@ -1702,7 +1702,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   isDeleted
                     ? 'bg-muted/50 text-muted-foreground italic'
                     : isOwn
-                      ? 'bg-emerald-600 text-white'
+                      ? 'bg-sky-700 text-white'
                       : 'bg-muted text-foreground'
                 }`}
               >
@@ -1768,7 +1768,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               {relativeTime(msg.created_at)}
             </span>
             {isEdited && !isDeleted && (
-              <span className="text-[10px] text-emerald-500/60 font-medium">
+              <span className="text-[10px] text-sky-600/60 font-medium">
                 {msg.edited_at ? `(معدّلة ${relativeTime(msg.edited_at)})` : '(معدّلة)'}
               </span>
             )}
@@ -1784,7 +1784,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         <p className="text-sm text-muted-foreground">جاري تحميل المحادثات...</p>
       </div>
     );
@@ -1829,8 +1829,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           <div className="shrink-0 p-4 border-b bg-card">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100">
-                  <MessageCircle className="h-4 w-4 text-emerald-700" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100">
+                  <MessageCircle className="h-4 w-4 text-sky-800" />
                 </div>
                 <h2 className="text-base font-bold text-foreground">المحادثات</h2>
               </div>
@@ -1843,7 +1843,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     : 'غير متصل'
                 }>
                   {status === 'connected' || status === 'realtime' ? (
-                    <Wifi className="h-3 w-3 text-emerald-500" />
+                    <Wifi className="h-3 w-3 text-sky-600" />
                   ) : status === 'connecting' ? (
                     <RefreshCw className="h-3 w-3 text-amber-500 animate-spin" />
                   ) : (
@@ -1868,7 +1868,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 {/* New DM button */}
                 <button
                   onClick={() => setShowNewDM(true)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-700 text-white hover:bg-sky-800 transition-colors shadow-sm"
                   title="محادثة جديدة"
                 >
                   <Plus className="h-4 w-4" />
@@ -1884,7 +1884,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 value={convFilter}
                 onChange={(e) => setConvFilter(e.target.value)}
                 placeholder="بحث في المحادثات..."
-                className="w-full rounded-lg border bg-muted/30 ps-9 pe-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                className="w-full rounded-lg border bg-muted/30 ps-9 pe-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/20 focus:border-sky-600 transition-all"
               />
               {convFilter && (
                 <button
@@ -1908,7 +1908,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 <p className="text-xs text-muted-foreground mb-3">{convFetchError}</p>
                 <button
                   onClick={() => { setConvFetchError(null); fetchConversations(); }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-2 text-xs font-medium text-white hover:bg-sky-800 transition-colors"
                 >
                   <RefreshCw className="h-3 w-3" />
                   إعادة المحاولة
@@ -1940,21 +1940,21 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 )}
                 <button
                   onClick={() => { setSetupInfo(null); fetchConversations(); }}
-                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+                  className="text-xs text-sky-700 hover:text-sky-800 font-medium transition-colors"
                 >
                   إعادة المحاولة ←
                 </button>
               </div>
             ) : conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 mb-4">
-                  <MessageCircle className="h-8 w-8 text-emerald-400" />
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-50 mb-4">
+                  <MessageCircle className="h-8 w-8 text-sky-400" />
                 </div>
                 <p className="text-sm font-semibold text-foreground mb-1">لا توجد محادثات</p>
                 <p className="text-xs text-muted-foreground mb-4">ابدأ محادثة جديدة مع زملائك في المقرر</p>
                 <button
                   onClick={() => setShowNewDM(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-medium text-white hover:bg-sky-800 transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   محادثة جديدة
@@ -2009,7 +2009,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       }}
                       className={`w-full flex items-center gap-3 p-3 text-right transition-all hover:bg-muted/50 cursor-pointer ${
                         isActive
-                          ? 'bg-emerald-50 border-s-2 border-emerald-500'
+                          ? 'bg-sky-50 border-s-2 border-sky-600'
                           : 'border-s-2 border-transparent'
                       }`}
                     >
@@ -2043,7 +2043,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                               );
                             }
                             return (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 text-sky-800">
                                 <Hash className="h-5 w-5" />
                               </div>
                             );
@@ -2062,7 +2062,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span className={`text-sm truncate ${isActive ? 'font-bold text-emerald-700' : 'font-semibold text-foreground'}`}>
+                          <span className={`text-sm truncate ${isActive ? 'font-bold text-sky-800' : 'font-semibold text-foreground'}`}>
                             {displayName}
                           </span>
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -2115,7 +2115,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                               : 'لا توجد رسائل بعد'}
                           </p>
                           {unread > 0 && (
-                            <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[10px] font-bold px-1.5">
+                            <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-700 text-white text-[10px] font-bold px-1.5">
                               {unread > 99 ? '99+' : unread}
                             </span>
                           )}
@@ -2164,7 +2164,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         >
                           <div className="shrink-0">
                             {isGroup ? (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 text-sky-800">
                                 <Hash className="h-5 w-5" />
                               </div>
                             ) : (
@@ -2182,7 +2182,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                                 )}
                                 <button
                                   onClick={() => handleUnarchiveConversation(conv.id)}
-                                  className="flex h-5 w-5 items-center justify-center rounded text-emerald-600/60 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                  className="flex h-5 w-5 items-center justify-center rounded text-sky-700/60 hover:text-sky-700 hover:bg-sky-50 transition-colors"
                                   title="إلغاء الأرشفة"
                                 >
                                   <ArchiveRestore className="h-3 w-3" />
@@ -2253,7 +2253,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                           );
                         }
                         return (
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sky-800">
                             <Hash className="h-4 w-4" />
                           </div>
                         );
@@ -2272,7 +2272,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     <h3 className="text-sm font-semibold text-foreground truncate">{chatHeaderName}</h3>
                     <div className="flex items-center gap-1.5">
                       {activeConvInfo.type === 'individual' ? (
-                        <span className={`text-[10px] font-medium ${chatHeaderStatus === 'online' ? 'text-emerald-600' : chatHeaderStatus === 'busy' ? 'text-amber-600' : chatHeaderStatus === 'away' ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                        <span className={`text-[10px] font-medium ${chatHeaderStatus === 'online' ? 'text-sky-700' : chatHeaderStatus === 'busy' ? 'text-amber-600' : chatHeaderStatus === 'away' ? 'text-orange-600' : 'text-muted-foreground'}`}>
                           {getStatusLabel(chatHeaderStatus)}
                         </span>
                       ) : (
@@ -2287,7 +2287,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 {/* Connection status in header */}
                 <div className="flex items-center gap-1">
                   {status === 'connected' || status === 'realtime' ? (
-                    <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+                    <Wifi className="h-3.5 w-3.5 text-sky-600" />
                   ) : status === 'connecting' ? (
                     <RefreshCw className="h-3.5 w-3.5 text-amber-500 animate-spin" />
                   ) : (
@@ -2343,7 +2343,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               >
                 {messagesLoading ? (
                   <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                    <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center px-6">
@@ -2389,14 +2389,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       }
                     }}
                     placeholder="اكتب رسالة..."
-                    className="flex-1 rounded-xl border bg-muted/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    className="flex-1 rounded-xl border bg-muted/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/20 focus:border-sky-600 transition-all"
                     dir="rtl"
                     disabled={sending}
                   />
                   <button
                     onClick={handleSend}
                     disabled={!newMessage.trim() || sending}
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600 transition-colors"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-40 disabled:hover:bg-sky-700 transition-colors"
                   >
                     {sending ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2411,8 +2411,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             /* ─── Empty state: no conversation selected ─── */
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
               <motion.div variants={slideInRight} className="flex flex-col items-center">
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-50 mb-4">
-                  <MessageCircle className="h-10 w-10 text-emerald-400" />
+                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 mb-4">
+                  <MessageCircle className="h-10 w-10 text-sky-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">مرحباً بك في المحادثات</h3>
                 <p className="text-sm text-muted-foreground max-w-[280px] mb-4">
@@ -2420,7 +2420,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 </p>
                 <button
                   onClick={() => setShowNewDM(true)}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 transition-colors shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-sky-800 transition-colors shadow-sm"
                 >
                   <Plus className="h-4 w-4" />
                   محادثة جديدة
@@ -2476,7 +2476,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         ? 'ابحث بالاسم (زملاء المقرر) أو البريد الإلكتروني (الجميع)...'
                         : 'ابحث بالاسم أو البريد الإلكتروني...'
                     }
-                    className="w-full rounded-lg border bg-muted/30 ps-10 pe-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                    className="w-full rounded-lg border bg-muted/30 ps-10 pe-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/20 focus:border-sky-600 transition-all"
                     autoFocus
                   />
                   {searching && (
@@ -2509,7 +2509,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         <div className="shrink-0 relative">
                           <UserAvatar name={user.name} avatarUrl={user.avatar_url} size="md" />
                           <div className={`absolute -bottom-0.5 -start-0.5 h-3 w-3 rounded-full border-2 border-card ${
-                            getUserStatus(user.id) === 'online' ? 'bg-emerald-500' : 'bg-gray-300'
+                            getUserStatus(user.id) === 'online' ? 'bg-sky-600' : 'bg-gray-300'
                           }`} />
                         </div>
                         <div className="flex-1 min-w-0">

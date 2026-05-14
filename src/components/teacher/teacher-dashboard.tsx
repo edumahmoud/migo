@@ -49,6 +49,7 @@ import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
+import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SettingsSection from '@/components/shared/settings-section';
 import ChatSection from '@/components/shared/chat-section';
 import StatCard from '@/components/shared/stat-card';
@@ -117,14 +118,14 @@ function scorePercentage(score: number, total: number): number {
 }
 
 function pctColorClass(pct: number): string {
-  if (pct >= 90) return 'text-emerald-700 bg-emerald-100';
+  if (pct >= 90) return 'text-teal-700 bg-teal-100';
   if (pct >= 75) return 'text-teal-700 bg-teal-100';
   if (pct >= 60) return 'text-amber-700 bg-amber-100';
   return 'text-rose-700 bg-rose-100';
 }
 
 // Pie chart colors
-const PIE_COLORS = ['#10b981', '#14b8a6', '#f59e0b', '#ef4444'];
+const PIE_COLORS = ['#0284c7', '#0d9488', '#f59e0b', '#ef4444'];
 
 // -------------------------------------------------------
 // Main Component
@@ -1071,7 +1072,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
           onClick={handleCopyTeacherCode}
-          className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100 hover:border-emerald-300"
+          className="flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 shadow-sm transition-colors hover:bg-sky-100 hover:border-sky-300"
           title="انقر للنسخ"
         >
           <Copy className="h-3 w-3" />
@@ -1096,7 +1097,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             icon={<Users className="h-5 w-5" />}
             label="إجمالي الطلاب"
             value={students.length}
-            color="emerald"
+            color="sky"
           />
           {pendingStudents.length > 0 && (
             <button
@@ -1135,12 +1136,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-emerald-600" />
+                <Users className="h-4 w-4 text-sky-700" />
                 نظرة عامة على الطلاب
               </h3>
               <button
                 onClick={() => setActiveSection('students')}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                className="text-xs text-sky-700 hover:text-sky-800 font-medium flex items-center gap-1"
               >
                 عرض الكل
                 <ChevronLeft className="h-3 w-3" />
@@ -1194,7 +1195,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                 setSelectedStudent(student);
                                 setStudentDetailOpen(true);
                               }}
-                              className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                              className="flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 font-medium"
                             >
                               <Eye className="h-3.5 w-3.5" />
                               عرض
@@ -1221,7 +1222,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               </h3>
               <button
                 onClick={() => setActiveSection('analytics')}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                className="text-xs text-sky-700 hover:text-sky-800 font-medium flex items-center gap-1"
               >
                 عرض الكل
                 <ChevronLeft className="h-3 w-3" />
@@ -1241,7 +1242,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       <div key={score.id} className="flex items-center gap-3 p-3">
                         <div
                           className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                            pct >= 90 ? 'bg-emerald-500' : pct >= 75 ? 'bg-teal-500' : pct >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                            pct >= 90 ? 'bg-teal-500' : pct >= 75 ? 'bg-teal-500' : pct >= 60 ? 'bg-amber-500' : 'bg-rose-500'
                           }`}
                         />
                         <div className="min-w-0 flex-1">
@@ -1298,7 +1299,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           </button>
           <button
             onClick={() => setSendRequestOpen(true)}
-            className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+            className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 transition-colors"
           >
             <UserPlus className="h-4 w-4" />
             إرسال طلب لطالب
@@ -1310,7 +1311,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               value={studentSearch}
               onChange={(e) => setStudentSearch(e.target.value)}
               placeholder="بحث عن طالب..."
-              className="w-full sm:w-48 rounded-lg border bg-background pr-10 pl-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+              className="w-full sm:w-48 rounded-lg border bg-background pr-10 pl-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
               dir="rtl"
             />
           </div>
@@ -1320,7 +1321,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               onClick={() => setStudentViewMode('grid')}
               className={`flex items-center justify-center h-8 w-8 rounded-md transition-all ${
                 studentViewMode === 'grid'
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-sky-700 text-white shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
               title="عرض شبكي"
@@ -1331,7 +1332,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               onClick={() => setStudentViewMode('table')}
               className={`flex items-center justify-center h-8 w-8 rounded-md transition-all ${
                 studentViewMode === 'table'
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-sky-700 text-white shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
               title="عرض جدول"
@@ -1341,7 +1342,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           </div>
           <button
             onClick={handleExportSummaries}
-            className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 whitespace-nowrap"
+            className="flex items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 whitespace-nowrap"
           >
             <Download className="h-4 w-4" />
             تصدير الملخصات
@@ -1380,11 +1381,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               dir="rtl"
             >
               {/* Modal Header - warm gradient */}
-              <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-emerald-50/30 to-transparent">
+              <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-sky-50/30 to-transparent">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 shadow-sm shadow-emerald-200/50">
-                      <UserPlus className="h-5 w-5 text-emerald-600" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-teal-100 shadow-sm shadow-sky-200/50">
+                      <UserPlus className="h-5 w-5 text-sky-700" />
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-foreground">طلبات الارتباط</h3>
@@ -1413,7 +1414,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     <button
                       onClick={() => setConfirmAcceptAllOpen(true)}
                       disabled={processingBulk}
-                      className="flex items-center gap-2 rounded-xl bg-emerald-600/90 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-emerald-200/50 hover:bg-emerald-600 hover:shadow-md hover:shadow-emerald-200/60 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
+                      className="flex items-center gap-2 rounded-xl bg-sky-700/90 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-sky-200/50 hover:bg-sky-700 hover:shadow-md hover:shadow-sky-200/60 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
                     >
                       {processingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       قبول الكل ({pendingStudents.length})
@@ -1463,7 +1464,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                         <button
                           onClick={() => handleApproveStudent(student.id)}
                           disabled={processingRequestId === student.id || processingBulk}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-all duration-200 active:scale-90"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50 transition-all duration-200 active:scale-90"
                           title="قبول"
                         >
                           {processingRequestId === student.id ? (
@@ -1523,7 +1524,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   <button
                     onClick={handleAcceptAll}
                     disabled={processingBulk}
-                    className="flex-1 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                    className="flex-1 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                   >
                     {processingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : `قبول الكل (${pendingStudents.length})`}
                   </button>
@@ -1629,8 +1630,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               </button>
 
               <div className="flex flex-col items-center text-center mb-6">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 mb-3">
-                  <UserPlus className="h-6 w-6 text-emerald-600" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 mb-3">
+                  <UserPlus className="h-6 w-6 text-sky-700" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground">إرسال طلب ارتباط</h3>
                 <p className="text-xs text-muted-foreground mt-1">أرسل طلب ربط لطالب عبر بريده الإلكتروني</p>
@@ -1649,14 +1650,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                         if (e.key === 'Enter') handleSearchStudent();
                       }}
                       placeholder="البريد الإلكتروني للطالب"
-                      className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-colors"
+                      className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
                       dir="ltr"
                     />
                   </div>
                   <button
                     onClick={handleSearchStudent}
                     disabled={searchingStudent || !studentEmailInput.trim()}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                   >
                     {searchingStudent ? (
                       <>
@@ -1691,7 +1692,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     <button
                       onClick={handleConfirmSendRequest}
                       disabled={sendingRequest}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                      className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                     >
                       {sendingRequest ? (
                         <>
@@ -1727,10 +1728,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       {filteredStudents.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-emerald-300 bg-emerald-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-            <Users className="h-8 w-8 text-emerald-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+            <Users className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
             {studentSearch ? 'لا توجد نتائج للبحث' : 'لا يوجد طلاب مسجلين'}
@@ -1830,7 +1831,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                               setSelectedStudent(student);
                               setStudentDetailOpen(true);
                             }}
-                            className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                            className="flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 font-medium"
                           >
                             <Eye className="h-3.5 w-3.5" />
                             عرض
@@ -1862,7 +1863,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         </div>
         <button
           onClick={handleExportAllData}
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+          className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <Download className="h-4 w-4" />
           تصدير كافة البيانات (Excel)
@@ -1875,7 +1876,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card p-4 sm:p-5 shadow-sm">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
+              <TrendingUp className="h-4 w-4 text-sky-700" />
               متوسط الأداء لكل اختبار
             </h3>
             {barChartData.length === 0 ? (
@@ -1905,7 +1906,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     />
                     <Bar
                       dataKey="avg"
-                      fill="#10b981"
+                      fill="#0284c7"
                       radius={[6, 6, 0, 0]}
                       maxBarSize={50}
                     />
@@ -2011,7 +2012,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           <button
                             onClick={() => handleExportQuizData(quiz)}
                             disabled={qScores.length === 0}
-                            className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Download className="h-3.5 w-3.5" />
                             Excel
@@ -2056,14 +2057,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
-      <main className={`min-h-screen pt-14 sm:pt-16 transition-all duration-300 ${
+      <main className={`min-h-screen pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
         sidebarOpen ? 'md:mr-64' : 'md:mr-[68px]'
       }`}>
         <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4">
           <AnnouncementsBanner userId={profile.id} />
           {loadingData ? (
             <div className="flex flex-col items-center justify-center py-32">
-              <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mb-4" />
+              <Loader2 className="h-10 w-10 animate-spin text-sky-700 mb-4" />
               <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
             </div>
           ) : (
@@ -2137,7 +2138,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   {/* Back to scores list */}
                   <button
                     onClick={() => { setViewingScore(null); setViewingQuiz(null); setAiGradingResults({}); }}
-                    className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 mb-2"
+                    className="flex items-center gap-1.5 text-xs font-medium text-sky-700 hover:text-sky-800 mb-2"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
                     العودة للنتائج
@@ -2168,14 +2169,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           {/* Question header */}
                           <div className="flex items-start gap-2">
                             <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                              ans?.isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                              ans?.isCorrect ? 'bg-teal-100 text-teal-700' : 'bg-rose-100 text-rose-700'
                             }`}>
                               {ans?.isCorrect ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 mb-1">
                                 <span className="text-[10px] text-muted-foreground">سؤال {idx + 1}</span>
-                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700">
+                                <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-medium text-teal-700">
                                   {typeIcon}
                                   {typeLabel}
                                 </span>
@@ -2192,20 +2193,20 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                 const isPairCorrect = q.pairs?.find(p => p.key === k)?.value === v;
                                 return (
                                   <div key={k} className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] ${
-                                    isPairCorrect ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'
+                                    isPairCorrect ? 'bg-teal-50 border border-teal-200' : 'bg-rose-50 border border-rose-200'
                                   }`}>
                                     <span className="font-medium">{k}</span>
                                     <Link2 className="h-2.5 w-2.5" />
-                                    <span className={isPairCorrect ? 'text-emerald-700 font-medium' : 'text-rose-700 font-medium'}>{v}</span>
-                                    {isPairCorrect ? <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500 mr-auto" /> : <XCircle className="h-2.5 w-2.5 text-rose-500 mr-auto" />}
+                                    <span className={isPairCorrect ? 'text-teal-700 font-medium' : 'text-rose-700 font-medium'}>{v}</span>
+                                    {isPairCorrect ? <CheckCircle2 className="h-2.5 w-2.5 text-teal-500 mr-auto" /> : <XCircle className="h-2.5 w-2.5 text-rose-500 mr-auto" />}
                                   </div>
                                 );
                               })}
                               {!ans?.isCorrect && (
                                 <div className="mt-1">
-                                  <p className="text-[10px] text-emerald-700 font-medium">التوصيل الصحيح:</p>
+                                  <p className="text-[10px] text-teal-700 font-medium">التوصيل الصحيح:</p>
                                   {q.pairs.map((p) => (
-                                    <div key={p.key} className="flex items-center gap-1.5 text-[10px] text-emerald-700 px-2 py-0.5">
+                                    <div key={p.key} className="flex items-center gap-1.5 text-[10px] text-teal-700 px-2 py-0.5">
                                       <span>{p.key}</span> <Link2 className="h-2.5 w-2.5" /> <span>{p.value}</span>
                                     </div>
                                   ))}
@@ -2218,7 +2219,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                 إجابة الطالب: <span className="font-medium text-foreground">{String(ans?.answer || '—')}</span>
                               </p>
                               {q.correctAnswer && (
-                                <p className="text-[10px] text-emerald-700">
+                                <p className="text-[10px] text-teal-700">
                                   الإجابة الصحيحة: <span className="font-medium">{q.correctAnswer}</span>
                                 </p>
                               )}
@@ -2286,7 +2287,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                     }
                                   }}
                                   disabled={aiGradingIdx !== null}
-                                  className="flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 hover:border-purple-300 transition-colors disabled:opacity-50"
+                                  className="flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 hover:bg-sky-100 hover:border-sky-300 transition-colors disabled:opacity-50"
                                 >
                                   {aiGradingIdx === idx ? (
                                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -2298,7 +2299,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                               ) : (
                                 <div className="space-y-1.5">
                                   <div className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs ${
-                                    aiResult.isCorrect ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-rose-50 border border-rose-200 text-rose-700'
+                                    aiResult.isCorrect ? 'bg-teal-50 border border-teal-200 text-teal-700' : 'bg-rose-50 border border-rose-200 text-rose-700'
                                   }`}>
                                     <Sparkles className="h-3 w-3" />
                                     <span className="font-medium">{aiResult.isCorrect ? 'الذكاء الاصطناعي: إجابة صحيحة' : 'الذكاء الاصطناعي: إجابة خاطئة'}</span>
@@ -2317,7 +2318,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                         }));
                                         toast.success('تم تعديل التقييم: صحيحة');
                                       }}
-                                      className="flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-200 transition-colors"
+                                      className="flex items-center gap-1 rounded-md bg-teal-100 px-2 py-1 text-[10px] font-medium text-teal-700 hover:bg-teal-200 transition-colors"
                                     >
                                       <CheckCircle2 className="h-2.5 w-2.5" />
                                       تعديل: صحيحة
@@ -2379,7 +2380,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                 const quiz = quizzes.find(q => q.id === score.quiz_id);
                                 setViewingQuiz(quiz || null);
                               }}
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
                               title="عرض الإجابات"
                             >
                               <Eye className="h-3.5 w-3.5" />
@@ -2481,6 +2482,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav
+        role="teacher"
+        activeSection={activeSection}
+        onSectionChange={handleSectionChange}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+      />
     </div>
   );
 }

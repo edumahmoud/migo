@@ -22,6 +22,7 @@ import QuizView from '@/components/shared/quiz-view';
 import UserProfilePage from '@/components/shared/user-profile-page';
 import AppHeader from '@/components/shared/app-header';
 import AppSidebar from '@/components/shared/app-sidebar';
+import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SetupWizard from '@/components/setup/setup-wizard';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 
@@ -295,21 +296,21 @@ function HomeContent() {
   const showFullLoading = (loading || !initialized) && !hasPersistedSession;
   if (showFullLoading || (!setupCheckDone && !hasPersistedSession)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="flex flex-col items-center gap-4"
         >
           <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
               <GraduationCap className="w-9 h-9 text-white" />
             </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 animate-ping" />
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-sky-600 animate-ping" />
           </div>
           <div className="flex items-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-            <span className="text-sm font-medium text-emerald-700">جاري التحميل...</span>
+            <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
+            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
           </div>
         </motion.div>
       </div>
@@ -327,79 +328,136 @@ function HomeContent() {
   // Auth pages (login / register)
   if (!user || currentPage === 'auth') {
     return (
-      <div className="min-h-screen flex flex-col justify-start pt-6 px-4 pb-4 sm:flex sm:items-center sm:justify-center sm:p-4 bg-gradient-to-br from-emerald-600 to-teal-700" dir="rtl">
-        {/* Background decoration */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/5 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white/5 rounded-full blur-3xl" />
-          <div className="absolute top-1/4 left-1/4 w-60 h-60 bg-emerald-400/10 rounded-full blur-2xl" />
+      <div className="min-h-screen flex flex-col lg:flex-row" dir="rtl">
+        {/* ── Right Panel: Branding & Illustration (hidden on mobile) ── */}
+        <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700 overflow-hidden">
+          {/* Background decoration */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute -top-40 -right-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+            <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+            <div className="absolute top-1/3 left-1/3 w-72 h-72 bg-teal-400/10 rounded-full blur-3xl" />
+            <div className="absolute bottom-1/4 right-1/4 w-56 h-56 bg-sky-400/10 rounded-full blur-2xl" />
+            {/* Pattern overlay */}
+            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
+          </div>
+
+          {/* Content */}
+          <div className="relative z-10 flex flex-col justify-center items-center px-12 xl:px-20 w-full">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: 'easeOut' }}
+              className="text-center max-w-lg"
+            >
+              {/* Logo */}
+              <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 backdrop-blur-sm shadow-2xl border border-white/20">
+                <GraduationCap className="h-10 w-10 text-white" />
+              </div>
+
+              <h2 className="text-3xl xl:text-4xl font-bold text-white mb-4 leading-tight">
+                منصتك التعليمية الذكية
+              </h2>
+              <p className="text-lg text-sky-100/80 mb-10 leading-relaxed">
+                منصة متكاملة مدعومة بالذكاء الاصطناعي للطلاب والمعلمين، توفر تلخيص ذكي، اختبارات تفاعلية، ومتابعة مستمرة
+              </p>
+
+              {/* Feature cards */}
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { icon: <BrainCircuit className="h-5 w-5" />, title: 'ذكاء اصطناعي', desc: 'تلخيص وتحليل ذكي' },
+                  { icon: <BookOpen className="h-5 w-5" />, title: 'تلخيص ذكي', desc: 'من أي مصدر تعليمي' },
+                  { icon: <Users className="h-5 w-5" />, title: 'متابعة الطلاب', desc: 'تقارير وإحصائيات' },
+                  { icon: <Shield className="h-5 w-5" />, title: 'آمن وموثوق', desc: 'حماية بياناتك' },
+                ].map((feature, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
+                    className="flex flex-col items-center gap-2 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 p-4 text-center"
+                  >
+                    <div className="text-teal-300">{feature.icon}</div>
+                    <span className="text-sm font-semibold text-white">{feature.title}</span>
+                    <span className="text-xs text-sky-200/70">{feature.desc}</span>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
         </div>
 
-        {/* Feature badges at top - hidden on mobile */}
-        <div className="absolute top-8 left-0 right-0 justify-center hidden sm:flex">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="flex items-center gap-4 sm:gap-6 text-white/70 flex-wrap justify-center"
-          >
-            <div className="flex items-center gap-1.5 text-xs font-medium">
-              <BrainCircuit className="w-3.5 h-3.5" />
-              <span>ذكاء اصطناعي</span>
+        {/* ── Left Panel: Auth Form ── */}
+        <div className="flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+          {/* Mobile-only top branding */}
+          <div className="lg:hidden flex flex-col items-center mb-6">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200 }}
+              className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg"
+            >
+              <GraduationCap className="h-7 w-7 text-white" />
+            </motion.div>
+            {/* Feature badges - mobile */}
+            <div className="flex items-center gap-3 text-muted-foreground flex-wrap justify-center">
+              <div className="flex items-center gap-1 text-[11px] font-medium">
+                <BrainCircuit className="w-3 h-3" />
+                <span>ذكاء اصطناعي</span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] font-medium">
+                <BookOpen className="w-3 h-3" />
+                <span>تلخيص ذكي</span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] font-medium">
+                <Users className="w-3 h-3" />
+                <span>متابعة الطلاب</span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] font-medium">
+                <Shield className="w-3 h-3" />
+                <span>آمن وموثوق</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-medium">
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>تلخيص ذكي</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs font-medium">
-              <Users className="w-3.5 h-3.5" />
-              <span>متابعة الطلاب</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs font-medium">
-              <Shield className="w-3.5 h-3.5" />
-              <span>آمن وموثوق</span>
-            </div>
-          </motion.div>
-        </div>
+          </div>
 
-        {/* Auth form with mode toggle */}
-        <div className="relative z-10 w-full max-w-md mx-auto">
-          <AnimatePresence mode="wait">
-            {authMode === 'login' ? (
-              <motion.div
-                key="login"
-                initial={{ opacity: 0, x: -30 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 30 }}
-                transition={{ duration: 0.3 }}
-              >
-                <LoginForm
-                  onSwitchToRegister={() => setAuthMode('register')}
-                  onForgotPassword={() => setAuthMode('forgot-password')}
-                />
-              </motion.div>
-            ) : authMode === 'register' ? (
-              <motion.div
-                key="register"
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -30 }}
-                transition={{ duration: 0.3 }}
-              >
-                <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="forgot-password"
-                initial={{ opacity: 0, x: 30 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -30 }}
-                transition={{ duration: 0.3 }}
-              >
-                <ForgotPasswordForm onBackToLogin={() => setAuthMode('login')} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Auth form with mode toggle */}
+          <div className="relative z-10 w-full max-w-md mx-auto">
+            <AnimatePresence mode="wait">
+              {authMode === 'login' ? (
+                <motion.div
+                  key="login"
+                  initial={{ opacity: 0, x: -30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 30 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <LoginForm
+                    onSwitchToRegister={() => setAuthMode('register')}
+                    onForgotPassword={() => setAuthMode('forgot-password')}
+                  />
+                </motion.div>
+              ) : authMode === 'register' ? (
+                <motion.div
+                  key="register"
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -30 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="forgot-password"
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -30 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <ForgotPasswordForm onBackToLogin={() => setAuthMode('login')} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     );
@@ -408,7 +466,7 @@ function HomeContent() {
   // Quiz view
   if (currentPage === 'quiz' && viewingQuizId) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-white to-teal-50" dir="rtl">
+      <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
         <QuizView
           quizId={viewingQuizId}
           onBack={() => {
@@ -522,7 +580,7 @@ function HomeContent() {
           onSectionChange={profileSectionChangeHandler}
           customNavItems={profileNavItems}
         />
-        <main className={`flex-1 pt-14 sm:pt-16 transition-all duration-300 pl-0 ${
+        <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 pl-0 ${
           sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
         }`}>
           <UserProfilePage
@@ -534,6 +592,12 @@ function HomeContent() {
             )}
           />
         </main>
+        <MobileBottomNav
+          role={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
+          activeSection={profileActiveSection}
+          onSectionChange={profileSectionChangeHandler}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        />
       </div>
     );
   }
@@ -596,7 +660,7 @@ function HomeContent() {
   })();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-emerald-50/30" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50/50 to-sky-50/30" dir="rtl">
       {dashboardContent}
     </div>
   );
@@ -606,16 +670,16 @@ export default function Home() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50" dir="rtl">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
                 <GraduationCap className="w-9 h-9 text-white" />
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
-              <span className="text-sm font-medium text-emerald-700">جاري التحميل...</span>
+              <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
+              <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
             </div>
           </div>
         </div>

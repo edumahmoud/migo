@@ -46,9 +46,9 @@ function getPriorityStyle(priority: string) {
       };
     default:
       return {
-        bg: 'bg-emerald-50 border-emerald-200',
-        icon: <Megaphone className="h-4 w-4 text-emerald-600 shrink-0" />,
-        title: 'text-emerald-700',
+        bg: 'bg-sky-50 border-sky-200',
+        icon: <Megaphone className="h-4 w-4 text-sky-600 shrink-0" />,
+        title: 'text-sky-700',
       };
   }
 }
@@ -163,8 +163,8 @@ export default function AnnouncementsBanner({ userId }: AnnouncementsBannerProps
                 onClick={() => setCurrentIndex(idx)}
                 className={`h-1.5 rounded-full transition-all ${
                   idx === currentIndex % visibleAnnouncements.length
-                    ? 'w-4 bg-emerald-500'
-                    : 'w-1.5 bg-emerald-300'
+                    ? 'w-4 bg-sky-600'
+                    : 'w-1.5 bg-sky-300'
                 }`}
                 aria-label={`الإعلان ${idx + 1}`}
               />

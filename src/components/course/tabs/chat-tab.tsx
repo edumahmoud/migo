@@ -477,7 +477,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         const content = (data.content as string) || msg.content || '';
         toast(`رسالة جديدة من ${senderName}`, {
           description: content.substring(0, 60) + (content.length > 60 ? '...' : ''),
-          icon: <Bell className="h-4 w-4 text-emerald-600" />,
+          icon: <Bell className="h-4 w-4 text-sky-700" />,
           duration: 5000,
         });
       }
@@ -875,7 +875,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openProfile(msg.sender_id); }}
-              className="text-[11px] text-muted-foreground mb-1 ml-1 font-medium hover:text-emerald-600 transition-colors"
+              className="text-[11px] text-muted-foreground mb-1 ml-1 font-medium hover:text-sky-700 transition-colors"
             >
               {senderName}
             </button>
@@ -892,14 +892,14 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                   if (e.key === 'Enter') handleSaveEdit(msg.id);
                   if (e.key === 'Escape') handleCancelEdit();
                 }}
-                className="rounded-xl border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all"
+                className="rounded-xl border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
                 dir="rtl"
                 autoFocus
               />
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => handleSaveEdit(msg.id)}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-700 text-white hover:bg-sky-800 transition-colors"
                 >
                   <Check className="h-3.5 w-3.5" />
                 </button>
@@ -917,7 +917,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                 isDeleted
                   ? 'bg-muted/50 text-muted-foreground italic rounded-bl-md rounded-br-md'
                   : isOwn
-                    ? 'bg-emerald-600 text-white rounded-bl-md'
+                    ? 'bg-sky-700 text-white rounded-bl-md'
                     : 'bg-muted text-foreground rounded-br-md'
               }`}
             >
@@ -938,7 +938,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               {relativeTime(msg.created_at)}
             </span>
             {isEdited && !isDeleted && (
-              <span className="text-[10px] text-emerald-500/70 font-medium">
+              <span className="text-[10px] text-sky-600/70 font-medium">
                 {msg.edited_at ? `(معدّلة ${relativeTime(msg.edited_at)})` : '(معدّلة)'}
               </span>
             )}
@@ -998,7 +998,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
         <p className="text-sm text-muted-foreground">جاري تحميل المحادثة...</p>
       </div>
     );
@@ -1016,8 +1016,8 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         className="flex flex-col items-center justify-center py-20"
       >
         <motion.div variants={itemVariants} className="flex flex-col items-center text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-50 border border-emerald-100 mb-5">
-            <MessageCircle className="h-10 w-10 text-emerald-400" />
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 border border-sky-100 mb-5">
+            <MessageCircle className="h-10 w-10 text-sky-400" />
           </div>
           <h3 className="text-lg font-bold text-foreground mb-2">المحادثة الجماعية</h3>
           <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
@@ -1048,7 +1048,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               </div>
               <button
                 onClick={() => initConversation()}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+                className="text-xs text-sky-700 hover:text-sky-800 font-medium transition-colors"
               >
                 إعادة المحاولة ←
               </button>
@@ -1076,8 +1076,8 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       {/* Header */}
       <motion.div variants={itemVariants} className="shrink-0 flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
-            <Hash className="h-5 w-5 text-emerald-600" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100">
+            <Hash className="h-5 w-5 text-sky-700" />
           </div>
           <div>
             <h3 className="text-base font-bold text-foreground">محادثة المقرر</h3>
@@ -1095,7 +1095,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             <WifiOff className="h-3 w-3 text-rose-400" />
           )}
           <div className={`h-2 w-2 rounded-full ${
-            status === 'connected' || status === 'realtime' ? 'bg-emerald-500'
+            status === 'connected' || status === 'realtime' ? 'bg-sky-600'
               : status === 'connecting' ? 'bg-amber-400 animate-pulse'
               : 'bg-rose-400'
           }`} />
@@ -1111,8 +1111,8 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border bg-card/50 p-4 space-y-3 scrollbar-thin">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-10">
-            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200/50 mb-5 shadow-sm">
-              <MessageCircle className="h-10 w-10 text-emerald-500" />
+            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-50 to-sky-100 border border-sky-200/50 mb-5 shadow-sm">
+              <MessageCircle className="h-10 w-10 text-sky-600" />
             </div>
             <h4 className="text-base font-bold text-foreground mb-1.5">ابدأ المحادثة!</h4>
             <p className="text-sm text-muted-foreground max-w-[250px] leading-relaxed">
@@ -1137,14 +1137,14 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4, pointerEvents: 'none' as const }}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/80 border border-emerald-100"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50/80 border border-sky-100"
             >
               <div className="flex gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
-              <span className="text-xs text-emerald-700 font-medium">
+              <span className="text-xs text-sky-800 font-medium">
                 {Array.from(typingUsers.values()).join('، ')} يكتب الآن...
               </span>
             </motion.div>
@@ -1166,7 +1166,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               }
             }}
             placeholder="اكتب رسالتك..."
-            className="w-full rounded-xl border bg-background px-4 py-3 pr-4 pl-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all"
+            className="w-full rounded-xl border bg-background px-4 py-3 pr-4 pl-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
             dir="rtl"
             disabled={sending}
           />
@@ -1174,7 +1174,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         <button
           onClick={handleSend}
           disabled={!newMessage.trim() || sending}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-700 text-white shadow-sm hover:bg-sky-800 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
         >
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
         </button>

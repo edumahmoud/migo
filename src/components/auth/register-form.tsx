@@ -46,7 +46,7 @@ function getPasswordStrength(password: string): {
   if (score <= 1) return { score, label: 'ضعيفة', color: 'bg-red-500' };
   if (score <= 2) return { score, label: 'متوسطة', color: 'bg-yellow-500' };
   if (score <= 3) return { score, label: 'جيدة', color: 'bg-blue-500' };
-  return { score, label: 'قوية', color: 'bg-emerald-500' };
+  return { score, label: 'قوية', color: 'bg-teal-500' };
 }
 
 export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
@@ -165,7 +165,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg overflow-hidden"
+              className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
             >
               {displayLogo ? (
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
@@ -200,7 +200,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                     placeholder="أدخل اسمك الكامل"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500/20 text-right"
+                    className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
                     disabled={isLoading}
                     maxLength={100}
                   />
@@ -225,7 +225,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                     placeholder="أدخل بريدك الإلكتروني"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500/20 text-right"
+                    className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
                     disabled={isLoading}
                     dir="ltr"
                     maxLength={254}
@@ -251,7 +251,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                     placeholder="أنشئ كلمة مرور قوية"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pr-10 pl-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500/20 text-right"
+                    className="pr-10 pl-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
                     disabled={isLoading}
                     dir="ltr"
                   />
@@ -288,7 +288,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                       passwordStrength.score <= 1 ? 'text-red-500' :
                       passwordStrength.score <= 2 ? 'text-yellow-600' :
                       passwordStrength.score <= 3 ? 'text-blue-600' :
-                      'text-emerald-600'
+                      'text-teal-600'
                     }`}>
                       قوة كلمة المرور: {passwordStrength.label}
                     </p>
@@ -316,7 +316,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                     placeholder="أعد إدخال كلمة المرور"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pr-10 pl-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500/20 text-right"
+                    className="pr-10 pl-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
                     disabled={isLoading}
                     dir="ltr"
                   />
@@ -342,7 +342,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.45 }}
               >
-                <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2 sm:p-3 text-xs text-emerald-700 flex items-start gap-2">
+                <div className="rounded-lg bg-sky-50 border border-sky-200 p-2 sm:p-3 text-xs text-sky-700 flex items-start gap-2">
                   <GraduationCap className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>
                     يتم إنشاء حسابك كطالب بشكل افتراضي. يمكن للمشرف تغيير نوع حسابك لاحقاً.
@@ -359,7 +359,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 <Button
                   type="submit"
                   disabled={isLoading || isGoogleLoading}
-                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg shadow-emerald-500/25 transition-all duration-300 hover:shadow-emerald-500/40"
+                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 hover:shadow-sky-500/40"
                 >
                   {isLoading ? (
                     <>
@@ -440,7 +440,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   <button
                     type="button"
                     onClick={handleSwitchToLogin}
-                    className="font-semibold text-emerald-600 hover:text-emerald-700 transition-colors hover:underline"
+                    className="font-semibold text-sky-600 hover:text-sky-700 transition-colors hover:underline"
                   >
                     سجّل دخولك
                   </button>

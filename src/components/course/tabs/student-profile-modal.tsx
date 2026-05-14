@@ -185,14 +185,14 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <User className="h-5 w-5 text-emerald-600" />
+            <User className="h-5 w-5 text-sky-700" />
             ملف الطالب
           </DialogTitle>
         </DialogHeader>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+            <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
           </div>
         ) : !performance ? (
           <div className="text-center py-12 text-muted-foreground">لم يتم العثور على بيانات الطالب</div>
@@ -212,9 +212,9 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
               />
 
               {/* Overall performance card */}
-              <div className="rounded-xl border bg-emerald-50/50 p-4 space-y-3">
+              <div className="rounded-xl border bg-sky-50/50 p-4 space-y-3">
                 <h5 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <Award className="h-4 w-4 text-emerald-600" />
+                  <Award className="h-4 w-4 text-sky-700" />
                   الأداء العام
                 </h5>
                 <div className="flex items-center gap-4">
@@ -230,13 +230,13 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                         <path
                           d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                           fill="none"
-                          stroke="#10b981"
+                          stroke="#0D9488"
                           strokeWidth="3"
                           strokeDasharray={`${performance.average_score}, 100`}
                         />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-sm font-bold text-emerald-700">{performance.average_score}%</span>
+                        <span className="text-sm font-bold text-sky-800">{performance.average_score}%</span>
                       </div>
                     </div>
                     <span className="text-xs text-muted-foreground mt-1">متوسط الأداء</span>
@@ -258,7 +258,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
               {performance.scores.length > 0 && (
                 <div className="space-y-2">
                   <h5 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <Award className="h-4 w-4 text-emerald-600" />
+                    <Award className="h-4 w-4 text-sky-700" />
                     نتائج الاختبارات
                   </h5>
                   <div className="space-y-2">
@@ -273,7 +273,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-sm font-bold text-foreground">{score.score}/{score.total}</span>
                             <Badge className={`text-[10px] ${
-                              pct >= 80 ? 'bg-emerald-100 text-emerald-700' :
+                              pct >= 80 ? 'bg-sky-100 text-sky-800' :
                               pct >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
                             }`}>
                               {pct}%
@@ -290,7 +290,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
               {performance.submissions.length > 0 && (
                 <div className="space-y-2">
                   <h5 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    <CheckCircle2 className="h-4 w-4 text-sky-700" />
                     التسليمات
                   </h5>
                   <div className="space-y-2">
@@ -304,10 +304,10 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {sub.status === 'graded' && sub.score !== undefined && sub.score !== null ? (
-                            <span className="text-sm font-bold text-emerald-700">{sub.score}</span>
+                            <span className="text-sm font-bold text-sky-800">{sub.score}</span>
                           ) : null}
                           <Badge className={`text-[10px] ${
-                            sub.status === 'graded' ? 'bg-emerald-100 text-emerald-700' :
+                            sub.status === 'graded' ? 'bg-sky-100 text-sky-800' :
                             sub.status === 'submitted' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
                           }`}>
                             {sub.status === 'graded' ? 'تم التقييم' : sub.status === 'submitted' ? 'تم التسليم' : 'تم الإرجاع'}

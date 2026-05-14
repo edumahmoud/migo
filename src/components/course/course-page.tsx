@@ -51,7 +51,7 @@ const TeamsTab = lazy(() => import('@/components/course/tabs/teams-tab'));
 function TabLoader() {
   return (
     <div className="flex items-center justify-center py-16">
-      <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+      <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
     </div>
   );
 }
@@ -120,7 +120,7 @@ function hexToRgba(hex: string, alpha: number): string {
 // Subject colors for edit modal
 // -------------------------------------------------------
 const SUBJECT_COLORS = [
-  '#10b981', '#14b8a6', '#f59e0b', '#ef4444',
+  '#0369A1', '#14b8a6', '#f59e0b', '#ef4444',
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
 ];
 
@@ -201,7 +201,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
 
   // Subject color with fallback
-  const subjectColor = subject?.color || '#10b981';
+  const subjectColor = subject?.color || '#0D9488';
 
   // Gradient colors
   const gradientFrom = subjectColor;
@@ -425,7 +425,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
       </div>
     );
   }
@@ -436,14 +436,14 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   if (!subject) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-          <BookOpen className="h-8 w-8 text-emerald-600" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+          <BookOpen className="h-8 w-8 text-sky-700" />
         </div>
         <p className="text-lg font-semibold text-foreground mb-1">لم يتم العثور على المقرر</p>
         <p className="text-sm text-muted-foreground mb-4">قد يكون المقرر محذوفاً أو غير متاح</p>
         <button
           onClick={handleBack}
-          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+          className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <ChevronLeft className="h-4 w-4" />
           العودة للمقررات
@@ -788,7 +788,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder="مثال: الرياضيات 101"
-                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all"
+                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
                     dir="rtl"
                     disabled={savingSubject}
                     onKeyDown={(e) => {
@@ -807,7 +807,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     onChange={(e) => setEditDesc(e.target.value)}
                     placeholder="وصف اختياري للمقرر..."
                     rows={3}
-                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all resize-none"
+                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none"
                     dir="rtl"
                     disabled={savingSubject}
                   />
@@ -822,7 +822,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     <select
                       value={editLevel}
                       onChange={(e) => setEditLevel(e.target.value)}
-                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
                       dir="rtl"
                       disabled={savingSubject}
                     >
@@ -839,7 +839,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     <select
                       value={editSubLevel}
                       onChange={(e) => setEditSubLevel(e.target.value)}
-                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all appearance-none cursor-pointer"
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
                       dir="rtl"
                       disabled={savingSubject}
                     >

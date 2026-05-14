@@ -546,7 +546,7 @@ export async function POST(request: NextRequest) {
             newTeams.push({
               subject_id: subjectId,
               name: `فريق ${i + 1}`,
-              color: ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'][i % 8],
+              color: ['#0369a1', '#ec4899', '#f59e0b', '#0D9488', '#8b5cf6', '#ef4444', '#06b6d4', '#84cc16'][i % 8],
               created_by: authResult.user.id,
             });
           }

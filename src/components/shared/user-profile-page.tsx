@@ -146,10 +146,10 @@ function getFileIcon(fileType: string) {
     lower.includes('svg') ||
     lower.includes('webp')
   ) {
-    return <ImageIcon className="h-5 w-5 text-emerald-500" />;
+    return <ImageIcon className="h-5 w-5 text-sky-600" />;
   }
   if (lower.includes('video') || lower.includes('mp4') || lower.includes('avi') || lower.includes('mov')) {
-    return <FileVideo className="h-5 w-5 text-purple-500" />;
+    return <FileVideo className="h-5 w-5 text-sky-600" />;
   }
   if (lower.includes('audio') || lower.includes('mp3') || lower.includes('wav') || lower.includes('ogg')) {
     return <FileAudio className="h-5 w-5 text-amber-500" />;
@@ -403,7 +403,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Loader2 className="h-10 w-10 text-emerald-500 animate-spin" />
+        <Loader2 className="h-10 w-10 text-sky-600 animate-spin" />
         <p className="text-muted-foreground text-sm">جارٍ تحميل الملف الشخصي...</p>
       </div>
     );
@@ -444,7 +444,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         </Button>
 
         {/* Banner gradient */}
-        <div className="h-40 sm:h-52 rounded-b-2xl bg-gradient-to-bl from-emerald-600 via-teal-500 to-emerald-700 relative overflow-hidden">
+        <div className="h-40 sm:h-52 rounded-b-2xl bg-gradient-to-bl from-sky-700 via-teal-500 to-sky-800 relative overflow-hidden">
           {/* Decorative patterns */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
@@ -472,7 +472,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                 name={profile.name}
                 avatarUrl={profile.avatar_url}
                 size="xl"
-                className="ring-4 ring-emerald-400/30"
+                className="ring-4 ring-sky-400/30"
               />
             </div>
             {/* Zoom overlay */}
@@ -504,7 +504,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
             {/* Name with title */}
             <div className="flex flex-wrap items-center gap-2 mb-1">
               {titleLabel && (
-                <span className="text-emerald-600 dark:text-emerald-400 text-sm font-semibold bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-md">
+                <span className="text-sky-700 dark:text-sky-400 text-sm font-semibold bg-sky-50 dark:bg-sky-900/30 px-2 py-0.5 rounded-md">
                   {titleLabel}
                 </span>
               )}
@@ -544,11 +544,11 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           {/* Quick info cards */}
           <div className="flex items-center gap-3 text-sm text-muted-foreground shrink-0">
             <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-3 py-1.5">
-              <CalendarDays className="h-4 w-4 text-emerald-500" />
+              <CalendarDays className="h-4 w-4 text-sky-600" />
               <span className="text-xs">انضم {formatDate(profile.created_at)}</span>
             </div>
             <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-3 py-1.5">
-              <FolderOpen className="h-4 w-4 text-emerald-500" />
+              <FolderOpen className="h-4 w-4 text-sky-600" />
               <span className="text-xs">{publicFiles.length} ملف</span>
             </div>
           </div>
@@ -578,7 +578,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                 <Download className="h-4 w-4" />
                 طلبات الملفات
                 {fileRequests.length > 0 && (
-                  <Badge className="h-5 min-w-5 px-1.5 text-[10px] bg-emerald-600 text-white border-0">
+                  <Badge className="h-5 min-w-5 px-1.5 text-[10px] bg-sky-700 text-white border-0">
                     {fileRequests.length}
                   </Badge>
                 )}
@@ -603,8 +603,8 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                 <motion.div variants={itemVariants}>
                   <Card className="border-dashed border-2 bg-muted/20">
                     <CardContent className="py-16 flex flex-col items-center gap-4">
-                      <div className="h-16 w-16 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                        <Inbox className="h-8 w-8 text-emerald-500" />
+                      <div className="h-16 w-16 rounded-2xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
+                        <Inbox className="h-8 w-8 text-sky-600" />
                       </div>
                       <div className="text-center">
                         <p className="text-muted-foreground text-sm font-medium">لا توجد ملفات عامة</p>
@@ -660,7 +660,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                               <div className="mt-auto pt-1">
                                 {file.requestStatus === 'approved' ? (
                                   <Badge
-                                    className="w-full justify-center gap-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-0 text-xs py-1.5"
+                                    className="w-full justify-center gap-1.5 bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400 border-0 text-xs py-1.5"
                                   >
                                     <CheckCircle2 className="h-3.5 w-3.5" />
                                     تمت الموافقة
@@ -761,7 +761,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                     <DialogTrigger asChild>
                                       <Button
                                         size="sm"
-                                        className="w-full gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8"
+                                        className="w-full gap-1.5 bg-sky-700 hover:bg-sky-800 text-white text-xs h-8"
                                         onClick={() => setRequestingFileId(file.id)}
                                       >
                                         <Send className="h-3.5 w-3.5" />
@@ -771,7 +771,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                     <DialogContent dir="rtl" className="sm:max-w-md">
                                       <DialogHeader>
                                         <DialogTitle className="flex items-center gap-2 text-right">
-                                          <MessageSquare className="h-5 w-5 text-emerald-600" />
+                                          <MessageSquare className="h-5 w-5 text-sky-700" />
                                           طلب ملف
                                         </DialogTitle>
                                       </DialogHeader>
@@ -821,7 +821,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                         <Button
                                           onClick={handleSendRequest}
                                           disabled={sendingRequest}
-                                          className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                                          className="w-full gap-2 bg-sky-700 hover:bg-sky-800 text-white"
                                         >
                                           {sendingRequest ? (
                                             <>
@@ -856,13 +856,13 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
             <TabsContent value="courses">
               {loadingSubjects ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+                  <Loader2 className="h-6 w-6 animate-spin text-sky-600" />
                 </div>
               ) : teacherSubjects.length === 0 ? (
                 <Card className="border-dashed border-2 bg-muted/20">
                   <CardContent className="py-12 flex flex-col items-center gap-3">
-                    <div className="h-14 w-14 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-                      <BookOpen className="h-7 w-7 text-emerald-500" />
+                    <div className="h-14 w-14 rounded-2xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
+                      <BookOpen className="h-7 w-7 text-sky-600" />
                     </div>
                     <p className="text-muted-foreground text-sm">لا توجد مقررات بعد</p>
                   </CardContent>
@@ -871,7 +871,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                 <motion.section variants={containerVariants} initial="hidden" animate="visible">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {teacherSubjects.map((subject) => {
-                      const color = subject.color || '#10b981';
+                      const color = subject.color || '#0D9488';
                       return (
                         <motion.div key={subject.id} variants={itemVariants}>
                           <Card className="border shadow-sm hover:shadow-md transition-all duration-200">
@@ -893,7 +893,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                       </span>
                                     )}
                                     {subject.sub_level && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 border border-purple-200 px-2 py-0.5 text-[10px] text-purple-700">
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 border border-sky-200 px-2 py-0.5 text-[10px] text-sky-800">
                                         {subject.sub_level}
                                       </span>
                                     )}
@@ -921,7 +921,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
               >
                 {loadingRequests ? (
                   <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-8 w-8 text-emerald-500 animate-spin" />
+                    <Loader2 className="h-8 w-8 text-sky-600 animate-spin" />
                   </div>
                 ) : fileRequests.length === 0 ? (
                   <Card className="border-dashed border-2 bg-muted/20">
@@ -982,7 +982,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                                  className="h-8 text-xs gap-1.5 border-sky-300 text-sky-800 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30"
                                   disabled={processingRequestId === req.id}
                                   onClick={() => handleRequestAction(req.id, 'approve')}
                                 >
