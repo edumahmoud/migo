@@ -1971,12 +1971,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <h2 className="text-2xl font-bold text-foreground">ملفاتي</h2>
           <p className="text-muted-foreground mt-1">إدارة ملفاتك الشخصية ومشاركتها</p>
         </div>
-        {isMobile ? (
-          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-700">
-            <Info className="h-4 w-4" />
-            ميزة رفع الملفات تعمل عند الفتح من الحاسوب فقط
-          </div>
-        ) : (
+        <div className="flex items-center gap-2">
           <button
             onClick={openUploadModal}
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 active:bg-sky-900 touch-manipulation"
@@ -1984,7 +1979,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <Upload className="h-4 w-4" />
             رفع ملف
           </button>
-        )}
+        </div>
       </motion.div>
 
       {/* Visibility filter tabs */}

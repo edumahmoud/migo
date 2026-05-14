@@ -663,6 +663,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Non-critical: notification store cleanup failure shouldn't block sign-out
     }
 
+    // Clean up summaries cache from localStorage to prevent showing
+    // another user's cached summaries after switching accounts
+    if (currentUser?.id) {
+      try {
+        // Remove summaries cache for the current user
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(`summaries_${currentUser.id}`)) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+      } catch {
+        // Non-critical: localStorage might be unavailable
+      }
+    }
+
     // End session tracking in the background (don't block UI)
     endSession().catch(() => {});
 

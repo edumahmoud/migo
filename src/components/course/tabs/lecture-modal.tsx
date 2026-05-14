@@ -771,7 +771,12 @@ export default function LectureModal({
     setUploadingFiles(false);
     fetchNotes();
     onRefresh();
-    toast.success('تم رفع الملفات بنجاح');
+    const failedCount = pendingFiles.filter(f => f.status === 'error').length;
+    if (failedCount === 0) {
+      toast.success('تم رفع الملفات بنجاح');
+    } else {
+      toast.error(`فشل رفع ${failedCount} من ${pendingFiles.length} ملف`);
+    }
 
     // Clear done files after a short delay
     setTimeout(() => {
@@ -960,6 +965,7 @@ export default function LectureModal({
                         ref={fileInputRef}
                         type="file"
                         multiple
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.txt,.csv,.zip,.mp4,.mp3,.wav"
                         onChange={handleFileSelect}
                         className="hidden"
                         disabled={uploadingFiles}

@@ -940,7 +940,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       }}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'existing'
-                          ? 'border-violet-500 bg-violet-50 text-violet-700'
+                          ? 'border-sky-500 bg-sky-50 text-sky-700'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -955,7 +955,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                   )}
                   {summaryInputMode === 'existing' && (
                     <div className="mt-2 space-y-2">
-                      <p className="text-xs text-violet-600/80">
+                      <p className="text-xs text-sky-600/80">
                         اختر ملفاً من ملفاتك المرفوعة مسبقاً
                       </p>
                       {/* Sub-toggle: Summarize vs Transcribe */}
@@ -1051,12 +1051,12 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                     <label className="text-sm font-medium text-foreground mb-1.5 block">اختر ملفاً من ملفاتك</label>
                     {loadingExistingFiles ? (
                       <div className="flex items-center justify-center py-8 gap-2">
-                        <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+                        <Loader2 className="h-5 w-5 animate-spin text-sky-600" />
                         <span className="text-sm text-muted-foreground">جاري تحميل الملفات...</span>
                       </div>
                     ) : existingFiles.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-lg border-2 border-dashed border-violet-300 bg-violet-50/30">
-                        <FolderOpen className="h-8 w-8 text-violet-400" />
+                      <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-lg border-2 border-dashed border-sky-300 bg-sky-50/30">
+                        <FolderOpen className="h-8 w-8 text-sky-400" />
                         <span className="text-sm text-muted-foreground">لا توجد ملفات مستندية مرفوعة</span>
                         <span className="text-xs text-muted-foreground/60">ارفع ملفات PDF أو Word من قسم الملفات</span>
                       </div>
@@ -1070,7 +1070,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                               onClick={() => setSelectedExistingFile(file)}
                               className={`flex items-center gap-3 w-full rounded-lg border p-3 text-right transition-all ${
                                 selectedExistingFile?.id === file.id
-                                  ? 'border-violet-500 bg-violet-50'
+                                  ? 'border-sky-500 bg-sky-50'
                                   : 'border-border hover:bg-muted/50'
                               }`}
                             >
@@ -1092,7 +1092,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                                 </div>
                               </div>
                               {selectedExistingFile?.id === file.id && (
-                                <CheckCircle2 className="h-4 w-4 text-violet-600 shrink-0" />
+                                <CheckCircle2 className="h-4 w-4 text-sky-600 shrink-0" />
                               )}
                             </button>
                           );
@@ -1110,7 +1110,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                   disabled={creatingSummary || (summaryInputMode === 'existing' && !selectedExistingFile)}
                   className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     summaryInputMode === 'transcribe' ? 'bg-teal-600 hover:bg-teal-700' :
-                    summaryInputMode === 'existing' ? (existingFileTranscribe ? 'bg-teal-600 hover:bg-teal-700' : 'bg-violet-600 hover:bg-violet-700') :
+                    summaryInputMode === 'existing' ? (existingFileTranscribe ? 'bg-teal-600 hover:bg-teal-700' : 'bg-sky-600 hover:bg-sky-700') :
                     'bg-sky-700 hover:bg-sky-800'
                   }`}
                 >
