@@ -161,18 +161,16 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       >
         <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block overflow-y-auto">
           <CardHeader className="text-center pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-              className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
-            >
-              {displayLogo ? (
+            {displayLogo && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                className="mx-auto mb-2 sm:mb-4 flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg overflow-hidden"
+              >
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
-              ) : (
-                <GraduationCap className="h-8 w-8 text-white" />
-              )}
-            </motion.div>
+              </motion.div>
+            )}
             <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
               إنشاء حساب جديد
             </CardTitle>

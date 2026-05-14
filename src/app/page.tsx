@@ -191,11 +191,26 @@ function HomeContent() {
         );
       }
     } else if (currentPage !== 'auth') {
-      // Only set to auth if we're not already on auth page
-      // This prevents flicker during sign-out
+      // FIX: Don't immediately redirect to auth on refresh if we have a persisted session.
+      // The auth store may still be initializing (session hydration on mobile can take 5-15s).
+      // Only redirect if we're confident the user is actually logged out (not just slow to load).
+      // If hasPersistedSession is true, the user was logged in before — wait longer before redirecting.
+      if (hasPersistedSession) {
+        // Give the auth listener extra time to recover the session.
+        // The onAuthStateChange listener will set the user if the session is still valid.
+        // Only redirect to auth after a generous grace period.
+        const gracePeriod = setTimeout(() => {
+          // Re-check: if user is STILL null after the grace period, then truly logged out
+          const currentUser = useAuthStore.getState().user;
+          if (!currentUser) {
+            setCurrentPage('auth');
+          }
+        }, 5000); // 5 second grace period for session recovery
+        return () => clearTimeout(gracePeriod);
+      }
       setCurrentPage('auth');
     }
-  }, [user, initialized, currentPage, setCurrentPage, wizardInProgress]);
+  }, [user, initialized, currentPage, setCurrentPage, wizardInProgress, hasPersistedSession]);
 
   // Show auth error toast if present in URL
   useEffect(() => {
@@ -349,10 +364,10 @@ function HomeContent() {
               transition={{ duration: 0.7, ease: 'easeOut' }}
               className="text-center max-w-lg"
             >
-              {/* Logo */}
-              <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 backdrop-blur-sm shadow-2xl border border-white/20">
+              {/* Logo — removed per user request: no app icon on auth pages */}
+              {/* <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 backdrop-blur-sm shadow-2xl border border-white/20">
                 <GraduationCap className="h-10 w-10 text-white" />
-              </div>
+              </div> */}
 
               <h2 className="text-3xl xl:text-4xl font-bold text-white mb-4 leading-tight">
                 منصتك التعليمية الذكية
@@ -388,16 +403,8 @@ function HomeContent() {
 
         {/* ── Left Panel: Auth Form ── */}
         <div className="flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
-          {/* Mobile-only top branding */}
+          {/* Mobile-only top branding — no app icon per user request */}
           <div className="lg:hidden flex flex-col items-center mb-6">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: 'spring', stiffness: 200 }}
-              className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg"
-            >
-              <GraduationCap className="h-7 w-7 text-white" />
-            </motion.div>
             {/* Feature badges - mobile */}
             <div className="flex items-center gap-3 text-muted-foreground flex-wrap justify-center">
               <div className="flex items-center gap-1 text-[11px] font-medium">

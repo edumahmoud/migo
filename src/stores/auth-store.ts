@@ -407,11 +407,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     })();
 
     const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => reject(new Error('Auth init timeout')), 10000);
+      setTimeout(() => reject(new Error('Auth init timeout')), 20000);
     });
     try {
       await Promise.race([initPromise, timeoutPromise]);
     } catch (error) {
+      // FIX: Don't force logout on timeout — if we have a persisted session,
+      // the user was logged in before. Give the auth listener more time to recover.
+      // Only set user to null if we have NO indication of a previous session.
+      const currentState = get();
+      if (!currentState.user) {
+        // Check if there's a persisted app store with a non-auth page
+        try {
+          const raw = localStorage.getItem('attendo-app-store');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.state?.currentPage && parsed.state.currentPage !== 'auth') {
+              // User was logged in before — don't force logout, just mark as initialized
+              // The onAuthStateChange listener will eventually provide the user
+              console.warn('[Auth] Init timed out but persisted session exists — waiting for auth listener');
+              set({ loading: false, initialized: true });
+              return;
+            }
+          }
+        } catch {}
+      }
       set({ user: null, loading: false, initialized: true });
     }
   },
