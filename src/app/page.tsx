@@ -478,35 +478,69 @@ function HomeContent() {
     );
   }
 
-  // ─── Orphaned 'quiz' page (currentPage='quiz' without viewingQuizId) ───
-  if (currentPage === 'quiz' && !viewingQuizId) {
-    setCurrentPage(
-      user.role === 'superadmin' || user.role === 'admin'
-        ? 'admin-dashboard'
-        : user.role === 'teacher'
-          ? 'teacher-dashboard'
-          : 'student-dashboard'
-    );
-  }
-
-  // ─── Orphaned 'summary' page ───
-  // Summary view is now rendered INSIDE the student dashboard, so 'summary' currentPage
-  // should never be set for students. This handles legacy persisted state or
-  // teacher/admin fallback: redirect back to the appropriate dashboard.
-  // For students, setViewingSummaryId(null) will restore the previousStudentSection.
-  if (currentPage === 'summary') {
-    // Clear the orphaned summary state and redirect
-    if (viewingSummaryId) {
-      setViewingSummaryId(null);
-    } else {
+  // ─── Fix orphaned 'quiz'/'summary' pages via useEffect (NOT during render) ───
+  // Calling setCurrentPage/setViewingSummaryId during render violates React's rules
+  // and crashes the app with "Cannot update a component while rendering a different component"
+  useEffect(() => {
+    if (currentPage === 'quiz' && !viewingQuizId) {
       setCurrentPage(
-        user.role === 'superadmin' || user.role === 'admin'
+        user?.role === 'superadmin' || user?.role === 'admin'
           ? 'admin-dashboard'
-          : user.role === 'teacher'
+          : user?.role === 'teacher'
             ? 'teacher-dashboard'
             : 'student-dashboard'
       );
     }
+    if (currentPage === 'summary') {
+      if (viewingSummaryId) {
+        setViewingSummaryId(null);
+      } else {
+        setCurrentPage(
+          user?.role === 'superadmin' || user?.role === 'admin'
+            ? 'admin-dashboard'
+            : user?.role === 'teacher'
+              ? 'teacher-dashboard'
+              : 'student-dashboard'
+        );
+      }
+    }
+  }, [currentPage, viewingQuizId, viewingSummaryId, user?.role, setCurrentPage, setViewingSummaryId]);
+
+  // ─── Loading spinners for orphaned pages (while useEffect hasn't run yet) ───
+  if (currentPage === 'quiz' && !viewingQuizId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
+              <GraduationCap className="w-9 h-9 text-white" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
+            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentPage === 'summary') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
+              <GraduationCap className="w-9 h-9 text-white" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
+            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Profile view — includes AppSidebar so the toggle button works

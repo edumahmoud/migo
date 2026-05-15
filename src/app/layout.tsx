@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import React from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
@@ -123,9 +124,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <SocketProvider>
-          {children}
-        </SocketProvider>
+        <React.Suspense fallback={null}>
+          <SocketProvider>
+            {children}
+          </SocketProvider>
+        </React.Suspense>
         <Toaster />
         <ServiceWorkerRegistration />
         <InstallPrompt />

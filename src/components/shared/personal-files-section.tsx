@@ -1482,9 +1482,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     if (fileIdsToAssign.length === 0) return;
     setAssigning(true);
     try {
+      // Get auth token for API request
+      const { waitForSession } = await import('@/lib/client-auth');
+      const token = await waitForSession(10000);
+
       const res = await fetch('/api/files/bulk-assign', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           fileIds: fileIdsToAssign,
           subjectIds: Array.from(assignSubjectIds),
