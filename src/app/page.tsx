@@ -88,8 +88,6 @@ function HomeContent() {
 
       // Check 2: Does the app-store have a persisted user session?
       const raw = localStorage.getItem('attendo-app-store');
-      if (!raw && !isPwaRestore) return false;
-
       if (raw) {
         const parsed = JSON.parse(raw);
         // If the user was on a non-auth page, they were logged in
@@ -97,7 +95,22 @@ function HomeContent() {
         if (storedPage && storedPage !== 'auth') return true;
       }
 
-      // Check 3: PWA restore with busy operation flag (localStorage)
+      // Check 3: Does Supabase have a persisted auth session?
+      // This catches the case where Zustand store was cleared but Supabase session exists
+      const supabaseKeys = Object.keys(localStorage).filter(k =>
+        k.startsWith('sb-') && k.endsWith('-auth-token')
+      );
+      if (supabaseKeys.length > 0) {
+        try {
+          const sessionData = JSON.parse(localStorage.getItem(supabaseKeys[0]) || '');
+          // If there's an access token, the user was logged in
+          if (sessionData?.access_token || (Array.isArray(sessionData) && sessionData[0]?.access_token)) {
+            return true;
+          }
+        } catch { /* ignore malformed session data */ }
+      }
+
+      // Check 4: PWA restore with busy operation flag (localStorage)
       if (isPwaRestore) {
         const busyRaw = localStorage.getItem('_attendo_busy');
         if (busyRaw) {
@@ -636,6 +649,26 @@ function HomeContent() {
   }
 
   // Authenticated content wrapped with SocketProvider
+  // SAFETY: Ensure user is not null before rendering dashboard content.
+  // If user becomes null (e.g., auth timeout with persisted session), redirect to auth.
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
+              <GraduationCap className="w-9 h-9 text-white" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
+            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const dashboardContent = (() => {
     // Check if user is banned (but not admin - admins can't be banned)
     const isBannedUser = banInfo && user.role !== 'admin' && user.role !== 'superadmin';

@@ -2384,7 +2384,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{summary.title}</p>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                          {summary.summary_content.slice(0, 80)}...
+                          {summary.summary_content?.slice(0, 80) || summary.original_content?.slice(0, 80) || ''}...
                         </p>
                         <p className="text-xs text-muted-foreground/60 mt-1">{formatDate(summary.created_at)}</p>
                       </div>
@@ -2566,7 +2566,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <h3 className="font-semibold text-foreground truncate">{summary.title}</h3>
                   </div>
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                    {summary.summary_content.slice(0, 120)}...
+                    {summary.summary_content?.slice(0, 120) || summary.original_content?.slice(0, 120) || ''}...
                   </p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
                     <Calendar className="h-3 w-3" />

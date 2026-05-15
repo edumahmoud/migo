@@ -171,6 +171,8 @@ function createFallbackProfile(authUser: { id: string; email?: string; user_meta
   const avatarUrl = (authUser.user_metadata?.avatar_url as string) || null;
   const userRole = (authUser.user_metadata?.role as string) || 'student';
   const validRole = (['teacher', 'admin', 'superadmin'].includes(userRole) ? userRole : 'student') as UserRole;
+  const userGender = (authUser.user_metadata?.gender as string) || null;
+  const userTitleId = (authUser.user_metadata?.title_id as string) || null;
 
   return {
     id: authUser.id,
@@ -179,6 +181,9 @@ function createFallbackProfile(authUser: { id: string; email?: string; user_meta
     username: generateUsername(userName, authUser.id),
     role: validRole,
     avatar_url: avatarUrl,
+    gender: userGender,
+    title_id: userTitleId,
+    teacher_code: validRole === 'teacher' ? (authUser.user_metadata?.teacher_code as string) || null : null,
     created_at: authUser.created_at || new Date().toISOString(),
     updated_at: authUser.updated_at || new Date().toISOString(),
   };
