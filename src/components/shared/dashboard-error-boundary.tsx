@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, RefreshCw, GraduationCap } from 'lucide-react';
+import { AlertTriangle, RefreshCw, GraduationCap, LogOut } from 'lucide-react';
 
 /**
  * DashboardErrorBoundary
@@ -11,14 +11,15 @@ import { AlertTriangle, RefreshCw, GraduationCap } from 'lucide-react';
  * and shows a user-friendly error UI instead of crashing the entire app.
  * This is the #1 defense against post-login crashes.
  *
+ * CRITICAL FIX (v2):
+ * - Added retry counter: after 3 failed retries, offer to go back to login
+ * - Added error recovery: clears corrupted localStorage on retry
+ * - Added retry key: forces React to remount children on retry
+ * - Better error logging: includes component stack for debugging
+ *
  * Without this boundary, any unhandled error in a dashboard component
  * propagates to the route-level error.tsx, which shows "حدث خطأ غير متوقع"
  * and the user perceives this as "the app crashed after login".
- *
- * With this boundary, the error is caught locally and the user gets:
- * 1. A clear message that something went wrong in the dashboard
- * 2. A retry button that re-mounts the dashboard component
- * 3. A fallback to the login page if retry doesn't help
  */
 interface DashboardErrorBoundaryProps {
   children: React.ReactNode;
@@ -30,7 +31,12 @@ interface DashboardErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   errorInfo: React.ErrorInfo | null;
+  retryCount: number;
+  /** Changing this key forces React to remount children */
+  retryKey: number;
 }
+
+const MAX_RETRIES = 3;
 
 export default class DashboardErrorBoundary extends React.Component<
   DashboardErrorBoundaryProps,
@@ -38,7 +44,7 @@ export default class DashboardErrorBoundary extends React.Component<
 > {
   constructor(props: DashboardErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null, errorInfo: null, retryCount: 0, retryKey: 0 };
   }
 
   static getDerivedStateFromError(error: Error): Partial<DashboardErrorBoundaryState> {
@@ -47,17 +53,36 @@ export default class DashboardErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[DashboardErrorBoundary] Dashboard component crashed:', error, errorInfo);
-    this.setState({ errorInfo });
+    this.setState(prev => ({
+      errorInfo,
+      retryCount: prev.retryCount + 1,
+    }));
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false, error: null, errorInfo: null });
+    // Clear potentially corrupted state that might be causing the error
+    try {
+      localStorage.removeItem('_wsr');
+      localStorage.removeItem('_sw_reload_pending');
+      localStorage.removeItem('_attendo_busy');
+    } catch {}
+
+    // Force remount by changing the key
+    this.setState(prev => ({
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      retryKey: prev.retryKey + 1,
+    }));
   };
 
   handleGoToLogin = () => {
     // Clear any corrupted state that might be causing the error
     try {
       localStorage.removeItem('attendo-app-store');
+      localStorage.removeItem('_wsr');
+      localStorage.removeItem('_sw_reload_pending');
+      localStorage.removeItem('_attendo_busy');
     } catch {}
     // Reload the page to start fresh
     if (typeof window !== 'undefined') {
@@ -67,6 +92,8 @@ export default class DashboardErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
+      const tooManyRetries = this.state.retryCount >= MAX_RETRIES;
+
       return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
           {/* Background decoration */}
@@ -109,7 +136,7 @@ export default class DashboardErrorBoundary extends React.Component<
                 transition={{ delay: 0.4 }}
                 className="text-xl font-bold text-gray-900 mb-2"
               >
-                حدث خطأ في تحميل لوحة التحكم
+                {tooManyRetries ? 'تعذر تحميل لوحة التحكم' : 'حدث خطأ في تحميل لوحة التحكم'}
               </motion.h1>
 
               {/* Description */}
@@ -119,7 +146,9 @@ export default class DashboardErrorBoundary extends React.Component<
                 transition={{ delay: 0.5 }}
                 className="text-sm text-gray-500 mb-6 leading-relaxed"
               >
-                حدث خطأ أثناء تحميل لوحة التحكم الخاصة بك. يمكنك المحاولة مرة أخرى أو العودة لتسجيل الدخول.
+                {tooManyRetries
+                  ? 'تعذر تحميل لوحة التحكم بعد عدة محاولات. يرجى العودة لتسجيل الدخول والمحاولة مرة أخرى.'
+                  : 'حدث خطأ أثناء تحميل لوحة التحكم الخاصة بك. يمكنك المحاولة مرة أخرى أو العودة لتسجيل الدخول.'}
               </motion.p>
 
               {/* Error details (collapsible for debugging) */}
@@ -135,6 +164,13 @@ export default class DashboardErrorBoundary extends React.Component<
                 </details>
               )}
 
+              {/* Retry count indicator */}
+              {this.state.retryCount > 1 && !tooManyRetries && (
+                <p className="text-xs text-amber-600 mb-4">
+                  محاولة {this.state.retryCount} من {MAX_RETRIES}
+                </p>
+              )}
+
               {/* Action buttons */}
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -142,18 +178,21 @@ export default class DashboardErrorBoundary extends React.Component<
                 transition={{ delay: 0.6 }}
                 className="flex flex-col sm:flex-row items-center justify-center gap-3"
               >
-                <button
-                  onClick={this.handleRetry}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  إعادة المحاولة
-                </button>
+                {!tooManyRetries && (
+                  <button
+                    onClick={this.handleRetry}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    إعادة المحاولة
+                  </button>
+                )}
 
                 <button
                   onClick={this.handleGoToLogin}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
                 >
+                  <LogOut className="h-4 w-4" />
                   العودة لتسجيل الدخول
                 </button>
               </motion.div>
@@ -173,6 +212,8 @@ export default class DashboardErrorBoundary extends React.Component<
       );
     }
 
-    return this.props.children;
+    // Use retryKey to force remount of children on retry
+    // This ensures that any stale state from the crashed component is reset
+    return <React.Fragment key={this.state.retryKey}>{this.props.children}</React.Fragment>;
   }
 }

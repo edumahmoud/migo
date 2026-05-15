@@ -124,7 +124,15 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <SocketErrorBoundary>
+        <SocketErrorBoundary
+          // Slot 1 (normal): Full app WITH SocketProvider
+          // Slot 2 (fallback): App WITHOUT SocketProvider — used when socket.io crashes
+          fallback={
+            <React.Suspense fallback={null}>
+              {children}
+            </React.Suspense>
+          }
+        >
           <React.Suspense fallback={null}>
             <SocketProvider>
               {children}

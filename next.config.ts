@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),
+  turbopack: {
+    root: path.join(__dirname),
+  },
   // CRITICAL: Do NOT add pdfjs-dist to serverExternalPackages.
   // serverExternalPackages prevents Next.js from bundling the package,
   // which means it won't be available in Vercel serverless functions.
