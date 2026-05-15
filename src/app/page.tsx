@@ -25,6 +25,7 @@ import AppSidebar from '@/components/shared/app-sidebar';
 import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SetupWizard from '@/components/setup/setup-wizard';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
+import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary';
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
@@ -247,13 +248,14 @@ function HomeContent() {
       }
     } else if (currentPage !== 'auth') {
       // FIX: Don't immediately redirect to auth on refresh if we have a persisted session.
-      // The auth store may still be initializing (session hydration on mobile can take 5-15s).
+      // The auth store may still be initializing (session hydration on mobile can take 2-5s).
       // Only redirect if we're confident the user is actually logged out (not just slow to load).
-      // If hasPersistedSession is true, the user was logged in before — wait longer before redirecting.
+      // If hasPersistedSession is true, the user was logged in before — wait a bit before redirecting.
       if (hasPersistedSession) {
-        // Give the auth listener extra time to recover the session.
+        // Give the auth listener a short grace period to recover the session.
         // The onAuthStateChange listener will set the user if the session is still valid.
-        // Only redirect to auth after a generous grace period.
+        // Only redirect to auth after a short grace period (3s, not 10s — 10s is too long
+        // and makes the app appear stuck/frozen).
         const gracePeriod = setTimeout(() => {
           // Re-check: if user is STILL null after the grace period, then truly logged out
           const currentUser = useAuthStore.getState().user;
@@ -262,7 +264,7 @@ function HomeContent() {
           if (!currentUser && currentInitialized) {
             setCurrentPage('auth');
           }
-        }, 10000); // 10 second grace period for session recovery
+        }, 3000); // 3 second grace period for session recovery
         return () => clearTimeout(gracePeriod);
       }
       setCurrentPage('auth');
@@ -671,6 +673,21 @@ function HomeContent() {
     );
   }
 
+  // ─── Shared sign-out handler ───
+  const handleSignOut = useCallback(() => {
+    destroySocket();
+    cleanupStatusStore();
+    cleanupNotifications();
+    resetAppStore();
+    setCurrentPage('auth');
+    signOut();
+  }, [destroySocket, cleanupStatusStore, cleanupNotifications, resetAppStore, setCurrentPage, signOut]);
+
+  // ─── Dashboard content wrapped in Error Boundary ───
+  // CRITICAL FIX: Wrap dashboard in DashboardErrorBoundary to prevent
+  // post-login crashes. Without this, any unhandled error in StudentDashboard,
+  // TeacherDashboard, or AdminDashboard propagates to the route-level error.tsx,
+  // which shows "حدث خطأ غير متوقع" and the user sees the app as "crashed".
   const dashboardContent = (() => {
     // Check if user is banned (but not admin - admins can't be banned)
     const isBannedUser = banInfo && user.role !== 'admin' && user.role !== 'superadmin';
@@ -678,51 +695,36 @@ function HomeContent() {
     // Superadmin or Admin dashboard
     if (user.role === 'superadmin' || user.role === 'admin' || currentPage === 'admin-dashboard') {
       return (
-        <AdminDashboard
-          profile={user}
-          onSignOut={() => {
-            destroySocket();
-            cleanupStatusStore();
-            cleanupNotifications();
-            resetAppStore();
-            setCurrentPage('auth');
-            signOut();
-          }}
-        />
+        <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
+          <AdminDashboard
+            profile={user}
+            onSignOut={handleSignOut}
+          />
+        </DashboardErrorBoundary>
       );
     }
 
     // Teacher dashboard
     if (user.role === 'teacher' || currentPage === 'teacher-dashboard') {
       const teacherContent = (
-        <TeacherDashboard
-          profile={user}
-          onSignOut={() => {
-            destroySocket();
-            cleanupStatusStore();
-            cleanupNotifications();
-            resetAppStore();
-            setCurrentPage('auth');
-            signOut();
-          }}
-        />
+        <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
+          <TeacherDashboard
+            profile={user}
+            onSignOut={handleSignOut}
+          />
+        </DashboardErrorBoundary>
       );
       return isBannedUser ? <BannedUserOverlay>{teacherContent}</BannedUserOverlay> : teacherContent;
     }
 
     // Student dashboard (default)
     const studentContent = (
-      <StudentDashboard
-        profile={user}
-        onSignOut={() => {
-          destroySocket();
-          cleanupStatusStore();
-          cleanupNotifications();
-          resetAppStore();
-          setCurrentPage('auth');
-          signOut();
-        }}
-      />
+      <DashboardErrorBoundary onFallbackToLogin={handleSignOut}>
+        <StudentDashboard
+          profile={user}
+          onSignOut={handleSignOut}
+        />
+      </DashboardErrorBoundary>
     );
     return isBannedUser ? <BannedUserOverlay>{studentContent}</BannedUserOverlay> : studentContent;
   })();

@@ -233,6 +233,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user, loading: false }),
   
   initialize: async () => {
+    // Prevent double initialization
+    if (get().initialized) {
+      console.log('[Auth] Already initialized, skipping');
+      return;
+    }
+
     const initPromise = (async () => {
     try {
       // If Supabase is not configured, skip initialization and show auth page
@@ -264,8 +270,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // FIX: Retry getSession() with delays on ALL platforms (more retries on mobile).
         const isMobile = typeof navigator !== 'undefined' &&
           /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        const maxRetries = isMobile ? 5 : 2;
-        const retryDelay = isMobile ? 1000 : 500;
+        const maxRetries = isMobile ? 3 : 2;
+        const retryDelay = isMobile ? 800 : 500;
         
         console.log(`[Auth] No session on first try, retrying up to ${maxRetries} times (${isMobile ? 'mobile' : 'desktop'})...`);
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -424,7 +430,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     })();
 
     const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => reject(new Error('Auth init timeout')), 20000);
+      setTimeout(() => reject(new Error('Auth init timeout')), 15000);
     });
     try {
       await Promise.race([initPromise, timeoutPromise]);

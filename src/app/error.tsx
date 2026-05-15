@@ -18,6 +18,12 @@ export default function ErrorPage({
 
   const handleReload = () => {
     if (typeof window !== 'undefined') {
+      // Clear potentially corrupted state before reloading
+      try {
+        localStorage.removeItem('_wsr');
+        localStorage.removeItem('_sw_reload_pending');
+        localStorage.removeItem('_attendo_busy');
+      } catch {}
       window.location.reload();
     }
   };
