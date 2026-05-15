@@ -9,6 +9,8 @@ export const isSupabaseConfigured =
 
 // Use createBrowserClient from @supabase/ssr for proper cookie handling
 // This ensures the client can read auth cookies set by the server during OAuth callback
+// Note: The placeholder URL is used when Supabase is not configured.
+// The app checks isSupabaseConfigured and shows an error page before making any real requests.
 export const supabase = isSupabaseConfigured
   ? createBrowserClient(supabaseUrl, supabaseAnonKey)
   : createBrowserClient('https://placeholder.supabase.co', 'placeholder-key');

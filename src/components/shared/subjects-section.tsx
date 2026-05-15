@@ -612,8 +612,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       setJoinCodeInput('');
       setSubjectPreview(null);
 
-      // Also do a delayed re-fetch to get accurate data from server (forceRefresh to bypass cache after mutation)
-      setTimeout(() => fetchSubjects(true), 1000);
+      // Immediate re-fetch to show updated data (forceRefresh to bypass cache after mutation)
+      fetchSubjects(true);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         toast.error('انتهت مهلة الانضمام. يرجى المحاولة مرة أخرى.');

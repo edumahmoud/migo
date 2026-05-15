@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import InstitutionHead from "@/components/shared/institution-head";
 import ServiceWorkerRegistration from "@/components/shared/sw-registration";
 import InstallPrompt from "@/components/shared/install-prompt";
+import SocketErrorBoundary from "@/components/shared/socket-error-boundary";
 
 import { SocketProvider } from "@/lib/socket";
 
@@ -57,7 +58,6 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <head>
-        <InstitutionHead />
         <link rel="apple-touch-icon" href="/api/icon/180" data-dynamic-apple />
         <meta name="mobile-web-app-capable" content="yes" />
         {/* White screen detection: reload once if body stays empty after 12s.
@@ -124,11 +124,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <React.Suspense fallback={null}>
-          <SocketProvider>
-            {children}
-          </SocketProvider>
-        </React.Suspense>
+        <SocketErrorBoundary>
+          <React.Suspense fallback={null}>
+            <SocketProvider>
+              {children}
+            </SocketProvider>
+          </React.Suspense>
+        </SocketErrorBoundary>
+        <InstitutionHead />
         <Toaster />
         <ServiceWorkerRegistration />
         <InstallPrompt />

@@ -257,10 +257,12 @@ function HomeContent() {
         const gracePeriod = setTimeout(() => {
           // Re-check: if user is STILL null after the grace period, then truly logged out
           const currentUser = useAuthStore.getState().user;
-          if (!currentUser) {
+          const currentInitialized = useAuthStore.getState().initialized;
+          // Only redirect if initialization is complete and user is still null
+          if (!currentUser && currentInitialized) {
             setCurrentPage('auth');
           }
-        }, 5000); // 5 second grace period for session recovery
+        }, 10000); // 10 second grace period for session recovery
         return () => clearTimeout(gracePeriod);
       }
       setCurrentPage('auth');

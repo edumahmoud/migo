@@ -257,20 +257,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       let { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
+        // ─── Session Recovery: Retry getSession() ───
+        // On mobile PWA, after Android kills the WebView process and restores it,
+        // the Supabase session in localStorage may not be fully hydrated yet.
+        // On desktop, browser extensions or privacy settings can delay cookie/localStorage reads.
+        // FIX: Retry getSession() with delays on ALL platforms (more retries on mobile).
         const isMobile = typeof navigator !== 'undefined' &&
           /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        if (isMobile) {
-          console.log('[Auth] No session on first try (mobile PWA), retrying...');
-          for (let attempt = 1; attempt <= 3; attempt++) {
-            await new Promise(r => setTimeout(r, 1000));
-            const retryResult = await supabase.auth.getSession();
-            session = retryResult.data.session;
-            if (session) {
-              console.log(`[Auth] Session recovered on retry ${attempt}`);
-              break;
-            }
-            console.log(`[Auth] Retry ${attempt}/3: still no session`);
+        const maxRetries = isMobile ? 5 : 2;
+        const retryDelay = isMobile ? 1000 : 500;
+        
+        console.log(`[Auth] No session on first try, retrying up to ${maxRetries} times (${isMobile ? 'mobile' : 'desktop'})...`);
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          await new Promise(r => setTimeout(r, retryDelay));
+          const retryResult = await supabase.auth.getSession();
+          session = retryResult.data.session;
+          if (session) {
+            console.log(`[Auth] Session recovered on retry ${attempt}`);
+            break;
           }
+          console.log(`[Auth] Retry ${attempt}/${maxRetries}: still no session`);
         }
       }
       
@@ -354,7 +360,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Listen for auth changes
     authSubscription = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
+      // Handle INITIAL_SESSION: This fires when the listener is first registered.
+      // On page refresh, if getSession() returned null but the session exists in cookies,
+      // the INITIAL_SESSION event provides the valid session. Without handling this,
+      // the user gets redirected to the login page on refresh.
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
         // ─── Use server-side API to fetch profile (bypasses RLS) ───
         try {
           const res = await fetch('/api/auth/me', {
@@ -402,9 +412,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           sessionCheckCleanup = null;
         }
         // Clean up notification store — stop polling + unsubscribe realtime
+        // Use dynamic import instead of require() for ESM/Next.js App Router compatibility
         try {
-          const { useNotificationStore } = require('@/stores/notification-store');
-          useNotificationStore.getState().cleanup();
+          import('@/stores/notification-store').then(({ useNotificationStore }) => {
+            useNotificationStore.getState().cleanup();
+          }).catch(() => { /* non-critical */ });
         } catch { /* non-critical */ }
         set({ user: null, loading: false, banInfo: null });
       }
