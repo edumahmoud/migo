@@ -1,0 +1,443 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-ocean: var(--ocean);
+  --color-ocean-foreground: var(--ocean-foreground);
+  --color-teal-accent: var(--teal-accent);
+  --color-teal-accent-foreground: var(--teal-accent-foreground);
+  --color-amber-accent: var(--amber-accent);
+  --color-amber-accent-foreground: var(--amber-accent-foreground);
+}
+
+:root {
+  --radius: 0.75rem;
+  /* Ocean Blue primary palette */
+  --ocean: oklch(0.45 0.15 240);
+  --ocean-foreground: oklch(0.985 0 0);
+  --teal-accent: oklch(0.55 0.12 175);
+  --teal-accent-foreground: oklch(0.985 0 0);
+  --amber-accent: oklch(0.75 0.15 75);
+  --amber-accent-foreground: oklch(0.25 0.05 75);
+
+  /* Warm white background */
+  --background: oklch(0.995 0.003 90);
+  --foreground: oklch(0.175 0.02 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.175 0.02 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.175 0.02 260);
+
+  /* Primary = Ocean Blue */
+  --primary: oklch(0.45 0.15 240);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.96 0.01 240);
+  --secondary-foreground: oklch(0.25 0.05 240);
+  --muted: oklch(0.965 0.005 240);
+  --muted-foreground: oklch(0.50 0.02 260);
+  --accent: oklch(0.55 0.12 175);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.91 0.01 240);
+  --input: oklch(0.91 0.01 240);
+  --ring: oklch(0.45 0.15 240);
+  --chart-1: oklch(0.45 0.15 240);
+  --chart-2: oklch(0.55 0.12 175);
+  --chart-3: oklch(0.75 0.15 75);
+  --chart-4: oklch(0.6 0.15 300);
+  --chart-5: oklch(0.65 0.2 30);
+
+  /* Sidebar = Deep Navy */
+  --sidebar: oklch(0.22 0.06 250);
+  --sidebar-foreground: oklch(0.92 0.01 240);
+  --sidebar-primary: oklch(0.55 0.12 175);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.30 0.06 250);
+  --sidebar-accent-foreground: oklch(0.92 0.01 240);
+  --sidebar-border: oklch(0.35 0.06 250);
+  --sidebar-ring: oklch(0.55 0.12 175);
+}
+
+.dark {
+  --ocean: oklch(0.55 0.15 240);
+  --ocean-foreground: oklch(0.985 0 0);
+  --teal-accent: oklch(0.60 0.12 175);
+  --teal-accent-foreground: oklch(0.985 0 0);
+  --amber-accent: oklch(0.80 0.15 75);
+  --amber-accent-foreground: oklch(0.20 0.05 75);
+
+  --background: oklch(0.16 0.02 250);
+  --foreground: oklch(0.92 0.01 240);
+  --card: oklch(0.22 0.03 250);
+  --card-foreground: oklch(0.92 0.01 240);
+  --popover: oklch(0.22 0.03 250);
+  --popover-foreground: oklch(0.92 0.01 240);
+  --primary: oklch(0.60 0.15 240);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.28 0.03 250);
+  --secondary-foreground: oklch(0.92 0.01 240);
+  --muted: oklch(0.28 0.03 250);
+  --muted-foreground: oklch(0.65 0.02 240);
+  --accent: oklch(0.60 0.12 175);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.60 0.12 175);
+  --chart-1: oklch(0.55 0.15 240);
+  --chart-2: oklch(0.60 0.12 175);
+  --chart-3: oklch(0.80 0.15 75);
+  --chart-4: oklch(0.65 0.20 300);
+  --chart-5: oklch(0.70 0.20 30);
+  --sidebar: oklch(0.14 0.04 250);
+  --sidebar-foreground: oklch(0.92 0.01 240);
+  --sidebar-primary: oklch(0.60 0.12 175);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.25 0.04 250);
+  --sidebar-accent-foreground: oklch(0.92 0.01 240);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.60 0.12 175);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* RTL Arabic Markdown Typography for Summary View */
+.prose-summary {
+  direction: rtl;
+  text-align: right;
+  font-feature-settings: "ss01", "ss02";
+  line-height: 1.9;
+  color: var(--foreground);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.prose-summary h1 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #075985;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #bae6fd;
+  line-height: 1.4;
+}
+
+.prose-summary h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0369a1;
+  margin-top: 1.75rem;
+  margin-bottom: 0.625rem;
+  line-height: 1.4;
+}
+
+.prose-summary h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0284c7;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.prose-summary h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0ea5e9;
+  margin-top: 1.25rem;
+  margin-bottom: 0.375rem;
+}
+
+.prose-summary p {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9375rem;
+  line-height: 1.9;
+}
+
+.prose-summary ul {
+  list-style-type: none;
+  padding-right: 1.25rem;
+  margin: 0.75rem 0;
+}
+
+.prose-summary ul li {
+  position: relative;
+  padding-right: 1rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+}
+
+.prose-summary ul li::before {
+  content: "◆";
+  position: absolute;
+  right: 0;
+  color: #0d9488;
+  font-size: 0.625rem;
+  top: 0.55em;
+}
+
+.prose-summary ol {
+  list-style-type: none;
+  counter-reset: arabic-counter;
+  padding-right: 1.25rem;
+  margin: 0.75rem 0;
+}
+
+.prose-summary ol li {
+  position: relative;
+  padding-right: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+  counter-increment: arabic-counter;
+}
+
+.prose-summary ol li::before {
+  content: counter(arabic-counter, arabic-indic) ".";
+  position: absolute;
+  right: 0;
+  color: #0369a1;
+  font-weight: 700;
+  font-size: 0.8125rem;
+}
+
+.prose-summary blockquote {
+  border-right: 4px solid #0d9488;
+  padding-right: 1rem;
+  margin: 1rem 0;
+  background: #f0fdfa;
+  border-radius: 0.5rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  padding-left: 1rem;
+}
+
+.prose-summary blockquote p {
+  color: #134e4a;
+  font-style: italic;
+  margin: 0;
+}
+
+.prose-summary strong {
+  font-weight: 700;
+  color: #0369a1;
+}
+
+.prose-summary em {
+  font-style: italic;
+  color: #374151;
+}
+
+.prose-summary code {
+  background: #f0fdfa;
+  color: #0f766e;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  font-family: var(--font-mono), monospace;
+}
+
+.prose-summary pre {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  direction: ltr;
+  text-align: left;
+}
+
+.prose-summary pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: 0.8125rem;
+}
+
+.prose-summary hr {
+  border: none;
+  border-top: 2px solid #bae6fd;
+  margin: 1.5rem 0;
+}
+
+.prose-summary a {
+  color: #0d9488;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prose-summary a:hover {
+  color: #0f766e;
+}
+
+.prose-summary table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.prose-summary th {
+  background: #f0fdfa;
+  color: #075985;
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #bae6fd;
+  text-align: right;
+}
+
+.prose-summary td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  text-align: right;
+}
+
+/* Custom scrollbar for RTL */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Mobile App-like Experience ─── */
+@layer base {
+  /* Prevent text size adjustment on orientation change (iOS) */
+  html {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Touch action optimization */
+  button, a, [role="button"], input, select, textarea {
+    touch-action: manipulation;
+  }
+
+  /* Safe area insets for modern phones */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Prevent iOS bounce scroll on fixed elements */
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Better tap highlight on mobile */
+  @media (hover: none) and (pointer: coarse) {
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Prevent sticky hover states on touch devices */
+    button:hover, a:hover, [role="button"]:hover {
+      opacity: 0.85;
+    }
+
+    /* Active states for tactile feedback */
+    button:active, a:active, [role="button"]:active {
+      opacity: 0.7;
+      transform: scale(0.98);
+    }
+
+    /* Disable backdrop-filter on touch devices to prevent iOS Safari hit-testing bug */
+    .backdrop-blur-sm, .backdrop-blur-md, .backdrop-blur-lg, .backdrop-blur-xl {
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+
+    /* Ensure modal exit animations don't leave ghost overlays that block taps */
+    [data-exiting="true"] {
+      pointer-events: none !important;
+    }
+  }
+}
+
+/* ─── Minimum Touch Target (44px) for Mobile Accessibility ─── */
+@layer utilities {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

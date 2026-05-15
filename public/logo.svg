@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px"
+	 viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">
+<defs>
+  <style type="text/css">
+    .logo-green{fill:#059669;}
+    .logo-white{fill:#FFFFFF;}
+
+    .z-breathe {
+      animation: breathe 2.5s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 0.85; }
+      50% { opacity: 1; }
+    }
+  </style>
+</defs>
+
+<!-- Background circle -->
+<circle cx="256" cy="256" r="256" class="logo-green"/>
+
+<!-- Stylized "A" shape -->
+<g class="z-breathe">
+  <!-- Outer A shape -->
+  <path class="logo-white" d="M256,80 L140,400 L200,400 L228,310 L284,310 L312,400 L372,400 Z M256,160 L270,260 L242,260 Z"/>
+
+  <!-- Play button triangle inside A -->
+  <polygon class="logo-green" points="238,200 290,230 238,260" opacity="0.9"/>
+
+  <!-- Book shape at bottom of A -->
+  <path class="logo-green" d="M216,320 Q256,335 296,320 Q296,340 256,350 Q216,340 216,320 Z" opacity="0.9"/>
+</g>
+
+</svg>
