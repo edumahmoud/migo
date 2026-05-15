@@ -223,8 +223,19 @@ function uploadFileWithProgress(
       }
     };
     xhr.onload = () => {
-      try { resolve(JSON.parse(xhr.responseText)); }
-      catch { resolve({ success: false, error: 'حدث خطأ غير متوقع' }); }
+      // FIX: Check HTTP status code before parsing response
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText)); }
+        catch { resolve({ success: false, error: 'حدث خطأ غير متوقع' }); }
+      } else {
+        // Server returned an error status — parse the error message
+        try {
+          const result = JSON.parse(xhr.responseText);
+          resolve({ success: false, error: result.error || `خطأ HTTP: ${xhr.status}` });
+        } catch {
+          resolve({ success: false, error: `خطأ HTTP: ${xhr.status}` });
+        }
+      }
     };
     xhr.onerror = () => { resolve({ success: false, error: 'حدث خطأ في الاتصال' }); };
     xhr.ontimeout = () => { resolve({ success: false, error: 'انتهت مهلة الرفع' }); };
@@ -631,71 +642,317 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       const lectureId = (lectureData as { id: string }).id;
 
       // 2. Upload files with progress and create lecture_notes references
+      // Track upload results in a local variable instead of relying on stale React state
+      let uploadResults: Array<{ index: number; succeeded: boolean; error?: string }> = [];
+
       if (newPendingFiles.length > 0) {
-        // FIX: Use waitForSession() instead of getSession() for mobile PWA reliability.
-        // getSession() can return null on mobile when the session hasn't hydrated yet,
-        // causing all file uploads to fail with 401 Unauthorized.
         const { waitForSession } = await import('@/lib/client-auth');
         const token = await waitForSession(15000);
+
+        if (!token) {
+          // Token unavailable — mark ALL files as failed so toast logic works correctly
+          for (let i = 0; i < newPendingFiles.length; i++) {
+            uploadResults.push({ index: i, succeeded: false, error: 'جلسة المستخدم غير صالحة' });
+            setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
+          }
+        } else {
+
+        const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB safe margin for server route
 
         for (let i = 0; i < newPendingFiles.length; i++) {
           const pf = newPendingFiles[i];
           try {
             setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'uploading' as const, progress: 0 } : p)));
 
-            // CRITICAL FIX: Use pre-read ArrayBuffer data instead of File object.
+            // CRITICAL: Use pre-read ArrayBuffer data instead of File object.
             // On mobile PWA, File objects can become invalid after the app goes to background.
-            // Using a Blob created from pre-read ArrayBuffer ensures the data is always available.
             let uploadBlob: Blob;
             if (pf.fileData && pf.fileData.byteLength > 0) {
               uploadBlob = new Blob([pf.fileData], { type: pf.fileType || 'application/octet-stream' });
             } else {
-              // Fallback: try to read from File object (might fail on mobile PWA)
               try {
                 const arrayBuffer = await pf.file.arrayBuffer();
-                uploadBlob = new Blob([arrayBuffer], { type: pf.file.type || 'application/octet-stream' });
+                uploadBlob = new Blob([arrayBuffer], { type: pf.fileType || 'application/octet-stream' });
               } catch {
-                // Last resort: use File object directly
                 uploadBlob = pf.file;
               }
             }
 
-            const formData = new FormData();
-            formData.append('file', uploadBlob, pf.fileName || pf.file.name);
-            formData.append('subjectId', subjectId);
-            formData.append('uploadedBy', profile.id);
-            formData.append('category', 'محاضرات');
-            formData.append('customName', pf.customName.trim());
+            // SAFETY: Only use pre-read properties (pf.fileName, pf.fileType, pf.fileSize).
+            // Never access pf.file.name / pf.file.type / pf.file.size — on mobile PWA,
+            // the File object can become invalidated after the native file picker closes,
+            // and accessing its properties throws TypeError during render/execution.
+            const fileName = pf.fileName || 'unknown';
+            const fileType = pf.fileType || 'application/octet-stream';
+            const fileSize = pf.fileSize || 0;
+            const originalExt = fileName.includes('.') ? '.' + fileName.split('.').pop() : '';
+            const displayName = pf.customName.trim() ? pf.customName.trim() + originalExt : fileName;
 
-            const result = await uploadFileWithProgress(
-              '/api/files/course-upload',
-              formData,
-              { Authorization: `Bearer ${token}` },
-              (percent) => {
-                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: percent } : p)));
-              }
-            );
+            let uploadSucceeded = false;
+            let noteInsertFailed = false;
 
-            if (result.success && result.data) {
-              const fileData = result.data as { file_url: string; file_name: string };
-              await supabase.from('lecture_notes').insert({
+            // Helper: insert a lecture_note referencing the uploaded file
+            const insertFileNote = async (fileUrl: string, fileDisplayName: string) => {
+              const { error: noteErr } = await supabase.from('lecture_notes').insert({
                 lecture_id: lectureId,
                 user_id: profile.id,
-                content: `[FILE|||${fileData.file_url}|||${fileData.file_name}]`,
+                content: `[FILE|||${fileUrl}|||${fileDisplayName}]`,
                 visibility: 'public',
               });
+              if (noteErr) {
+                console.error('[LectureUpload] lecture_notes insert failed:', noteErr);
+                noteInsertFailed = true;
+              }
+            };
+
+            // Helper: try server-side upload via fetch or XHR
+            const tryServerUpload = async (): Promise<boolean> => {
+              // fetch attempt
+              try {
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 10 } : p)));
+
+                const formData = new FormData();
+                formData.append('file', uploadBlob, fileName);
+                formData.append('subjectId', subjectId);
+                formData.append('uploadedBy', profile.id);
+                formData.append('category', 'محاضرات');
+                formData.append('customName', pf.customName.trim());
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 20 } : p)));
+
+                const res = await fetch('/api/files/course-upload', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${token}` },
+                  body: formData,
+                  signal: controller.signal,
+                });
+
+                clearTimeout(timeoutId);
+
+                let result: { success: boolean; data?: Record<string, unknown>; error?: string };
+                if (res.ok) {
+                  try { result = await res.json(); }
+                  catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+                } else {
+                  const errorText = await res.text();
+                  try { result = JSON.parse(errorText); }
+                  catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+                  console.warn(`[LectureUpload] Server returned ${res.status}:`, result.error);
+                }
+
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 70 } : p)));
+
+                if (result.success && result.data) {
+                  const fileData = result.data as { file_url: string; file_name: string };
+                  await insertFileNote(fileData.file_url, fileData.file_name);
+                  console.log(`[LectureUpload] Server upload succeeded for ${displayName}`);
+                  return true;
+                }
+                console.warn(`[LectureUpload] Server upload failed for ${displayName}:`, result.error);
+              } catch (serverErr) {
+                console.warn(`[LectureUpload] Server upload error for ${displayName}:`, serverErr instanceof Error ? serverErr.message : serverErr);
+              }
+
+              // XHR retry attempt
+              try {
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 25 } : p)));
+                const xhrFormData = new FormData();
+                xhrFormData.append('file', uploadBlob, fileName);
+                xhrFormData.append('subjectId', subjectId);
+                xhrFormData.append('uploadedBy', profile.id);
+                xhrFormData.append('category', 'محاضرات');
+                xhrFormData.append('customName', pf.customName.trim());
+
+                const xhrResult = await uploadFileWithProgress(
+                  '/api/files/course-upload',
+                  xhrFormData,
+                  { Authorization: `Bearer ${token}` },
+                  (percent) => {
+                    setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: Math.min(percent, 70) } : p)));
+                  }
+                );
+
+                if (xhrResult.success && xhrResult.data) {
+                  const fileData = xhrResult.data as { file_url: string; file_name: string };
+                  await insertFileNote(fileData.file_url, fileData.file_name);
+                  console.log(`[LectureUpload] XHR upload succeeded for ${displayName}`);
+                  return true;
+                }
+              } catch (xhrErr) {
+                console.warn(`[LectureUpload] XHR retry failed:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
+              }
+
+              return false;
+            };
+
+            // Helper: try direct upload to Supabase Storage from client
+            const tryDirectStorageUpload = async (): Promise<boolean> => {
+              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+              const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+              const safeStorageName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+              const storagePath = `courses/${subjectId}/${safeStorageName}`;
+              let storageUploadSuccess = false;
+
+              // Try SDK upload
+              try {
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 30 } : p)));
+                const { error: uploadError } = await supabase.storage
+                  .from('user-files')
+                  .upload(storagePath, uploadBlob, {
+                    cacheControl: '3600',
+                    contentType: fileType,
+                    upsert: false,
+                  });
+
+                if (uploadError) throw uploadError;
+                storageUploadSuccess = true;
+              } catch (sdkErr) {
+                console.warn(`[LectureUpload] SDK upload failed:`, sdkErr);
+              }
+
+              // XHR fallback for storage upload (real progress tracking)
+              if (!storageUploadSuccess && supabaseUrl && supabaseAnonKey) {
+                try {
+                  await new Promise<void>((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.timeout = 5 * 60 * 1000;
+
+                    xhr.upload.addEventListener('progress', (e) => {
+                      if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 85);
+                        setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: percent } : p)));
+                      }
+                    });
+
+                    xhr.addEventListener('load', () => {
+                      if (xhr.status >= 200 && xhr.status < 300) resolve();
+                      else reject(new Error(`HTTP ${xhr.status}`));
+                    });
+                    xhr.addEventListener('error', () => reject(new Error('Network error')));
+                    xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+
+                    const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
+                    xhr.open('POST', storageUploadUrl);
+                    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                    xhr.setRequestHeader('apikey', supabaseAnonKey);
+                    xhr.setRequestHeader('x-upsert', 'false');
+
+                    const formData = new FormData();
+                    formData.append('cacheControl', '3600');
+                    formData.append('file', uploadBlob, fileName);
+                    xhr.send(formData);
+                  });
+
+                  storageUploadSuccess = true;
+                } catch (xhrErr) {
+                  console.warn(`[LectureUpload] XHR storage upload failed:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
+                }
+              }
+
+              if (!storageUploadSuccess) {
+                throw new Error('فشل رفع الملف — تعذر الاتصال بخدمة التخزين');
+              }
+
+              // Create DB record via API
+              const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
+              setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 90 } : p)));
+
+              const { getCachedAuthHeaders: getCachedHeaders } = await import('@/lib/client-auth');
+              const recordHeaders = await getCachedHeaders();
+              const recordController = new AbortController();
+              const recordTimeout = setTimeout(() => recordController.abort(), 30000);
+
+              try {
+                const createRes = await fetch('/api/files/course-upload', {
+                  method: 'POST',
+                  headers: recordHeaders,
+                  body: JSON.stringify({
+                    subjectId,
+                    uploadedBy: profile.id,
+                    category: 'محاضرات',
+                    customName: pf.customName.trim(),
+                    displayName,
+                    fileUrl,
+                    storagePath,
+                    fileSize: fileSize,
+                    fileType: fileType,
+                  }),
+                  signal: recordController.signal,
+                });
+
+                clearTimeout(recordTimeout);
+                // FIX: Safely parse JSON — server may return HTML on error
+                let createResult: { success: boolean; data?: Record<string, unknown>; error?: string };
+                if (createRes.ok) {
+                  try { createResult = await createRes.json(); }
+                  catch { createResult = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+                } else {
+                  const errorText = await createRes.text();
+                  try { createResult = JSON.parse(errorText); }
+                  catch { createResult = { success: false, error: `خطأ HTTP: ${createRes.status}` }; }
+                }
+
+                if (createRes.ok && createResult.success && createResult.data) {
+                  const fileData = createResult.data as { file_url: string; file_name: string };
+                  await insertFileNote(fileData.file_url, fileData.file_name);
+                  return true;
+                } else {
+                  console.error('[LectureUpload] Create record error:', createResult.error);
+                  await supabase.storage.from('user-files').remove([storagePath]);
+                  throw new Error(createResult.error || 'فشل حفظ بيانات الملف');
+                }
+              } finally {
+                clearTimeout(recordTimeout);
+              }
+            };
+
+            // ── Upload strategy: try server first, then direct storage ──
+            if (fileSize <= FILE_SIZE_LIMIT) {
+              uploadSucceeded = await tryServerUpload();
+            } else {
+              console.log(`[LectureUpload] File ${displayName} is ${Math.round(fileSize / 1024 / 1024)}MB, skipping server route`);
+            }
+
+            if (!uploadSucceeded) {
+              uploadSucceeded = await tryDirectStorageUpload();
+            }
+
+            // Track result
+            uploadResults.push({ index: i, succeeded: uploadSucceeded });
+
+            if (uploadSucceeded) {
               setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'done' as const, progress: 100 } : p)));
+              if (noteInsertFailed) {
+                // File uploaded but lecture_notes reference failed — inform user
+                console.warn(`[LectureUpload] File ${displayName} uploaded but lecture_notes insert failed`);
+              }
             } else {
               setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
             }
           } catch (err) {
             console.error('File upload error:', err);
+            uploadResults.push({ index: i, succeeded: false, error: err instanceof Error ? err.message : 'خطأ غير معروف' });
             setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
           }
         }
+
+        } // end of else (token is valid)
       }
 
-      toast.success('تم إنشاء المحاضرة بنجاح');
+      // Show appropriate toast based on upload results
+      const failedCount = uploadResults.filter(r => !r.succeeded).length;
+      const totalFiles = uploadResults.length;
+      if (totalFiles === 0 || failedCount === 0) {
+        toast.success('تم إنشاء المحاضرة بنجاح');
+      } else if (failedCount < totalFiles) {
+        toast.success('تم إنشاء المحاضرة بنجاح');
+        toast.error(`فشل رفع ${failedCount} من ${totalFiles} ملف`);
+      } else {
+        toast.error('تم إنشاء المحاضرة لكن فشل رفع جميع الملفات. يمكنك رفعها لاحقاً من داخل المحاضرة.');
+      }
 
       // Notify all enrolled students about the new lecture (non-blocking)
       // Fire-and-forget: don't block the UI while push notifications are being sent
@@ -1721,6 +1978,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     ref={fileInputRef}
                     type="file"
                     multiple
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.txt,.csv,.zip,.mp4,.mp3,.wav"
                     onChange={async (e) => {
                       if (e.target.files) {
                         // CRITICAL FIX: Pre-read file data into ArrayBuffers immediately.
@@ -1783,8 +2041,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             <FileText className={`h-4 w-4 shrink-0 ${
                               pf.status === 'done' ? 'text-sky-700' : 'text-muted-foreground'
                             }`} />
-                            <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName || pf.file.name}</span>
-                            <span className="text-[10px] text-muted-foreground shrink-0">{((pf.fileSize || pf.file.size) / 1024).toFixed(0)} KB</span>
+                            <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName}</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0">{((pf.fileSize) / 1024).toFixed(0)} KB</span>
                             {pf.status === 'pending' && (
                               <button
                                 onClick={() => setNewPendingFiles(prev => prev.filter((_, i) => i !== idx))}
@@ -1809,8 +2067,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 dir="rtl"
                                 disabled={pf.status === 'uploading'}
                               />
-                              {(pf.fileName || pf.file.name).includes('.') && (
-                                <span className="text-[10px] text-muted-foreground shrink-0">.{(pf.fileName || pf.file.name).split('.').pop()}</span>
+                              {pf.fileName.includes('.') && (
+                                <span className="text-[10px] text-muted-foreground shrink-0">.{pf.fileName.split('.').pop()}</span>
                               )}
                             </div>
                           )}
