@@ -27,10 +27,24 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   const [autoRetrying, setAutoRetrying] = useState(true);
+  const [hasActiveSession, setHasActiveSession] = useState(false);
 
   useEffect(() => {
     // Log error for debugging
     console.error('[RootError] Unhandled error caught by error.tsx:', error);
+
+    // Check if user has an active session (for "Return to App" button)
+    try {
+      const supabaseKeys = Object.keys(localStorage).filter(k =>
+        k.startsWith('sb-') && k.endsWith('-auth-token')
+      );
+      if (supabaseKeys.length > 0) {
+        const sessionData = JSON.parse(localStorage.getItem(supabaseKeys[0]) || '');
+        if (sessionData?.access_token || (Array.isArray(sessionData) && sessionData[0]?.access_token)) {
+          setHasActiveSession(true);
+        }
+      }
+    } catch {}
 
     // Auto-recovery: Try to clear corrupted state and remount after 3 seconds
     const timer = setTimeout(() => {
@@ -41,11 +55,13 @@ export default function ErrorPage({
         localStorage.removeItem('_attendo_busy');
         // Don't clear the full app store — that would log the user out
       } catch {}
+      // Actually call reset() to remount the page instead of just showing the error UI
       setAutoRetrying(false);
+      reset();
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [error]);
+  }, [error, reset]);
 
   const handleReload = () => {
     if (typeof window !== 'undefined') {
@@ -197,6 +213,16 @@ export default function ErrorPage({
               <RefreshCw className="h-4 w-4" />
               تحديث الصفحة
             </button>
+
+            {hasActiveSession && (
+              <button
+                onClick={reset}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-teal-200 px-6 py-2.5 text-sm font-semibold text-teal-700 shadow-sm hover:bg-teal-50 active:bg-teal-100 transition-all duration-200 w-full sm:w-auto"
+              >
+                <GraduationCap className="h-4 w-4" />
+                العودة للتطبيق
+              </button>
+            )}
 
             <button
               onClick={handleFullReset}

@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, Megaphone, Ban, TrendingUp, MessageCircle, Building2, FileText, FolderOpen, FileSpreadsheet, Bell } from 'lucide-react';
+import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, Megaphone, Ban, TrendingUp, MessageCircle, Building2, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useStatusStore } from '@/stores/status-store';
@@ -26,6 +26,61 @@ import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SetupWizard from '@/components/setup/setup-wizard';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary';
+
+// ─── AppErrorBoundary: wraps the entire dashboard content area ───
+// Separate from DashboardErrorBoundary which wraps individual dashboards.
+// This catches errors that might happen at the layout level (sidebar, header, etc.)
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode; onFallbackToLogin?: () => void },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; onFallbackToLogin?: () => void }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[AppErrorBoundary] Layout-level crash:', error, errorInfo);
+  }
+  handleRetry = () => {
+    try {
+      localStorage.removeItem('_wsr');
+      localStorage.removeItem('_sw_reload_pending');
+      localStorage.removeItem('_attendo_busy');
+    } catch {}
+    this.setState({ hasError: false, error: null });
+  };
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center max-w-md mx-auto">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50">
+              <AlertTriangle className="h-8 w-8 text-amber-500" />
+            </div>
+            <h1 className="text-lg font-bold text-gray-900 mb-2">حدث خطأ في التطبيق</h1>
+            <p className="text-sm text-gray-500 mb-4">حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.</p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button onClick={this.handleRetry} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 w-full sm:w-auto">
+                <RefreshCw className="h-4 w-4" />
+                إعادة المحاولة
+              </button>
+              {this.props.onFallbackToLogin && (
+                <button onClick={this.props.onFallbackToLogin} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 w-full sm:w-auto">
+                  <LogOut className="h-4 w-4" />
+                  العودة لتسجيل الدخول
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
@@ -58,6 +113,7 @@ const teacherNavItems = [
 const studentNavItems = [
   { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'tracking', label: 'تتبع الطالب', icon: <Activity className="h-5 w-5" /> },
   { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'teachers', label: 'المعلمون', icon: <Users className="h-5 w-5" /> },
   { id: 'summaries', label: 'الملخصات', icon: <FileText className="h-5 w-5" /> },
@@ -675,13 +731,17 @@ function HomeContent() {
 
   // ─── Shared sign-out handler ───
   const handleSignOut = useCallback(() => {
+    // CRITICAL FIX: Call signOut() BEFORE setCurrentPage('auth')
+    // to avoid rendering the auth page while still cleaning up.
+    // This prevents a race condition where the auth page renders
+    // before the async cleanup completes.
+    signOut();
     destroySocket();
     cleanupStatusStore();
     cleanupNotifications();
     resetAppStore();
     setCurrentPage('auth');
-    signOut();
-  }, [destroySocket, cleanupStatusStore, cleanupNotifications, resetAppStore, setCurrentPage, signOut]);
+  }, [signOut, destroySocket, cleanupStatusStore, cleanupNotifications, resetAppStore, setCurrentPage]);
 
   // ─── Dashboard content wrapped in Error Boundary ───
   // CRITICAL FIX: Wrap dashboard in DashboardErrorBoundary to prevent
@@ -731,7 +791,9 @@ function HomeContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50/50 to-sky-50/30" dir="rtl">
-      {dashboardContent}
+      <AppErrorBoundary onFallbackToLogin={handleSignOut}>
+        {dashboardContent}
+      </AppErrorBoundary>
     </div>
   );
 }

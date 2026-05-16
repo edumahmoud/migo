@@ -169,10 +169,13 @@ export async function notifyUser(
   link?: string,
 ): Promise<void> {
   try {
-    // ── Dedup: Check for existing notification with same user+type+link within 5 minutes ──
+    // ── Dedup: Check for existing notification with same user+type+content within 5 minutes ──
     // This prevents duplicate notifications from concurrent API calls or race conditions
+    // Previously only deduped when link was provided; now dedupes even when link is null
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
     if (link) {
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      // Link-based dedup (more specific) — checks user+type+link
       const { data: existing } = await supabaseServer
         .from('notifications')
         .select('id')
@@ -183,8 +186,27 @@ export async function notifyUser(
         .limit(1);
 
       if (existing && existing.length > 0) {
-        console.log(`[notify] Dedup: skipping duplicate notification for user ${userId}, type=${type}, link=${link}`);
+        console.log(`[notify] Dedup (link): skipping duplicate notification for user ${userId}, type=${type}, link=${link}`);
         return;
+      }
+    } else {
+      // Content-based dedup (for notifications without link) — checks user+type+title+message
+      const { data: existing } = await supabaseServer
+        .from('notifications')
+        .select('id, title, message, type')
+        .eq('user_id', userId)
+        .eq('type', type)
+        .gte('created_at', fiveMinutesAgo)
+        .limit(50); // Check recent notifications of same type
+
+      if (existing && existing.length > 0) {
+        const isDuplicate = existing.some((n: { title: string; message: string; type: string }) =>
+          n.title === title && n.message === message
+        );
+        if (isDuplicate) {
+          console.log(`[notify] Dedup (content): skipping duplicate notification for user ${userId}, type=${type}, title=${title.substring(0, 50)}`);
+          return;
+        }
       }
     }
 
@@ -202,7 +224,12 @@ export async function notifyUser(
     }
 
     // DB insert succeeded — also send push (non-blocking)
-    pushToUser(userId, title, message, link, type).catch(() => {});
+    console.log(`[notify] DB insert succeeded for user ${userId}, type=${type}. Sending push...`);
+    pushToUser(userId, title, message, link, type).then(() => {
+      console.log(`[notify] Push delivery completed for user ${userId}, type=${type}`);
+    }).catch((err) => {
+      console.warn(`[notify] Push delivery failed for user ${userId}:`, err);
+    });
   } catch (err) {
     console.error('[notify] notifyUser exception:', err);
   }

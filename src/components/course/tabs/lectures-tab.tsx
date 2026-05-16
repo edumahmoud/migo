@@ -625,6 +625,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   // -------------------------------------------------------
   // Create lecture
   // -------------------------------------------------------
+  // ─── Ref for pending files to avoid stale closure in async upload loop ───
+  const pendingFilesRef = useRef<PendingFile[]>([]);
+  // Keep the ref in sync with state
+  useEffect(() => { pendingFilesRef.current = newPendingFiles; }, [newPendingFiles]);
+
   const handleCreateLecture = async () => {
     const title = newTitle.trim();
     if (!title) { toast.error('يرجى إدخال عنوان المحاضرة'); return; }
@@ -645,13 +650,16 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       // Track upload results in a local variable instead of relying on stale React state
       let uploadResults: Array<{ index: number; succeeded: boolean; error?: string }> = [];
 
-      if (newPendingFiles.length > 0) {
+      // SNAPSHOT: Use ref value to avoid stale closure during async loop
+      const currentPendingFiles = pendingFilesRef.current;
+
+      if (currentPendingFiles.length > 0) {
         const { waitForSession } = await import('@/lib/client-auth');
         const token = await waitForSession(15000);
 
         if (!token) {
           // Token unavailable — mark ALL files as failed so toast logic works correctly
-          for (let i = 0; i < newPendingFiles.length; i++) {
+          for (let i = 0; i < currentPendingFiles.length; i++) {
             uploadResults.push({ index: i, succeeded: false, error: 'جلسة المستخدم غير صالحة' });
             setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
           }
@@ -659,8 +667,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
         const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB safe margin for server route
 
-        for (let i = 0; i < newPendingFiles.length; i++) {
-          const pf = newPendingFiles[i];
+        for (let i = 0; i < currentPendingFiles.length; i++) {
+          const pf = currentPendingFiles[i];
           try {
             setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'uploading' as const, progress: 0 } : p)));
 
@@ -751,6 +759,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   console.log(`[LectureUpload] Server upload succeeded for ${displayName}`);
                   return true;
                 }
+                // Check for DUPLICATE_NAME error from server
+                if ((result as { code?: string }).code === 'DUPLICATE_NAME') {
+                  toast.error(`الملف "${displayName}" موجود بالفعل. يرجى تغيير اسم الملف`);
+                }
                 console.warn(`[LectureUpload] Server upload failed for ${displayName}:`, result.error);
               } catch (serverErr) {
                 console.warn(`[LectureUpload] Server upload error for ${displayName}:`, serverErr instanceof Error ? serverErr.message : serverErr);
@@ -780,6 +792,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   await insertFileNote(fileData.file_url, fileData.file_name);
                   console.log(`[LectureUpload] XHR upload succeeded for ${displayName}`);
                   return true;
+                }
+                // Check for DUPLICATE_NAME error from XHR
+                if ((xhrResult as { code?: string }).code === 'DUPLICATE_NAME') {
+                  toast.error(`الملف "${displayName}" موجود بالفعل. يرجى تغيير اسم الملف`);
                 }
               } catch (xhrErr) {
                 console.warn(`[LectureUpload] XHR retry failed:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
@@ -951,7 +967,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         toast.success('تم إنشاء المحاضرة بنجاح');
         toast.error(`فشل رفع ${failedCount} من ${totalFiles} ملف`);
       } else {
-        toast.error('تم إنشاء المحاضرة لكن فشل رفع جميع الملفات. يمكنك رفعها لاحقاً من داخل المحاضرة.');
+        // ALL file uploads failed — still close modal, lecture was created successfully
+        toast.success('تم إنشاء المحاضرة بنجاح');
+        toast.error('فشل رفع جميع الملفات. يمكنك رفعها لاحقاً من داخل المحاضرة.');
       }
 
       // Notify all enrolled students about the new lecture (non-blocking)

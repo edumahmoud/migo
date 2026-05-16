@@ -34,6 +34,8 @@ interface DashboardErrorBoundaryState {
   retryCount: number;
   /** Changing this key forces React to remount children */
   retryKey: number;
+  /** Whether auto-retry is in progress */
+  autoRetrying: boolean;
 }
 
 const MAX_RETRIES = 3;
@@ -44,11 +46,11 @@ export default class DashboardErrorBoundary extends React.Component<
 > {
   constructor(props: DashboardErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null, retryCount: 0, retryKey: 0 };
+    this.state = { hasError: false, error: null, errorInfo: null, retryCount: 0, retryKey: 0, autoRetrying: false };
   }
 
   static getDerivedStateFromError(error: Error): Partial<DashboardErrorBoundaryState> {
-    return { hasError: true, error };
+    return { hasError: true, error, autoRetrying: false };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -57,6 +59,14 @@ export default class DashboardErrorBoundary extends React.Component<
       errorInfo,
       retryCount: prev.retryCount + 1,
     }));
+
+    // Auto-retry after 2 seconds on first error
+    if (this.state.retryCount === 0) {
+      this.setState({ autoRetrying: true });
+      setTimeout(() => {
+        this.handleRetry();
+      }, 2000);
+    }
   }
 
   handleRetry = () => {
@@ -72,6 +82,7 @@ export default class DashboardErrorBoundary extends React.Component<
       hasError: false,
       error: null,
       errorInfo: null,
+      autoRetrying: false,
       retryKey: prev.retryKey + 1,
     }));
   };
@@ -84,8 +95,12 @@ export default class DashboardErrorBoundary extends React.Component<
       localStorage.removeItem('_sw_reload_pending');
       localStorage.removeItem('_attendo_busy');
     } catch {}
-    // Reload the page to start fresh
-    if (typeof window !== 'undefined') {
+
+    // Prefer calling onFallbackToLogin prop for a clean sign-out
+    // instead of a full page reload which can hit the same crash
+    if (this.props.onFallbackToLogin) {
+      this.props.onFallbackToLogin();
+    } else if (typeof window !== 'undefined') {
       window.location.href = '/';
     }
   };
@@ -93,6 +108,25 @@ export default class DashboardErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       const tooManyRetries = this.state.retryCount >= MAX_RETRIES;
+
+      // Auto-retry UI — show spinner instead of error buttons
+      if (this.state.autoRetrying) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
+                  <GraduationCap className="w-9 h-9 text-white" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
+                <span className="text-sm font-medium text-sky-800">جاري محاولة إعادة التحميل...</span>
+              </div>
+            </div>
+          </div>
+        );
+      }
 
       return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">

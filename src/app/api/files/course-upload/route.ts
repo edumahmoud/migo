@@ -25,6 +25,36 @@ const ALLOWED_MIME_TYPES = [
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
+/**
+ * Check for duplicate file names in a subject.
+ * Same name + same extension → reject (DUPLICATE_NAME)
+ * Same base name + different extension → allow
+ */
+async function checkDuplicateFileName(
+  subjectId: string,
+  displayName: string
+): Promise<NextResponse | null> {
+  const { data: existingFiles } = await supabaseServer
+    .from('subject_files')
+    .select('file_name')
+    .eq('subject_id', subjectId);
+
+  if (existingFiles && existingFiles.length > 0) {
+    const exactDuplicate = existingFiles.some((f: { file_name: string }) =>
+      f.file_name.toLowerCase() === displayName.toLowerCase()
+    );
+    if (exactDuplicate) {
+      return NextResponse.json(
+        { success: false, error: 'يوجد ملف بنفس الاسم والامتداد. يرجى تغيير اسم الملف', code: 'DUPLICATE_NAME' },
+        { status: 409 }
+      );
+    }
+    // Note: Same base name but different extension is ALLOWED
+    // (e.g., "report.pdf" and "report.docx" can coexist)
+  }
+  return null; // No duplicate found
+}
+
 export async function POST(request: NextRequest) {
   const authResult = await authenticateRequest(request);
   if (!authResult.success) return authErrorResponse(authResult);
@@ -51,6 +81,11 @@ export async function POST(request: NextRequest) {
       const ownershipError = verifyOwnership(authResult.user.id, uploadedBy);
       if (ownershipError) return authErrorResponse(ownershipError);
 
+      // ── Duplicate name check for JSON mode ──
+      const effectiveDisplayName = displayName || customName || 'ملف';
+      const dupCheck = await checkDuplicateFileName(subjectId, effectiveDisplayName);
+      if (dupCheck) return dupCheck;
+
       // Determine file type from MIME
       let fileType = 'other';
       if (rawFileType?.startsWith('image/')) fileType = 'image';
@@ -65,7 +100,7 @@ export async function POST(request: NextRequest) {
       const insertDataFull: Record<string, unknown> = {
         subject_id: subjectId,
         uploaded_by: uploadedBy,
-        file_name: displayName || customName || 'ملف',
+        file_name: effectiveDisplayName,
         file_type: fileType,
         file_size: fileSize || 0,
         file_url: fileUrl,
@@ -95,7 +130,7 @@ export async function POST(request: NextRequest) {
           const insertDataBasic: Record<string, unknown> = {
             subject_id: subjectId,
             uploaded_by: uploadedBy,
-            file_name: displayName || customName || 'ملف',
+            file_name: effectiveDisplayName,
             file_type: fileType,
             file_size: fileSize || 0,
             file_url: fileUrl,
@@ -177,6 +212,11 @@ export async function POST(request: NextRequest) {
     // Determine the display name and storage file name
     const originalExt = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
     const displayName = customName?.trim() ? customName.trim() + originalExt : file.name;
+
+    // ── Duplicate name check for FormData mode ──
+    const dupCheck = await checkDuplicateFileName(subjectId, displayName);
+    if (dupCheck) return dupCheck;
+
     // Use a safe ASCII path for storage (timestamp + sanitized) but store the display name in DB
     const safeStorageName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const filePath = `courses/${subjectId}/${safeStorageName}`;

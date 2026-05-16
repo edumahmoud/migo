@@ -8,6 +8,7 @@ import {
   Bell,
   Menu,
   Users,
+  Activity,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
@@ -35,7 +36,7 @@ interface BottomNavItem {
 const studentNavItems: BottomNavItem[] = [
   { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'tracking', label: 'تتبع', icon: <Activity className="h-5 w-5" /> },
   { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
   { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];

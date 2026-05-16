@@ -57,6 +57,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import SummaryView from '@/components/shared/summary-view';
+import StudentTrackingSection from '@/components/student/student-tracking-section';
 
 // -------------------------------------------------------
 // Summary background processing type
@@ -3943,6 +3944,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         return <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />;
       case 'notifications':
         return <NotificationsSection />;
+      case 'tracking':
+        return (
+          <StudentTrackingSection
+            profileId={profile.id}
+            attendanceRecords={attendanceRecords}
+            attendanceSessions={attendanceSessions}
+            quizzes={quizzes}
+            scores={scores}
+            submissions={submissions}
+            assignments={assignments}
+          />
+        );
       default:
         return null;
     }

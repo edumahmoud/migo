@@ -14,6 +14,7 @@ import {
   ChevronRight,
   MessageCircle,
   Bell,
+  Activity,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -47,6 +48,7 @@ interface NavItem {
 const studentNavItems: NavItem[] = [
   { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'tracking', label: 'تتبع الطالب', icon: <Activity className="h-5 w-5" /> },
   { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'teachers', label: 'المعلمون', icon: <Users className="h-5 w-5" /> },
   { id: 'summaries', label: 'الملخصات', icon: <FileText className="h-5 w-5" /> },

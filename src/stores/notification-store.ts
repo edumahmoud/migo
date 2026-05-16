@@ -53,7 +53,7 @@ function dbToNotification(db: DBNotification): Notification {
 }
 
 // Polling intervals for notification fallback (milliseconds)
-const NOTIFICATION_REFETCH_INTERVAL_INITIAL = 5000; // 5 seconds for the first minute — faster for real-time feel
+const NOTIFICATION_REFETCH_INTERVAL_INITIAL = 8000; // 8 seconds for the first minute — reduced from 5s to minimize overlap with Realtime
 const NOTIFICATION_REFETCH_INTERVAL = 15000; // 15 seconds after the first minute — frequent enough to catch missed realtime events
 
 // Deduplication window — how long to suppress duplicate notifications with same title+message+type
@@ -101,6 +101,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       // Merge intelligently — DB data is the source of truth
       set((state) => {
+        // Use DB ID as primary dedup key — if a DB notification has the same ID
+        // as an existing one, it's the same notification (no duplicate)
         const dbIdSet = new Set(dbNotifications.map((n) => n.id));
 
         // Keep local-only notifications that don't have a DB counterpart yet
@@ -109,14 +111,18 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           (n) => n.id.startsWith('notif-') && !dbIdSet.has(n.id)
         );
 
-        // Also suppress local-only notifications that match a DB notification by content
+        // Also suppress local-only notifications that match a DB notification by ID or content
         // (The DB version supersedes the local optimistic version)
-        const dbContentSet = new Set(
-          dbNotifications.map((n) => `${n.title}::${n.message}::${n.type}`)
+        const dbIdAndContentSet = new Set(
+          dbNotifications.map((n) => `${n.id}::${n.title}::${n.message}::${n.type}`)
         );
         const survivingLocal = localOnly.filter((n) => {
-          const key = `${n.title}::${n.message}::${n.type}`;
-          return !dbContentSet.has(key);
+          // Check by content match
+          const contentKey = `${n.title}::${n.message}::${n.type}`;
+          const hasDbContentMatch = dbNotifications.some(
+            (dbN) => `${dbN.id}::${dbN.title}::${dbN.message}::${dbN.type}`.includes(contentKey)
+          );
+          return !hasDbContentMatch;
         });
 
         // Merge: DB notifications first (authoritative), then surviving local-only
@@ -212,14 +218,16 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           (payload) => {
             const newNotif = dbToNotification(payload.new as DBNotification);
             set((state) => {
-              // Prevent duplicates: check by ID first
+              // Prevent duplicates: check by ID first (primary dedup key)
               if (state.notifications.some((n) => n.id === newNotif.id)) {
                 return state;
               }
-              // Also check by content within dedup window (catches local-only duplicates)
+              // Check if a local-only notification with matching content already exists
+              // (added by addNotification before the Realtime event arrived)
               const now = Date.now();
-              const contentDuplicate = state.notifications.some(
+              const localOnlyMatch = state.notifications.some(
                 (n) =>
+                  n.id.startsWith('notif-') &&
                   n.title === newNotif.title &&
                   n.message === newNotif.message &&
                   n.type === newNotif.type &&
@@ -232,15 +240,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
               )) {
                 return state;
               }
-              if (contentDuplicate) {
+              if (localOnlyMatch) {
                 // Replace the local-only duplicate with the DB version
                 const filtered = state.notifications.filter(
                   (n) =>
                     !(
+                      n.id.startsWith('notif-') &&
                       n.title === newNotif.title &&
                       n.message === newNotif.message &&
-                      n.type === newNotif.type &&
-                      n.id.startsWith('notif-')
+                      n.type === newNotif.type
                     )
                 );
                 const unreadDelta = filtered.length < state.notifications.length
@@ -250,6 +258,17 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
                   notifications: [newNotif, ...filtered].slice(0, 100),
                   unreadCount: Math.max(0, state.unreadCount + unreadDelta),
                 };
+              }
+              // Content-based dedup within window (catches race conditions)
+              const contentDuplicate = state.notifications.some(
+                (n) =>
+                  n.title === newNotif.title &&
+                  n.message === newNotif.message &&
+                  n.type === newNotif.type &&
+                  now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
+              );
+              if (contentDuplicate) {
+                return state;
               }
               return {
                 notifications: [newNotif, ...state.notifications].slice(0, 100),
