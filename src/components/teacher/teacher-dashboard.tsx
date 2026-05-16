@@ -158,7 +158,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
   const [teacherSubmissions, setTeacherSubmissions] = useState<{ id: string; assignment_id: string; student_id: string; score: number | null; status: string }[]>([]);
-  const [teacherAssignments, setTeacherAssignments] = useState<{ id: string; max_score: number }[]>([]);
+  const [teacherAssignments, setTeacherAssignments] = useState<{ id: string; max_score: number; subject_id: string | null }[]>([]);
   const [teacherAttendanceSessions, setTeacherAttendanceSessions] = useState<{ id: string; subject_id: string }[]>([]);
   const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState<{ id: string; session_id: string; student_id: string }[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -354,10 +354,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     // Fetch assignments created by this teacher
     const { data: assignData, error: assignErr } = await supabase
       .from('assignments')
-      .select('id, max_score')
+      .select('id, max_score, subject_id')
       .eq('teacher_id', profile.id);
     if (!assignErr && assignData) {
-      setTeacherAssignments(assignData as { id: string; max_score: number }[]);
+      setTeacherAssignments(assignData as { id: string; max_score: number; subject_id: string | null }[]);
     }
 
     // Fetch graded submissions for this teacher's assignments
@@ -2096,7 +2096,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {activeSection === 'students' && renderStudents()}
                 {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
                 {activeSection === 'analytics' && renderAnalytics()}
-                {activeSection === 'tracking' && <TeacherStudentTrackingSection profile={profile} students={students} scores={scores} quizzes={quizzes} teacherSubmissions={teacherSubmissions} teacherAssignments={teacherAssignments} teacherAttendanceSessions={teacherAttendanceSessions} teacherAttendanceRecords={teacherAttendanceRecords} />}
+                {activeSection === 'tracking' && <TeacherStudentTrackingSection profile={profile} students={students} scores={scores} quizzes={quizzes} teacherSubmissions={teacherSubmissions} teacherAssignments={teacherAssignments} teacherAttendanceSessions={teacherAttendanceSessions} teacherAttendanceRecords={teacherAttendanceRecords} subjects={teacherSubjects} />}
                 {activeSection === 'chat' && <ChatSection profile={profile} role="teacher" />}
                 {activeSection === 'settings' && <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />}
                 {activeSection === 'notifications' && <NotificationsSection />}

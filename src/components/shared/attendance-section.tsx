@@ -644,9 +644,11 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         try {
           const subjectName = subjects.find((s) => s.id === selectedSubjectId)?.name || '';
           const lectureTitle = lectures.find((l) => l.id === selectedLectureId)?.title || '';
+          const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+          const authHeaders = await getCachedAuthHeaders();
           await fetch('/api/notify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
             body: JSON.stringify({
               action: 'attendance_started',
               subjectId: selectedSubjectId,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity,
@@ -10,7 +10,6 @@ import {
   Filter,
   ArrowUpDown,
   ChevronDown,
-  ChevronUp,
   BarChart3,
   ClipboardList,
   Clock,
@@ -18,11 +17,16 @@ import {
   XCircle,
   FileText,
   Search,
+  Download,
+  Zap,
+  Route,
+  Target,
+  BookOpen,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import type { UserProfile, Score, Quiz } from '@/lib/types';
+import type { UserProfile, Score, Quiz, Subject } from '@/lib/types';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 
@@ -35,9 +39,10 @@ interface TeacherStudentTrackingSectionProps {
   scores: Score[];
   quizzes: Quiz[];
   teacherSubmissions: { id: string; assignment_id: string; student_id: string; score: number | null; status: string }[];
-  teacherAssignments: { id: string; max_score: number }[];
+  teacherAssignments: { id: string; max_score: number; subject_id: string | null }[];
   teacherAttendanceSessions: { id: string; subject_id: string }[];
   teacherAttendanceRecords: { id: string; session_id: string; student_id: string }[];
+  subjects?: Subject[];
 }
 
 // -------------------------------------------------------
@@ -111,6 +116,110 @@ const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
 ];
 
 // -------------------------------------------------------
+// Percentage Range Types
+// -------------------------------------------------------
+type PercentageRange = '90-100' | '80-89' | '70-79' | '60-69' | 'below-60';
+
+interface PercentageRangeConfig {
+  key: PercentageRange;
+  label: string;
+  range: string;
+  color: string;
+  bgColor: string;
+  textColor: string;
+  borderColor: string;
+}
+
+const PERCENTAGE_RANGES: PercentageRangeConfig[] = [
+  {
+    key: '90-100',
+    label: 'ممتاز',
+    range: '90% - 100%',
+    color: 'bg-emerald-500',
+    bgColor: 'bg-emerald-50',
+    textColor: 'text-emerald-700',
+    borderColor: 'border-emerald-200',
+  },
+  {
+    key: '80-89',
+    label: 'جيد جداً',
+    range: '80% - 89%',
+    color: 'bg-sky-500',
+    bgColor: 'bg-sky-50',
+    textColor: 'text-sky-700',
+    borderColor: 'border-sky-200',
+  },
+  {
+    key: '70-79',
+    label: 'جيد',
+    range: '70% - 79%',
+    color: 'bg-teal-500',
+    bgColor: 'bg-teal-50',
+    textColor: 'text-teal-700',
+    borderColor: 'border-teal-200',
+  },
+  {
+    key: '60-69',
+    label: 'مقبول',
+    range: '60% - 69%',
+    color: 'bg-amber-500',
+    bgColor: 'bg-amber-50',
+    textColor: 'text-amber-700',
+    borderColor: 'border-amber-200',
+  },
+  {
+    key: 'below-60',
+    label: 'ضعيف',
+    range: 'أقل من 60%',
+    color: 'bg-rose-500',
+    bgColor: 'bg-rose-50',
+    textColor: 'text-rose-700',
+    borderColor: 'border-rose-200',
+  },
+];
+
+// -------------------------------------------------------
+// Efficiency Level Types
+// -------------------------------------------------------
+type EfficiencyLevel = 'high' | 'medium' | 'low';
+
+interface EfficiencyLevelConfig {
+  key: EfficiencyLevel;
+  label: string;
+  color: string;
+  bgColor: string;
+  textColor: string;
+  ringColor: string;
+}
+
+const EFFICIENCY_LEVELS: EfficiencyLevelConfig[] = [
+  {
+    key: 'high',
+    label: 'عالي الكفاءة',
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50',
+    textColor: 'text-emerald-700',
+    ringColor: 'stroke-emerald-500',
+  },
+  {
+    key: 'medium',
+    label: 'متوسط الكفاءة',
+    color: 'text-amber-600',
+    bgColor: 'bg-amber-50',
+    textColor: 'text-amber-700',
+    ringColor: 'stroke-amber-500',
+  },
+  {
+    key: 'low',
+    label: 'منخفض الكفاءة',
+    color: 'text-rose-600',
+    bgColor: 'bg-rose-50',
+    textColor: 'text-rose-700',
+    ringColor: 'stroke-rose-500',
+  },
+];
+
+// -------------------------------------------------------
 // Helpers
 // -------------------------------------------------------
 function getPerformanceLevel(overallPct: number): PerformanceLevel {
@@ -122,6 +231,28 @@ function getPerformanceLevel(overallPct: number): PerformanceLevel {
 
 function getPerformanceLevelConfig(level: PerformanceLevel): PerformanceLevelConfig {
   return PERFORMANCE_LEVELS.find(l => l.key === level) || PERFORMANCE_LEVELS[3];
+}
+
+function getPercentageRange(overallPct: number): PercentageRange {
+  if (overallPct >= 90) return '90-100';
+  if (overallPct >= 80) return '80-89';
+  if (overallPct >= 70) return '70-79';
+  if (overallPct >= 60) return '60-69';
+  return 'below-60';
+}
+
+function getPercentageRangeConfig(range: PercentageRange): PercentageRangeConfig {
+  return PERCENTAGE_RANGES.find(r => r.key === range) || PERCENTAGE_RANGES[4];
+}
+
+function getEfficiencyLevel(efficiency: number): EfficiencyLevel {
+  if (efficiency >= 80) return 'high';
+  if (efficiency >= 50) return 'medium';
+  return 'low';
+}
+
+function getEfficiencyLevelConfig(level: EfficiencyLevel): EfficiencyLevelConfig {
+  return EFFICIENCY_LEVELS.find(l => l.key === level) || EFFICIENCY_LEVELS[2];
 }
 
 function formatDate(dateStr: string): string {
@@ -149,6 +280,21 @@ function formatTime(dateStr: string): string {
 }
 
 // -------------------------------------------------------
+// Per-Subject Performance Data
+// -------------------------------------------------------
+interface SubjectPerformance {
+  subjectId: string;
+  subjectName: string;
+  quizAvg: number;
+  attendanceRate: number;
+  quizCount: number;
+  attendanceSessions: number;
+  attendedSessions: number;
+  assignmentCount: number;
+  completedAssignments: number;
+}
+
+// -------------------------------------------------------
 // Student Performance Data
 // -------------------------------------------------------
 interface StudentPerformanceData {
@@ -158,22 +304,30 @@ interface StudentPerformanceData {
   assignmentCompletion: number;
   overallPerformance: number;
   level: PerformanceLevel;
+  percentageRange: PercentageRange;
   studentScores: Score[];
   studentSubmissions: { id: string; assignment_id: string; student_id: string; score: number | null; status: string }[];
   attendedSessionIds: Set<string>;
   recentActivities: Array<{ date: string; type: 'quiz' | 'attendance' | 'assignment'; title: string; detail: string }>;
+  // New fields
+  effortScore: number;
+  resultScore: number;
+  efficiency: number;
+  efficiencyLevel: EfficiencyLevel;
+  subjectPerformances: SubjectPerformance[];
 }
 
 // -------------------------------------------------------
 // Sort options
 // -------------------------------------------------------
-type SortOption = 'name' | 'performance' | 'attendance' | 'quiz';
+type SortOption = 'name' | 'performance' | 'attendance' | 'quiz' | 'efficiency';
 
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: 'name', label: 'الاسم' },
   { key: 'performance', label: 'الأداء العام' },
   { key: 'attendance', label: 'الحضور' },
   { key: 'quiz', label: 'الاختبارات' },
+  { key: 'efficiency', label: 'الكفاءة' },
 ];
 
 // -------------------------------------------------------
@@ -188,12 +342,28 @@ export default function TeacherStudentTrackingSection({
   teacherAssignments,
   teacherAttendanceSessions,
   teacherAttendanceRecords,
+  subjects = [],
 }: TeacherStudentTrackingSectionProps) {
   // ─── Local state ───
   const [filterLevel, setFilterLevel] = useState<PerformanceLevel | 'all'>('all');
+  const [filterRange, setFilterRange] = useState<PercentageRange | 'all'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('performance');
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilterTab, setActiveFilterTab] = useState<'level' | 'range'>('level');
+
+  // ─── Subject name lookup ───
+  const subjectNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    subjects.forEach(s => map.set(s.id, s.name));
+    // Also derive from quiz titles as fallback
+    quizzes.forEach(q => {
+      if (q.subject_id && !map.has(q.subject_id)) {
+        map.set(q.subject_id, q.title || 'مقرر');
+      }
+    });
+    return map;
+  }, [subjects, quizzes]);
 
   // ─── Compute performance data for each student ───
   const studentPerformanceData = useMemo<StudentPerformanceData[]>(() => {
@@ -222,8 +392,109 @@ export default function TeacherStudentTrackingSection({
       const overallPerformance = quizAvg * 0.4 + attendanceRate * 0.3 + assignmentCompletion * 0.3;
 
       const level = getPerformanceLevel(overallPerformance);
+      const percentageRange = getPercentageRange(overallPerformance);
 
-      // Recent activities
+      // ─── Efficiency calculation ───
+      // Effort = weighted average of (attendance rate, assignment submission rate)
+      const effortScore = (attendanceRate * 0.5 + assignmentCompletion * 0.5);
+      // Results = weighted average of quiz scores
+      const resultScore = quizAvg;
+      // Efficiency = (Results / Effort) * 100, clamped 0-150
+      const efficiency = effortScore > 0
+        ? Math.min(Math.max((resultScore / effortScore) * 100, 0), 150)
+        : 0;
+      const efficiencyLevel = getEfficiencyLevel(efficiency);
+
+      // ─── Per-subject performance ───
+      const subjectMap = new Map<string, SubjectPerformance>();
+
+      // Gather quiz data per subject
+      studentScores.forEach(score => {
+        const quiz = quizzes.find(q => q.id === score.quiz_id);
+        const subjectId = quiz?.subject_id || 'unknown';
+        if (!subjectMap.has(subjectId)) {
+          subjectMap.set(subjectId, {
+            subjectId,
+            subjectName: subjectNameMap.get(subjectId) || 'مقرر',
+            quizAvg: 0,
+            attendanceRate: 0,
+            quizCount: 0,
+            attendanceSessions: 0,
+            attendedSessions: 0,
+            assignmentCount: 0,
+            completedAssignments: 0,
+          });
+        }
+        const entry = subjectMap.get(subjectId)!;
+        entry.quizCount++;
+        entry.quizAvg += score.total > 0 ? (score.score / score.total) * 100 : 0;
+      });
+
+      // Average quiz scores per subject
+      subjectMap.forEach(entry => {
+        if (entry.quizCount > 0) {
+          entry.quizAvg = entry.quizAvg / entry.quizCount;
+        }
+      });
+
+      // Attendance per subject
+      teacherAttendanceSessions.forEach(session => {
+        const subjectId = session.subject_id;
+        if (!subjectMap.has(subjectId)) {
+          subjectMap.set(subjectId, {
+            subjectId,
+            subjectName: subjectNameMap.get(subjectId) || 'مقرر',
+            quizAvg: 0,
+            attendanceRate: 0,
+            quizCount: 0,
+            attendanceSessions: 0,
+            attendedSessions: 0,
+            assignmentCount: 0,
+            completedAssignments: 0,
+          });
+        }
+        const entry = subjectMap.get(subjectId)!;
+        entry.attendanceSessions++;
+        if (attendedSessionIds.has(session.id)) {
+          entry.attendedSessions++;
+        }
+      });
+
+      // Calculate attendance rate per subject
+      subjectMap.forEach(entry => {
+        entry.attendanceRate = entry.attendanceSessions > 0
+          ? (entry.attendedSessions / entry.attendanceSessions) * 100
+          : 0;
+      });
+
+      // Assignments per subject
+      teacherAssignments.forEach(assignment => {
+        const subjectId = assignment.subject_id || 'unknown';
+        if (!subjectMap.has(subjectId)) {
+          subjectMap.set(subjectId, {
+            subjectId,
+            subjectName: subjectNameMap.get(subjectId) || 'مقرر',
+            quizAvg: 0,
+            attendanceRate: 0,
+            quizCount: 0,
+            attendanceSessions: 0,
+            attendedSessions: 0,
+            assignmentCount: 0,
+            completedAssignments: 0,
+          });
+        }
+        const entry = subjectMap.get(subjectId)!;
+        entry.assignmentCount++;
+        // Check if student submitted this assignment
+        const submitted = studentSubmissions.some(s => s.assignment_id === assignment.id && (s.status === 'graded' || s.status === 'submitted'));
+        if (submitted) {
+          entry.completedAssignments++;
+        }
+      });
+
+      const subjectPerformances = Array.from(subjectMap.values());
+
+      // ─── Recent activities ───
       const recentActivities: Array<{ date: string; type: 'quiz' | 'attendance' | 'assignment'; title: string; detail: string }> = [];
 
       // Quiz activities
@@ -238,11 +509,13 @@ export default function TeacherStudentTrackingSection({
 
       // Attendance activities
       studentRecords.slice(0, 5).forEach(record => {
+        const session = teacherAttendanceSessions.find(s => s.id === record.session_id);
+        const subjectName = session ? subjectNameMap.get(session.subject_id) || 'مقرر' : 'جلسة حضور';
         recentActivities.push({
-          date: new Date().toISOString(), // Records don't have checked_in_at in this data shape
+          date: session ? session.id : new Date().toISOString(), // Best available date
           type: 'attendance',
           title: 'تسجيل حضور',
-          detail: 'جلسة حضور',
+          detail: subjectName,
         });
       });
 
@@ -267,13 +540,19 @@ export default function TeacherStudentTrackingSection({
         assignmentCompletion,
         overallPerformance,
         level,
+        percentageRange,
         studentScores,
         studentSubmissions,
         attendedSessionIds,
         recentActivities: recentActivities.slice(0, 10),
+        effortScore,
+        resultScore,
+        efficiency,
+        efficiencyLevel,
+        subjectPerformances,
       };
     });
-  }, [students, scores, teacherSubmissions, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords]);
+  }, [students, scores, teacherSubmissions, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords, quizzes, subjectNameMap]);
 
   // ─── Overview stats ───
   const overviewStats = useMemo(() => {
@@ -284,8 +563,11 @@ export default function TeacherStudentTrackingSection({
     const avgAttendance = totalStudents > 0
       ? studentPerformanceData.reduce((sum, d) => sum + d.attendanceRate, 0) / totalStudents
       : 0;
+    const avgEfficiency = totalStudents > 0
+      ? studentPerformanceData.reduce((sum, d) => sum + d.efficiency, 0) / totalStudents
+      : 0;
     const topPerformers = studentPerformanceData.filter(d => d.level === 'excellent').length;
-    return { totalStudents, avgPerformance, avgAttendance, topPerformers };
+    return { totalStudents, avgPerformance, avgAttendance, avgEfficiency, topPerformers };
   }, [students.length, studentPerformanceData]);
 
   // ─── Classification counts ───
@@ -295,6 +577,19 @@ export default function TeacherStudentTrackingSection({
     return counts;
   }, [studentPerformanceData]);
 
+  // ─── Percentage range distribution ───
+  const percentageRangeDistribution = useMemo(() => {
+    const distribution: Record<PercentageRange, number> = { '90-100': 0, '80-89': 0, '70-79': 0, '60-69': 0, 'below-60': 0 };
+    studentPerformanceData.forEach(d => { distribution[d.percentageRange]++; });
+    return distribution;
+  }, [studentPerformanceData]);
+
+  // ─── Class average efficiency ───
+  const classAvgEfficiency = useMemo(() => {
+    if (studentPerformanceData.length === 0) return 0;
+    return studentPerformanceData.reduce((sum, d) => sum + d.efficiency, 0) / studentPerformanceData.length;
+  }, [studentPerformanceData]);
+
   // ─── Filtered & sorted students ───
   const filteredStudents = useMemo(() => {
     let data = [...studentPerformanceData];
@@ -302,6 +597,11 @@ export default function TeacherStudentTrackingSection({
     // Filter by level
     if (filterLevel !== 'all') {
       data = data.filter(d => d.level === filterLevel);
+    }
+
+    // Filter by percentage range
+    if (filterRange !== 'all') {
+      data = data.filter(d => d.percentageRange === filterRange);
     }
 
     // Filter by search
@@ -324,18 +624,61 @@ export default function TeacherStudentTrackingSection({
           return b.attendanceRate - a.attendanceRate;
         case 'quiz':
           return b.quizAvg - a.quizAvg;
+        case 'efficiency':
+          return b.efficiency - a.efficiency;
         default:
           return 0;
       }
     });
 
     return data;
-  }, [studentPerformanceData, filterLevel, searchQuery, sortBy]);
+  }, [studentPerformanceData, filterLevel, filterRange, searchQuery, sortBy]);
 
   // ─── Toggle expand ───
   const toggleExpand = (studentId: string) => {
     setExpandedStudentId(prev => prev === studentId ? null : studentId);
   };
+
+  // ─── Export CSV ───
+  const handleExport = useCallback(() => {
+    const headers = [
+      'الاسم',
+      'البريد الإلكتروني',
+      'متوسط الاختبارات',
+      'نسبة الحضور',
+      'إكمال المهام',
+      'الأداء العام',
+      'التصنيف',
+      'النسبة المئوية',
+      'الكفاءة',
+      'مستوى الكفاءة',
+    ];
+
+    const rows = studentPerformanceData.map(d => [
+      d.student.name,
+      d.student.email,
+      Math.round(d.quizAvg) + '%',
+      Math.round(d.attendanceRate) + '%',
+      Math.round(d.assignmentCompletion) + '%',
+      Math.round(d.overallPerformance) + '%',
+      getPerformanceLevelConfig(d.level).label,
+      d.percentageRange === 'below-60' ? 'أقل من 60%' : d.percentageRange.replace('-', ' - ') + '%',
+      Math.round(d.efficiency) + '%',
+      getEfficiencyLevelConfig(d.efficiencyLevel).label,
+    ]);
+
+    // BOM for Arabic UTF-8 support
+    const BOM = '\uFEFF';
+    const csvContent = BOM + [headers, ...rows].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `student_performance_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [studentPerformanceData]);
 
   return (
     <motion.div
@@ -345,19 +688,31 @@ export default function TeacherStudentTrackingSection({
       className="space-y-6"
     >
       {/* Header */}
-      <motion.div variants={itemVariants} className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/25">
-          <Activity className="h-5 w-5 text-white" />
+      <motion.div variants={itemVariants} className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/25">
+            <Activity className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">تتبع الطلاب</h1>
+            <p className="text-sm text-muted-foreground">متابعة أداء وحضور وتقدم وكفاءة الطلاب</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">تتبع الطلاب</h1>
-          <p className="text-sm text-muted-foreground">متابعة أداء وحضور وتقدم الطلاب</p>
-        </div>
+        {/* Export button */}
+        <motion.button
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          onClick={handleExport}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-l from-sky-600 to-teal-600 text-white text-sm font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
+        >
+          <Download className="h-4 w-4" />
+          <span className="hidden sm:inline">تصدير البيانات</span>
+        </motion.button>
       </motion.div>
 
       {/* ── Overview Cards ── */}
       <motion.div variants={itemVariants}>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           {/* Total Students */}
           <Card className="border-sky-100/50 shadow-sm">
             <CardContent className="p-4">
@@ -403,8 +758,23 @@ export default function TeacherStudentTrackingSection({
             </CardContent>
           </Card>
 
+          {/* Average Efficiency */}
+          <Card className="border-violet-100/50 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 ring-2 ring-violet-100">
+                  <Zap className="h-5 w-5 text-violet-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-violet-700">{Math.round(overviewStats.avgEfficiency)}%</p>
+                  <p className="text-xs text-muted-foreground">متوسط الكفاءة</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Top Performers */}
-          <Card className="border-emerald-100/50 shadow-sm">
+          <Card className="border-emerald-100/50 shadow-sm col-span-2 lg:col-span-1">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 ring-2 ring-emerald-100">
@@ -420,71 +790,194 @@ export default function TeacherStudentTrackingSection({
         </div>
       </motion.div>
 
-      {/* ── Classification Distribution ── */}
+      {/* ── Classification Distribution with Tabs ── */}
       <motion.div variants={itemVariants}>
         <Card className="border-sky-100/50 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="h-5 w-5 text-sky-600" />
-              تصنيف الطلاب حسب الأداء
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Filter className="h-5 w-5 text-sky-600" />
+                تصنيف الطلاب حسب الأداء
+              </CardTitle>
+              {/* Tab switcher */}
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setActiveFilterTab('level')}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                    activeFilterTab === 'level'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  حسب المستوى
+                </button>
+                <button
+                  onClick={() => setActiveFilterTab('range')}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                    activeFilterTab === 'range'
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  حسب النسبة
+                </button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {PERFORMANCE_LEVELS.map(level => {
-                const count = classificationCounts[level.key];
-                const isActive = filterLevel === level.key;
-                return (
-                  <motion.button
-                    key={level.key}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => setFilterLevel(isActive ? 'all' : level.key)}
-                    className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${
-                      isActive
-                        ? `${level.bgColor} ${level.ringColor} ring-2 border-current ${level.textColor}`
-                        : 'bg-white border-gray-100 hover:border-gray-200 text-gray-600'
-                    }`}
-                  >
-                    <span className={`text-3xl font-bold ${isActive ? level.textColor : 'text-gray-400'}`}>
-                      {count}
-                    </span>
-                    <span className={`text-sm font-medium ${isActive ? level.textColor : 'text-gray-500'}`}>
-                      {level.label}
-                    </span>
-                    <span className={`text-xs ${isActive ? level.textColor : 'text-gray-400'}`}>
-                      {level.key === 'excellent' ? '85%+' : level.key === 'good' ? '70-84%' : level.key === 'average' ? '50-69%' : '<50%'}
-                    </span>
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeFilterIndicator"
-                        className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full ${level.color}`}
-                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                      />
-                    )}
-                  </motion.button>
-                );
-              })}
-            </div>
+            <AnimatePresence mode="wait">
+              {activeFilterTab === 'level' ? (
+                <motion.div
+                  key="level-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {PERFORMANCE_LEVELS.map(level => {
+                      const count = classificationCounts[level.key];
+                      const isActive = filterLevel === level.key;
+                      return (
+                        <motion.button
+                          key={level.key}
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => setFilterLevel(isActive ? 'all' : level.key)}
+                          className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${
+                            isActive
+                              ? `${level.bgColor} ${level.ringColor} ring-2 border-current ${level.textColor}`
+                              : 'bg-white border-gray-100 hover:border-gray-200 text-gray-600'
+                          }`}
+                        >
+                          <span className={`text-3xl font-bold ${isActive ? level.textColor : 'text-gray-400'}`}>
+                            {count}
+                          </span>
+                          <span className={`text-sm font-medium ${isActive ? level.textColor : 'text-gray-500'}`}>
+                            {level.label}
+                          </span>
+                          <span className={`text-xs ${isActive ? level.textColor : 'text-gray-400'}`}>
+                            {level.key === 'excellent' ? '85%+' : level.key === 'good' ? '70-84%' : level.key === 'average' ? '50-69%' : '<50%'}
+                          </span>
+                          {isActive && (
+                            <motion.div
+                              layoutId="activeFilterIndicator"
+                              className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full ${level.color}`}
+                              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                            />
+                          )}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="range-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {/* Percentage range filter buttons */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+                    {PERCENTAGE_RANGES.map(range => {
+                      const count = percentageRangeDistribution[range.key];
+                      const isActive = filterRange === range.key;
+                      return (
+                        <motion.button
+                          key={range.key}
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => setFilterRange(isActive ? 'all' : range.key)}
+                          className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200 ${
+                            isActive
+                              ? `${range.bgColor} ${range.borderColor} border-current ${range.textColor}`
+                              : 'bg-white border-gray-100 hover:border-gray-200 text-gray-600'
+                          }`}
+                        >
+                          <span className={`text-2xl font-bold ${isActive ? range.textColor : 'text-gray-400'}`}>
+                            {count}
+                          </span>
+                          <span className={`text-xs font-medium ${isActive ? range.textColor : 'text-gray-500'}`}>
+                            {range.label}
+                          </span>
+                          <span className={`text-[10px] ${isActive ? range.textColor : 'text-gray-400'}`}>
+                            {range.range}
+                          </span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
 
-            {/* Active filter indicator */}
-            {filterLevel !== 'all' && (
+                  {/* Performance Distribution Horizontal Bar Chart */}
+                  <div className="mt-2 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 to-white border border-gray-100/80">
+                    <div className="flex items-center gap-2 mb-3">
+                      <BarChart3 className="h-4 w-4 text-sky-600" />
+                      <span className="text-sm font-medium text-gray-900">توزيع الأداء</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {PERCENTAGE_RANGES.map(range => {
+                        const count = percentageRangeDistribution[range.key];
+                        const percentage = students.length > 0 ? (count / students.length) * 100 : 0;
+                        return (
+                          <div key={range.key} className="flex items-center gap-3">
+                            <span className="text-[11px] font-medium text-gray-600 min-w-[70px] text-left">
+                              {range.range}
+                            </span>
+                            <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.max(percentage, 0)}%` }}
+                                transition={{ duration: 0.6, ease: 'easeOut' }}
+                                className={`h-full ${range.color} rounded-full`}
+                              />
+                            </div>
+                            <span className="text-xs font-bold text-gray-700 min-w-[30px] text-center">
+                              {count}
+                            </span>
+                            <span className="text-[10px] text-gray-400 min-w-[35px] text-center">
+                              {Math.round(percentage)}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Active filter indicators */}
+            {(filterLevel !== 'all' || filterRange !== 'all') && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-3 flex items-center gap-2"
+                className="mt-3 flex items-center gap-2 flex-wrap"
               >
                 <span className="text-xs text-muted-foreground">عرض:</span>
-                <Badge
-                  variant="secondary"
-                  className={`${getPerformanceLevelConfig(filterLevel).bgColor} ${getPerformanceLevelConfig(filterLevel).textColor} cursor-pointer`}
-                  onClick={() => setFilterLevel('all')}
-                >
-                  {getPerformanceLevelConfig(filterLevel).label} ({classificationCounts[filterLevel]})
-                  <XCircle className="h-3 w-3 mr-1" />
-                </Badge>
+                {filterLevel !== 'all' && (
+                  <Badge
+                    variant="secondary"
+                    className={`${getPerformanceLevelConfig(filterLevel).bgColor} ${getPerformanceLevelConfig(filterLevel).textColor} cursor-pointer`}
+                    onClick={() => setFilterLevel('all')}
+                  >
+                    {getPerformanceLevelConfig(filterLevel).label} ({classificationCounts[filterLevel]})
+                    <XCircle className="h-3 w-3 mr-1" />
+                  </Badge>
+                )}
+                {filterRange !== 'all' && (
+                  <Badge
+                    variant="secondary"
+                    className={`${getPercentageRangeConfig(filterRange).bgColor} ${getPercentageRangeConfig(filterRange).textColor} cursor-pointer`}
+                    onClick={() => setFilterRange('all')}
+                  >
+                    {getPercentageRangeConfig(filterRange).label} ({percentageRangeDistribution[filterRange]})
+                    <XCircle className="h-3 w-3 mr-1" />
+                  </Badge>
+                )}
                 <button
-                  onClick={() => setFilterLevel('all')}
+                  onClick={() => { setFilterLevel('all'); setFilterRange('all'); }}
                   className="text-xs text-sky-600 hover:text-sky-700 font-medium"
                 >
                   عرض الكل
@@ -562,6 +1055,7 @@ export default function TeacherStudentTrackingSection({
                     onToggle={() => toggleExpand(data.student.id)}
                     totalSessions={teacherAttendanceSessions.length}
                     totalAssignments={teacherAssignments.length}
+                    classAvgEfficiency={classAvgEfficiency}
                   />
                 ))}
               </div>
@@ -574,6 +1068,155 @@ export default function TeacherStudentTrackingSection({
 }
 
 // -------------------------------------------------------
+// Circular Efficiency Gauge Component
+// -------------------------------------------------------
+function EfficiencyGauge({
+  efficiency,
+  efficiencyLevel,
+  classAvg,
+}: {
+  efficiency: number;
+  efficiencyLevel: EfficiencyLevel;
+  classAvg: number;
+}) {
+  const config = getEfficiencyLevelConfig(efficiencyLevel);
+  const displayEfficiency = Math.min(efficiency, 150);
+  const circumference = 2 * Math.PI * 40; // radius 40
+  const progress = (displayEfficiency / 150) * circumference;
+  const classAvgProgress = (classAvg / 150) * circumference;
+
+  // Color based on level
+  const strokeColor = efficiencyLevel === 'high'
+    ? '#10b981' // emerald-500
+    : efficiencyLevel === 'medium'
+      ? '#f59e0b' // amber-500
+      : '#f43f5e'; // rose-500
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative w-24 h-24">
+        <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
+          {/* Background circle */}
+          <circle
+            cx="48"
+            cy="48"
+            r="40"
+            fill="none"
+            stroke="#f1f5f9"
+            strokeWidth="6"
+          />
+          {/* Class average indicator */}
+          <circle
+            cx="48"
+            cy="48"
+            r="40"
+            fill="none"
+            stroke="#e2e8f0"
+            strokeWidth="2"
+            strokeDasharray={`${classAvgProgress} ${circumference - classAvgProgress}`}
+            strokeLinecap="round"
+          />
+          {/* Efficiency arc */}
+          <motion.circle
+            cx="48"
+            cy="48"
+            r="40"
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth="6"
+            strokeDasharray={`${progress} ${circumference - progress}`}
+            strokeLinecap="round"
+            initial={{ strokeDasharray: `0 ${circumference}` }}
+            animate={{ strokeDasharray: `${progress} ${circumference - progress}` }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+          />
+        </svg>
+        {/* Center text */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-lg font-bold" style={{ color: strokeColor }}>
+            {Math.round(efficiency)}%
+          </span>
+          <span className="text-[9px] text-gray-400">كفاءة</span>
+        </div>
+      </div>
+      <Badge
+        variant="secondary"
+        className={`${config.bgColor} ${config.textColor} text-[10px] px-2 py-0.5 border-0 font-bold`}
+      >
+        {config.label}
+      </Badge>
+      {classAvg > 0 && (
+        <div className="flex items-center gap-1 text-[10px] text-gray-400">
+          <Target className="h-3 w-3" />
+          <span>متوسط الفصل: {Math.round(classAvg)}%</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------
+// Subject Performance Mini Card
+// -------------------------------------------------------
+function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
+  return (
+    <div className="p-3 rounded-xl bg-white/80 border border-gray-100/80 space-y-2">
+      <div className="flex items-center gap-2">
+        <BookOpen className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+        <span className="text-xs font-medium text-gray-900 truncate">{subject.subjectName}</span>
+      </div>
+      <div className="space-y-1.5">
+        {/* Quiz avg */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-gray-500 min-w-[50px]">الاختبارات</span>
+          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(subject.quizAvg, 100)}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="h-full bg-sky-500 rounded-full"
+            />
+          </div>
+          <span className="text-[10px] font-bold text-sky-700 min-w-[28px] text-left">
+            {Math.round(subject.quizAvg)}%
+          </span>
+        </div>
+        {/* Attendance */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-gray-500 min-w-[50px]">الحضور</span>
+          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(subject.attendanceRate, 100)}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut', delay: 0.1 }}
+              className="h-full bg-teal-500 rounded-full"
+            />
+          </div>
+          <span className="text-[10px] font-bold text-teal-700 min-w-[28px] text-left">
+            {Math.round(subject.attendanceRate)}%
+          </span>
+        </div>
+        {/* Assignments */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-gray-500 min-w-[50px]">المهام</span>
+          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${subject.assignmentCount > 0 ? (subject.completedAssignments / subject.assignmentCount) * 100 : 0}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut', delay: 0.2 }}
+              className="h-full bg-amber-500 rounded-full"
+            />
+          </div>
+          <span className="text-[10px] font-bold text-amber-700 min-w-[28px] text-left">
+            {subject.completedAssignments}/{subject.assignmentCount}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------
 // Student Card Component
 // -------------------------------------------------------
 function StudentCard({
@@ -582,14 +1225,17 @@ function StudentCard({
   onToggle,
   totalSessions,
   totalAssignments,
+  classAvgEfficiency,
 }: {
   data: StudentPerformanceData;
   isExpanded: boolean;
   onToggle: () => void;
   totalSessions: number;
   totalAssignments: number;
+  classAvgEfficiency: number;
 }) {
   const levelConfig = getPerformanceLevelConfig(data.level);
+  const rangeConfig = getPercentageRangeConfig(data.percentageRange);
 
   return (
     <motion.div
@@ -634,6 +1280,12 @@ function StudentCard({
             >
               {levelConfig.label}
             </Badge>
+            <Badge
+              variant="outline"
+              className={`${rangeConfig.bgColor} ${rangeConfig.textColor} ${rangeConfig.borderColor} text-[9px] px-1.5 py-0 font-medium`}
+            >
+              {rangeConfig.range}
+            </Badge>
           </div>
 
           {/* Progress bar */}
@@ -646,6 +1298,17 @@ function StudentCard({
               {Math.round(data.overallPerformance)}%
             </span>
           </div>
+        </div>
+
+        {/* Efficiency mini indicator */}
+        <div className="hidden sm:flex flex-col items-center gap-0.5 shrink-0">
+          <div className={`text-sm font-bold ${
+            data.efficiencyLevel === 'high' ? 'text-emerald-600' :
+            data.efficiencyLevel === 'medium' ? 'text-amber-600' : 'text-rose-600'
+          }`}>
+            {Math.round(data.efficiency)}%
+          </div>
+          <span className="text-[9px] text-gray-400">كفاءة</span>
         </div>
 
         {/* Expand icon */}
@@ -701,6 +1364,79 @@ function StudentCard({
                 </div>
               </div>
 
+              {/* ── Efficiency Section (كفاءة الطالب) ── */}
+              <div className="p-3 rounded-xl bg-gradient-to-l from-violet-50/80 to-white border border-violet-100/50">
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap className="h-4 w-4 text-violet-600" />
+                  <span className="text-sm font-medium text-gray-900">كفاءة الطالب</span>
+                  <span className="text-[10px] text-gray-400">(النتائج / الجهد) × 100</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  {/* Circular gauge */}
+                  <EfficiencyGauge
+                    efficiency={data.efficiency}
+                    efficiencyLevel={data.efficiencyLevel}
+                    classAvg={classAvgEfficiency}
+                  />
+                  {/* Efficiency breakdown */}
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 border border-gray-100/50">
+                      <span className="text-[11px] text-gray-600">الجهد المبذول</span>
+                      <div className="flex items-center gap-2">
+                        <Progress value={Math.round(data.effortScore)} className="h-1.5 w-16" />
+                        <span className="text-xs font-bold text-gray-700">{Math.round(data.effortScore)}%</span>
+                      </div>
+                    </div>
+                    <div className="text-[9px] text-gray-400 pr-2">
+                      حضور ({Math.round(data.attendanceRate)}%) × 50% + مهام ({Math.round(data.assignmentCompletion)}%) × 50%
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 border border-gray-100/50">
+                      <span className="text-[11px] text-gray-600">النتائج المحققة</span>
+                      <div className="flex items-center gap-2">
+                        <Progress value={Math.round(data.resultScore)} className="h-1.5 w-16" />
+                        <span className="text-xs font-bold text-gray-700">{Math.round(data.resultScore)}%</span>
+                      </div>
+                    </div>
+                    <div className="text-[9px] text-gray-400 pr-2">
+                      متوسط الاختبارات ({Math.round(data.quizAvg)}%)
+                    </div>
+                    {/* Comparison to class average */}
+                    {classAvgEfficiency > 0 && (
+                      <div className={`flex items-center gap-1.5 text-[11px] font-medium ${
+                        data.efficiency >= classAvgEfficiency ? 'text-emerald-600' : 'text-rose-600'
+                      }`}>
+                        {data.efficiency >= classAvgEfficiency ? (
+                          <TrendingUp className="h-3 w-3" />
+                        ) : (
+                          <TrendingUp className="h-3 w-3 rotate-180" />
+                        )}
+                        <span>
+                          {data.efficiency >= classAvgEfficiency ? 'فوق' : 'تحت'} متوسط الفصل بـ{Math.abs(Math.round(data.efficiency - classAvgEfficiency))}%
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Per-Subject Performance (مسار الطالب - المقررات) ── */}
+              {data.subjectPerformances.length > 0 && (
+                <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-white border border-sky-100/50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <BookOpen className="h-4 w-4 text-sky-600" />
+                    <span className="text-sm font-medium text-gray-900">الأداء حسب المقرر</span>
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-sky-50 text-sky-700 border-sky-100">
+                      {data.subjectPerformances.length} مقرر
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar">
+                    {data.subjectPerformances.map(subject => (
+                      <SubjectPerformanceCard key={subject.subjectId} subject={subject} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Weighted performance breakdown */}
               <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-teal-50/80 border border-sky-100/50">
                 <div className="flex items-center gap-2 mb-2">
@@ -723,16 +1459,19 @@ function StudentCard({
                 </div>
               </div>
 
-              {/* Recent activities */}
+              {/* ── Enhanced Activity Timeline (مسار الطالب) ── */}
               {data.recentActivities.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Activity className="h-4 w-4 text-sky-600" />
-                    <span className="text-sm font-medium text-gray-900">النشاط الأخير</span>
+                <div className="p-3 rounded-xl bg-gradient-to-l from-teal-50/60 to-white border border-teal-100/50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Route className="h-4 w-4 text-teal-600" />
+                    <span className="text-sm font-medium text-gray-900">مسار الطالب</span>
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-50 text-teal-700 border-teal-100">
+                      {data.recentActivities.length} نشاط
+                    </Badge>
                   </div>
-                  <div className="relative space-y-0 max-h-48 overflow-y-auto custom-scrollbar">
+                  <div className="relative space-y-0 max-h-52 overflow-y-auto custom-scrollbar">
                     {/* Timeline line */}
-                    <div className="absolute right-[15px] top-2 bottom-2 w-0.5 bg-sky-100" />
+                    <div className="absolute right-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-teal-200 via-sky-200 to-amber-200" />
 
                     {data.recentActivities.map((item, idx) => {
                       const iconMap = {
@@ -745,6 +1484,11 @@ function StudentCard({
                         quiz: 'bg-sky-50 ring-sky-100',
                         assignment: 'bg-amber-50 ring-amber-100',
                       };
+                      const dotColorMap = {
+                        attendance: 'bg-teal-400',
+                        quiz: 'bg-sky-400',
+                        assignment: 'bg-amber-400',
+                      };
                       const badgeMap = {
                         attendance: { label: 'حضور', className: 'bg-teal-50 text-teal-700 border-teal-100' },
                         quiz: { label: 'اختبار', className: 'bg-sky-50 text-sky-700 border-sky-100' },
@@ -752,20 +1496,33 @@ function StudentCard({
                       };
 
                       return (
-                        <div key={idx} className="relative flex items-start gap-2.5 py-1.5 px-1">
+                        <motion.div
+                          key={idx}
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.2, delay: idx * 0.05 }}
+                          className="relative flex items-start gap-2.5 py-1.5 px-1"
+                        >
                           <div className={`relative z-10 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full ring-2 ${bgMap[item.type]}`}>
                             {iconMap[item.type]}
+                            {/* Pulsing dot */}
+                            <span className={`absolute -top-0.5 -left-0.5 h-2 w-2 rounded-full ${dotColorMap[item.type]} ring-2 ring-white`} />
                           </div>
                           <div className="flex-1 min-w-0 pt-0.5">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="text-xs font-medium text-gray-900">{item.title}</p>
                               <Badge variant="secondary" className={`text-[9px] px-1 py-0 ${badgeMap[item.type].className}`}>
                                 {badgeMap[item.type].label}
                               </Badge>
                             </div>
                             <p className="text-[11px] text-muted-foreground truncate">{item.detail}</p>
+                            <p className="text-[9px] text-gray-300 mt-0.5">
+                              {item.date && item.date !== new Date().toISOString()
+                                ? formatDate(item.date)
+                                : 'تاريخ غير متوفر'}
+                            </p>
                           </div>
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>

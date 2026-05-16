@@ -33,6 +33,7 @@ import {
   Maximize2,
   EyeOff,
   Users,
+  AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
@@ -224,6 +225,8 @@ interface PendingUpload {
   progress: number; // -1 = failed, 0-100 = progress
   uploading: boolean;
   done: boolean;
+  error?: string; // Error message for failed/blocked uploads
+  errorCode?: 'duplicate_name' | 'size' | 'other'; // Categorized error code
 }
 
 // -------------------------------------------------------
@@ -534,12 +537,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     }
     if (validFiles.length === 0) return;
 
-    // Client-side pre-validation: warn about duplicate file names
+    // Client-side pre-validation: check for duplicate file names (same name + same extension)
+    // Same name + DIFFERENT extension is ALLOWED (e.g., "report.pdf" and "report.docx" can coexist)
+    // Same name + SAME extension is BLOCKED — user must rename before uploading
     const duplicateNames: string[] = [];
     for (const file of validFiles) {
       const originalExt = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
       const customName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
       const displayName = customName.trim() + originalExt;
+      // Check only for EXACT name+extension match (case-insensitive)
       const isDuplicate = files.some(f => f.file_name.toLowerCase() === displayName.toLowerCase());
       const isDuplicateInPending = pendingUploads.some(p => {
         const pfDisplayName = p.customName.trim() + (p.extension ? '.' + p.extension : '');
@@ -550,7 +556,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
     }
     if (duplicateNames.length > 0) {
-      toast.error(`يوجد ملف(ات) بنفس الاسم والامتداد (${duplicateNames.join('، ')}). يرجى تغيير الاسم قبل الرفع، أو سيتم استبدال الملف الموجود.`);
+      toast.error(`يوجد ملف(ات) بنفس الاسم والامتداد (${duplicateNames.join('، ')}). يرجى تغيير الاسم قبل الرفع.`);
     }
 
     // ─── CRITICAL MOBILE FIX: Pre-read file data into ArrayBuffers ───
@@ -567,6 +573,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         } catch (readErr) {
           console.error(`[Upload] Failed to pre-read file "${file.name}":`, readErr);
         }
+        // Check if this file has a duplicate name+extension
+        const originalExt = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+        const customName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
+        const displayName = customName.trim() + originalExt;
+        const isDuplicate = files.some(f => f.file_name.toLowerCase() === displayName.toLowerCase());
+        const isDuplicateInPending = pendingUploads.some(p => {
+          const pfDisplayName = p.customName.trim() + (p.extension ? '.' + p.extension : '');
+          return pfDisplayName.toLowerCase() === displayName.toLowerCase();
+        });
+        const hasDuplicateName = isDuplicate || isDuplicateInPending;
         return {
           id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           file,
@@ -574,11 +590,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           fileName: file.name,
           fileType: file.type || 'application/octet-stream',
           fileSize: file.size,
-          customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
+          customName,
           extension: getFileExtension(file.name),
           progress: 0,
           uploading: false,
           done: false,
+          // Mark duplicate name+extension files as error — user must rename before upload
+          error: hasDuplicateName ? `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير الاسم قبل الرفع.` : undefined,
+          errorCode: hasDuplicateName ? 'duplicate_name' as const : undefined,
         };
       })
     );
@@ -598,7 +617,18 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   const updatePendingName = (id: string, name: string) => {
     setPendingUploads((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, customName: name } : p))
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        // When user renames, check if the new name resolves the duplicate
+        const newDisplayName = name.trim() + (p.extension ? '.' + p.extension : '');
+        const stillDuplicate = files.some(f => f.file_name.toLowerCase() === newDisplayName.toLowerCase()) ||
+          prev.some(other => other.id !== id && (other.customName.trim() + (other.extension ? '.' + other.extension : '')).toLowerCase() === newDisplayName.toLowerCase());
+        if (stillDuplicate) {
+          return { ...p, customName: name, error: `يوجد ملف بنفس الاسم والامتداد (${newDisplayName}). يرجى تغيير الاسم قبل الرفع.`, errorCode: 'duplicate_name' as const };
+        }
+        // Name is now unique — clear the duplicate error
+        return { ...p, customName: name, error: p.errorCode === 'duplicate_name' ? undefined : p.error, errorCode: p.errorCode === 'duplicate_name' ? undefined : p.errorCode };
+      })
     );
   };
 
@@ -626,16 +656,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // for all upload methods instead of raw File objects.
   // -------------------------------------------------------
   const handleUploadAll = async () => {
-    // Reset failed uploads first so they can be retried
+    // Reset failed uploads first so they can be retried (but NOT duplicate_name errors — those need rename)
     setPendingUploads((prev) =>
-      prev.map((p) => (p.progress === -1 ? { ...p, progress: 0, uploading: false } : p))
+      prev.map((p) => (p.progress === -1 && p.errorCode !== 'duplicate_name' ? { ...p, progress: 0, uploading: false, error: undefined, errorCode: undefined } : p))
     );
 
     // Wait a tick for the state update to be processed (important on mobile)
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Read the LATEST state from the ref (avoids stale closure on mobile)
-    const toUpload = pendingUploadsRef.current.filter((p) => !p.done && !p.uploading);
+    // Skip files with duplicate_name error — they must be renamed first
+    const toUpload = pendingUploadsRef.current.filter((p) => !p.done && !p.uploading && p.errorCode !== 'duplicate_name' && !p.error);
     if (toUpload.length === 0) {
       toast.info('لا يوجد ملفات للرفع');
       return;
@@ -987,12 +1018,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     setPendingUploads((current) => {
       const successful = current.filter((p) => p.done);
       const failed = current.filter((p) => p.progress === -1);
-      if (successful.length > 0 && failed.length === 0) {
+      const blocked = current.filter((p) => p.errorCode === 'duplicate_name');
+      if (successful.length > 0 && failed.length === 0 && blocked.length === 0) {
         toast.success('تم رفع الملفات بنجاح');
       } else if (successful.length > 0 && failed.length > 0) {
         toast.error(`تم رفع ${successful.length} ملف، فشل ${failed.length} ملف`);
       } else if (failed.length > 0) {
         toast.error('فشل رفع جميع الملفات');
+      }
+      if (blocked.length > 0) {
+        toast.error(`يوجد ${blocked.length} ملف(ات) بأسماء مكررة — يرجى تغيير الاسم أولاً`);
       }
       return current;
     });
@@ -2501,7 +2536,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   {pendingUploads.map((item) => (
                     <div
                       key={item.id}
-                      className="rounded-xl border bg-card p-3 space-y-2"
+                      className={`rounded-xl border p-3 space-y-2 ${
+                        item.errorCode === 'duplicate_name' ? 'border-amber-300 bg-amber-50/40' :
+                        item.progress === -1 ? 'border-rose-200 bg-rose-50/30' :
+                        item.done ? 'border-sky-200 bg-sky-50/30' :
+                        'bg-card'
+                      }`}
                     >
                       <div className="flex items-center gap-2">
                         {/* File icon */}
@@ -2515,12 +2555,18 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                             value={item.customName}
                             onChange={(e) => updatePendingName(item.id, e.target.value)}
                             disabled={item.uploading || item.done}
-                            className="flex-1 rounded-md border bg-background px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-sky-600 disabled:opacity-60 min-w-0"
+                            className={`flex-1 rounded-md border px-2 py-1 text-sm focus:outline-none focus:ring-1 disabled:opacity-60 min-w-0 ${
+                              item.errorCode === 'duplicate_name'
+                                ? 'border-amber-300 bg-amber-50/50 text-amber-900 focus:ring-amber-500 focus:border-amber-500'
+                                : 'border-border bg-background text-foreground focus:ring-sky-600'
+                            }`}
                             placeholder="اسم الملف"
                             dir="rtl"
                           />
                           {item.extension && (
-                            <span className="text-xs text-muted-foreground shrink-0">.{item.extension}</span>
+                            <span className={`text-xs shrink-0 ${
+                              item.errorCode === 'duplicate_name' ? 'text-amber-600' : 'text-muted-foreground'
+                            }`}>.{item.extension}</span>
                           )}
                         </div>
                         {/* Remove button */}
@@ -2536,13 +2582,23 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         {item.done && (
                           <CheckCircle2 className="h-4 w-4 text-sky-600 shrink-0" />
                         )}
-                        {item.progress === -1 && (
+                        {item.errorCode === 'duplicate_name' && (
+                          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                        )}
+                        {item.progress === -1 && item.errorCode !== 'duplicate_name' && (
                           <X className="h-4 w-4 text-rose-500 shrink-0" />
                         )}
                         {item.uploading && (
                           <Loader2 className="h-4 w-4 animate-spin text-sky-700 shrink-0" />
                         )}
                       </div>
+                      {/* Duplicate name error message */}
+                      {item.error && item.errorCode === 'duplicate_name' && (
+                        <div className="flex items-start gap-1.5 px-1">
+                          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-500" />
+                          <span className="text-[11px] text-amber-700 leading-relaxed">{item.error}</span>
+                        </div>
+                      )}
                       {/* Progress bar */}
                       {(item.uploading || item.done || item.progress === -1) && (
                         <div className="space-y-1">
@@ -2579,6 +2635,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <div className="border-t p-4 flex items-center justify-between shrink-0">
                 <span className="text-sm text-muted-foreground">
                   {pendingUploads.filter((p) => p.done).length}/{pendingUploads.length} مكتمل
+                  {pendingUploads.some((p) => p.errorCode === 'duplicate_name') && (
+                    <span className="text-amber-600 text-xs mr-1">({pendingUploads.filter((p) => p.errorCode === 'duplicate_name').length} بحاجة لتغيير الاسم)</span>
+                  )}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -2591,15 +2650,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   >
                     إغلاق
                   </button>
-                  {/* Upload All / Retry button — visible whenever there are pending or failed files and nothing is currently uploading */}
-                  {pendingUploads.some((p) => !p.done && !p.uploading) && (
+                  {/* Upload All / Retry button — visible whenever there are uploadable files (no duplicate_name errors) and nothing is currently uploading */}
+                  {pendingUploads.some((p) => !p.done && !p.uploading && p.errorCode !== 'duplicate_name' && !p.error) && (
                     <button
                       type="button"
                       onClick={handleUploadAll}
                       className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-800 active:bg-sky-900 transition-colors touch-manipulation min-h-[44px]"
                     >
                       <Upload className="h-4 w-4" />
-                      {pendingUploads.some((p) => p.progress === -1) ? 'إعادة المحاولة' : 'رفع الكل'}
+                      {pendingUploads.some((p) => p.progress === -1 && p.errorCode !== 'duplicate_name') ? 'إعادة المحاولة' : 'رفع الكل'}
                     </button>
                   )}
                 </div>

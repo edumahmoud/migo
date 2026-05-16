@@ -389,9 +389,11 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         toast.success('تم إنشاء المهمة بنجاح');
         // Send notification to all students in the subject
         try {
+          const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+          const authHeaders = await getCachedAuthHeaders();
           await fetch('/api/notify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
             body: JSON.stringify({
               action: 'assignment_created',
               subjectId,
@@ -692,9 +694,11 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         const gradedSubmission = submissions.find((s) => s.id === submissionId);
         if (gradedSubmission && selectedAssignment) {
           try {
+            const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+            const authHeaders = await getCachedAuthHeaders();
             await fetch('/api/notify', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...authHeaders },
               body: JSON.stringify({
                 action: 'assignment_graded',
                 studentId: gradedSubmission.student_id,

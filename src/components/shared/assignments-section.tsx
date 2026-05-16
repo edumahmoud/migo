@@ -501,9 +501,11 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         toast.success('تم إنشاء المهمة بنجاح');
         // Send notification to all students in the subject
         try {
+          const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+          const authHeaders = await getCachedAuthHeaders();
           await fetch('/api/notify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
             body: JSON.stringify({
               action: 'assignment_created',
               subjectId: newSubjectId,
@@ -645,9 +647,11 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         const gradedSubmission = submissions.find((s) => s.id === submissionId);
         if (gradedSubmission && selectedAssignment) {
           try {
+            const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+            const authHeaders = await getCachedAuthHeaders();
             await fetch('/api/notify', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...authHeaders },
               body: JSON.stringify({
                 action: 'assignment_graded',
                 studentId: gradedSubmission.student_id,
@@ -789,9 +793,11 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         toast.success('تم تسليم المهمة بنجاح');
         // Send notification to teacher
         try {
+          const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+          const authHeaders = await getCachedAuthHeaders();
           await fetch('/api/notify', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
             body: JSON.stringify({
               action: 'assignment_submitted',
               assignmentId: selectedAssignment.id,

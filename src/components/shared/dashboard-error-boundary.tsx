@@ -114,6 +114,7 @@ export default class DashboardErrorBoundary extends React.Component<
   handleRetry = () => {
     // Clear potentially corrupted state that might be causing the error
     try {
+      localStorage.removeItem('attendo-app-store');
       localStorage.removeItem('_wsr');
       localStorage.removeItem('_sw_reload_pending');
       localStorage.removeItem('_attendo_busy');

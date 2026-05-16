@@ -64,8 +64,9 @@ class AppErrorBoundary extends React.Component<
   }
 
   handleRetry = () => {
-    // Clear potentially corrupted localStorage flags
+    // Clear potentially corrupted localStorage flags and persisted store
     try {
+      localStorage.removeItem('attendo-app-store');
       localStorage.removeItem('_wsr');
       localStorage.removeItem('_sw_reload_pending');
       localStorage.removeItem('_attendo_busy');
@@ -728,6 +729,9 @@ function HomeContent() {
             destroySocket();
             cleanupStatusStore();
             cleanupNotifications();
+            // CRITICAL FIX (v3): Directly clear persisted store from localStorage
+            // before resetAppStore() to prevent re-hydration of stale state
+            try { localStorage.removeItem('attendo-app-store'); } catch {}
             resetAppStore();
             try {
               signOut();
@@ -810,6 +814,12 @@ function HomeContent() {
     destroySocket();
     cleanupStatusStore();
     cleanupNotifications();
+    // CRITICAL FIX (v3): Directly clear the persisted store from localStorage
+    // BEFORE calling resetAppStore(). There's a timing issue where
+    // resetAppStore() calls set(initialState) which persists via zustand/middleware,
+    // but the write might not complete before the component re-renders and
+    // re-hydrates the old corrupted state from localStorage.
+    try { localStorage.removeItem('attendo-app-store'); } catch {}
     resetAppStore();
     try {
       signOut();

@@ -862,6 +862,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       authSubscription.data.subscription.unsubscribe();
       authSubscription = null;
     }
+
+    // Reset initialized and loading so the next initialize() call actually runs.
+    // Without this, after signOut → cleanup(), the initialized flag stays true,
+    // so the next login's initialize() returns immediately without setting up
+    // the new user's session (auth listener, session validation, etc.).
+    set({ initialized: false, loading: true, user: null, banInfo: null, sessionKickedMessage: null });
   },
 }));
 

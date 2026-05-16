@@ -347,9 +347,11 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           if (noteVisibility === 'public' && !editingNoteId) {
             try {
               const preview = content.length > 50 ? content.substring(0, 50) + '...' : content;
+              const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+              const authHeaders = await getCachedAuthHeaders();
               await fetch('/api/notify', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...authHeaders },
                 body: JSON.stringify({
                   action: 'public_note_created',
                   subjectId,

@@ -669,6 +669,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     const uploadStartTime = Date.now();
     const isUploadTimedOut = () => (Date.now() - uploadStartTime) > TOTAL_UPLOAD_TIMEOUT_MS;
 
+    // Defensive wrapper: ensure the function NEVER throws an unhandled error
+    // that could propagate to the React error boundary and crash the component.
+    // All errors must be caught and displayed as toast messages instead.
     try {
       // 1. Create the lecture
       const { data: lectureData, error } = await supabase
@@ -763,8 +766,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 console.warn('[LectureUpload] Failed to read file.arrayBuffer():', arrayBufErr);
                 // Last resort: try using the File object directly
                 try {
-                  if (pf.file && pf.file.size > 0) {
-                    uploadBlob = pf.file;
+                  if (pf.fileSize > 0) {
+                    // Use file reference only if we know it has data (checked via pre-read fileSize)
+                    // Don't access pf.file.name / pf.file.type / pf.file.size directly on mobile PWA
+                    try { uploadBlob = pf.file; } catch { blobError = 'تعذر قراءة بيانات الملف — كائن الملف غير صالح'; }
                   } else {
                     blobError = 'تعذر قراءة بيانات الملف — قد يكون الملف غير صالح أو تم حذفه';
                   }
@@ -855,7 +860,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 }
 
                 const formData = new FormData();
-                formData.append('file', uploadBlob!, fileName);
+                formData.append('file', uploadBlob as Blob, fileName);
                 formData.append('subjectId', subjectId);
                 formData.append('uploadedBy', profile.id);
                 formData.append('category', 'محاضرات');
@@ -926,7 +931,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 25 } : p)));
                 }
                 const xhrFormData = new FormData();
-                xhrFormData.append('file', uploadBlob!, fileName);
+                xhrFormData.append('file', uploadBlob as Blob, fileName);
                 xhrFormData.append('subjectId', subjectId);
                 xhrFormData.append('uploadedBy', profile.id);
                 xhrFormData.append('category', 'محاضرات');
@@ -980,7 +985,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 }
                 const { error: uploadError } = await supabase.storage
                   .from('user-files')
-                  .upload(storagePath, uploadBlob!, {
+                  .upload(storagePath, uploadBlob as Blob, {
                     cacheControl: '3600',
                     contentType: fileType,
                     upsert: false,
@@ -1021,7 +1026,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
                     const formData = new FormData();
                     formData.append('cacheControl', '3600');
-                    formData.append('file', uploadBlob!, fileName);
+                    formData.append('file', uploadBlob as Blob, fileName);
                     xhr.send(formData);
                   });
 
@@ -1161,20 +1166,41 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
       // Notify all enrolled students about the new lecture (non-blocking)
       // Fire-and-forget: don't block the UI while push notifications are being sent
-      fetch('/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'lecture_created',
-          subjectId,
-          lectureTitle: title,
-          teacherName: profile.name,
-          lectureDate: newDate || null,
-          lectureTime: newTime || null,
-        }),
-      }).catch(() => {
-        // Non-critical: don't block lecture creation if notification fails
-      });
+      // IMPORTANT: Include auth token so the /api/notify route can authenticate the request
+      (async () => {
+        try {
+          const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+          const authHeaders = await getCachedAuthHeaders();
+          fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify({
+              action: 'lecture_created',
+              subjectId,
+              lectureTitle: title,
+              teacherName: profile.name,
+              lectureDate: newDate || null,
+              lectureTime: newTime || null,
+            }),
+          }).catch(() => {
+            // Non-critical: don't block lecture creation if notification fails
+          });
+        } catch {
+          // Auth headers unavailable — try without auth (cookie auth may still work)
+          fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'lecture_created',
+              subjectId,
+              lectureTitle: title,
+              teacherName: profile.name,
+              lectureDate: newDate || null,
+              lectureTime: newTime || null,
+            }),
+          }).catch(() => {});
+        }
+      })();
 
       // Check if there are any failed files — if so, keep modal open for retry
       const hasFailedFiles = newPendingFiles.some(pf => pf.status === 'error') ||
@@ -1271,7 +1297,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           }
         } catch {
           try {
-            if (pf.file && pf.file.size > 0) uploadBlob = pf.file;
+            if (pf.fileSize > 0) {
+              // Use file reference only if pre-read fileSize is positive
+              // Don't access pf.file.name / pf.file.type / pf.file.size on mobile PWA
+              try { uploadBlob = pf.file; } catch { /* File object invalid */ }
+            }
           } catch { /* File object invalid */ }
         }
       }
@@ -1599,9 +1629,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       // Send notification to all students in the subject
       try {
         const lectureTitle = lectures.find((l) => l.id === lectureId)?.title || '';
+        const { getCachedAuthHeaders: getAuthHeaders } = await import('@/lib/client-auth');
+        const authHeaders = await getAuthHeaders();
         await fetch('/api/notify', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
           body: JSON.stringify({
             action: 'attendance_started',
             subjectId,

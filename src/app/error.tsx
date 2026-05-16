@@ -50,10 +50,10 @@ export default function ErrorPage({
     const timer = setTimeout(() => {
       try {
         // Clear potentially corrupted state that might be causing the error
+        localStorage.removeItem('attendo-app-store');
         localStorage.removeItem('_wsr');
         localStorage.removeItem('_sw_reload_pending');
         localStorage.removeItem('_attendo_busy');
-        // Don't clear the full app store — that would log the user out
       } catch {}
       // Actually call reset() to remount the page instead of just showing the error UI
       setAutoRetrying(false);
@@ -67,6 +67,7 @@ export default function ErrorPage({
     if (typeof window !== 'undefined') {
       // Clear potentially corrupted state before reloading
       try {
+        localStorage.removeItem('attendo-app-store');
         localStorage.removeItem('_wsr');
         localStorage.removeItem('_sw_reload_pending');
         localStorage.removeItem('_attendo_busy');

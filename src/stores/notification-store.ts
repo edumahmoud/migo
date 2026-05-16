@@ -36,7 +36,7 @@ interface NotificationState {
   markAllAsRead: () => void;
   clearNotification: (id: string) => void;
   clearAll: () => void;
-  cleanup: () => void;
+  cleanup: (fullReset?: boolean) => void;
 }
 
 /** Convert a DBNotification (from Supabase) to the client-side Notification shape */
@@ -244,8 +244,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       return;
     }
 
-    // Clean up any existing subscription first
-    get().cleanup();
+    // Clean up any existing subscription first (partial reset — keep data and dedup structures
+    // to prevent race conditions where Realtime re-delivers events after cleanup)
+    get().cleanup(false);
 
     // Also remove any lingering channel with the same name from Supabase's internal map
     // This handles the case where cleanup() didn't fully remove it
@@ -463,15 +464,20 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   createNotification: async (notification) => {
+    // Pre-mark content hash so Realtime dedup catches the echo
+    const hash = contentHash(notification.title, notification.message, notification.type);
+    markContentHashSeen(hash);
+
     try {
       // Insert into DB - real-time subscription will add it to the store
-      const { error } = await supabase.from('notifications').insert({
+      const { data, error } = await supabase.from('notifications').insert({
         user_id: notification.userId,
         type: notification.type,
         title: notification.title,
         message: notification.message,
         link: notification.link || null,
-      });
+      }).select('id')
+      .single();
 
       if (error) {
         if (isRLSRecursionError(error)) {
@@ -481,6 +487,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         }
         // Fallback: add to store directly (client-side only)
         get().addNotification(notification);
+      } else if (data?.id) {
+        // Mark the DB-generated ID as seen so Realtime echo is deduped
+        seenNotificationIds.add(data.id);
       }
       // If successful, the real-time subscription or polling will handle adding it
     } catch (err) {
@@ -650,7 +659,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
   },
 
-  cleanup: () => {
+  cleanup: (fullReset = true) => {
     const { subscription, refetchTimer } = get();
     if (subscription) {
       subscription.unsubscribe();
@@ -665,21 +674,31 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       ch.topic.includes('notifications:')
     );
     notificationChannels.forEach((ch) => supabase.removeChannel(ch));
-    // Reset ALL state — notifications, unreadCount, etc.
-    // Previous version didn't reset notifications/unreadCount, causing stale
-    // data to persist after sign-out and contaminate the next user's session
 
-    // Reset global dedup structures
-    resetDedupStructures();
+    // Full reset (sign-out): clear everything including dedup structures and notifications.
+    // Partial reset (reinitialize): only clean up subscription/timer, keep data and dedup
+    // to prevent duplicate notifications from race conditions between cleanup and re-subscribe.
+    if (fullReset) {
+      // Reset global dedup structures
+      resetDedupStructures();
 
-    set({
-      notifications: [],
-      unreadCount: 0,
-      subscription: null,
-      refetchTimer: null,
-      initialized: false,
-      initializing: false,
-      currentUserId: null,
-    });
+      set({
+        notifications: [],
+        unreadCount: 0,
+        subscription: null,
+        refetchTimer: null,
+        initialized: false,
+        initializing: false,
+        currentUserId: null,
+      });
+    } else {
+      // Partial cleanup: only reset subscription/timer state, keep notifications and dedup
+      set({
+        subscription: null,
+        refetchTimer: null,
+        initialized: false,
+        initializing: false,
+      });
+    }
   },
 }));
