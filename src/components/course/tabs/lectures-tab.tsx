@@ -30,6 +30,7 @@ import {
   Download,
   Check,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -202,6 +203,8 @@ interface PendingFile {
   customName: string;
   progress: number;
   status: 'pending' | 'uploading' | 'done' | 'error';
+  error?: string;               // Error message for failed uploads
+  errorCode?: 'duplicate_name' | 'auth' | 'network' | 'size' | 'other'; // Categorized error
 }
 
 // Upload file with XHR progress tracking
@@ -210,7 +213,7 @@ function uploadFileWithProgress(
   formData: FormData,
   headers: Record<string, string>,
   onProgress: (percent: number) => void
-): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
+): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string; code?: string }> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
@@ -231,7 +234,7 @@ function uploadFileWithProgress(
         // Server returned an error status — parse the error message
         try {
           const result = JSON.parse(xhr.responseText);
-          resolve({ success: false, error: result.error || `خطأ HTTP: ${xhr.status}` });
+          resolve({ success: false, error: result.error || `خطأ HTTP: ${xhr.status}`, code: result.code });
         } catch {
           resolve({ success: false, error: `خطأ HTTP: ${xhr.status}` });
         }
@@ -347,6 +350,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   const [newTime, setNewTime] = useState('');
   const [creating, setCreating] = useState(false);
   const [newPendingFiles, setNewPendingFiles] = useState<PendingFile[]>([]);
+  const [createdLectureId, setCreatedLectureId] = useState<string | null>(null); // Store lecture ID for retry
+  const [existingSubjectFileNames, setExistingSubjectFileNames] = useState<string[]>([]); // For client-side pre-validation
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── PWA Lifecycle protection for create lecture modal ───
@@ -525,6 +530,23 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   useEffect(() => { fetchLectures(true); }, [fetchLectures]);
 
   // -------------------------------------------------------
+  // Fetch existing subject file names for client-side pre-validation
+  // -------------------------------------------------------
+  const fetchExistingSubjectFileNames = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from('subject_files')
+        .select('file_name')
+        .eq('subject_id', subjectId);
+      if (data) {
+        setExistingSubjectFileNames(data.map((f: { file_name: string }) => f.file_name.toLowerCase()));
+      }
+    } catch (err) {
+      console.warn('[LecturesTab] Failed to fetch existing file names:', err);
+    }
+  }, [subjectId]);
+
+  // -------------------------------------------------------
   // Real-time subscription for attendance records (instant count updates)
   // -------------------------------------------------------
   useEffect(() => {
@@ -630,10 +652,23 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   // Keep the ref in sync with state
   useEffect(() => { pendingFilesRef.current = newPendingFiles; }, [newPendingFiles]);
 
+  // ─── Mounted ref to prevent state updates after unmount ───
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   const handleCreateLecture = async () => {
     const title = newTitle.trim();
     if (!title) { toast.error('يرجى إدخال عنوان المحاضرة'); return; }
     setCreating(true);
+
+    // Total timeout protection: 3 minutes for the entire upload process
+    const TOTAL_UPLOAD_TIMEOUT_MS = 3 * 60 * 1000;
+    const uploadStartTime = Date.now();
+    const isUploadTimedOut = () => (Date.now() - uploadStartTime) > TOTAL_UPLOAD_TIMEOUT_MS;
+
     try {
       // 1. Create the lecture
       const { data: lectureData, error } = await supabase
@@ -645,6 +680,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       if (error) { toast.error('حدث خطأ أثناء إنشاء المحاضرة'); return; }
 
       const lectureId = (lectureData as { id: string }).id;
+      // Store lecture ID in state so retry function can use it
+      setCreatedLectureId(lectureId);
 
       // 2. Upload files with progress and create lecture_notes references
       // Track upload results in a local variable instead of relying on stale React state
@@ -661,29 +698,93 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           // Token unavailable — mark ALL files as failed so toast logic works correctly
           for (let i = 0; i < currentPendingFiles.length; i++) {
             uploadResults.push({ index: i, succeeded: false, error: 'جلسة المستخدم غير صالحة' });
-            setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
+            if (mountedRef.current) {
+              setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
+            }
           }
+          toast.error('فشل التحقق من الهوية. يرجى إعادة تسجيل الدخول والمحاولة مرة أخرى.');
         } else {
 
         const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB safe margin for server route
 
+        // Wrap the entire upload loop in a robust try-catch to prevent uncaught errors
+        try {
         for (let i = 0; i < currentPendingFiles.length; i++) {
+          // Check total timeout before starting each file upload
+          if (isUploadTimedOut()) {
+            console.warn('[LectureUpload] Total upload timeout exceeded, skipping remaining files');
+            toast.error('انتهت مهلة الرفع الإجمالية (3 دقائق). تم إلغاء رفع الملفات المتبقية.');
+            // Mark all remaining files as error
+            for (let j = i; j < currentPendingFiles.length; j++) {
+              uploadResults.push({ index: j, succeeded: false, error: 'انتهت مهلة الرفع الإجمالية' });
+              if (mountedRef.current) {
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === j ? { ...p, status: 'error' as const } : p)));
+              }
+            }
+            break; // Exit the upload loop
+          }
+
+          // Check if component is still mounted before continuing
+          if (!mountedRef.current) {
+            console.warn('[LectureUpload] Component unmounted during upload, aborting');
+            break;
+          }
+
           const pf = currentPendingFiles[i];
           try {
-            setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'uploading' as const, progress: 0 } : p)));
+            if (mountedRef.current) {
+              setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'uploading' as const, progress: 0 } : p)));
+            }
 
             // CRITICAL: Use pre-read ArrayBuffer data instead of File object.
             // On mobile PWA, File objects can become invalid after the app goes to background.
-            let uploadBlob: Blob;
+            // Add null safety: if both pf.fileData and pf.file.arrayBuffer() fail, skip the file.
+            let uploadBlob: Blob | null = null;
+            let blobError: string | null = null;
+
             if (pf.fileData && pf.fileData.byteLength > 0) {
-              uploadBlob = new Blob([pf.fileData], { type: pf.fileType || 'application/octet-stream' });
-            } else {
+              try {
+                uploadBlob = new Blob([pf.fileData], { type: pf.fileType || 'application/octet-stream' });
+              } catch (blobErr) {
+                console.warn('[LectureUpload] Failed to create Blob from pre-read data:', blobErr);
+                blobError = 'فشل إنشاء بيانات الملف من البيانات المقروءة مسبقاً';
+              }
+            }
+
+            if (!uploadBlob) {
               try {
                 const arrayBuffer = await pf.file.arrayBuffer();
-                uploadBlob = new Blob([arrayBuffer], { type: pf.fileType || 'application/octet-stream' });
-              } catch {
-                uploadBlob = pf.file;
+                if (arrayBuffer && arrayBuffer.byteLength > 0) {
+                  uploadBlob = new Blob([arrayBuffer], { type: pf.fileType || 'application/octet-stream' });
+                } else {
+                  blobError = 'بيانات الملف فارغة أو غير صالحة';
+                }
+              } catch (arrayBufErr) {
+                console.warn('[LectureUpload] Failed to read file.arrayBuffer():', arrayBufErr);
+                // Last resort: try using the File object directly
+                try {
+                  if (pf.file && pf.file.size > 0) {
+                    uploadBlob = pf.file;
+                  } else {
+                    blobError = 'تعذر قراءة بيانات الملف — قد يكون الملف غير صالح أو تم حذفه';
+                  }
+                } catch (fileErr) {
+                  console.warn('[LectureUpload] File object is also invalid:', fileErr);
+                  blobError = 'تعذر قراءة بيانات الملف — كائن الملف غير صالح';
+                }
               }
+            }
+
+            // If we still couldn't get a valid blob, skip this file
+            if (!uploadBlob) {
+              const displayName = pf.customName.trim() || pf.fileName || 'ملف غير معروف';
+              console.error(`[LectureUpload] Cannot upload file ${displayName}: ${blobError}`);
+              toast.error(`تعذر قراءة بيانات الملف "${displayName}". يرجى إعادة اختيار الملف والمحاولة مرة أخرى.`);
+              uploadResults.push({ index: i, succeeded: false, error: blobError || 'بيانات الملف غير متوفرة' });
+              if (mountedRef.current) {
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
+              }
+              continue; // Skip to next file
             }
 
             // SAFETY: Only use pre-read properties (pf.fileName, pf.fileType, pf.fileSize).
@@ -713,14 +814,48 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               }
             };
 
+            // Helper: classify error and return Arabic message
+            const classifyError = (err: unknown): string => {
+              if (err instanceof DOMException && err.name === 'AbortError') {
+                return 'انتهت مهلة الطلب — يرجى التحقق من اتصال الإنترنت';
+              }
+              if (err instanceof TypeError && err.message?.includes('network')) {
+                return 'خطأ في الاتصال بالشبكة — يرجى التحقق من اتصال الإنترنت';
+              }
+              if (err instanceof TypeError) {
+                return 'خطأ في نوع البيانات — قد يكون الملف تالفاً';
+              }
+              if (err instanceof Error) {
+                const msg = err.message || '';
+                if (msg.includes('401') || msg.includes('403') || msg.includes('JWT')) {
+                  return 'خطأ في المصادقة — يرجى إعادة تسجيل الدخول';
+                }
+                if (msg.includes('storage') || msg.includes('Storage') || msg.includes('bucket')) {
+                  return 'خطأ في خدمة التخزين — يرجى المحاولة لاحقاً';
+                }
+                if (msg.includes('network') || msg.includes('fetch') || msg.includes('Network')) {
+                  return 'خطأ في الاتصال بالشبكة — يرجى التحقق من اتصال الإنترنت';
+                }
+                if (msg.includes('timeout') || msg.includes('مهلة')) {
+                  return 'انتهت مهلة الرفع — قد يكون الاتصال بطيئاً';
+                }
+                if (msg.includes('413') || msg.includes('too large') || msg.includes('payload')) {
+                  return 'حجم الملف كبير جداً — الحد الأقصى 4 ميغابايت';
+                }
+              }
+              return 'خطأ غير معروف أثناء رفع الملف';
+            };
+
             // Helper: try server-side upload via fetch or XHR
             const tryServerUpload = async (): Promise<boolean> => {
               // fetch attempt
               try {
-                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 10 } : p)));
+                if (mountedRef.current) {
+                  setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 10 } : p)));
+                }
 
                 const formData = new FormData();
-                formData.append('file', uploadBlob, fileName);
+                formData.append('file', uploadBlob!, fileName);
                 formData.append('subjectId', subjectId);
                 formData.append('uploadedBy', profile.id);
                 formData.append('category', 'محاضرات');
@@ -729,7 +864,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 20 } : p)));
+                if (mountedRef.current) {
+                  setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 20 } : p)));
+                }
 
                 const res = await fetch('/api/files/course-upload', {
                   method: 'POST',
@@ -749,9 +886,19 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   try { result = JSON.parse(errorText); }
                   catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
                   console.warn(`[LectureUpload] Server returned ${res.status}:`, result.error);
+                  // Classify HTTP error codes
+                  if (res.status === 401 || res.status === 403) {
+                    result.error = 'خطأ في المصادقة — يرجى إعادة تسجيل الدخول';
+                  } else if (res.status === 413) {
+                    result.error = 'حجم الملف كبير جداً — الحد الأقصى 4 ميغابايت';
+                  } else if (res.status >= 500) {
+                    result.error = 'خطأ في الخادم — يرجى المحاولة لاحقاً';
+                  }
                 }
 
-                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 70 } : p)));
+                if (mountedRef.current) {
+                  setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 70 } : p)));
+                }
 
                 if (result.success && result.data) {
                   const fileData = result.data as { file_url: string; file_name: string };
@@ -759,9 +906,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   console.log(`[LectureUpload] Server upload succeeded for ${displayName}`);
                   return true;
                 }
-                // Check for DUPLICATE_NAME error from server
+                // Check for DUPLICATE_NAME error from server — store error code for retry UI
                 if ((result as { code?: string }).code === 'DUPLICATE_NAME') {
-                  toast.error(`الملف "${displayName}" موجود بالفعل. يرجى تغيير اسم الملف`);
+                  const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                  if (mountedRef.current) {
+                    setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
+                  }
+                  toast.error(duplicateMsg);
+                  return false; // Don't fall through to XHR retry for duplicate name errors
                 }
                 console.warn(`[LectureUpload] Server upload failed for ${displayName}:`, result.error);
               } catch (serverErr) {
@@ -770,9 +922,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
               // XHR retry attempt
               try {
-                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 25 } : p)));
+                if (mountedRef.current) {
+                  setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 25 } : p)));
+                }
                 const xhrFormData = new FormData();
-                xhrFormData.append('file', uploadBlob, fileName);
+                xhrFormData.append('file', uploadBlob!, fileName);
                 xhrFormData.append('subjectId', subjectId);
                 xhrFormData.append('uploadedBy', profile.id);
                 xhrFormData.append('category', 'محاضرات');
@@ -783,7 +937,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   xhrFormData,
                   { Authorization: `Bearer ${token}` },
                   (percent) => {
-                    setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: Math.min(percent, 70) } : p)));
+                    if (mountedRef.current) {
+                      setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: Math.min(percent, 70) } : p)));
+                    }
                   }
                 );
 
@@ -793,9 +949,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   console.log(`[LectureUpload] XHR upload succeeded for ${displayName}`);
                   return true;
                 }
-                // Check for DUPLICATE_NAME error from XHR
-                if ((xhrResult as { code?: string }).code === 'DUPLICATE_NAME') {
-                  toast.error(`الملف "${displayName}" موجود بالفعل. يرجى تغيير اسم الملف`);
+                // Check for DUPLICATE_NAME error from XHR — store error code for retry UI
+                if (xhrResult.code === 'DUPLICATE_NAME') {
+                  const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                  if (mountedRef.current) {
+                    setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
+                  }
+                  toast.error(duplicateMsg);
+                  return false; // Don't continue retrying for duplicate name errors
                 }
               } catch (xhrErr) {
                 console.warn(`[LectureUpload] XHR retry failed:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
@@ -814,10 +975,12 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
               // Try SDK upload
               try {
-                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 30 } : p)));
+                if (mountedRef.current) {
+                  setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 30 } : p)));
+                }
                 const { error: uploadError } = await supabase.storage
                   .from('user-files')
-                  .upload(storagePath, uploadBlob, {
+                  .upload(storagePath, uploadBlob!, {
                     cacheControl: '3600',
                     contentType: fileType,
                     upsert: false,
@@ -837,7 +1000,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     xhr.timeout = 5 * 60 * 1000;
 
                     xhr.upload.addEventListener('progress', (e) => {
-                      if (e.lengthComputable) {
+                      if (e.lengthComputable && mountedRef.current) {
                         const percent = Math.round((e.loaded / e.total) * 85);
                         setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: percent } : p)));
                       }
@@ -847,7 +1010,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       if (xhr.status >= 200 && xhr.status < 300) resolve();
                       else reject(new Error(`HTTP ${xhr.status}`));
                     });
-                    xhr.addEventListener('error', () => reject(new Error('Network error')));
+                    xhr.addEventListener('error', () => reject(new Error('خطأ في الاتصال بالشبكة')));
                     xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
 
                     const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
@@ -858,7 +1021,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
                     const formData = new FormData();
                     formData.append('cacheControl', '3600');
-                    formData.append('file', uploadBlob, fileName);
+                    formData.append('file', uploadBlob!, fileName);
                     xhr.send(formData);
                   });
 
@@ -874,7 +1037,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
               // Create DB record via API
               const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
-              setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 90 } : p)));
+              if (mountedRef.current) {
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: 90 } : p)));
+              }
 
               const { getCachedAuthHeaders: getCachedHeaders } = await import('@/lib/client-auth');
               const recordHeaders = await getCachedHeaders();
@@ -916,8 +1081,17 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   await insertFileNote(fileData.file_url, fileData.file_name);
                   return true;
                 } else {
+                  // Check for DUPLICATE_NAME error from JSON mode — store error code for retry UI
+                  if ((createResult as { code?: string }).code === 'DUPLICATE_NAME') {
+                    const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                    if (mountedRef.current) {
+                      setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
+                    }
+                    try { await supabase.storage.from('user-files').remove([storagePath]); } catch { /* ignore cleanup error */ }
+                    return false; // Don't retry for duplicate name errors
+                  }
                   console.error('[LectureUpload] Create record error:', createResult.error);
-                  await supabase.storage.from('user-files').remove([storagePath]);
+                  try { await supabase.storage.from('user-files').remove([storagePath]); } catch { /* ignore cleanup error */ }
                   throw new Error(createResult.error || 'فشل حفظ بيانات الملف');
                 }
               } finally {
@@ -940,19 +1114,32 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             uploadResults.push({ index: i, succeeded: uploadSucceeded });
 
             if (uploadSucceeded) {
-              setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'done' as const, progress: 100 } : p)));
+              if (mountedRef.current) {
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'done' as const, progress: 100 } : p)));
+              }
               if (noteInsertFailed) {
                 // File uploaded but lecture_notes reference failed — inform user
                 console.warn(`[LectureUpload] File ${displayName} uploaded but lecture_notes insert failed`);
               }
             } else {
-              setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
+              if (mountedRef.current) {
+                setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
+              }
             }
           } catch (err) {
             console.error('File upload error:', err);
-            uploadResults.push({ index: i, succeeded: false, error: err instanceof Error ? err.message : 'خطأ غير معروف' });
-            setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
+            const classifiedError = classifyError(err);
+            uploadResults.push({ index: i, succeeded: false, error: classifiedError });
+            if (mountedRef.current) {
+              setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
+            }
+            toast.error(`فشل رفع الملف "${pf.fileName || 'غير معروف'}": ${classifiedError}`);
           }
+        }
+        } catch (outerUploadErr) {
+          // Catch any unexpected error from the entire upload loop that wasn't caught by inner try-catch
+          console.error('[LectureUpload] Unexpected error in upload loop:', outerUploadErr);
+          toast.error('حدث خطأ غير متوقع أثناء رفع الملفات. يرجى المحاولة مرة أخرى.');
         }
 
         } // end of else (token is valid)
@@ -965,11 +1152,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         toast.success('تم إنشاء المحاضرة بنجاح');
       } else if (failedCount < totalFiles) {
         toast.success('تم إنشاء المحاضرة بنجاح');
-        toast.error(`فشل رفع ${failedCount} من ${totalFiles} ملف`);
+        toast.error(`فشل رفع ${failedCount} من ${totalFiles} ملف. يمكنك تغيير الاسم وإعادة المحاولة.`);
       } else {
-        // ALL file uploads failed — still close modal, lecture was created successfully
+        // ALL file uploads failed — keep modal open so user can rename and retry
         toast.success('تم إنشاء المحاضرة بنجاح');
-        toast.error('فشل رفع جميع الملفات. يمكنك رفعها لاحقاً من داخل المحاضرة.');
+        toast.error('فشل رفع جميع الملفات. يمكنك تغيير الاسم وإعادة المحاولة، أو رفعها لاحقاً من داخل المحاضرة.');
       }
 
       // Notify all enrolled students about the new lecture (non-blocking)
@@ -989,16 +1176,309 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         // Non-critical: don't block lecture creation if notification fails
       });
 
-      setCreateOpen(false);
-      setNewTitle('');
-      setNewDesc('');
-      setNewDate('');
-      setNewTime('');
-      setNewPendingFiles([]);
-      clearCreateState(); // Clear PWA saved state after successful creation
+      // Check if there are any failed files — if so, keep modal open for retry
+      const hasFailedFiles = newPendingFiles.some(pf => pf.status === 'error') ||
+        pendingFilesRef.current.some(pf => pf.status === 'error');
+
+      if (mountedRef.current) {
+        if (!hasFailedFiles) {
+          // All files uploaded successfully — close modal and reset state
+          setCreateOpen(false);
+          setNewTitle('');
+          setNewDesc('');
+          setNewDate('');
+          setNewTime('');
+          setNewPendingFiles([]);
+          setCreatedLectureId(null);
+          clearCreateState(); // Clear PWA saved state after successful creation
+        }
+        // If there are failed files, keep modal open so user can rename and retry
+        // The user can close manually when ready
+      }
       fetchLectures();
-    } catch { toast.error('حدث خطأ غير متوقع'); }
-    finally { setCreating(false); }
+    } catch (outerErr) {
+      console.error('[LectureUpload] Unexpected error in handleCreateLecture:', outerErr);
+      toast.error('حدث خطأ غير متوقع أثناء إنشاء المحاضرة');
+    }
+    finally {
+      // Always reset creating state, even after early returns or unmounts
+      if (mountedRef.current) {
+        setCreating(false);
+      }
+    }
+  };
+
+  // -------------------------------------------------------
+  // Retry uploading a single failed file
+  // This is called when a file upload failed (e.g., DUPLICATE_NAME)
+  // The lecture was already created, so we just need to re-upload the file
+  // and create the lecture_note entry.
+  // -------------------------------------------------------
+  const retryFileUpload = async (fileIndex: number) => {
+    const currentFiles = pendingFilesRef.current;
+    if (fileIndex < 0 || fileIndex >= currentFiles.length) return;
+
+    const pf = currentFiles[fileIndex];
+    if (pf.status !== 'error') return;
+
+    // Must have a lecture ID to retry
+    const lectureId = createdLectureId;
+    if (!lectureId) {
+      toast.error('لم يتم إنشاء المحاضرة بعد. يرجى إنشاء المحاضرة أولاً.');
+      return;
+    }
+
+    // Get auth token
+    const { waitForSession } = await import('@/lib/client-auth');
+    const token = await waitForSession(15000);
+    if (!token) {
+      toast.error('يرجى تسجيل الدخول أولاً');
+      return;
+    }
+
+    // Mark as uploading
+    if (mountedRef.current) {
+      setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'uploading' as const, progress: 0, error: undefined, errorCode: undefined } : p)));
+    }
+
+    try {
+      const fileName = pf.fileName || 'unknown';
+      const fileType = pf.fileType || 'application/octet-stream';
+      const fileSize = pf.fileSize || 0;
+      const originalExt = fileName.includes('.') ? '.' + fileName.split('.').pop() : '';
+      const displayName = pf.customName.trim() ? pf.customName.trim() + originalExt : fileName;
+
+      // Client-side pre-validation: check for duplicate name in existing files
+      const newDisplayName = displayName.toLowerCase();
+      if (existingSubjectFileNames.includes(newDisplayName)) {
+        const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+        if (mountedRef.current) {
+          setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
+        }
+        toast.error(duplicateMsg);
+        return;
+      }
+
+      // Get upload blob
+      let uploadBlob: Blob | null = null;
+      if (pf.fileData && pf.fileData.byteLength > 0) {
+        uploadBlob = new Blob([pf.fileData], { type: fileType });
+      } else {
+        try {
+          const arrayBuffer = await pf.file.arrayBuffer();
+          if (arrayBuffer && arrayBuffer.byteLength > 0) {
+            uploadBlob = new Blob([arrayBuffer], { type: fileType });
+          }
+        } catch {
+          try {
+            if (pf.file && pf.file.size > 0) uploadBlob = pf.file;
+          } catch { /* File object invalid */ }
+        }
+      }
+
+      if (!uploadBlob) {
+        if (mountedRef.current) {
+          setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: 'تعذر قراءة بيانات الملف — يرجى إعادة اختيار الملف' } : p)));
+        }
+        toast.error('تعذر قراءة بيانات الملف. يرجى إعادة اختيار الملف.');
+        return;
+      }
+
+      // Helper: insert a lecture_note referencing the uploaded file
+      const insertFileNote = async (fileUrl: string, fileDisplayName: string) => {
+        const { error: noteErr } = await supabase.from('lecture_notes').insert({
+          lecture_id: lectureId,
+          user_id: profile.id,
+          content: `[FILE|||${fileUrl}|||${fileDisplayName}]`,
+          visibility: 'public',
+        });
+        if (noteErr) {
+          console.error('[RetryUpload] lecture_notes insert failed:', noteErr);
+        }
+      };
+
+      let uploadSucceeded = false;
+      const FILE_SIZE_LIMIT = 4 * 1024 * 1024;
+
+      // Server upload (primary)
+      if (fileSize <= FILE_SIZE_LIMIT) {
+        try {
+          if (mountedRef.current) {
+            setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, progress: 20 } : p)));
+          }
+
+          const formData = new FormData();
+          formData.append('file', uploadBlob, fileName);
+          formData.append('subjectId', subjectId);
+          formData.append('uploadedBy', profile.id);
+          formData.append('category', 'محاضرات');
+          formData.append('customName', pf.customName.trim());
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+          const res = await fetch('/api/files/course-upload', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          let result: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
+          if (res.ok) {
+            try { result = await res.json(); }
+            catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+          } else {
+            const errorText = await res.text();
+            try { result = JSON.parse(errorText); }
+            catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+          }
+
+          if (mountedRef.current) {
+            setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, progress: 70 } : p)));
+          }
+
+          if (result.success && result.data) {
+            const fileData = result.data as { file_url: string; file_name: string };
+            await insertFileNote(fileData.file_url, fileData.file_name);
+            uploadSucceeded = true;
+          } else if (result.code === 'DUPLICATE_NAME') {
+            const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+            if (mountedRef.current) {
+              setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
+            }
+            toast.error(duplicateMsg);
+            return; // Don't continue for duplicate errors
+          }
+        } catch (serverErr) {
+          console.warn('[RetryUpload] Server upload error:', serverErr);
+        }
+      }
+
+      // Direct storage upload (fallback for large files or server failure)
+      if (!uploadSucceeded) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+        const safeStorageName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const storagePath = `courses/${subjectId}/${safeStorageName}`;
+
+        let storageUploadSuccess = false;
+
+        // SDK upload
+        try {
+          const { error: uploadError } = await supabase.storage
+            .from('user-files')
+            .upload(storagePath, uploadBlob, { cacheControl: '3600', contentType: fileType, upsert: false });
+          if (!uploadError) storageUploadSuccess = true;
+        } catch { /* SDK failed */ }
+
+        if (!storageUploadSuccess) {
+          if (mountedRef.current) {
+            setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: 'فشل رفع الملف — يرجى المحاولة مرة أخرى' } : p)));
+          }
+          return;
+        }
+
+        // Create DB record via JSON API
+        const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
+        if (mountedRef.current) {
+          setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, progress: 90 } : p)));
+        }
+
+        const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+        const recordHeaders = await getCachedAuthHeaders();
+        const recordController = new AbortController();
+        const recordTimeout = setTimeout(() => recordController.abort(), 30000);
+
+        try {
+          const createRes = await fetch('/api/files/course-upload', {
+            method: 'POST',
+            headers: recordHeaders,
+            body: JSON.stringify({
+              subjectId,
+              uploadedBy: profile.id,
+              category: 'محاضرات',
+              customName: pf.customName.trim(),
+              displayName,
+              fileUrl,
+              storagePath,
+              fileSize,
+              fileType,
+            }),
+            signal: recordController.signal,
+          });
+
+          clearTimeout(recordTimeout);
+
+          let createResult: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
+          if (createRes.ok) {
+            try { createResult = await createRes.json(); }
+            catch { createResult = { success: false, error: 'حدث خطأ غير متوقع' }; }
+          } else {
+            const errorText = await createRes.text();
+            try { createResult = JSON.parse(errorText); }
+            catch { createResult = { success: false, error: `خطأ HTTP: ${createRes.status}` }; }
+          }
+
+          if (createRes.ok && createResult.success && createResult.data) {
+            const fileData = createResult.data as { file_url: string; file_name: string };
+            await insertFileNote(fileData.file_url, fileData.file_name);
+            uploadSucceeded = true;
+          } else if (createResult.code === 'DUPLICATE_NAME') {
+            const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+            if (mountedRef.current) {
+              setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
+            }
+            try { await supabase.storage.from('user-files').remove([storagePath]); } catch { /* ignore */ }
+            toast.error(duplicateMsg);
+            return;
+          } else {
+            console.error('[RetryUpload] Create record error:', createResult.error);
+            try { await supabase.storage.from('user-files').remove([storagePath]); } catch { /* ignore */ }
+          }
+        } finally {
+          clearTimeout(recordTimeout);
+        }
+      }
+
+      if (uploadSucceeded) {
+        if (mountedRef.current) {
+          setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'done' as const, progress: 100 } : p)));
+        }
+        toast.success(`تم رفع الملف "${displayName}" بنجاح`);
+        // Refresh the existing file names list after successful upload
+        fetchExistingSubjectFileNames();
+        fetchLectures();
+
+        // Check if all files are now done — if so, auto-close modal after a short delay
+        setTimeout(() => {
+          const allDone = pendingFilesRef.current.every(pf => pf.status === 'done');
+          if (allDone && mountedRef.current) {
+            setCreateOpen(false);
+            setNewTitle('');
+            setNewDesc('');
+            setNewDate('');
+            setNewTime('');
+            setNewPendingFiles([]);
+            setCreatedLectureId(null);
+            clearCreateState();
+          }
+        }, 1500);
+      } else {
+        if (mountedRef.current) {
+          setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: 'فشل رفع الملف — يرجى المحاولة مرة أخرى' } : p)));
+        }
+      }
+    } catch (err) {
+      console.error('[RetryUpload] Error:', err);
+      const errMsg = err instanceof Error ? err.message : 'خطأ غير معروف';
+      if (mountedRef.current) {
+        setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: errMsg } : p)));
+      }
+      toast.error(`فشل إعادة المحاولة: ${errMsg}`);
+    }
   };
 
   // -------------------------------------------------------
@@ -1595,7 +2075,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <p className="text-muted-foreground text-sm mt-1">{lectures.length} محاضرة</p>
         </div>
         {role === 'teacher' && (
-          <button onClick={() => setCreateOpen(true)} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]">
+          <button onClick={() => { setCreateOpen(true); setCreatedLectureId(null); fetchExistingSubjectFileNames(); }} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]">
             <Plus className="h-4 w-4" />
             محاضرة جديدة
           </button>
@@ -1962,9 +2442,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       setNewDate('');
                       setNewTime('');
                       setNewPendingFiles([]);
+                      setCreatedLectureId(null);
+                      setExistingSubjectFileNames([]);
                     }
                   } else {
                     setCreateOpen(false);
+                    setCreatedLectureId(null);
+                    setExistingSubjectFileNames([]);
                   }
                 }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
                   <X className="h-4 w-4" />
@@ -2012,18 +2496,38 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             } catch (readErr) {
                               console.error(`[LectureUpload] Failed to pre-read file "${file.name}":`, readErr);
                             }
+                            // Client-side pre-validation: check for duplicate name+extension
+                            const originalExt = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+                            const customName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
+                            const displayName = customName.trim() + originalExt;
+                            const isDuplicate = existingSubjectFileNames.includes(displayName.toLowerCase());
+                            // Also check against other pending files
+                            const isDuplicateInPending = newPendingFiles.some(pf => {
+                              const pfExt = pf.fileName.includes('.') ? '.' + pf.fileName.split('.').pop() : '';
+                              const pfDisplayName = pf.customName.trim() + pfExt;
+                              return pfDisplayName.toLowerCase() === displayName.toLowerCase();
+                            });
                             return {
                               file,
                               fileData,
                               fileName: file.name,
                               fileType: file.type || 'application/octet-stream',
                               fileSize: file.size,
-                              customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
+                              customName,
                               progress: 0,
-                              status: 'pending' as const,
+                              status: (isDuplicate || isDuplicateInPending) ? 'error' as const : 'pending' as const,
+                              error: (isDuplicate || isDuplicateInPending)
+                                ? `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`
+                                : undefined,
+                              errorCode: (isDuplicate || isDuplicateInPending) ? 'duplicate_name' as const : undefined,
                             };
                           })
                         );
+                        // Show warning for duplicates
+                        const duplicateFiles = newFiles.filter(f => f.errorCode === 'duplicate_name');
+                        if (duplicateFiles.length > 0) {
+                          toast.error(`يوجد ${duplicateFiles.length} ملف(ات) بنفس الاسم والامتداد. يرجى تغيير الاسم قبل الرفع.`);
+                        }
                         setNewPendingFiles(prev => [...prev, ...newFiles]);
                         e.target.value = '';
                       }
@@ -2050,18 +2554,20 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                           key={idx}
                           className={`rounded-lg border p-3 ${
                             pf.status === 'done' ? 'border-sky-200 bg-sky-50/30' :
-                            pf.status === 'error' ? 'border-rose-200 bg-rose-50/30' :
+                            pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'border-amber-300 bg-amber-50/40' : 'border-rose-200 bg-rose-50/30') :
                             pf.status === 'uploading' ? 'border-amber-200 bg-amber-50/30' :
                             'border-border bg-muted/20'
                           }`}
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <FileText className={`h-4 w-4 shrink-0 ${
-                              pf.status === 'done' ? 'text-sky-700' : 'text-muted-foreground'
+                              pf.status === 'done' ? 'text-sky-700' :
+                              pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'text-amber-600' : 'text-rose-600') :
+                              'text-muted-foreground'
                             }`} />
                             <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName}</span>
                             <span className="text-[10px] text-muted-foreground shrink-0">{((pf.fileSize) / 1024).toFixed(0)} KB</span>
-                            {pf.status === 'pending' && (
+                            {(pf.status === 'pending' || pf.status === 'error') && (
                               <button
                                 onClick={() => setNewPendingFiles(prev => prev.filter((_, i) => i !== idx))}
                                 disabled={creating}
@@ -2072,14 +2578,21 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             )}
                             {pf.status === 'done' && <Check className="h-4 w-4 text-sky-700 shrink-0" />}
                           </div>
-                          {/* Rename field */}
+                          {/* Error message for failed files */}
+                          {pf.status === 'error' && pf.error && (
+                            <div className="flex items-start gap-1.5 mb-2 px-1">
+                              <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-600" />
+                              <span className="text-[11px] text-amber-700 leading-relaxed">{pf.error}</span>
+                            </div>
+                          )}
+                          {/* Rename field — visible for pending AND error files (so user can rename and retry) */}
                           {pf.status !== 'done' && (
                             <div className="flex items-center gap-2 mb-2">
                               <Pencil className="h-3 w-3 text-muted-foreground shrink-0" />
                               <input
                                 type="text"
                                 value={pf.customName}
-                                onChange={(e) => setNewPendingFiles(prev => prev.map((p, i) => (i === idx ? { ...p, customName: e.target.value } : p)))}
+                                onChange={(e) => setNewPendingFiles(prev => prev.map((p, i) => (i === idx ? { ...p, customName: e.target.value, error: undefined, errorCode: undefined, status: 'pending' as const } : p)))}
                                 placeholder="اسم الملف (بدون الامتداد)"
                                 className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                                 dir="rtl"
@@ -2089,6 +2602,17 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 <span className="text-[10px] text-muted-foreground shrink-0">.{pf.fileName.split('.').pop()}</span>
                               )}
                             </div>
+                          )}
+                          {/* Retry button for failed files (only if lecture was already created) */}
+                          {pf.status === 'error' && createdLectureId && (
+                            <button
+                              onClick={() => retryFileUpload(idx)}
+                              disabled={creating}
+                              className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-800 disabled:opacity-60 transition-colors"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              إعادة المحاولة
+                            </button>
                           )}
                           {/* Progress bar */}
                           {(pf.status === 'uploading' || pf.status === 'done') && (
@@ -2130,9 +2654,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       setNewDate('');
                       setNewTime('');
                       setNewPendingFiles([]);
+                      setCreatedLectureId(null);
+                      setExistingSubjectFileNames([]);
                     }
                   } else {
                     setCreateOpen(false);
+                    setCreatedLectureId(null);
+                    setExistingSubjectFileNames([]);
                   }
                 }} className="rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">إلغاء</button>
               </div>

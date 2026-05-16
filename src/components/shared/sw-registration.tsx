@@ -126,8 +126,8 @@ function _deferSWReload(): void {
   console.log('[PWA] SW reload deferred (user is busy or page just loaded)');
 }
 
-// VAPID public key from environment (with fallback hardcoded key)
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
+// VAPID public key from environment (with fallback hardcoded key — must match web-push.ts fallback pair)
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
 
 /**
  * Convert a base64 string to Uint8Array for the push subscription.

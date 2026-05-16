@@ -29,6 +29,8 @@ import {
   Plus,
   UserPlus,
   Search,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession, getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -201,6 +203,7 @@ interface PendingFile {
   progress: number;
   status: 'pending' | 'uploading' | 'done' | 'error';
   error?: string;
+  errorCode?: 'duplicate_name' | 'auth' | 'network' | 'size' | 'other'; // Categorized error
 }
 
 // -------------------------------------------------------
@@ -249,6 +252,7 @@ export default function LectureModal({
   // ─── File Upload State ───
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [existingSubjectFileNames, setExistingSubjectFileNames] = useState<string[]>([]); // For client-side pre-validation
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── PWA Lifecycle protection ───
@@ -456,8 +460,22 @@ export default function LectureModal({
     if (open) {
       fetchAttendanceRecords();
       fetchNotes();
+      // Fetch existing subject file names for client-side pre-validation
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from('subject_files')
+            .select('file_name')
+            .eq('subject_id', subjectId);
+          if (data) {
+            setExistingSubjectFileNames(data.map((f: { file_name: string }) => f.file_name.toLowerCase()));
+          }
+        } catch (err) {
+          console.warn('[LectureModal] Failed to fetch existing file names:', err);
+        }
+      })();
     }
-  }, [open, fetchAttendanceRecords, fetchNotes]);
+  }, [open, fetchAttendanceRecords, fetchNotes, subjectId]);
 
   // ─── Real-time subscription for attendance records ───
   useEffect(() => {
@@ -506,18 +524,38 @@ export default function LectureModal({
         } catch (readErr) {
           console.error(`[LectureUpload] Failed to pre-read file "${file.name}":`, readErr);
         }
+        // Client-side pre-validation: check for duplicate name+extension
+        const originalExt = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+        const customName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
+        const displayName = customName.trim() + originalExt;
+        const isDuplicate = existingSubjectFileNames.includes(displayName.toLowerCase());
+        // Also check against other pending files
+        const isDuplicateInPending = pendingFiles.some(pf => {
+          const pfExt = pf.fileName.includes('.') ? '.' + pf.fileName.split('.').pop() : '';
+          const pfDisplayName = pf.customName.trim() + pfExt;
+          return pfDisplayName.toLowerCase() === displayName.toLowerCase();
+        });
         return {
           file,
           fileData,
           fileName: file.name,
           fileType: file.type || 'application/octet-stream',
           fileSize: file.size,
-          customName: file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name,
+          customName,
           progress: 0,
-          status: 'pending' as const,
+          status: (isDuplicate || isDuplicateInPending) ? 'error' as const : 'pending' as const,
+          error: (isDuplicate || isDuplicateInPending)
+            ? `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`
+            : undefined,
+          errorCode: (isDuplicate || isDuplicateInPending) ? 'duplicate_name' as const : undefined,
         };
       })
     );
+    // Show warning for duplicates
+    const duplicateFiles = newFiles.filter(f => f.errorCode === 'duplicate_name');
+    if (duplicateFiles.length > 0) {
+      toast.error(`يوجد ${duplicateFiles.length} ملف(ات) بنفس الاسم والامتداد. يرجى تغيير الاسم قبل الرفع.`);
+    }
     setPendingFiles((prev) => [...prev, ...newFiles]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -525,7 +563,7 @@ export default function LectureModal({
   // ─── Update custom name for a pending file ───
   const updatePendingFileName = (index: number, name: string) => {
     setPendingFiles((prev) =>
-      prev.map((pf, i) => (i === index ? { ...pf, customName: name } : pf))
+      prev.map((pf, i) => (i === index ? { ...pf, customName: name, error: undefined, errorCode: undefined, status: 'pending' as const } : pf))
     );
   };
 
@@ -623,7 +661,7 @@ export default function LectureModal({
             clearTimeout(timeoutId);
 
             // FIX: Check HTTP status before parsing JSON to avoid SyntaxError on HTML error pages
-            let result: { success: boolean; data?: Record<string, unknown>; error?: string };
+            let result: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
             if (res.ok) {
               try { result = await res.json(); }
               catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
@@ -644,6 +682,15 @@ export default function LectureModal({
               });
               uploadSucceeded = true;
               console.log(`[LectureUpload] Server-side upload succeeded for ${displayName}`);
+            } else if (result.code === 'DUPLICATE_NAME') {
+              // DUPLICATE_NAME error — store error code for retry UI
+              const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+              setPendingFiles((prev) =>
+                prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p))
+              );
+              toast.error(duplicateMsg);
+              // Skip fallback for duplicate name — no point retrying with same name
+              continue;
             } else {
               console.warn(`[LectureUpload] Server-side upload failed for ${displayName}:`, result.error);
             }
@@ -755,7 +802,7 @@ export default function LectureModal({
 
             clearTimeout(recordTimeout);
             // FIX: Safely parse JSON — server may return HTML on error
-            let createResult: { success: boolean; data?: Record<string, unknown>; error?: string };
+            let createResult: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
             if (createRes.ok) {
               try { createResult = await createRes.json(); }
               catch { createResult = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
@@ -774,6 +821,14 @@ export default function LectureModal({
                 visibility: 'public',
               });
               uploadSucceeded = true;
+            } else if (createResult.code === 'DUPLICATE_NAME') {
+              // DUPLICATE_NAME error from JSON mode — store error code for retry UI
+              const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+              setPendingFiles((prev) =>
+                prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p))
+              );
+              await supabase.storage.from('user-files').remove([storagePath]);
+              toast.error(duplicateMsg);
             } else {
               console.error('[LectureUpload] Create record error:', createResult.error);
               await supabase.storage.from('user-files').remove([storagePath]);
@@ -1009,7 +1064,7 @@ export default function LectureModal({
                               key={idx}
                               className={`rounded-lg border p-3 ${
                                 pf.status === 'done' ? 'border-sky-200 bg-sky-50/30' :
-                                pf.status === 'error' ? 'border-rose-200 bg-rose-50/30' :
+                                pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'border-amber-300 bg-amber-50/40' : 'border-rose-200 bg-rose-50/30') :
                                 pf.status === 'uploading' ? 'border-amber-200 bg-amber-50/30' :
                                 'border-border bg-muted/20'
                               }`}
@@ -1017,14 +1072,15 @@ export default function LectureModal({
                               <div className="flex items-center gap-2 mb-2">
                                 <FileText className={`h-4 w-4 shrink-0 ${
                                   pf.status === 'done' ? 'text-sky-700' :
-                                  pf.status === 'error' ? 'text-rose-600' :
+                                  pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'text-amber-600' : 'text-rose-600') :
                                   'text-muted-foreground'
                                 }`} />
                                 <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName}</span>
                                 <span className="text-[10px] text-muted-foreground shrink-0">{((pf.fileSize) / 1024).toFixed(0)} KB</span>
-                                {pf.status === 'pending' && (
+                                {(pf.status === 'pending' || pf.status === 'error') && (
                                   <button
                                     onClick={() => removePendingFile(idx)}
+                                    disabled={uploadingFiles}
                                     className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-rose-600 hover:bg-rose-50 transition-colors"
                                   >
                                     <X className="h-3 w-3" />
@@ -1033,11 +1089,15 @@ export default function LectureModal({
                                 {pf.status === 'done' && (
                                   <Check className="h-4 w-4 text-sky-700 shrink-0" />
                                 )}
-                                {pf.status === 'error' && (
-                                  <span className="text-[10px] text-rose-600 shrink-0">فشل</span>
-                                )}
                               </div>
-                              {/* Rename field */}
+                              {/* Error message for failed files */}
+                              {pf.status === 'error' && pf.error && (
+                                <div className="flex items-start gap-1.5 mb-2 px-1">
+                                  <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-600" />
+                                  <span className="text-[11px] text-amber-700 leading-relaxed">{pf.error}</span>
+                                </div>
+                              )}
+                              {/* Rename field — visible for pending AND error files */}
                               {pf.status !== 'done' && (
                                 <div className="flex items-center gap-2 mb-2">
                                   <Pencil className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -1056,6 +1116,148 @@ export default function LectureModal({
                                     </span>
                                   )}
                                 </div>
+                              )}
+                              {/* Retry button for failed files */}
+                              {pf.status === 'error' && (
+                                <button
+                                  onClick={async () => {
+                                    // Re-upload this single file — same as handleUploadFiles but for one file
+                                    const token = await waitForSession(15000);
+                                    if (!token) { toast.error('يرجى تسجيل الدخول أولاً'); return; }
+
+                                    setPendingFiles((prev) =>
+                                      prev.map((p, j) => (j === idx ? { ...p, status: 'uploading' as const, progress: 0 } : p))
+                                    );
+
+                                    try {
+                                      const fName = pf.fileName || 'unknown';
+                                      const fType = pf.fileType || 'application/octet-stream';
+                                      const fSize = pf.fileSize || 0;
+                                      const origExt = fName.includes('.') ? '.' + fName.split('.').pop() : '';
+                                      const dName = pf.customName.trim() ? pf.customName.trim() + origExt : fName;
+
+                                      // Client-side pre-validation
+                                      if (existingSubjectFileNames.includes(dName.toLowerCase())) {
+                                        const dupMsg = `يوجد ملف بنفس الاسم والامتداد (${dName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                                        setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: dupMsg, errorCode: 'duplicate_name' as const } : p)));
+                                        toast.error(dupMsg);
+                                        return;
+                                      }
+
+                                      let aBuffer: ArrayBuffer;
+                                      if (pf.fileData && pf.fileData.byteLength > 0) {
+                                        aBuffer = pf.fileData;
+                                      } else {
+                                        try { aBuffer = await pf.file.arrayBuffer(); }
+                                        catch { throw new Error('تعذر قراءة بيانات الملف'); }
+                                      }
+                                      const uBlob = new Blob([aBuffer], { type: fType });
+
+                                      let succeeded = false;
+                                      const FILE_SIZE_LIMIT = 4 * 1024 * 1024;
+
+                                      if (fSize <= FILE_SIZE_LIMIT) {
+                                        try {
+                                          const fd = new FormData();
+                                          fd.append('file', uBlob, fName);
+                                          fd.append('subjectId', subjectId);
+                                          fd.append('uploadedBy', profile.id);
+                                          fd.append('category', 'محاضرات');
+                                          fd.append('customName', pf.customName.trim());
+                                          const ctrl = new AbortController();
+                                          const tid = setTimeout(() => ctrl.abort(), 60000);
+                                          const r = await fetch('/api/files/course-upload', {
+                                            method: 'POST',
+                                            headers: { 'Authorization': `Bearer ${token}` },
+                                            body: fd,
+                                            signal: ctrl.signal,
+                                          });
+                                          clearTimeout(tid);
+                                          let res: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
+                                          if (r.ok) { try { res = await r.json(); } catch { res = { success: false, error: 'خطأ' }; } }
+                                          else { const t = await r.text(); try { res = JSON.parse(t); } catch { res = { success: false, error: `خطأ HTTP: ${r.status}` }; } }
+
+                                          if (res.success && res.data) {
+                                            const fD = res.data as { file_url: string; file_name: string };
+                                            await supabase.from('lecture_notes').insert({ lecture_id: lecture.id, user_id: profile.id, content: `[FILE|||${fD.file_url}|||${fD.file_name}]`, visibility: 'public' });
+                                            succeeded = true;
+                                          } else if (res.code === 'DUPLICATE_NAME') {
+                                            const dupMsg = `يوجد ملف بنفس الاسم والامتداد (${dName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                                            setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: dupMsg, errorCode: 'duplicate_name' as const } : p)));
+                                            toast.error(dupMsg);
+                                            return;
+                                          }
+                                        } catch { /* server upload failed */ }
+                                      }
+
+                                      if (!succeeded) {
+                                        const sUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+                                        const safeN = `${Date.now()}_${fName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                                        const sPath = `courses/${subjectId}/${safeN}`;
+                                        let stOk = false;
+                                        try {
+                                          const { error: uErr } = await supabase.storage.from('user-files').upload(sPath, uBlob, { cacheControl: '3600', contentType: fType, upsert: false });
+                                          if (!uErr) stOk = true;
+                                        } catch { /* */ }
+                                        if (stOk) {
+                                          const fUrl = `${sUrl}/storage/v1/object/public/user-files/${sPath}`;
+                                          const rH = await getCachedAuthHeaders();
+                                          const rC = new AbortController();
+                                          const rT = setTimeout(() => rC.abort(), 30000);
+                                          try {
+                                            const cR = await fetch('/api/files/course-upload', {
+                                              method: 'POST', headers: rH,
+                                              body: JSON.stringify({ subjectId, uploadedBy: profile.id, category: 'محاضرات', customName: pf.customName.trim(), displayName: dName, fileUrl: fUrl, storagePath: sPath, fileSize: fSize, fileType: fType }),
+                                              signal: rC.signal,
+                                            });
+                                            clearTimeout(rT);
+                                            let cRes: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
+                                            if (cR.ok) { try { cRes = await cR.json(); } catch { cRes = { success: false, error: 'خطأ' }; } }
+                                            else { const t = await cR.text(); try { cRes = JSON.parse(t); } catch { cRes = { success: false, error: `خطأ HTTP: ${cR.status}` }; } }
+                                            if (cR.ok && cRes.success && cRes.data) {
+                                              const fD = cRes.data as { file_url: string; file_name: string };
+                                              await supabase.from('lecture_notes').insert({ lecture_id: lecture.id, user_id: profile.id, content: `[FILE|||${fD.file_url}|||${fD.file_name}]`, visibility: 'public' });
+                                              succeeded = true;
+                                            } else if (cRes.code === 'DUPLICATE_NAME') {
+                                              const dupMsg = `يوجد ملف بنفس الاسم والامتداد (${dName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                                              setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: dupMsg, errorCode: 'duplicate_name' as const } : p)));
+                                              await supabase.storage.from('user-files').remove([sPath]);
+                                              toast.error(dupMsg);
+                                              return;
+                                            }
+                                          } finally { clearTimeout(rT); }
+                                        }
+                                      }
+
+                                      if (succeeded) {
+                                        setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'done' as const, progress: 100 } : p)));
+                                        toast.success(`تم رفع الملف "${dName}" بنجاح`);
+                                        fetchNotes();
+                                        onRefresh();
+                                        // Refresh existing file names after successful upload
+                                        try {
+                                          const { data } = await supabase.from('subject_files').select('file_name').eq('subject_id', subjectId);
+                                          if (data) setExistingSubjectFileNames(data.map((f: { file_name: string }) => f.file_name.toLowerCase()));
+                                        } catch { /* */ }
+                                        // Clear done files after short delay
+                                        setTimeout(() => {
+                                          setPendingFiles((prev) => prev.filter((p) => p.status !== 'done'));
+                                        }, 1500);
+                                      } else {
+                                        setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: 'فشل رفع الملف — يرجى المحاولة مرة أخرى' } : p)));
+                                      }
+                                    } catch (err) {
+                                      const errMsg = err instanceof Error ? err.message : 'خطأ غير معروف';
+                                      setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: errMsg } : p)));
+                                      toast.error(`فشل إعادة المحاولة: ${errMsg}`);
+                                    }
+                                  }}
+                                  disabled={uploadingFiles}
+                                  className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-800 disabled:opacity-60 transition-colors"
+                                >
+                                  <RefreshCw className="h-3 w-3" />
+                                  إعادة المحاولة
+                                </button>
                               )}
                               {/* Progress bar */}
                               {(pf.status === 'uploading' || pf.status === 'done') && (

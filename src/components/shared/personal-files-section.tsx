@@ -534,6 +534,25 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     }
     if (validFiles.length === 0) return;
 
+    // Client-side pre-validation: warn about duplicate file names
+    const duplicateNames: string[] = [];
+    for (const file of validFiles) {
+      const originalExt = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+      const customName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
+      const displayName = customName.trim() + originalExt;
+      const isDuplicate = files.some(f => f.file_name.toLowerCase() === displayName.toLowerCase());
+      const isDuplicateInPending = pendingUploads.some(p => {
+        const pfDisplayName = p.customName.trim() + (p.extension ? '.' + p.extension : '');
+        return pfDisplayName.toLowerCase() === displayName.toLowerCase();
+      });
+      if (isDuplicate || isDuplicateInPending) {
+        duplicateNames.push(displayName);
+      }
+    }
+    if (duplicateNames.length > 0) {
+      toast.error(`يوجد ملف(ات) بنفس الاسم والامتداد (${duplicateNames.join('، ')}). يرجى تغيير الاسم قبل الرفع، أو سيتم استبدال الملف الموجود.`);
+    }
+
     // ─── CRITICAL MOBILE FIX: Pre-read file data into ArrayBuffers ───
     // On mobile PWA, File objects can become invalid after the <input> is cleared
     // or the component re-renders. By reading the ArrayBuffer NOW, we ensure

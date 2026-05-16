@@ -57,7 +57,72 @@ const NOTIFICATION_REFETCH_INTERVAL_INITIAL = 8000; // 8 seconds for the first m
 const NOTIFICATION_REFETCH_INTERVAL = 15000; // 15 seconds after the first minute — frequent enough to catch missed realtime events
 
 // Deduplication window — how long to suppress duplicate notifications with same title+message+type
-const DEDUP_WINDOW_MS = 30000; // 30 seconds
+const DEDUP_WINDOW_MS = 60000; // 60 seconds — extended from 30s to cover more race conditions
+
+// ─── Global dedup structures (module-level, outside Zustand) ───
+// These provide O(1) lookup and survive across Zustand set() calls,
+// preventing race conditions where two set() callbacks read the same
+// stale state and both add the same notification.
+
+/**
+ * Set of all notification IDs we've ever seen (both DB UUIDs and local notif-* IDs).
+ * Checked before adding any notification to prevent duplicates from:
+ *   - Supabase Realtime delivering the same INSERT event twice (reconnection)
+ *   - Realtime + polling race condition
+ *   - Multiple components initializing notifications simultaneously
+ */
+const seenNotificationIds = new Set<string>();
+
+/**
+ * Map of content hashes to timestamps. A content hash is derived from
+ * title+message+type. Used for fast content-based dedup without O(n) array scan.
+ * Entries older than DEDUP_WINDOW_MS are pruned on each check.
+ */
+const contentHashTimestamps = new Map<string, number>();
+
+/** Generate a content hash from title+message+type */
+function contentHash(title: string, message: string, type: string): string {
+  return `${title}::${message}::${type}`;
+}
+
+/** Check if a content hash was seen recently (within DEDUP_WINDOW_MS) */
+function isContentHashRecent(hash: string): boolean {
+  const ts = contentHashTimestamps.get(hash);
+  if (!ts) return false;
+  if (Date.now() - ts > DEDUP_WINDOW_MS) {
+    contentHashTimestamps.delete(hash);
+    return false;
+  }
+  return true;
+}
+
+/** Record a content hash as seen now */
+function markContentHashSeen(hash: string): void {
+  contentHashTimestamps.set(hash, Date.now());
+}
+
+/** Prune expired content hash entries (call periodically) */
+function pruneContentHashes(): void {
+  const now = Date.now();
+  for (const [hash, ts] of contentHashTimestamps) {
+    if (now - ts > DEDUP_WINDOW_MS) {
+      contentHashTimestamps.delete(hash);
+    }
+  }
+}
+
+/** Check if a notification ID was already seen and mark it if not */
+function isSeenAndMark(notifId: string): boolean {
+  if (seenNotificationIds.has(notifId)) return true;
+  seenNotificationIds.add(notifId);
+  return false;
+}
+
+/** Reset all global dedup structures (called on cleanup / sign-out) */
+function resetDedupStructures(): void {
+  seenNotificationIds.clear();
+  contentHashTimestamps.clear();
+}
 
 /** Check if a Supabase error is caused by RLS infinite recursion (42P17) */
 function isRLSRecursionError(error: { code?: string; message?: string } | null | undefined): boolean {
@@ -99,10 +164,17 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       const dbNotifications = (data || []).map(dbToNotification);
 
+      // Prune expired content hashes periodically
+      pruneContentHashes();
+
+      // Mark all DB notification IDs as seen (so Realtime duplicates are caught)
+      for (const n of dbNotifications) {
+        seenNotificationIds.add(n.id);
+        markContentHashSeen(contentHash(n.title, n.message, n.type));
+      }
+
       // Merge intelligently — DB data is the source of truth
       set((state) => {
-        // Use DB ID as primary dedup key — if a DB notification has the same ID
-        // as an existing one, it's the same notification (no duplicate)
         const dbIdSet = new Set(dbNotifications.map((n) => n.id));
 
         // Keep local-only notifications that don't have a DB counterpart yet
@@ -111,22 +183,29 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           (n) => n.id.startsWith('notif-') && !dbIdSet.has(n.id)
         );
 
-        // Also suppress local-only notifications that match a DB notification by ID or content
+        // Suppress local-only notifications that match a DB notification by content
         // (The DB version supersedes the local optimistic version)
-        const dbIdAndContentSet = new Set(
-          dbNotifications.map((n) => `${n.id}::${n.title}::${n.message}::${n.type}`)
-        );
         const survivingLocal = localOnly.filter((n) => {
-          // Check by content match
-          const contentKey = `${n.title}::${n.message}::${n.type}`;
-          const hasDbContentMatch = dbNotifications.some(
-            (dbN) => `${dbN.id}::${dbN.title}::${dbN.message}::${dbN.type}`.includes(contentKey)
+          const hash = contentHash(n.title, n.message, n.type);
+          // Check if any DB notification has the same content hash
+          return !dbNotifications.some(
+            (dbN) => contentHash(dbN.title, dbN.message, dbN.type) === hash
           );
-          return !hasDbContentMatch;
         });
 
+        // Also check for duplicate DB IDs within the new results
+        // (shouldn't happen normally, but defensive)
+        const uniqueDbNotifications: Notification[] = [];
+        const seenInBatch = new Set<string>();
+        for (const n of dbNotifications) {
+          if (!seenInBatch.has(n.id)) {
+            seenInBatch.add(n.id);
+            uniqueDbNotifications.push(n);
+          }
+        }
+
         // Merge: DB notifications first (authoritative), then surviving local-only
-        const merged = [...dbNotifications, ...survivingLocal]
+        const merged = [...uniqueDbNotifications, ...survivingLocal]
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 100);
 
@@ -203,6 +282,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const notifications = (data || []).map(dbToNotification);
       const unreadCount = notifications.filter((n) => !n.read).length;
 
+      // Populate global dedup structures with initial data
+      for (const n of notifications) {
+        seenNotificationIds.add(n.id);
+        markContentHashSeen(contentHash(n.title, n.message, n.type));
+      }
+
       // 3. Set up real-time subscription for INSERT events
       // Build the channel with all handlers BEFORE subscribing
       const channel = supabase
@@ -217,22 +302,67 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           },
           (payload) => {
             const newNotif = dbToNotification(payload.new as DBNotification);
+
+            // ─── Fast dedup: check seen IDs set FIRST ───
+            // This prevents Supabase Realtime duplicate events (e.g., during reconnection)
+            // and also catches race conditions with polling.
+            if (seenNotificationIds.has(newNotif.id)) {
+              return;
+            }
+
+            // Mark as seen immediately to prevent any concurrent handler from adding it
+            seenNotificationIds.add(newNotif.id);
+
+            // ─── Content hash dedup ───
+            const hash = contentHash(newNotif.title, newNotif.message, newNotif.type);
+            if (isContentHashRecent(hash)) {
+              // Content duplicate within window — but might be a local-only notification
+              // that should be replaced with the DB version
+              set((state) => {
+                const localMatch = state.notifications.find(
+                  (n) => n.id.startsWith('notif-') && contentHash(n.title, n.message, n.type) === hash
+                );
+                if (localMatch) {
+                  // Replace the local-only with the DB version
+                  const filtered = state.notifications.filter((n) => n.id !== localMatch.id);
+                  return {
+                    notifications: [newNotif, ...filtered].slice(0, 100),
+                    unreadCount: state.unreadCount, // Local was already counted
+                  };
+                }
+                // No local match — this is a true duplicate, skip it
+                return state;
+              });
+              return;
+            }
+
+            markContentHashSeen(hash);
+
             set((state) => {
-              // Prevent duplicates: check by ID first (primary dedup key)
+              // Double-check by ID (in case another set() added it between our seenIds check and here)
               if (state.notifications.some((n) => n.id === newNotif.id)) {
                 return state;
               }
+
               // Check if a local-only notification with matching content already exists
               // (added by addNotification before the Realtime event arrived)
               const now = Date.now();
-              const localOnlyMatch = state.notifications.some(
+              const localOnlyMatch = state.notifications.find(
                 (n) =>
                   n.id.startsWith('notif-') &&
-                  n.title === newNotif.title &&
-                  n.message === newNotif.message &&
-                  n.type === newNotif.type &&
+                  contentHash(n.title, n.message, n.type) === hash &&
                   now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
               );
+
+              if (localOnlyMatch) {
+                // Replace the local-only duplicate with the DB version
+                const filtered = state.notifications.filter((n) => n.id !== localOnlyMatch.id);
+                return {
+                  notifications: [newNotif, ...filtered].slice(0, 100),
+                  unreadCount: state.unreadCount, // Local was already counted
+                };
+              }
+
               // Also check by link field (more specific than content)
               if (newNotif.link && state.notifications.some(
                 (n) => n.link === newNotif.link && n.type === newNotif.type &&
@@ -240,36 +370,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
               )) {
                 return state;
               }
-              if (localOnlyMatch) {
-                // Replace the local-only duplicate with the DB version
-                const filtered = state.notifications.filter(
-                  (n) =>
-                    !(
-                      n.id.startsWith('notif-') &&
-                      n.title === newNotif.title &&
-                      n.message === newNotif.message &&
-                      n.type === newNotif.type
-                    )
-                );
-                const unreadDelta = filtered.length < state.notifications.length
-                  ? 0 // Local one was already counted
-                  : (newNotif.read ? 0 : 1);
-                return {
-                  notifications: [newNotif, ...filtered].slice(0, 100),
-                  unreadCount: Math.max(0, state.unreadCount + unreadDelta),
-                };
-              }
-              // Content-based dedup within window (catches race conditions)
-              const contentDuplicate = state.notifications.some(
-                (n) =>
-                  n.title === newNotif.title &&
-                  n.message === newNotif.message &&
-                  n.type === newNotif.type &&
-                  now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
-              );
-              if (contentDuplicate) {
-                return state;
-              }
+
               return {
                 notifications: [newNotif, ...state.notifications].slice(0, 100),
                 unreadCount: state.unreadCount + (newNotif.read ? 0 : 1),
@@ -287,6 +388,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           },
           (payload) => {
             const updated = dbToNotification(payload.new as DBNotification);
+            // Mark as seen in case we get an INSERT after an UPDATE
+            seenNotificationIds.add(updated.id);
             set((state) => {
               const existed = state.notifications.find((n) => n.id === updated.id);
               if (!existed) return state;
@@ -312,6 +415,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           (payload) => {
             const deletedId = (payload.old as { id: string })?.id;
             if (!deletedId) return;
+            // Remove from seen IDs set
+            seenNotificationIds.delete(deletedId);
             set((state) => {
               const notif = state.notifications.find((n) => n.id === deletedId);
               return {
@@ -324,7 +429,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .subscribe();
 
       // 4. Set up polling fallback for when real-time subscription doesn't deliver
-      // Use a faster interval (10s) for the first minute, then switch to 30s
+      // Use a faster interval (8s) for the first minute, then switch to 15s
       const initStartTime = Date.now();
       const refetchTimer = setInterval(() => {
         get().refetchNotifications();
@@ -393,25 +498,45 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       createdAt: new Date().toISOString(),
     };
 
+    // ─── Fast dedup: check global structures ───
+    const hash = contentHash(notification.title, notification.message, notification.type);
+
+    // Check content hash first (O(1))
+    if (isContentHashRecent(hash)) {
+      return;
+    }
+
+    // Also check by link field (more specific than content)
+    if (notification.link) {
+      // We need to check existing notifications for link match
+      // But the global content hash doesn't include link, so we check state
+      // This is still O(n) but only for the link check, not content
+      const currentNotifications = get().notifications;
+      const now = Date.now();
+      const linkDuplicate = currentNotifications.some(
+        (n) => n.link === notification.link && n.type === notification.type &&
+        now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
+      );
+      if (linkDuplicate) {
+        return;
+      }
+    }
+
+    // Mark as seen
+    seenNotificationIds.add(newNotification.id);
+    markContentHashSeen(hash);
+
     set((state) => {
-      // Dedup: check if a notification with the same title+message+type was added within the dedup window
+      // Additional check within the set callback for full content dedup
+      // (catches race condition where addNotification was called twice
+      // before the first set() completed)
       const now = Date.now();
       const isDuplicate = state.notifications.some(
         (n) =>
-          n.title === notification.title &&
-          n.message === notification.message &&
-          n.type === notification.type &&
+          contentHash(n.title, n.message, n.type) === hash &&
           now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
       );
       if (isDuplicate) return state;
-
-      // Also check by link field (more specific than content)
-      if (notification.link && state.notifications.some(
-        (n) => n.link === notification.link && n.type === notification.type &&
-        now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
-      )) {
-        return state;
-      }
 
       return {
         notifications: [newNotification, ...state.notifications].slice(0, 100),
@@ -477,6 +602,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const state = get();
     const notif = state.notifications.find((n) => n.id === id);
 
+    // Remove from seen IDs
+    seenNotificationIds.delete(id);
+
     // Remove from store immediately
     set((s) => ({
       notifications: s.notifications.filter((n) => n.id !== id),
@@ -500,6 +628,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   clearAll: () => {
     const state = get();
+
+    // Clear global dedup structures
+    resetDedupStructures();
 
     // Clear store immediately
     set({ notifications: [], unreadCount: 0 });
@@ -537,6 +668,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // Reset ALL state — notifications, unreadCount, etc.
     // Previous version didn't reset notifications/unreadCount, causing stale
     // data to persist after sign-out and contaminate the next user's session
+
+    // Reset global dedup structures
+    resetDedupStructures();
+
     set({
       notifications: [],
       unreadCount: 0,

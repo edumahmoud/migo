@@ -5,8 +5,8 @@ import { Bell, BellOff, BellRing } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
 
-// VAPID key hardcoded as fallback (same as env var, needed when env is not inlined)
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BEmz0poQ1JXb7aq39ZTW6t1OUSRMgFxaONIgKlUDYxEgW9P_pT-_etTSj9YV-gLOgFnqSEnPqjUuhLLJLAf5qEE';
+// VAPID key hardcoded as fallback (must match web-push.ts fallback pair)
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
 
 /**
  * Helper: wait for service worker to be ready with a timeout.
@@ -91,10 +91,20 @@ export default function NotificationPermission() {
           });
 
           // Send subscription to server
+          // CRITICAL: Must include Authorization header, otherwise /api/push/subscribe
+          // rejects with 401 and push subscriptions are never stored.
           const subJSON = subscription.toJSON();
+          const { waitForSession } = await import('@/lib/client-auth');
+          const token = await waitForSession(10000);
+          const subHeaders: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
+          if (token) {
+            subHeaders['Authorization'] = `Bearer ${token}`;
+          }
           const res = await fetch('/api/push/subscribe', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: subHeaders,
             body: JSON.stringify({
               userId: user.id,
               subscription: {
@@ -139,9 +149,18 @@ export default function NotificationPermission() {
           const subscription = await registration.pushManager.getSubscription();
           if (subscription) {
             await subscription.unsubscribe();
+            // Include Authorization header for /api/push/unsubscribe
+            const { waitForSession: waitForSession2 } = await import('@/lib/client-auth');
+            const unsubToken = await waitForSession2(5000);
+            const unsubHeaders: Record<string, string> = {
+              'Content-Type': 'application/json',
+            };
+            if (unsubToken) {
+              unsubHeaders['Authorization'] = `Bearer ${unsubToken}`;
+            }
             await fetch('/api/push/unsubscribe', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: unsubHeaders,
               body: JSON.stringify({ endpoint: subscription.endpoint }),
             });
           }

@@ -30,30 +30,94 @@ import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary
 // ─── AppErrorBoundary: wraps the entire dashboard content area ───
 // Separate from DashboardErrorBoundary which wraps individual dashboards.
 // This catches errors that might happen at the layout level (sidebar, header, etc.)
+//
+// FIX (v2): Added auto-recovery (3-second timer) and Zustand store reset
+// so transient layout-level errors don't permanently crash the app.
 class AppErrorBoundary extends React.Component<
   { children: React.ReactNode; onFallbackToLogin?: () => void },
-  { hasError: boolean; error: Error | null }
+  { hasError: boolean; error: Error | null; retryKey: number; autoRetrying: boolean }
 > {
+  private autoRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(props: { children: React.ReactNode; onFallbackToLogin?: () => void }) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, retryKey: 0, autoRetrying: false };
   }
   static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
+    return { hasError: true, error, autoRetrying: false };
   }
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[AppErrorBoundary] Layout-level crash:', error, errorInfo);
+
+    // Auto-retry after 3 seconds for transient layout-level errors
+    this.setState({ autoRetrying: true });
+    this.autoRecoveryTimer = setTimeout(() => {
+      this.handleRetry();
+    }, 3000);
   }
+
+  componentWillUnmount() {
+    if (this.autoRecoveryTimer) {
+      clearTimeout(this.autoRecoveryTimer);
+      this.autoRecoveryTimer = null;
+    }
+  }
+
   handleRetry = () => {
+    // Clear potentially corrupted localStorage flags
     try {
       localStorage.removeItem('_wsr');
       localStorage.removeItem('_sw_reload_pending');
       localStorage.removeItem('_attendo_busy');
     } catch {}
-    this.setState({ hasError: false, error: null });
+
+    // Reset Zustand stores to clear stale state that might cause the same error
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { useAppStore } = require('@/stores/app-store');
+      useAppStore.getState().reset();
+    } catch {}
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { useNotificationStore } = require('@/stores/notification-store');
+      useNotificationStore.getState().cleanup();
+    } catch {}
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { useStatusStore } = require('@/stores/status-store');
+      useStatusStore.getState().cleanup();
+    } catch {}
+
+    // Force remount via retryKey and clear error state
+    this.setState(prev => ({
+      hasError: false,
+      error: null,
+      autoRetrying: false,
+      retryKey: prev.retryKey + 1,
+    }));
   };
+
   render() {
     if (this.state.hasError) {
+      // Auto-recovery spinner
+      if (this.state.autoRetrying) {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
+                  <GraduationCap className="w-9 h-9 text-white" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
+                <span className="text-sm font-medium text-sky-800">جاري محاولة إعادة التحميل...</span>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center max-w-md mx-auto">
@@ -78,7 +142,7 @@ class AppErrorBoundary extends React.Component<
         </div>
       );
     }
-    return this.props.children;
+    return <React.Fragment key={this.state.retryKey}>{this.props.children}</React.Fragment>;
   }
 }
 
@@ -103,6 +167,7 @@ const teacherNavItems = [
   { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'students', label: 'الطلاب', icon: <Users className="h-5 w-5" /> },
+  { id: 'tracking', label: 'تتبع الطلاب', icon: <Activity className="h-5 w-5" /> },
   { id: 'files', label: 'ملفاتي', icon: <FolderOpen className="h-5 w-5" /> },
   { id: 'analytics', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
   { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
@@ -658,12 +723,17 @@ function HomeContent() {
           titleId={user.title_id}
           avatarUrl={user.avatar_url}
           onSignOut={() => {
+            // Same fix as handleSignOut: setCurrentPage('auth') first, then signOut
+            setCurrentPage('auth');
             destroySocket();
             cleanupStatusStore();
             cleanupNotifications();
             resetAppStore();
-            setCurrentPage('auth');
-            signOut();
+            try {
+              signOut();
+            } catch (err) {
+              console.warn('[AppHeader onSignOut] signOut() threw:', err);
+            }
           }}
           onOpenSettings={() => {
             if (user.role === 'superadmin' || user.role === 'admin') {
@@ -731,16 +801,22 @@ function HomeContent() {
 
   // ─── Shared sign-out handler ───
   const handleSignOut = useCallback(() => {
-    // CRITICAL FIX: Call signOut() BEFORE setCurrentPage('auth')
-    // to avoid rendering the auth page while still cleaning up.
-    // This prevents a race condition where the auth page renders
-    // before the async cleanup completes.
-    signOut();
+    // CRITICAL FIX (v2): Call setCurrentPage('auth') BEFORE signOut()
+    // to ensure the UI switches to the auth page before the user state
+    // becomes null. The previous order (signOut first) caused a brief
+    // moment where the dashboard tried to render without a user,
+    // propagating errors to error boundaries.
+    setCurrentPage('auth');
     destroySocket();
     cleanupStatusStore();
     cleanupNotifications();
     resetAppStore();
-    setCurrentPage('auth');
+    try {
+      signOut();
+    } catch (err) {
+      // signOut errors should not propagate — the UI is already on auth page
+      console.warn('[handleSignOut] signOut() threw, but UI is already on auth page:', err);
+    }
   }, [signOut, destroySocket, cleanupStatusStore, cleanupNotifications, resetAppStore, setCurrentPage]);
 
   // ─── Dashboard content wrapped in Error Boundary ───
