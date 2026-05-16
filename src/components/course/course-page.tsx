@@ -470,7 +470,11 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         {courseTab === 'lectures' && <LecturesTab {...commonProps} />}
         {courseTab === 'notes' && <NotesTab {...commonProps} />}
         {courseTab === 'files' && <FilesTab {...commonProps} />}
-        {courseTab === 'exams' && <ExamsTab {...commonProps} />}
+        {courseTab === 'exams' && (
+          <SectionErrorBoundary name="الاختبارات">
+            <ExamsTab {...commonProps} />
+          </SectionErrorBoundary>
+        )}
         {courseTab === 'assignments' && <AssignmentsTab {...commonProps} />}
         {courseTab === 'chat' && <ChatTab {...commonProps} />}
         {courseTab === 'students' && role === 'teacher' && <StudentsTab {...commonProps} />}

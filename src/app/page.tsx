@@ -601,18 +601,26 @@ function HomeContent() {
     );
   }
 
-  // Quiz view
+  // Quiz view — wrapped in AppErrorBoundary to prevent full app crash
+  // Previously, QuizView was rendered OUTSIDE any error boundary, so any
+  // unhandled error in the quiz (e.g., bad quiz data, Supabase failure)
+  // would crash the entire app with no recovery.
   if (currentPage === 'quiz' && viewingQuizId) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
-        <QuizView
-          quizId={viewingQuizId}
-          onBack={() => {
-            setViewingQuizId(null);
-            setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard');
-          }}
-          profile={user}
-        />
+        <AppErrorBoundary onFallbackToLogin={() => {
+          setViewingQuizId(null);
+          setCurrentPage('auth');
+        }}>
+          <QuizView
+            quizId={viewingQuizId}
+            onBack={() => {
+              setViewingQuizId(null);
+              setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard');
+            }}
+            profile={user}
+          />
+        </AppErrorBoundary>
       </div>
     );
   }

@@ -88,11 +88,14 @@ function scorePercentage(score: number, total: number): number {
  * while still allowing teachers to manually control the state.
  */
 function isQuizFinished(quiz: Quiz): boolean {
+  if (!quiz) return false;
   if (quiz.is_finished) return true;
   // Auto-classify expired quizzes (scheduled date has passed) as finished
   if (quiz.scheduled_date && !quiz.is_finished) {
-    const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '23:59'}`);
-    if (scheduledDate < new Date()) return true;
+    try {
+      const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '23:59'}`);
+      if (!isNaN(scheduledDate.getTime()) && scheduledDate < new Date()) return true;
+    } catch { /* invalid date — treat as not finished */ }
   }
   return false;
 }
@@ -102,9 +105,12 @@ function isQuizFinished(quiz: Quiz): boolean {
  * Used ONLY for display badges, not for tab classification.
  */
 function isQuizExpired(quiz: Quiz): boolean {
-  if (!quiz.scheduled_date) return false;
-  const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '23:59'}`);
-  return scheduledDate < new Date();
+  if (!quiz || !quiz.scheduled_date) return false;
+  try {
+    const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '23:59'}`);
+    if (isNaN(scheduledDate.getTime())) return false;
+    return scheduledDate < new Date();
+  } catch { return false; }
 }
 
 // -------------------------------------------------------
@@ -548,12 +554,15 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   // Get quiz status
   // -------------------------------------------------------
   const getQuizStatus = (quiz: Quiz): 'scheduled' | 'active' | 'completed' | 'expired' | 'finished' => {
+    if (!quiz) return 'active';
     if (isQuizFinished(quiz)) return 'finished';
     if (isQuizExpired(quiz)) return 'expired';
     if (quiz.scheduled_date) {
-      const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '00:00'}`);
-      const now = new Date();
-      if (scheduledDate > now) return 'scheduled';
+      try {
+        const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '00:00'}`);
+        const now = new Date();
+        if (!isNaN(scheduledDate.getTime()) && scheduledDate > now) return 'scheduled';
+      } catch { /* invalid date — skip */ }
     }
     // Check if student completed
     const completed = scores.find((s) => s.quiz_id === quiz.id);
