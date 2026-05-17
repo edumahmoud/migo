@@ -421,6 +421,52 @@ function HomeContent() {
     }
   }, [user, initStatusStore, cleanupStatusStore]);
 
+  // ─── Orphaned page fix useEffect ───
+  // MUST be called before any early returns to obey React's Rules of Hooks.
+  // Previously this was after early returns, causing "Rendered more hooks than
+  // previous render" when transitioning from auth page to dashboard.
+  useEffect(() => {
+    if (currentPage === 'quiz' && !viewingQuizId) {
+      setCurrentPage(
+        user?.role === 'superadmin' || user?.role === 'admin'
+          ? 'admin-dashboard'
+          : user?.role === 'teacher'
+            ? 'teacher-dashboard'
+            : 'student-dashboard'
+      );
+    }
+    if (currentPage === 'summary') {
+      if (viewingSummaryId) {
+        setViewingSummaryId(null);
+      } else {
+        setCurrentPage(
+          user?.role === 'superadmin' || user?.role === 'admin'
+            ? 'admin-dashboard'
+            : user?.role === 'teacher'
+              ? 'teacher-dashboard'
+              : 'student-dashboard'
+        );
+      }
+    }
+  }, [currentPage, viewingQuizId, viewingSummaryId, user?.role, setCurrentPage, setViewingSummaryId]);
+
+  // ─── Shared sign-out handler ───
+  // MUST be defined before any early returns to obey React's Rules of Hooks.
+  // Previously this was after early returns, causing hook count mismatch.
+  const handleSignOut = useCallback(() => {
+    setCurrentPage('auth');
+    destroySocket();
+    cleanupStatusStore();
+    cleanupNotifications();
+    try { localStorage.removeItem('attendo-app-store'); } catch {}
+    resetAppStore();
+    try {
+      signOut();
+    } catch (err) {
+      console.warn('[handleSignOut] signOut() threw, but UI is already on auth page:', err);
+    }
+  }, [signOut, destroySocket, cleanupStatusStore, cleanupNotifications, resetAppStore, setCurrentPage]);
+
   // ─── Supabase Configuration Check ───
   // If Supabase is not configured, show a clear error page
   if (!isSupabaseConfigured) {
@@ -620,33 +666,7 @@ function HomeContent() {
     );
   }
 
-  // ─── Fix orphaned 'quiz'/'summary' pages via useEffect (NOT during render) ───
-  // Calling setCurrentPage/setViewingSummaryId during render violates React's rules
-  // and crashes the app with "Cannot update a component while rendering a different component"
-  useEffect(() => {
-    if (currentPage === 'quiz' && !viewingQuizId) {
-      setCurrentPage(
-        user?.role === 'superadmin' || user?.role === 'admin'
-          ? 'admin-dashboard'
-          : user?.role === 'teacher'
-            ? 'teacher-dashboard'
-            : 'student-dashboard'
-      );
-    }
-    if (currentPage === 'summary') {
-      if (viewingSummaryId) {
-        setViewingSummaryId(null);
-      } else {
-        setCurrentPage(
-          user?.role === 'superadmin' || user?.role === 'admin'
-            ? 'admin-dashboard'
-            : user?.role === 'teacher'
-              ? 'teacher-dashboard'
-              : 'student-dashboard'
-        );
-      }
-    }
-  }, [currentPage, viewingQuizId, viewingSummaryId, user?.role, setCurrentPage, setViewingSummaryId]);
+  // (orphaned quiz/summary useEffect moved before early returns — see above)
 
   // ─── Loading spinners for orphaned pages (while useEffect hasn't run yet) ───
   if (currentPage === 'quiz' && !viewingQuizId) {
@@ -806,31 +826,7 @@ function HomeContent() {
     );
   }
 
-  // ─── Shared sign-out handler ───
-  const handleSignOut = useCallback(() => {
-    // CRITICAL FIX (v2): Call setCurrentPage('auth') BEFORE signOut()
-    // to ensure the UI switches to the auth page before the user state
-    // becomes null. The previous order (signOut first) caused a brief
-    // moment where the dashboard tried to render without a user,
-    // propagating errors to error boundaries.
-    setCurrentPage('auth');
-    destroySocket();
-    cleanupStatusStore();
-    cleanupNotifications();
-    // CRITICAL FIX (v3): Directly clear the persisted store from localStorage
-    // BEFORE calling resetAppStore(). There's a timing issue where
-    // resetAppStore() calls set(initialState) which persists via zustand/middleware,
-    // but the write might not complete before the component re-renders and
-    // re-hydrates the old corrupted state from localStorage.
-    try { localStorage.removeItem('attendo-app-store'); } catch {}
-    resetAppStore();
-    try {
-      signOut();
-    } catch (err) {
-      // signOut errors should not propagate — the UI is already on auth page
-      console.warn('[handleSignOut] signOut() threw, but UI is already on auth page:', err);
-    }
-  }, [signOut, destroySocket, cleanupStatusStore, cleanupNotifications, resetAppStore, setCurrentPage]);
+  // (handleSignOut moved before early returns — see above)
 
   // ─── Dashboard content wrapped in Error Boundary ───
   // CRITICAL FIX: Wrap dashboard in DashboardErrorBoundary to prevent
