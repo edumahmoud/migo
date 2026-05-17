@@ -123,6 +123,12 @@ export default function NotificationBell() {
   const { user } = useAuthStore();
   const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore();
 
+  // ─── Filter out chat notifications from the bell ───
+  // Chat notifications should only appear in the chat section icon,
+  // not in the notification bell dropdown or unread count badge.
+  const bellNotifications = notifications.filter(n => n.type !== 'chat');
+  const bellUnreadCount = bellNotifications.filter(n => !n.read).length;
+
   // Initialize notifications from DB when component mounts
   // ─── Keep auth cache fresh ───
   useEffect(() => {
@@ -521,7 +527,7 @@ export default function NotificationBell() {
       >
         <Bell className="h-5 w-5" />
         <AnimatePresence>
-          {unreadCount > 0 && (
+          {bellUnreadCount > 0 && (
             <motion.span
               key="badge"
               initial={{ scale: 0 }}
@@ -529,7 +535,7 @@ export default function NotificationBell() {
               exit={{ scale: 0 }}
               className="absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white min-w-[18px] h-[18px]"
             >
-              {unreadCount > 9 ? '9+' : unreadCount}
+              {bellUnreadCount > 9 ? '9+' : bellUnreadCount}
             </motion.span>
           )}
         </AnimatePresence>
@@ -551,7 +557,7 @@ export default function NotificationBell() {
             <div className="flex items-center justify-between border-b p-3">
               <h3 className="text-sm font-bold text-foreground">الإشعارات</h3>
               <div className="flex items-center gap-1">
-                {unreadCount > 0 && (
+                {bellUnreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
                     className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-sky-700 hover:bg-sky-50 transition-colors"
@@ -560,7 +566,7 @@ export default function NotificationBell() {
                     تعيين الكل كمقروء
                   </button>
                 )}
-                {notifications.length > 0 && (
+                {bellNotifications.length > 0 && (
                   <button
                     onClick={clearAll}
                     className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
@@ -574,7 +580,7 @@ export default function NotificationBell() {
 
             {/* Notifications list */}
             <div className="max-h-80 overflow-y-auto custom-scrollbar">
-              {notifications.length === 0 ? (
+              {bellNotifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
                     <BellOff className="h-7 w-7 opacity-40" />
@@ -584,7 +590,7 @@ export default function NotificationBell() {
                 </div>
               ) : (
                 <div className="divide-y">
-                  {notifications.map((notif) => (
+                  {bellNotifications.map((notif) => (
                     <motion.div
                       key={notif.id}
                       layout
@@ -631,11 +637,11 @@ export default function NotificationBell() {
             </div>
 
             {/* Footer */}
-            {notifications.length > 0 && (
+            {bellNotifications.length > 0 && (
               <div className="border-t px-3 py-2 text-center">
                 <p className="text-xs text-muted-foreground/60">
-                  {unreadCount > 0
-                    ? `${unreadCount} إشعار غير مقروء`
+                  {bellUnreadCount > 0
+                    ? `${bellUnreadCount} إشعار غير مقروء`
                     : 'تم قراءة جميع الإشعارات'}
                 </p>
               </div>

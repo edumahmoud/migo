@@ -383,7 +383,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             // ─── Show toast notification when a new notification arrives ───
             // Previously, notifications only appeared in the bell dropdown.
             // Now we also show a sonner toast so the user sees it immediately.
-            if (!newNotif.read) {
+            // EXCEPT: Chat notifications are shown only in the chat section icon,
+            // not as toasts or in the bell dropdown.
+            if (!newNotif.read && newNotif.type !== 'chat') {
               try {
                 toast(newNotif.title, {
                   description: newNotif.message,

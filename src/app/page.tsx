@@ -513,6 +513,28 @@ function HomeContent() {
   }
 
   // Auth pages (login / register)
+  // FIX: Don't show auth page during session recovery (hasPersistedSession).
+  // When refreshing, user starts as null while the session is being hydrated.
+  // If we have a persisted session, show a loading spinner instead of the login page
+  // to prevent the jarring flash of login → dashboard.
+  if ((!user && hasPersistedSession) || (loading && hasPersistedSession && !initialized)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
+              <GraduationCap className="w-9 h-9 text-white" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
+            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!user || currentPage === 'auth') {
     return (
       <div className="min-h-screen flex flex-col lg:flex-row" dir="rtl">

@@ -71,6 +71,11 @@ export default function NotificationsSection() {
     clearAll,
   } = useNotificationStore();
 
+  // ─── Filter out chat notifications from the notifications section ───
+  // Chat notifications should only appear in the chat section icon.
+  const bellNotifications = notifications.filter(n => n.type !== 'chat');
+  const bellUnreadCount = bellNotifications.filter(n => !n.read).length;
+
   const [linkRequestModal, setLinkRequestModal] = useState<{
     teacherId: string;
     notificationId: string;
@@ -355,12 +360,12 @@ export default function NotificationsSection() {
             <div>
               <h2 className="text-lg font-bold text-foreground">الإشعارات</h2>
               <p className="text-xs text-muted-foreground">
-                {unreadCount > 0 ? `${unreadCount} إشعار غير مقروء` : 'لا توجد إشعارات جديدة'}
+                {bellUnreadCount > 0 ? `${bellUnreadCount} إشعار غير مقروء` : 'لا توجد إشعارات جديدة'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
+            {bellUnreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
                 className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
@@ -369,7 +374,7 @@ export default function NotificationsSection() {
                 تعيين الكل كمقروء
               </button>
             )}
-            {notifications.length > 0 && (
+            {bellNotifications.length > 0 && (
               <button
                 onClick={clearAll}
                 className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors"
@@ -382,7 +387,7 @@ export default function NotificationsSection() {
         </div>
 
         {/* Notifications list */}
-        {notifications.length === 0 ? (
+        {bellNotifications.length === 0 ? (
           <motion.div variants={itemVariants}>
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
@@ -394,7 +399,7 @@ export default function NotificationsSection() {
           </motion.div>
         ) : (
           <div className="space-y-2">
-            {notifications.map((notif) => (
+            {bellNotifications.map((notif) => (
               <motion.div
                 key={notif.id}
                 variants={itemVariants}
