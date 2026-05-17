@@ -848,7 +848,7 @@ $$;`;
             type="button"
             variant="outline"
             onClick={() => setStep('admin-account')}
-            className="flex-1 h-11 border-sky-400/50 text-sky-100 hover:bg-sky-500/20 hover:text-white hover:border-sky-300/70"
+            className="flex-1 h-11 bg-white/10 border-sky-400/50 text-sky-100 hover:bg-sky-500/20 hover:text-white hover:border-sky-300/70"
           >
             <ArrowRight className="h-4 w-4 ml-1" />
             رجوع

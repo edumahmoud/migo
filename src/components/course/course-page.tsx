@@ -529,7 +529,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
             {/* Back button - white circle */}
             <button
               onClick={handleBack}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white transition-all hover:bg-white/30 active:scale-95"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/15 backdrop-blur-sm text-white transition-all hover:bg-black/25 active:scale-95"
               aria-label="العودة للمقررات"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -543,7 +543,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   {/* Edit button */}
                   <button
                     onClick={handleOpenEditModal}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white transition-all hover:bg-white/30 active:scale-95"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-black/15 backdrop-blur-sm text-white transition-all hover:bg-black/25 active:scale-95"
                     title="تعديل المقرر"
                   >
                     <Pencil className="h-3.5 w-3.5" />
@@ -568,7 +568,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               {role === 'student' && (
                 <button
                   onClick={() => setLeaveConfirmOpen(true)}
-                  className="flex items-center gap-1.5 rounded-full bg-white/15 backdrop-blur-sm px-3 py-1.5 text-xs text-white/90 hover:bg-rose-400/30 hover:text-white transition-colors"
+                  className="flex items-center gap-1.5 rounded-full bg-black/10 backdrop-blur-sm px-3 py-1.5 text-xs text-white/90 hover:bg-rose-500/40 hover:text-white transition-colors"
                   title="انسحاب من المقرر"
                 >
                   <LogOut className="h-3.5 w-3.5" />
@@ -580,7 +580,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               {role === 'teacher' && subject.join_code && (
                 <button
                   onClick={handleCopyCode}
-                  className="group flex items-center gap-1.5 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white transition-all hover:bg-white/30 active:scale-95"
+                  className="group flex items-center gap-1.5 rounded-full bg-black/15 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white transition-all hover:bg-black/25 active:scale-95"
                 >
                   <Hash className="h-3 w-3 opacity-70" />
                   <span className="font-mono tracking-wider text-xs font-semibold">{subject.join_code}</span>
@@ -607,7 +607,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   <button
                     type="button"
                     onClick={() => openProfile(teacherId)}
-                    className="rounded-full bg-white/15 backdrop-blur-sm px-2.5 py-1 text-xs text-white/90 hover:bg-white/25 hover:text-white transition-colors"
+                    className="rounded-full bg-black/10 backdrop-blur-sm px-2.5 py-1 text-xs text-white/90 hover:bg-black/20 hover:text-white transition-colors"
                   >
                     {teacherName}
                   </button>
@@ -623,7 +623,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                         key={ct.id}
                         type="button"
                         onClick={() => openProfile(ct.teacher_id)}
-                        className="rounded-full bg-white/15 backdrop-blur-sm px-2.5 py-1 text-xs text-white/90 hover:bg-white/25 hover:text-white transition-colors"
+                        className="rounded-full bg-black/10 backdrop-blur-sm px-2.5 py-1 text-xs text-white/90 hover:bg-black/20 hover:text-white transition-colors"
                       >
                         {ctName}
                       </button>
