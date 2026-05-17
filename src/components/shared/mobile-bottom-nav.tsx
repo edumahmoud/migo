@@ -142,7 +142,7 @@ function BottomNavItemButton({
         {isActive && (
           <motion.div
             layoutId="bottomNavActiveBg"
-            className="absolute inset-0 rounded-xl bg-sky-50"
+            className="absolute inset-0 rounded-xl bg-primary/10"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
@@ -154,7 +154,7 @@ function BottomNavItemButton({
       {/* Icon container */}
       <span
         className={`relative z-10 transition-colors duration-200 ${
-          isActive ? 'text-sky-700' : 'text-muted-foreground'
+          isActive ? 'text-primary' : 'text-muted-foreground'
         }`}
       >
         {item.icon}
@@ -175,7 +175,7 @@ function BottomNavItemButton({
       {/* Label */}
       <span
         className={`relative z-10 text-[10px] font-medium leading-tight transition-colors duration-200 ${
-          isActive ? 'text-sky-700' : 'text-muted-foreground'
+          isActive ? 'text-primary' : 'text-muted-foreground'
         }`}
       >
         {item.label}
@@ -186,7 +186,7 @@ function BottomNavItemButton({
         {isActive && (
           <motion.div
             layoutId="bottomNavIndicator"
-            className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-teal-500"
+            className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-primary"
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0 }}

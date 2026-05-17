@@ -108,14 +108,14 @@ function NavItems({
                   : 'px-4 py-3'
               } ${
                 isActive
-                  ? 'bg-sky-800/50 text-white border border-sky-400 shadow-sm'
-                  : 'text-slate-200 hover:bg-sky-800/30 hover:text-white border border-transparent'
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground border border-sidebar-primary shadow-sm'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground border border-transparent'
               }`}
               title={collapsed ? item.label : undefined}
             >
               <span
                 className={`transition-colors duration-200 shrink-0 relative ${
-                  isActive ? 'text-sky-300' : 'text-slate-400'
+                  isActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/60'
                 }`}
               >
                 {item.icon}
@@ -136,7 +136,7 @@ function NavItems({
                   {isActive && item.id !== 'chat' && (
                     <motion.div
                       layoutId="activeIndicator"
-                      className="mr-auto h-2 w-2 rounded-full bg-teal-400"
+                      className="ms-auto h-2 w-2 rounded-full bg-sidebar-primary"
                       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                     />
                   )}
@@ -173,13 +173,13 @@ export default function AppSidebar({
   if (isMobile) {
     return (
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="right" className="w-72 p-0 bg-sky-950 border-sky-800/50">
+        <SheetContent side="right" className="w-72 p-0 bg-sidebar border-sidebar-border">
           <SheetHeader className="sr-only">
             <SheetTitle>القائمة الرئيسية</SheetTitle>
           </SheetHeader>
           <div className="flex h-full flex-col overflow-hidden pt-2" dir="rtl">
             <ScrollArea className="flex-1 min-h-0">
-              <nav className="px-3 py-4 text-slate-200">
+              <nav className="px-3 py-4 text-sidebar-foreground">
                 <NavItems
                   navItems={navItems}
                   activeSection={activeSection}
@@ -198,7 +198,7 @@ export default function AppSidebar({
   // Desktop: Fixed right sidebar (RTL), collapsible
   return (
     <aside
-      className={`fixed right-0 top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-sky-800/50 bg-sky-950 shadow-sm transition-all duration-300 ease-in-out ${
+      className={`fixed right-0 top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
     >
@@ -216,10 +216,10 @@ export default function AppSidebar({
         </ScrollArea>
 
         {/* Collapse toggle button at bottom */}
-        <div className={`shrink-0 border-sky-800/50 border-t p-2 ${collapsed ? 'flex justify-center' : ''}`}>
+        <div className={`shrink-0 border-sidebar-border border-t p-2 ${collapsed ? 'flex justify-center' : ''}`}>
           <button
             onClick={handleToggle}
-            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-sky-800/30 transition-all ${
+            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-sidebar-foreground/60 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 transition-all ${
               collapsed ? 'justify-center' : ''
             }`}
           >

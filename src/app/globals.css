@@ -320,6 +320,76 @@
   color: #0f766e;
 }
 
+/* ─── Dark mode prose-summary overrides ─── */
+.dark .prose-summary h1 {
+  color: #7dd3fc;
+  border-bottom-color: #0c4a6e;
+}
+
+.dark .prose-summary h2 {
+  color: #38bdf8;
+}
+
+.dark .prose-summary h3 {
+  color: #0ea5e9;
+}
+
+.dark .prose-summary h4 {
+  color: #7dd3fc;
+}
+
+.dark .prose-summary blockquote {
+  border-right-color: #0d9488;
+  background: oklch(0.20 0.03 175 / 30%);
+}
+
+.dark .prose-summary blockquote p {
+  color: #99f6e4;
+}
+
+.dark .prose-summary strong {
+  color: #38bdf8;
+}
+
+.dark .prose-summary em {
+  color: #d1d5db;
+}
+
+.dark .prose-summary code {
+  background: oklch(0.20 0.03 175 / 30%);
+  color: #2dd4bf;
+}
+
+.dark .prose-summary th {
+  background: oklch(0.20 0.03 175 / 30%);
+  color: #7dd3fc;
+  border-color: #0c4a6e;
+}
+
+.dark .prose-summary td {
+  border-color: oklch(1 0 0 / 10%);
+}
+
+.dark .prose-summary hr {
+  border-top-color: #0c4a6e;
+}
+
+.dark .prose-summary a {
+  color: #2dd4bf;
+}
+
+.dark .prose-summary a:hover {
+  color: #5eead4;
+}
+
+.dark .prose-summary ul li::before {
+  color: #2dd4bf;
+}
+
+.dark .prose-summary ol li::before {
+  color: #38bdf8;
+}
+
 .prose-summary table {
   width: 100%;
   border-collapse: collapse;

@@ -74,7 +74,7 @@ export async function GET() {
     // The app checks for ?pwa=1 to skip the full auth loading spinner.
     start_url: '/?pwa=1',
     display: 'standalone' as const,
-    orientation: 'portrait-primary' as const,
+    orientation: 'any' as const,
     dir: 'rtl' as const,
     lang: 'ar',
     theme_color: '#0369a1',

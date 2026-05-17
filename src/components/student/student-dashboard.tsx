@@ -15,6 +15,7 @@ import {
   Search,
   Link2,
   ChevronLeft,
+  ChevronRight,
   Calendar,
   Hash,
   CheckCircle2,

@@ -16,6 +16,7 @@ import {
   X,
   Loader2,
   ChevronLeft,
+  ChevronRight,
   Mail,
   Calendar,
   Shield,
@@ -1412,7 +1413,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             disabled={userPage === 1}
             className="flex items-center justify-center h-8 w-8 rounded-lg border text-xs font-medium hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4" />
           </button>
           {Array.from({ length: totalPages }, (_, i) => i + 1)
             .filter(p => p === 1 || p === totalPages || Math.abs(p - userPage) <= 1)
@@ -1443,7 +1444,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             disabled={userPage === totalPages}
             className="flex items-center justify-center h-8 w-8 rounded-lg border text-xs font-medium hover:bg-muted/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <ChevronLeft className="h-4 w-4 rotate-180" />
+            <ChevronLeft className="h-4 w-4" />
           </button>
         </motion.div>
       )}

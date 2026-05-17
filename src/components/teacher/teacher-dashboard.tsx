@@ -28,6 +28,7 @@ import {
   Download,
   Loader2,
   ChevronLeft,
+  ChevronRight,
   X,
   Eye,
   RotateCcw,
@@ -2187,7 +2188,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     onClick={() => { setViewingScore(null); setViewingQuiz(null); setAiGradingResults({}); }}
                     className="flex items-center gap-1.5 text-xs font-medium text-sky-700 hover:text-sky-800 mb-2"
                   >
-                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <ChevronRight className="h-3.5 w-3.5" />
                     العودة للنتائج
                   </button>
 
