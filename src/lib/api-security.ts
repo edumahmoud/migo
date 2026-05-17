@@ -101,10 +101,19 @@ export function validateRequest(request: NextRequest, options?: { largeBody?: bo
 
 // --- Input Sanitization ---
 
-/** Sanitize a string input: trim, limit length, strip HTML */
+/** Sanitize a string input: trim, limit length, strip HTML, neutralize javascript: URLs, decode HTML entities */
 export function sanitizeString(input: unknown, maxLength: number = 50000): string {
   if (typeof input !== 'string') return '';
-  return input.replace(/<[^>]*>/g, '').trim().substring(0, maxLength);
+  let sanitized = input;
+  // Strip HTML tags
+  sanitized = sanitized.replace(/<[^>]*>/g, '');
+  // Neutralize javascript:/data:/vbscript: URLs (case-insensitive)
+  sanitized = sanitized.replace(/(javascript|vbscript|data)\s*:/gi, '$1&#58;');
+  // Decode common HTML entities to prevent bypass via entity encoding
+  sanitized = sanitized.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&#x2F;/g, '/');
+  // After decoding, strip any new HTML tags that may have been revealed
+  sanitized = sanitized.replace(/<[^>]*>/g, '');
+  return sanitized.trim().substring(0, maxLength);
 }
 
 /** Generic safe error response that doesn't leak internals */

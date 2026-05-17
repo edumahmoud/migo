@@ -1,8 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 
+/**
+ * GET /api/check-ban
+ *
+ * Checks if a user is banned. Requires authentication.
+ * Users can only check their own ban status. Admins can check any user's status.
+ */
 export async function GET(request: NextRequest) {
   try {
+    // ─── Authentication required ───
+    const authHeader = request.headers.get('Authorization');
+    let authenticatedUserId: string | null = null;
+    let isAuthenticated = false;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user: authUser }, error: authError } = await supabaseServer.auth.getUser(token);
+      if (!authError && authUser) {
+        authenticatedUserId = authUser.id;
+        isAuthenticated = true;
+      }
+    }
+
+    // Also check for cookie-based auth (Supabase session cookie)
+    if (!isAuthenticated) {
+      // Try to get user from the request cookies
+      try {
+        const { data: { user: cookieUser } } = await supabaseServer.auth.getUser();
+        if (cookieUser) {
+          authenticatedUserId = cookieUser.id;
+          isAuthenticated = true;
+        }
+      } catch {
+        // Cookie auth failed, continue
+      }
+    }
+
+    if (!isAuthenticated || !authenticatedUserId) {
+      return NextResponse.json(
+        { success: false, error: 'يرجى تسجيل الدخول أولاً' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
     const userId = searchParams.get('userId');
@@ -12,6 +53,28 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'البريد الإلكتروني أو معرف المستخدم مطلوب' },
         { status: 400 }
       );
+    }
+
+    // ─── Authorization: Users can only check their own ban status ───
+    // Get the authenticated user's profile to check their role and verify ownership
+    const { data: authProfile } = await supabaseServer
+      .from('users')
+      .select('id, email, role')
+      .eq('id', authenticatedUserId)
+      .single();
+
+    const isAdmin = authProfile && ['admin', 'superadmin'].includes(authProfile.role as string);
+
+    // Non-admin users can only check their own ban status
+    if (!isAdmin) {
+      const isOwnCheck = (userId && userId === authenticatedUserId) ||
+                         (email && email === authProfile?.email);
+      if (!isOwnCheck) {
+        return NextResponse.json(
+          { success: false, error: 'يمكنك التحقق من حالة الحظر الخاصة بك فقط' },
+          { status: 403 }
+        );
+      }
     }
 
     // Try querying with new schema (has is_active column)

@@ -57,20 +57,12 @@ export async function POST(request: NextRequest) {
       // Log the error but still report success since the profile is deleted.
     }
 
-    // ─── Step 3: Add email to banned_users to prevent re-registration ───
-    if (userEmail) {
-      const { error: banError } = await supabaseServer
-        .from('banned_users')
-        .upsert(
-          { email: userEmail, reason: 'حذف الحساب بواسطة المستخدم' },
-          { onConflict: 'email' }
-        );
-
-      if (banError) {
-        console.error('[delete-account] Error adding to banned_users:', banError);
-        // Non-critical: user is already deleted, just log the error
-      }
-    }
+    // ─── Step 3: Note — we do NOT add the email to banned_users ───
+    // Self-service account deletion should NOT prevent the user from
+    // re-registering in the future. Only admin-deleted users should be banned.
+    // The Supabase auth.users record is already deleted, so the user cannot
+    // log in with the same auth account. If they want to re-register with
+    // the same email, they should be allowed to do so.
 
     return NextResponse.json({ success: true });
   } catch (error) {

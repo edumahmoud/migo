@@ -99,11 +99,19 @@ export function isVisible(status: UserStatus): boolean {
 // =====================================================
 // Local storage key for persisting own status
 // =====================================================
-const STATUS_STORAGE_KEY = 'attenddo-user-status';
+const STATUS_STORAGE_KEY = 'attendo-user-status';
 
 function loadSavedStatus(): UserStatus {
   if (typeof window === 'undefined') return 'online';
   try {
+    // Migrate from the old typo key 'attenddo-user-status' to the correct key
+    const oldKey = 'attenddo-user-status';
+    const oldSaved = localStorage.getItem(oldKey);
+    if (oldSaved) {
+      // Migrate to the new key and remove the old one
+      localStorage.setItem(STATUS_STORAGE_KEY, oldSaved);
+      localStorage.removeItem(oldKey);
+    }
     const saved = localStorage.getItem(STATUS_STORAGE_KEY);
     if (saved && ['online', 'busy', 'away', 'offline', 'invisible'].includes(saved)) {
       return saved as UserStatus;
@@ -387,7 +395,9 @@ export const useStatusStore = create<StatusState>((set, get) => ({
       presenceChannel = null;
       presenceInitializedWithUserId = false;
     }
-    set({ myUserId: null, initialized: false });
+    // Clear userStatuses to prevent stale data from previous sessions
+    // persisting after sign-out and re-login with a different user
+    set({ myUserId: null, initialized: false, userStatuses: new Map<string, UserStatus>() });
   },
 }));
 

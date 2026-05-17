@@ -20,7 +20,9 @@ import { notifyUsers } from '@/lib/notifications-service';
 // browser socket is disconnected (e.g., in Realtime mode).
 
 const SOCKET_SERVER_URL = process.env.NEXT_PUBLIC_CHAT_SERVICE_URL || 'http://localhost:3003';
-const EMIT_SECRET = process.env.EMIT_SECRET || 'attendo-internal-2024';
+// EMIT_SECRET must be set via environment variable. No default fallback.
+// If not set, the Socket.IO server will reject the request.
+const EMIT_SECRET = process.env.EMIT_SECRET;
 
 async function notifySocketServer(payload: {
   event: string;
@@ -29,6 +31,10 @@ async function notifySocketServer(payload: {
   targetRoomId?: string;
   excludeSocketId?: string;
 }): Promise<void> {
+  if (!EMIT_SECRET) {
+    console.warn('[Chat API] EMIT_SECRET not configured — skipping Socket.IO notification');
+    return;
+  }
   try {
     await fetch(`${SOCKET_SERVER_URL}/api/emit`, {
       method: 'POST',
@@ -45,23 +51,6 @@ async function notifySocketServer(payload: {
   }
 }
 
-// Helper: try to add columns if they don't exist
-async function ensureColumns() {
-  try {
-    // Try selecting is_hidden from conversation_participants to check if column exists
-    const { error } = await supabaseServer
-      .from('conversation_participants')
-      .select('is_hidden')
-      .limit(1);
-    if (error && error.message.includes('does not exist')) {
-      console.log('[Chat API] is_hidden column missing, attempting to add...');
-      // We can't ALTER TABLE via the client SDK, so log a message
-      // The columns need to be added manually or via migration
-    }
-  } catch {
-    // Ignore
-  }
-}
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action');
@@ -460,17 +449,34 @@ export async function GET(request: NextRequest) {
 
         if (!query) return NextResponse.json({ error: 'query required' }, { status: 400 });
 
+        // ─── Enforce role-based search restrictions ───
+        // Students should only be able to search by email (privacy in educational settings).
+        // Teachers and admins can search by name and email.
+        let effectiveSearchMode = searchMode;
+        if (authResult.success && authResult.user) {
+          // Check the authenticated user's role
+          const { data: authUserProfile } = await supabaseServer
+            .from('users')
+            .select('role')
+            .eq('id', authResult.user.id)
+            .maybeSingle();
+
+          const userRole = authUserProfile?.role as string;
+          if (userRole === 'student') {
+            // Students can only search by email — override the mode
+            effectiveSearchMode = 'email';
+          }
+        }
+
         // Sanitize query for SQL LIKE (escape % and _)
         const sanitizedQuery = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
 
         // Search all users by name and/or email (partial match)
-        // mode='all' (default for teacher/admin): search both name and email
-        // mode='email' (for students): search email only
-        // mode='name': search name only
+        // effectiveSearchMode is enforced based on role (students = email only)
         let emailResults: Record<string, unknown>[] = [];
         let nameResults: Record<string, unknown>[] = [];
 
-        if (searchMode === 'all' || searchMode === 'email') {
+        if (effectiveSearchMode === 'all' || effectiveSearchMode === 'email') {
           const { data, error: emailError } = await supabaseServer
             .from('users')
             .select('id, name, email, avatar_url, title_id, gender, role')
@@ -484,7 +490,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        if (searchMode === 'all' || searchMode === 'name') {
+        if (effectiveSearchMode === 'all' || effectiveSearchMode === 'name') {
           const { data, error: nameError } = await supabaseServer
             .from('users')
             .select('id, name, email, avatar_url, title_id, gender, role')

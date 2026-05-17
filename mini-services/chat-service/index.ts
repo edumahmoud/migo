@@ -1,13 +1,35 @@
 import { createServer } from 'http'
 import { Server, Socket } from 'socket.io'
+import { createClient } from '@supabase/supabase-js'
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+
+// Create a Supabase client for verifying JWT tokens
+const supabaseAuthClient = SUPABASE_URL && SUPABASE_ANON_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null
+
+if (!supabaseAuthClient) {
+  console.warn('⚠️ [Chat Service] NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY not set. JWT token verification will be disabled — AUTH IS INSECURE!')
+}
 
 const httpServer = createServer()
+
+// Restrict CORS to the application's origin(s) only.
+// Set CHAT_ALLOWED_ORIGINS env var to a comma-separated list of allowed origins.
+// Example: CHAT_ALLOWED_ORIGINS=https://yourapp.com,http://localhost:3000
+const ALLOWED_ORIGINS = process.env.CHAT_ALLOWED_ORIGINS
+  ? process.env.CHAT_ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : ['http://localhost:3000'] // Default: only localhost for development
+
 const io = new Server(httpServer, {
   // DO NOT change the path, it is used by Caddy to forward the request to the correct port
   path: '/',
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: ALLOWED_ORIGINS,
+    methods: ["GET", "POST"],
+    credentials: true,
   },
   pingTimeout: 60000,
   pingInterval: 25000,
@@ -39,9 +61,39 @@ const generateMessageId = () => Math.random().toString(36).substr(2, 9)
 io.on('connection', (socket: Socket) => {
   console.log(`[Socket] User connected: ${socket.id}`)
 
-  // ─── Auth ───
-  socket.on('auth', (data: { userId: string; userName: string }) => {
-    const { userId, userName } = data
+  // ─── Auth (requires JWT token verification) ───
+  socket.on('auth', async (data: { userId: string; userName: string; token?: string }) => {
+    const { userId, userName, token } = data
+
+    // SECURITY: Verify JWT token before authenticating the user.
+    // This prevents impersonation — a client can't just send any userId/userName.
+    if (supabaseAuthClient && token) {
+      try {
+        const { data: { user: authUser }, error: authError } = await supabaseAuthClient.auth.getUser(token)
+        if (authError || !authUser) {
+          console.warn(`[Auth] JWT verification failed for userId=${userId}: ${authError?.message || 'no user returned'}`)
+          socket.emit('auth-error', { message: 'Authentication failed' })
+          return
+        }
+        // Verify the token's user matches the claimed userId
+        if (authUser.id !== userId) {
+          console.warn(`[Auth] JWT user ID mismatch: token.userId=${authUser.id} vs claimed=${userId}`)
+          socket.emit('auth-error', { message: 'User ID mismatch' })
+          return
+        }
+      } catch (err) {
+        console.error('[Auth] JWT verification error:', err)
+        socket.emit('auth-error', { message: 'Authentication error' })
+        return
+      }
+    } else if (supabaseAuthClient && !token) {
+      // Supabase is configured but no token was provided — reject
+      console.warn(`[Auth] No token provided by userId=${userId}. Rejecting connection.`)
+      socket.emit('auth-error', { message: 'Token required for authentication' })
+      return
+    }
+    // If supabaseAuthClient is not configured (no env vars), we fall through
+    // and allow the connection without JWT verification (development mode only).
 
     // If user was already authenticated on another socket, clean up
     const existingUser = authenticatedUsers.get(userId)
@@ -308,23 +360,6 @@ io.on('connection', (socket: Socket) => {
 // =====================================================
 // This allows Next.js API routes to emit events via Socket.IO
 // without depending on the sender's browser socket connection.
-
-interface EmitRequest {
-  event: string
-  data: Record<string, unknown>
-  targetUserId?: string
-  targetRoomId?: string
-  participantIds?: string[]
-  excludeSocketId?: string
-}
-
-const EMIT_SECRET = process.env.EMIT_SECRET || 'attendo-internal-2024'
-
-// =====================================================
-// Internal HTTP endpoint for server-side event emission
-// =====================================================
-// This allows Next.js API routes to emit events via Socket.IO
-// without depending on the sender's browser socket connection.
 //
 // We use io.engine.use() middleware so our handler runs BEFORE
 // Socket.IO's engine.io processes the request. When path: '/' is
@@ -332,6 +367,14 @@ const EMIT_SECRET = process.env.EMIT_SECRET || 'attendo-internal-2024'
 // "Transport unknown" for non-Socket.IO requests. By handling
 // /api/emit in middleware and sending a response, we prevent
 // engine.io from ever seeing the request.
+
+// EMIT_SECRET must be set via environment variable.
+// Never use a default/fallback value — that would allow anyone who reads
+// the source code to forge internal API requests.
+const EMIT_SECRET = process.env.EMIT_SECRET;
+if (!EMIT_SECRET) {
+  console.error('⚠️ [Chat Service] EMIT_SECRET environment variable is not set. The /api/emit endpoint will reject all requests. Set EMIT_SECRET to a cryptographically random value.');
+}
 
 interface EmitRequest {
   event: string
@@ -352,9 +395,9 @@ io.engine.use((req: any, res: any, next: () => void) => {
   req.on('data', (chunk: string) => { body += chunk })
   req.on('end', () => {
     try {
-      // Verify internal secret
+      // Verify internal secret (reject if EMIT_SECRET is not configured)
       const authHeader = req.headers['x-emit-secret'] as string
-      if (authHeader !== EMIT_SECRET) {
+      if (!EMIT_SECRET || authHeader !== EMIT_SECRET) {
         res.writeHead(403, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ error: 'Forbidden' }))
         return

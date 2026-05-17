@@ -1,8 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// ⚠️ NOTE: This Prisma schema is NOT used by the application.
+// The app uses Supabase (PostgreSQL) directly via the Supabase JS client.
+// This file is a leftover from project scaffolding and can be safely removed.
+// The actual database schema is defined in:
+//   - supabase/schema.sql
+//   - supabase/COMPLETE_SCHEMA.sql
+//   - supabase/migrations/
 
 generator client {
   provider = "prisma-client-js"

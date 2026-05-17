@@ -36,6 +36,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate banUntil — must be a valid ISO date string in the future
+    if (banUntil) {
+      const banDate = new Date(banUntil);
+      if (isNaN(banDate.getTime())) {
+        return NextResponse.json(
+          { success: false, error: 'تاريخ انتهاء الحظر غير صالح' },
+          { status: 400 }
+        );
+      }
+      if (banDate <= new Date()) {
+        return NextResponse.json(
+          { success: false, error: 'تاريخ انتهاء الحظر يجب أن يكون في المستقبل' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Verify the requester is authenticated - try Bearer token first, then cookie auth
     let authUser = null;
     const authHeader = request.headers.get('authorization');

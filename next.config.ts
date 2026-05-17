@@ -5,7 +5,7 @@ const isVercel = process.env.VERCEL === '1';
 
 const nextConfig: NextConfig = {
   typescript: {
-    ignoreBuildErrors: true, // Pre-existing TS errors in admin-dashboard, chat route etc.
+    ignoreBuildErrors: false, // Build should fail on TypeScript errors — fix them instead of hiding them
   },
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname),

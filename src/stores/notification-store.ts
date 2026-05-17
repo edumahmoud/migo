@@ -226,6 +226,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // Mark as initializing to block concurrent calls
     set({ initializing: true });
 
+    try {
     // Early RLS recursion check — try a lightweight query first
     try {
       const { error: probeError } = await supabase
@@ -460,6 +461,14 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     } catch (err) {
       console.error('Failed to initialize notifications:', err);
       set({ initialized: true, initializing: false, currentUserId: userId });
+    }
+    // Safety net: ensure `initializing` is always reset, even if an unexpected
+    // error occurs between the two try blocks or in any early return path.
+    // Without this, the flag stays `true` forever, blocking all future init attempts.
+    finally {
+      if (get().initializing) {
+        set({ initializing: false });
+      }
     }
   },
 

@@ -169,8 +169,10 @@ type UserRole = 'student' | 'teacher' | 'admin' | 'superadmin';
 function createFallbackProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; created_at?: string; updated_at?: string }): UserProfile {
   const userName = (authUser.user_metadata?.full_name as string) || (authUser.user_metadata?.name as string) || authUser.email?.split('@')[0] || 'مستخدم';
   const avatarUrl = (authUser.user_metadata?.avatar_url as string) || null;
-  const userRole = (authUser.user_metadata?.role as string) || 'student';
-  const validRole = (['teacher', 'admin', 'superadmin'].includes(userRole) ? userRole : 'student') as UserRole;
+  // SECURITY: Never trust user_metadata.role — it's user-modifiable in Supabase.
+  // A malicious user could set their metadata role to 'superadmin' and get
+  // elevated privileges when the API is unreachable. Always default to 'student'.
+  const userRole: UserRole = 'student';
   const userGender = (authUser.user_metadata?.gender as string) || null;
   const userTitleId = (authUser.user_metadata?.title_id as string) || null;
 
@@ -179,11 +181,11 @@ function createFallbackProfile(authUser: { id: string; email?: string; user_meta
     email: authUser.email || '',
     name: userName,
     username: generateUsername(userName, authUser.id),
-    role: validRole,
+    role: userRole,
     avatar_url: avatarUrl,
     gender: userGender,
     title_id: userTitleId,
-    teacher_code: validRole === 'teacher' ? (authUser.user_metadata?.teacher_code as string) || null : null,
+    teacher_code: null, // Never grant teacher_code from fallback
     created_at: authUser.created_at || new Date().toISOString(),
     updated_at: authUser.updated_at || new Date().toISOString(),
   };

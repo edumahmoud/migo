@@ -17,10 +17,24 @@ const ALLOWED_MIME_TYPES = [
   'text/plain',
   'text/csv',
   'application/zip',
-  'application/octet-stream', // FIX: Many mobile browsers send this MIME type for unknown files
   'video/mp4',
   'audio/mpeg',
   'audio/wav',
+];
+
+// SECURITY: When a mobile browser sends application/octet-stream (unknown MIME),
+// we fall back to validating by file extension instead.
+const ALLOWED_EXTENSIONS = [
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp',
+  '.txt', '.csv', '.zip',
+  '.mp4', '.mp3', '.wav',
+];
+
+const DANGEROUS_EXTENSIONS = [
+  '.exe', '.bat', '.cmd', '.sh', '.bash', '.ps1', '.vbs', '.js', '.mjs',
+  '.html', '.htm', '.svg', '.dll', '.so', '.app', '.deb', '.rpm',
+  '.jar', '.war', '.msi', '.com', '.scr', '.pif', '.cpl',
 ];
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -203,10 +217,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { success: false, error: `نوع الملف غير مدعوم: ${file.type || 'غير معروف'}` },
-        { status: 400 }
-      );
+      // SECURITY: Mobile browsers often send application/octet-stream for known file types.
+      // Fall back to extension-based validation when the MIME type is unrecognized.
+      const ext = file.name.includes('.') ? '.' + file.name.split('.').pop()?.toLowerCase() : '';
+      const isDangerous = DANGEROUS_EXTENSIONS.includes(ext);
+      const isAllowedExt = ALLOWED_EXTENSIONS.includes(ext);
+
+      if (isDangerous || !isAllowedExt) {
+        return NextResponse.json(
+          { success: false, error: `نوع الملف غير مدعوم: ${file.type || 'غير معروف'}${ext ? ` (${ext})` : ''}` },
+          { status: 400 }
+        );
+      }
+      // Extension is allowed — proceed with the upload
     }
 
     // Determine the display name and storage file name
