@@ -23,7 +23,7 @@ import {
   RefreshCw,
   Eye,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseUrl } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
 import { extractTextFromFile } from '@/lib/pdf-client';
 import { toast } from 'sonner';
@@ -370,6 +370,37 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         let summaryContent = '';
         let savedSummaryId = '';
         let sourceFileType: 'pdf' | 'docx' | null = null;
+        let sourceFileUrl: string | null = null;
+
+        // ─── Upload source file to Supabase Storage (parallel with text extraction) ───
+        // This uploads the raw file so the user can download it later from the summary.
+        if ((inputMode === 'file' || inputMode === 'transcribe') && (preReadFileData || capturedFile)) {
+          try {
+            const fileToUpload = capturedFile!;
+            const ext = fileToUpload.name.split('.').pop()?.toLowerCase() || 'pdf';
+            const timestamp = Date.now();
+            const sanitized = fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const storagePath = `${profile.id}/summaries/${timestamp}_${sanitized}`;
+            const uploadData = preReadFileData || await fileToUpload.arrayBuffer();
+            const uploadBlob = new Blob([uploadData], { type: fileToUpload.type });
+
+            const { error: uploadError } = await supabase.storage
+              .from('user-files')
+              .upload(storagePath, uploadBlob, {
+                cacheControl: '3600',
+                contentType: fileToUpload.type || 'application/octet-stream',
+                upsert: false,
+              });
+
+            if (!uploadError) {
+              sourceFileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
+            } else {
+              console.warn('[SummaryUpload] File upload failed, continuing without URL:', uploadError.message);
+            }
+          } catch (uploadErr) {
+            console.warn('[SummaryUpload] File upload error, continuing without URL:', uploadErr);
+          }
+        }
 
         if ((inputMode === 'file' || inputMode === 'transcribe') && (preReadFileData || capturedFile)) {
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
@@ -461,6 +492,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 subject_id: selectedSubject,
                 transcribe_only: true,
                 source_file_type: sourceFileType,
+                source_file_url: sourceFileUrl,
               }),
               signal: abortController.signal,
             });
@@ -483,6 +515,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 title,
                 subject_id: selectedSubject,
                 source_file_type: sourceFileType,
+                source_file_url: sourceFileUrl,
               }),
               signal: abortController.signal,
             });
@@ -577,6 +610,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 subject_id: selectedSubject,
                 transcribe_only: true,
                 source_file_type: sourceFileType,
+                source_file_url: sourceFileUrl,
               }),
               signal: abortController.signal,
             });
@@ -599,6 +633,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 title,
                 subject_id: selectedSubject,
                 source_file_type: sourceFileType,
+                source_file_url: sourceFileUrl,
               }),
               signal: abortController.signal,
             });

@@ -494,6 +494,28 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     fetchBannedUsers();
   }, [fetchAllData, fetchBannedUsers]);
 
+  // ─── Visibility change handler for admin dashboard ───
+  // Admin dashboard has no Realtime subscriptions, so we need to
+  // refresh data when the admin returns to the tab.
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchAllData(true); // silent refresh
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [fetchAllData]);
+
+  // ─── Fallback polling for admin dashboard ───
+  // Since admin has no Realtime subscriptions, poll every 60s to keep data fresh.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAllData(true); // silent background refresh
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [fetchAllData]);
+
   // ─── Loading timeout safety net ───
   // If loading takes too long (slow session hydration on mobile/PWA),
   // stop showing infinite loading spinner and show content with available data.

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import type { DBNotification, NotificationType } from '@/lib/types';
+import { toast } from 'sonner';
 
 export interface Notification {
   id: string;
@@ -378,6 +379,18 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
                 unreadCount: state.unreadCount + (newNotif.read ? 0 : 1),
               };
             });
+
+            // ─── Show toast notification when a new notification arrives ───
+            // Previously, notifications only appeared in the bell dropdown.
+            // Now we also show a sonner toast so the user sees it immediately.
+            if (!newNotif.read) {
+              try {
+                toast(newNotif.title, {
+                  description: newNotif.message,
+                  duration: 5000,
+                });
+              } catch { /* sonner may not be mounted yet */ }
+            }
           }
         )
         .on(

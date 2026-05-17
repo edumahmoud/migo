@@ -806,8 +806,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       fetchSummaries();
       fetchQuizzes();
       fetchScores();
+      fetchSubmissionsAndAssignments();
+      fetchAttendance();
+      fetchFileCount();
     }
-  }, [activeSection, fetchSummaries, fetchQuizzes, fetchScores]);
+  }, [activeSection, fetchSummaries, fetchQuizzes, fetchScores, fetchSubmissionsAndAssignments, fetchAttendance, fetchFileCount]);
 
   // ─── Recover pending summaries from sessionStorage (mobile refresh recovery) ───
   // On mobile, when the user refreshes the page while a summary is being created,
@@ -966,13 +969,45 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       )
       .subscribe();
 
+    // ─── Realtime: assignments & submissions for instant CRUD updates ───
+    const assignmentsChannel = supabase
+      .channel('student-assignments-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'assignments' },
+        () => { fetchSubmissionsAndAssignments(); }
+      )
+      .subscribe();
+
+    const submissionsChannel = supabase
+      .channel('student-submissions-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'submissions', filter: `student_id=eq.${profile.id}` },
+        () => { fetchSubmissionsAndAssignments(); }
+      )
+      .subscribe();
+
+    // ─── Realtime: attendance sessions for live attendance updates ───
+    const attendanceChannel = supabase
+      .channel('student-attendance-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'attendance_sessions' },
+        () => { fetchAttendance(); }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(summariesChannel);
       supabase.removeChannel(quizzesChannel);
       supabase.removeChannel(scoresChannel);
       supabase.removeChannel(linksChannel);
+      supabase.removeChannel(assignmentsChannel);
+      supabase.removeChannel(submissionsChannel);
+      supabase.removeChannel(attendanceChannel);
     };
-  }, [profile.id, fetchSummaries, fetchQuizzes, fetchScores, fetchLinkedTeachers]);
+  }, [profile.id, fetchSummaries, fetchQuizzes, fetchScores, fetchLinkedTeachers, fetchSubmissionsAndAssignments, fetchAttendance]);
 
   // ─── FIX #8: Fallback polling for auto-update ───
   // Supabase Realtime can silently disconnect (network issues, WebSocket drops).
@@ -1001,6 +1036,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         fetchSummaries();
         fetchQuizzes();
         fetchScores();
+        fetchSubmissionsAndAssignments();
+        fetchAttendance();
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);

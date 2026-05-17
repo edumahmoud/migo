@@ -443,8 +443,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     if (activeSection === 'dashboard') {
       fetchQuizzes();
       fetchScores();
+      fetchTeacherSubjects();
+      fetchTeacherSubmissionsAndAssignments();
+      fetchTeacherAttendance();
+      fetchTeacherFilesCount();
     }
-  }, [activeSection, fetchQuizzes, fetchScores]);
+  }, [activeSection, fetchQuizzes, fetchScores, fetchTeacherSubjects, fetchTeacherSubmissionsAndAssignments, fetchTeacherAttendance, fetchTeacherFilesCount]);
 
   // ─── Auth re-hydration for mobile (fix: no INITIAL_SESSION handling) ───
   useEffect(() => {
@@ -532,12 +536,55 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       )
       .subscribe();
 
+    // ─── Realtime: subjects for instant CRUD updates ───
+    const subjectsChannel = supabase
+      .channel('teacher-subjects-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'subjects', filter: `teacher_id=eq.${profile.id}` },
+        () => { fetchTeacherSubjects(); }
+      )
+      .subscribe();
+
+    // ─── Realtime: assignments & submissions for instant CRUD updates ───
+    const assignmentsChannel = supabase
+      .channel('teacher-assignments-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'assignments', filter: `teacher_id=eq.${profile.id}` },
+        () => { fetchTeacherSubmissionsAndAssignments(); }
+      )
+      .subscribe();
+
+    const submissionsChannel = supabase
+      .channel('teacher-submissions-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'submissions' },
+        () => { fetchTeacherSubmissionsAndAssignments(); }
+      )
+      .subscribe();
+
+    // ─── Realtime: attendance sessions for live attendance updates ───
+    const attendanceChannel = supabase
+      .channel('teacher-attendance-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'attendance_sessions' },
+        () => { fetchTeacherAttendance(); }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(linksChannel);
       supabase.removeChannel(quizzesChannel);
       supabase.removeChannel(scoresChannel);
+      supabase.removeChannel(subjectsChannel);
+      supabase.removeChannel(assignmentsChannel);
+      supabase.removeChannel(submissionsChannel);
+      supabase.removeChannel(attendanceChannel);
     };
-  }, [profile.id, fetchStudents, fetchQuizzes, fetchScores]);
+  }, [profile.id, fetchStudents, fetchQuizzes, fetchScores, fetchTeacherSubjects, fetchTeacherSubmissionsAndAssignments, fetchTeacherAttendance]);
 
   // -------------------------------------------------------
   // Section change handler

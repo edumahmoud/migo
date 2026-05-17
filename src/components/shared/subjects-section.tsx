@@ -391,20 +391,43 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   // Real-time subscription for subjects (teacher only)
   // -------------------------------------------------------
   useEffect(() => {
-    if (role !== 'teacher') return;
+    if (role === 'teacher') {
+      const channel = supabase
+        .channel(`subjects-${profile.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'subjects',
+            filter: `teacher_id=eq.${profile.id}`,
+          },
+          () => {
+            fetchSubjectsRef.current?.(true); // forceRefresh = true to bypass cache on real-time updates
+          }
+        )
+        .subscribe();
 
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+
+    // ─── Student: subscribe to subject_students for enrollment status changes ───
+    // When a teacher approves/rejects an enrollment request, the student's
+    // subject list updates instantly without requiring a page refresh.
     const channel = supabase
-      .channel(`subjects-${profile.id}`)
+      .channel(`student-subjects-${profile.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'subjects',
-          filter: `teacher_id=eq.${profile.id}`,
+          table: 'subject_students',
+          filter: `student_id=eq.${profile.id}`,
         },
         () => {
-          fetchSubjectsRef.current?.(true); // forceRefresh = true to bypass cache on real-time updates
+          fetchSubjectsRef.current?.(true); // forceRefresh to update enrollment status
         }
       )
       .subscribe();

@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const userId = authResult.user.id;
 
     // Parse JSON body with specific error handling
-    let body: { content?: string; title?: string; subject_id?: string; source_file_type?: 'pdf' | 'docx' };
+    let body: { content?: string; title?: string; subject_id?: string; source_file_type?: 'pdf' | 'docx'; source_file_url?: string };
     try {
       body = await request.json();
     } catch {
@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
     const title = body.title || 'ملخص';
     const subjectId = body.subject_id || null; // FIX #5: Accept optional subject_id
     const sourceFileType = body.source_file_type || null;
+    const sourceFileUrl = body.source_file_url || null;
 
     if (!rawContent || typeof rawContent !== 'string' || rawContent.trim().length === 0) {
       return NextResponse.json(
@@ -113,16 +114,20 @@ export async function POST(request: NextRequest) {
         const dbTimeoutMs = Math.min(timeRemaining - 2000, 10000); // Up to 10s for DB save
         console.log('[Summary API] Saving to DB with', dbTimeoutMs, 'ms budget...');
 
-        const savePromise = supabaseServer
-          .from('summaries')
-          .insert({
+        const insertObj: Record<string, unknown> = {
             user_id: userId,
             title,
             original_content: rawContent,
             summary_content: summary,
             subject_id: subjectId,
             source_file_type: sourceFileType,
-          })
+        };
+        if (sourceFileUrl) {
+            insertObj.source_file_url = sourceFileUrl;
+        }
+        const savePromise = supabaseServer
+          .from('summaries')
+          .insert(insertObj)
           .select()
           .single();
 

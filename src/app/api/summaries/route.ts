@@ -341,7 +341,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let body: { title?: string; original_content?: string; summary_content?: string; subject_id?: string; transcribe_only?: boolean; source_file_type?: 'pdf' | 'docx' };
+    let body: { title?: string; original_content?: string; summary_content?: string; subject_id?: string; transcribe_only?: boolean; source_file_type?: 'pdf' | 'docx'; source_file_url?: string };
     try {
       body = await request.json();
     } catch {
@@ -351,7 +351,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { title, original_content, summary_content, subject_id, transcribe_only, source_file_type } = body;
+    const { title, original_content, summary_content, subject_id, transcribe_only, source_file_type, source_file_url } = body;
 
     if (!title || !original_content || !summary_content) {
       return NextResponse.json(
@@ -372,16 +372,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert the summary record
+    const insertData: Record<string, unknown> = {
+      user_id: userId,
+      title,
+      original_content: sanitizedOriginal,
+      summary_content: sanitizedSummary,
+      subject_id: subject_id || null,
+      source_file_type: source_file_type || null,
+    };
+    // Only include source_file_url if provided and non-empty
+    if (source_file_url) {
+      insertData.source_file_url = source_file_url;
+    }
     const { data: savedSummary, error: dbError } = await supabaseServer
       .from('summaries')
-      .insert({
-        user_id: userId,
-        title,
-        original_content: sanitizedOriginal,
-        summary_content: sanitizedSummary,
-        subject_id: subject_id || null,
-        source_file_type: source_file_type || null,
-      })
+      .insert(insertData)
       .select()
       .single();
 

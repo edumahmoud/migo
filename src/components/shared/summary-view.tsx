@@ -601,6 +601,18 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   </p>
                 </div>
               </div>
+              {/* Source file download link */}
+              {summary?.source_file_url && (
+                <a
+                  href={summary.source_file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 hover:border-sky-300 transition-colors"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  تحميل الملف الأصلي
+                </a>
+              )}
               {/* Re-summarize button - only show for AI-generated summaries */}
               {!isTranscribed && (
                 <Button

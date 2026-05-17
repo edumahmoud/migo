@@ -338,6 +338,55 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
     fetchMyFiles();
   }, [fetchAssignments, fetchMySubmissions, fetchMyFiles]);
 
+  // ─── Realtime: assignments & submissions for instant CRUD updates ───
+  // Without this, students must navigate away and back to see new assignments,
+  // and teachers must do the same to see new submissions.
+  useEffect(() => {
+    const assignmentsChannel = supabase
+      .channel(`assignments-${subjectId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'assignments', filter: `subject_id=eq.${subjectId}` },
+        () => { fetchAssignments(); }
+      )
+      .subscribe();
+
+    const submissionsChannel = supabase
+      .channel(`submissions-${subjectId}-${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'submissions', filter: `student_id=eq.${profile.id}` },
+        () => {
+          fetchMySubmissions();
+          // If viewing a specific assignment, refresh its submissions too
+          if (selectedAssignment) fetchSubmissions(selectedAssignment.id);
+        }
+      )
+      .subscribe();
+
+    // For teachers: also listen to all submissions for this subject
+    let teacherSubsChannel: ReturnType<typeof supabase.channel> | null = null;
+    if (role === 'teacher') {
+      teacherSubsChannel = supabase
+        .channel(`teacher-subs-${subjectId}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'submissions' },
+          () => {
+            // Refresh the selected assignment's submissions if any
+            if (selectedAssignment) fetchSubmissions(selectedAssignment.id);
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      supabase.removeChannel(assignmentsChannel);
+      supabase.removeChannel(submissionsChannel);
+      if (teacherSubsChannel) supabase.removeChannel(teacherSubsChannel);
+    };
+  }, [subjectId, profile.id, role, fetchAssignments, fetchMySubmissions, selectedAssignment, fetchSubmissions]);
+
   useEffect(() => {
     if (selectedAssignment) fetchSubmissions(selectedAssignment.id);
   }, [selectedAssignment, fetchSubmissions]);
