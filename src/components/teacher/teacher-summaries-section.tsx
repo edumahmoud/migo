@@ -744,7 +744,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
             </span>
           </div>
           {pendingSummaries.map(ps => (
-            <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 py-1 mr-6">
+            <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 py-1 ms-6">
               <span className="font-medium">{ps.title}</span>
               <span className="text-sky-700/70">
                 {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
@@ -755,7 +755,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               {ps.status !== 'cancelled' && ps.status !== 'saving' && (
                 <button
                   onClick={() => cancelPendingSummary(ps.id)}
-                  className="mr-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
+                  className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
                   title="إلغاء"
                 >
                   <XCircle className="h-3 w-3" />

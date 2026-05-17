@@ -963,7 +963,7 @@ export default function TeacherStudentTrackingSection({
                     onClick={() => setFilterLevel('all')}
                   >
                     {getPerformanceLevelConfig(filterLevel).label} ({classificationCounts[filterLevel]})
-                    <XCircle className="h-3 w-3 mr-1" />
+                    <XCircle className="h-3 w-3 ms-1" />
                   </Badge>
                 )}
                 {filterRange !== 'all' && (
@@ -973,7 +973,7 @@ export default function TeacherStudentTrackingSection({
                     onClick={() => setFilterRange('all')}
                   >
                     {getPercentageRangeConfig(filterRange).label} ({percentageRangeDistribution[filterRange]})
-                    <XCircle className="h-3 w-3 mr-1" />
+                    <XCircle className="h-3 w-3 ms-1" />
                   </Badge>
                 )}
                 <button

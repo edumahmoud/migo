@@ -763,7 +763,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                         onClick={() => setConfirmBulkDelete(true)}
                         className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
                       >
-                        <Trash2 className="h-4 w-4 ml-2" />
+                        <Trash2 className="h-4 w-4 me-2" />
                         حذف
                       </DropdownMenuItem>
                       {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility !== 'public') && (
@@ -772,7 +772,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                           disabled={bulkActionLoading}
                           className="cursor-pointer"
                         >
-                          <Eye className="h-4 w-4 ml-2" />
+                          <Eye className="h-4 w-4 me-2" />
                           إظهار للطلاب
                         </DropdownMenuItem>
                       )}
@@ -782,7 +782,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                           disabled={bulkActionLoading}
                           className="cursor-pointer"
                         >
-                          <EyeOff className="h-4 w-4 ml-2" />
+                          <EyeOff className="h-4 w-4 me-2" />
                           إخفاء عن الطلاب
                         </DropdownMenuItem>
                       )}
@@ -790,7 +790,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                         onClick={() => openAssignToOtherModal()}
                         className="cursor-pointer"
                       >
-                        <FolderPlus className="h-4 w-4 ml-2" />
+                        <FolderPlus className="h-4 w-4 me-2" />
                         إسناد لمقررات أخرى
                       </DropdownMenuItem>
                       <DropdownMenuItem
@@ -802,7 +802,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                         }}
                         className="cursor-pointer"
                       >
-                        <Download className="h-4 w-4 ml-2" />
+                        <Download className="h-4 w-4 me-2" />
                         تحميل
                       </DropdownMenuItem>
                     </DropdownMenuContent>

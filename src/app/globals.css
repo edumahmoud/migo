@@ -321,6 +321,15 @@
 }
 
 /* ─── Dark mode prose-summary overrides ─── */
+.dark .prose-summary p {
+  color: var(--foreground);
+}
+
+.dark .prose-summary ul li,
+.dark .prose-summary ol li {
+  color: var(--foreground);
+}
+
 .dark .prose-summary h1 {
   color: #7dd3fc;
   border-bottom-color: #0c4a6e;

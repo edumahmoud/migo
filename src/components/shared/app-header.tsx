@@ -112,7 +112,7 @@ export default function AppHeader({
   }, [dropdownOpen]);
 
   return (
-    <header className="fixed top-0 right-0 left-0 z-40 h-14 sm:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm" dir="rtl">
+    <header className="fixed top-0 right-0 left-0 z-40 h-14 sm:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border" dir="rtl">
       <div className="flex h-full items-center justify-between px-2 sm:px-5">
         {/* ── Right side: Logo + App name ── */}
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
@@ -228,7 +228,7 @@ export default function AppHeader({
                         setDropdownOpen(false);
                         onSignOut();
                       }}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors"
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 active:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-950/50 transition-colors"
                     >
                       <LogOut className="h-4 w-4" />
                       تسجيل الخروج

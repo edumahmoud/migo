@@ -578,35 +578,35 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       case 'scheduled':
         return (
           <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px]">
-            <Clock className="h-2.5 w-2.5 ml-1" />
+            <Clock className="h-2.5 w-2.5 me-1" />
             مجدول
           </Badge>
         );
       case 'active':
         return (
           <Badge className="bg-sky-100 text-sky-800 border-sky-200 text-[10px]">
-            <Play className="h-2.5 w-2.5 ml-1" />
+            <Play className="h-2.5 w-2.5 me-1" />
             متاح
           </Badge>
         );
       case 'completed':
         return (
           <Badge variant="outline" className="text-teal-700 border-teal-300 bg-teal-50 text-[10px]">
-            <Trophy className="h-2.5 w-2.5 ml-1" />
+            <Trophy className="h-2.5 w-2.5 me-1" />
             مكتمل
           </Badge>
         );
       case 'expired':
         return (
           <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 text-[10px]">
-            <Clock className="h-2.5 w-2.5 ml-1" />
+            <Clock className="h-2.5 w-2.5 me-1" />
             انتهى الوقت
           </Badge>
         );
       case 'finished':
         return (
           <Badge variant="outline" className="text-muted-foreground text-[10px]">
-            <ClipboardList className="h-2.5 w-2.5 ml-1" />
+            <ClipboardList className="h-2.5 w-2.5 me-1" />
             منتهي
           </Badge>
         );

@@ -962,7 +962,7 @@ export default function LectureModal({
                     {/* Status badge */}
                     {isActive ? (
                       <Badge className="bg-sky-100 text-sky-800 border-sky-200">
-                        <span className="relative flex h-2 w-2 ml-1">
+                        <span className="relative flex h-2 w-2 me-1">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
                         </span>
@@ -1313,7 +1313,7 @@ export default function LectureModal({
                                 <div className="flex items-center gap-2 mb-1">
                                   <FileText className="h-4 w-4 text-sky-700" />
                                   <span className="text-xs font-medium text-foreground">{note.author_name}</span>
-                                  <span className="text-[10px] text-muted-foreground mr-auto">{formatTime(note.created_at)}</span>
+                                  <span className="text-[10px] text-muted-foreground ms-auto">{formatTime(note.created_at)}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <button
@@ -1463,10 +1463,10 @@ export default function LectureModal({
                               <span className="text-xs font-medium text-foreground">{note.author_name}</span>
                               {note.visibility === 'private' && (
                                 <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[9px] py-0">
-                                  <Lock className="h-2.5 w-2.5 ml-0.5" />خاص
+                                  <Lock className="h-2.5 w-2.5 ms-0.5" />خاص
                                 </Badge>
                               )}
-                              <span className="text-[10px] text-muted-foreground mr-auto">{formatTime(note.created_at)}</span>
+                              <span className="text-[10px] text-muted-foreground ms-auto">{formatTime(note.created_at)}</span>
                             </div>
                             <p className="text-sm text-foreground">{note.content}</p>
                           </div>
@@ -1530,7 +1530,7 @@ export default function LectureModal({
                               <div className="flex items-center gap-2 shrink-0">
                                 {record.check_in_method && (
                                   <Badge variant="outline" className="text-[9px]">
-                                    <MapPin className="h-2.5 w-2.5 ml-0.5" />
+                                    <MapPin className="h-2.5 w-2.5 me-0.5" />
                                     {record.check_in_method === 'qr' ? 'QR' : record.check_in_method === 'gps' ? 'GPS' : record.check_in_method === 'manual' ? 'يدوي' : '—'}
                                   </Badge>
                                 )}

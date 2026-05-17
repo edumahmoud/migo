@@ -875,7 +875,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openProfile(msg.sender_id); }}
-              className="text-[11px] text-muted-foreground mb-1 ml-1 font-medium hover:text-sky-700 transition-colors"
+              className="text-[11px] text-muted-foreground mb-1 me-1 font-medium hover:text-sky-700 transition-colors"
             >
               {senderName}
             </button>
@@ -933,7 +933,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           )}
 
           {/* Time + edited indicator */}
-          <div className={`flex items-center gap-1.5 mt-1 ${isOwn ? 'mr-1' : 'ml-1'}`}>
+          <div className={`flex items-center gap-1.5 mt-1 ${isOwn ? 'ms-1' : 'me-1'}`}>
             <span className="text-[10px] text-muted-foreground/60">
               {relativeTime(msg.created_at)}
             </span>

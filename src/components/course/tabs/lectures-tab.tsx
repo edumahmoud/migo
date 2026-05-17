@@ -324,7 +324,7 @@ function LectureTimer({ startedAt }: { startedAt: string }) {
 
   return (
     <span className="flex items-center gap-1 font-mono font-bold text-sky-800 tabular-nums" dir="ltr">
-      <span className="relative flex h-2 w-2 ml-1">
+      <span className="relative flex h-2 w-2 me-1">
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
         <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
       </span>
@@ -2173,7 +2173,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <h4 className="font-bold text-foreground truncate">{lecture.title}</h4>
                               {isActive ? (
                                 <Badge className="bg-sky-100 text-sky-800 border-sky-200 text-[10px] shrink-0">
-                                  <span className="relative flex h-2 w-2 ml-1">
+                                  <span className="relative flex h-2 w-2 me-1">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
                                   </span>
@@ -2285,7 +2285,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <h4 className="font-bold text-foreground truncate">{lecture.title}</h4>
                               {isActive ? (
                                 <Badge className="bg-sky-100 text-sky-800 border-sky-200 text-[10px] shrink-0">
-                                  <span className="relative flex h-2 w-2 ml-1">
+                                  <span className="relative flex h-2 w-2 me-1">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
                                   </span>

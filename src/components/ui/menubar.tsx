@@ -202,7 +202,7 @@ function MenubarShortcut({
     <span
       data-slot="menubar-shortcut"
       className={cn(
-        "text-muted-foreground ml-auto text-xs tracking-widest",
+        "text-muted-foreground me-auto text-xs tracking-widest",
         className
       )}
       {...props}
@@ -235,7 +235,7 @@ function MenubarSubTrigger({
       {...props}
     >
       {children}
-      <ChevronRightIcon className="ml-auto h-4 w-4" />
+      <ChevronRightIcon className="me-auto h-4 w-4" />
     </MenubarPrimitive.SubTrigger>
   )
 }

@@ -894,7 +894,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <p className="text-xs text-rose-600/70">هل أنت متأكد من حذف ملخص "{summary.title}"؟ لا يمكن التراجع عن هذا الإجراء.</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 mr-12">
+            <div className="flex items-center gap-2 ms-12">
               <Button
                 onClick={handleDeleteSummary}
                 disabled={deleting}

@@ -24,7 +24,6 @@ import {
   BellRing,
   BellOff,
   Bell,
-  RotateCcw,
   Smartphone,
   Sun,
   Moon,
@@ -142,7 +141,7 @@ const STATUS_OPTIONS: {
 ];
 
 const STATUS_STORAGE_KEY = 'attenddo-user-status';
-const ORIENTATION_LOCK_KEY = 'attendo-orientation-locked';
+
 
 // -------------------------------------------------------
 // Animation variants
@@ -207,9 +206,7 @@ export default function SettingsSection({
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
   const [isTogglingPush, setIsTogglingPush] = useState(false);
 
-  // ─── Orientation lock ───
-  const [orientationLocked, setOrientationLocked] = useState(false);
-  const [orientationSupported, setOrientationSupported] = useState(false);
+
 
   // ─── Status / Presence (now from global store) ───
   const userStatus = myStatus;
@@ -240,15 +237,7 @@ export default function SettingsSection({
     setPushPermission(Notification.permission);
   }, []);
 
-  // ─── Check orientation lock support ───
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const supported = !!(screen as any)?.orientation?.lock;
-    setOrientationSupported(supported);
-    // Check if previously locked
-    const wasLocked = localStorage.getItem(ORIENTATION_LOCK_KEY) === 'true';
-    setOrientationLocked(wasLocked);
-  }, []);
+
 
   // ─── Handle status change ───
   const handleStatusChange = useCallback((newStatus: UserStatus) => {
@@ -688,32 +677,7 @@ export default function SettingsSection({
     }
   };
 
-  // ─── Toggle orientation lock ───
-  const handleToggleOrientation = async () => {
-    try {
-      const screenOrientation = (screen as any)?.orientation;
-      if (!screenOrientation?.lock) {
-        toast.info('قفل الاتجاه غير مدعوم في هذا المتصفح');
-        return;
-      }
-      if (orientationLocked) {
-        // Unlock
-        await screenOrientation.unlock();
-        setOrientationLocked(false);
-        localStorage.setItem(ORIENTATION_LOCK_KEY, 'false');
-        toast.success('تم إلغاء قفل اتجاه الشاشة');
-      } else {
-        // Lock to portrait
-        await screenOrientation.lock('portrait');
-        setOrientationLocked(true);
-        localStorage.setItem(ORIENTATION_LOCK_KEY, 'true');
-        toast.success('تم قفل اتجاه الشاشة على الوضع العمودي');
-      }
-    } catch (error) {
-      console.error('Orientation lock error:', error);
-      toast.error('قفل الاتجاه غير مدعوم أو تم رفض الإذن');
-    }
-  };
+
 
   // ─── Render ───
   return (
@@ -901,7 +865,7 @@ export default function SettingsSection({
                 <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
                   <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground select-all truncate">{profile.email}</span>
-                  <Badge variant="outline" className="mr-auto text-[9px] px-1.5 py-0 shrink-0">للقراءة فقط</Badge>
+                  <Badge variant="outline" className="ms-auto text-[9px] px-1.5 py-0 shrink-0">للقراءة فقط</Badge>
                 </div>
               </div>
 
@@ -1162,57 +1126,6 @@ export default function SettingsSection({
                   <BellRing className="h-3.5 w-3.5" />
                   إرسال إشعار تجريبي
                 </button>
-              )}
-
-              {/* Divider */}
-              <div className="border-t" />
-
-              {/* Orientation Lock Toggle */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                    orientationLocked
-                      ? 'bg-blue-100 text-blue-600'
-                      : 'bg-muted/50 text-muted-foreground'
-                  }`}>
-                    <RotateCcw className={`h-4 w-4 ${orientationLocked ? 'rotate-180' : ''} transition-transform`} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">قفل اتجاه الشاشة</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {orientationLocked
-                        ? 'مقفل — الشاشة ثابتة على الوضع العمودي'
-                        : 'غير مقفل — الشاشة تدور تلقائياً مع الجهاز'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleToggleOrientation}
-                  disabled={!orientationSupported}
-                  className={`relative shrink-0 h-6 w-11 rounded-full transition-colors duration-200 ${
-                    orientationLocked
-                      ? 'bg-blue-500'
-                      : !orientationSupported
-                        ? 'bg-muted-foreground/20 cursor-not-allowed'
-                        : 'bg-muted-foreground/30'
-                  }`}
-                  aria-label={orientationLocked ? 'إلغاء قفل الشاشة' : 'قفل الشاشة'}
-                  title={!orientationSupported ? 'غير مدعوم في هذا المتصفح' : undefined}
-                >
-                  <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                    orientationLocked ? 'translate-x-[22px]' : 'translate-x-0.5'
-                  }`} />
-                </button>
-              </div>
-
-              {/* Info note */}
-              {!orientationSupported && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-2.5 flex items-start gap-2">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-amber-700">
-                    قفل اتجاه الشاشة يعمل فقط عند تثبيت التطبيق كـ PWA على الهاتف. في المتصفح العادي، يمكنك قفل الاتجاه من إعدادات الجهاز.
-                  </p>
-                </div>
               )}
 
               {/* Divider */}

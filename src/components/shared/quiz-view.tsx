@@ -1835,7 +1835,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                           <span className="font-medium">{k}</span>
                           <Link2 className="h-3 w-3 shrink-0" />
                           <span className={isPairCorrect ? 'text-sky-800 font-medium' : 'text-rose-700 font-medium'}>{v}</span>
-                          {isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-sky-600 mr-auto" /> : <XCircle className="h-3 w-3 text-rose-500 mr-auto" />}
+                          {isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-sky-600 ms-auto" /> : <XCircle className="h-3 w-3 text-rose-500 ms-auto" />}
                         </div>
                       );
                     }

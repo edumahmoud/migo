@@ -2382,7 +2382,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       {ps.status !== 'cancelled' && ps.status !== 'saving' && (
                         <button
                           onClick={() => cancelPendingSummary(ps.id)}
-                          className="mr-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
+                          className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
                         >
                           <XCircle className="h-3 w-3" />
                           إلغاء
@@ -2503,7 +2503,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             </span>
           </div>
           {pendingSummaries.map(ps => (
-            <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 py-1 mr-6">
+            <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 py-1 ms-6">
               <span className="font-medium">{ps.title}</span>
               <span className="text-sky-600/70">
                 {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
@@ -2514,7 +2514,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {ps.status !== 'cancelled' && ps.status !== 'saving' && (
                 <button
                   onClick={() => cancelPendingSummary(ps.id)}
-                  className="mr-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
+                  className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
                   title="إلغاء"
                 >
                   <XCircle className="h-3 w-3" />
@@ -4014,7 +4014,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
       {/* Main Content - dynamic offset for collapsible sidebar */}
       <main className={`min-h-screen pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
-        sidebarOpen ? 'md:mr-64' : 'md:mr-[68px]'
+        sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
       }`}>
         <div className="p-3 sm:p-6 lg:p-8 space-y-4">
           <AnnouncementsBanner userId={profile.id} />

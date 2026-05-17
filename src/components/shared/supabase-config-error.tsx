@@ -121,7 +121,7 @@ export default function SupabaseConfigError() {
                   متغيرات البيئة المفقودة
                 </p>
               </div>
-              <ul className="space-y-1.5 mr-6">
+              <ul className="space-y-1.5 ms-6">
                 {missingVars.map((varName) => (
                   <li key={varName} className="flex items-center gap-2 text-xs text-amber-700">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />

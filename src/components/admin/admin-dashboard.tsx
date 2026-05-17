@@ -2899,7 +2899,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* ─── Period Filter ─── */}
       <motion.div variants={itemVariants}>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-muted-foreground ml-1">الفترة الزمنية:</span>
+          <span className="text-sm font-medium text-muted-foreground ms-1">الفترة الزمنية:</span>
           {(['day', 'month', 'year'] as const).map((p) => (
             <button
               key={p}
@@ -2924,7 +2924,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-sky-700" />
               النشاط اليومي
-              <span className="text-xs font-normal text-muted-foreground mr-1">آخر 30 يوم</span>
+              <span className="text-xs font-normal text-muted-foreground ms-1">آخر 30 يوم</span>
             </h3>
             {usageStats && usageStats.chartData && usageStats.chartData.some((d) => d.users > 0 || d.sessions > 0 || d.quizzes > 0) ? (
               <div className="h-72 min-h-[280px]">
@@ -2982,7 +2982,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-teal-600" />
               اتجاه التسجيلات
-              <span className="text-xs font-normal text-muted-foreground mr-1">آخر 12 شهر</span>
+              <span className="text-xs font-normal text-muted-foreground ms-1">آخر 12 شهر</span>
             </h3>
             {usageStats && usageStats.registrationTrends && usageStats.registrationTrends.some((d) => d.count > 0) ? (
               <div className="h-72 min-h-[280px]">

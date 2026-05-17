@@ -468,7 +468,7 @@ $$;`;
             </>
           ) : (
             <>
-              <CheckCircle2 className="h-5 w-5 ml-1" />
+              <CheckCircle2 className="h-5 w-5 me-1" />
               <span>تم تنفيذ SQL - تحقق</span>
             </>
           )}
@@ -562,7 +562,7 @@ $$;`;
                 }`}
               />
             ))}
-            <span className="text-xs text-white/60 mr-2">قوة كلمة المرور: {passwordStrength.label}</span>
+            <span className="text-xs text-white/60 ms-2">قوة كلمة المرور: {passwordStrength.label}</span>
           </div>
         )}
       </div>
@@ -611,7 +611,7 @@ $$;`;
         ) : (
           <>
             <span>إنشاء حساب المدير</span>
-            <ArrowLeft className="h-5 w-5 mr-1" />
+            <ArrowLeft className="h-5 w-5 ms-1" />
           </>
         )}
       </Button>
@@ -850,7 +850,7 @@ $$;`;
             onClick={() => setStep('admin-account')}
             className="flex-1 h-11 bg-white/10 border-sky-400/50 text-sky-100 hover:bg-sky-500/20 hover:text-white hover:border-sky-300/70"
           >
-            <ArrowRight className="h-4 w-4 ml-1" />
+            <ArrowRight className="h-4 w-4 me-1" />
             رجوع
           </Button>
           <Button
@@ -866,7 +866,7 @@ $$;`;
             ) : (
               <>
                 <span>حفظ وإنهاء الإعداد</span>
-                <CheckCircle2 className="h-5 w-5 mr-1" />
+                <CheckCircle2 className="h-5 w-5 ms-1" />
               </>
             )}
           </Button>
@@ -922,7 +922,7 @@ $$;`;
         className="w-full h-12 text-base font-bold bg-gradient-to-l from-sky-600 to-teal-500 hover:from-sky-700 hover:to-teal-600 shadow-lg shadow-sky-500/25 transition-all duration-300 rounded-xl"
       >
         <span>ابدأ استخدام النظام</span>
-        <ArrowLeft className="h-5 w-5 mr-1" />
+        <ArrowLeft className="h-5 w-5 ms-1" />
       </Button>
     </motion.div>
   );

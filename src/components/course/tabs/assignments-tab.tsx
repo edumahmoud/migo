@@ -807,11 +807,11 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
   const getStatusBadge = (status: 'submitted' | 'graded' | 'returned') => {
     switch (status) {
       case 'submitted':
-        return <Badge className="bg-amber-100 text-amber-700 text-[10px]"><Clock className="h-2.5 w-2.5 ml-1" />تم التسليم</Badge>;
+        return <Badge className="bg-amber-100 text-amber-700 text-[10px]"><Clock className="h-2.5 w-2.5 me-1" />تم التسليم</Badge>;
       case 'graded':
-        return <Badge className="bg-sky-100 text-sky-800 text-[10px]"><CheckCircle2 className="h-2.5 w-2.5 ml-1" />تم التقييم</Badge>;
+        return <Badge className="bg-sky-100 text-sky-800 text-[10px]"><CheckCircle2 className="h-2.5 w-2.5 me-1" />تم التقييم</Badge>;
       case 'returned':
-        return <Badge className="bg-blue-100 text-blue-700 text-[10px]"><MessageSquare className="h-2.5 w-2.5 ml-1" />تم الإرجاع</Badge>;
+        return <Badge className="bg-blue-100 text-blue-700 text-[10px]"><MessageSquare className="h-2.5 w-2.5 me-1" />تم الإرجاع</Badge>;
     }
   };
 
@@ -993,11 +993,11 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                       mySub ? getStatusBadge(mySub.status) : (
                         pastDue ? (
                           <Badge className="bg-rose-100 text-rose-700 text-[10px]">
-                            <AlertCircle className="h-2.5 w-2.5 ml-1" />انتهى الموعد
+                            <AlertCircle className="h-2.5 w-2.5 me-1" />انتهى الموعد
                           </Badge>
                         ) : (
                           <Badge className="bg-amber-100 text-amber-700 text-[10px]">
-                            <AlertCircle className="h-2.5 w-2.5 ml-1" />لم يسلم
+                            <AlertCircle className="h-2.5 w-2.5 me-1" />لم يسلم
                           </Badge>
                         )
                       )

@@ -72,7 +72,7 @@ function ContextMenuSubTrigger({
       {...props}
     >
       {children}
-      <ChevronRightIcon className="ml-auto" />
+      <ChevronRightIcon className="me-auto" />
     </ContextMenuPrimitive.SubTrigger>
   )
 }
@@ -225,7 +225,7 @@ function ContextMenuShortcut({
     <span
       data-slot="context-menu-shortcut"
       className={cn(
-        "text-muted-foreground ml-auto text-xs tracking-widest",
+        "text-muted-foreground me-auto text-xs tracking-widest",
         className
       )}
       {...props}

@@ -497,7 +497,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   variant="outline"
                   className="text-[10px] border-sky-300 bg-sky-50 text-sky-800"
                 >
-                  <Globe className="h-2.5 w-2.5 ml-1" />
+                  <Globe className="h-2.5 w-2.5 me-1" />
                   {isGeneral ? 'إعلان' : 'عامة'}
                 </Badge>
               ) : (
@@ -505,7 +505,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   variant="outline"
                   className="text-[10px] border-amber-300 bg-amber-50 text-amber-700"
                 >
-                  <Lock className="h-2.5 w-2.5 ml-1" />
+                  <Lock className="h-2.5 w-2.5 me-1" />
                   مسودة
                 </Badge>
               )}
@@ -515,7 +515,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   variant="outline"
                   className="text-[10px] border-muted bg-muted/50 text-muted-foreground"
                 >
-                  <BookOpen className="h-2.5 w-2.5 ml-1" />
+                  <BookOpen className="h-2.5 w-2.5 me-1" />
                   {lectureTitle}
                 </Badge>
               )}
@@ -624,7 +624,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
 
               {/* Visibility toggle */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground ml-1">الظهور:</span>
+                <span className="text-xs text-muted-foreground me-1">الظهور:</span>
                 <button
                   onClick={() => setNoteVisibility('public')}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${

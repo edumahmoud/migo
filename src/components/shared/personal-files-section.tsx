@@ -1945,39 +1945,39 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     setRenameValue(file.file_name.replace(new RegExp(`\\.${ext}$`), ''));
                   }}
                 >
-                  <Pencil className="h-4 w-4 ml-2" />
+                  <Pencil className="h-4 w-4 me-2" />
                   تعديل
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openDetailsModal(file)}>
-                  <Info className="h-4 w-4 ml-2" />
+                  <Info className="h-4 w-4 me-2" />
                   تفاصيل
                 </DropdownMenuItem>
                 {file.visibility === 'public' && (
                   <DropdownMenuItem onClick={() => openShareModal(file.id)}>
-                    <Share2 className="h-4 w-4 ml-2" />
+                    <Share2 className="h-4 w-4 me-2" />
                     مشاركة
                   </DropdownMenuItem>
                 )}
                 {(profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') && file.visibility === 'public' && (
                   <DropdownMenuItem onClick={() => openAssignModal(file.id)}>
-                    <FolderPlus className="h-4 w-4 ml-2" />
+                    <FolderPlus className="h-4 w-4 me-2" />
                     اسناد لمقرر
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => handlePreview(file)}>
-                  <Maximize2 className="h-4 w-4 ml-2" />
+                  <Maximize2 className="h-4 w-4 me-2" />
                   معاينة
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => handleToggleVisibility(file.id, file.visibility || 'private')}>
                   {file.visibility === 'public' ? (
                     <>
-                      <Lock className="h-4 w-4 ml-2" />
+                      <Lock className="h-4 w-4 me-2" />
                       جعله خاصاً
                     </>
                   ) : (
                     <>
-                      <Globe className="h-4 w-4 ml-2" />
+                      <Globe className="h-4 w-4 me-2" />
                       جعله عاماً
                     </>
                   )}
@@ -1987,7 +1987,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   onClick={() => setConfirmDeleteId(file.id)}
                   className="text-rose-600 focus:text-rose-600 focus:bg-rose-50"
                 >
-                  <Trash2 className="h-4 w-4 ml-2" />
+                  <Trash2 className="h-4 w-4 me-2" />
                   حذف
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -2220,7 +2220,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       onClick={() => setConfirmBulkDelete(true)}
                       className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
                     >
-                      <Trash2 className="h-4 w-4 ml-2" />
+                      <Trash2 className="h-4 w-4 me-2" />
                       حذف
                     </DropdownMenuItem>
                     {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility !== 'public') && (
@@ -2229,7 +2229,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         disabled={bulkActionLoading}
                         className="cursor-pointer"
                       >
-                        <Globe className="h-4 w-4 ml-2" />
+                        <Globe className="h-4 w-4 me-2" />
                         جعل عاماً
                       </DropdownMenuItem>
                     )}
@@ -2239,7 +2239,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         disabled={bulkActionLoading}
                         className="cursor-pointer"
                       >
-                        <Lock className="h-4 w-4 ml-2" />
+                        <Lock className="h-4 w-4 me-2" />
                         جعل خاصاً
                       </DropdownMenuItem>
                     )}
@@ -2248,7 +2248,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         onClick={() => openAssignModal(null, true)}
                         className="cursor-pointer"
                       >
-                        <FolderPlus className="h-4 w-4 ml-2" />
+                        <FolderPlus className="h-4 w-4 me-2" />
                         إسناد لمقررات
                       </DropdownMenuItem>
                     )}
@@ -2261,7 +2261,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       }}
                       className="cursor-pointer"
                     >
-                      <Download className="h-4 w-4 ml-2" />
+                      <Download className="h-4 w-4 me-2" />
                       تحميل
                     </DropdownMenuItem>
                     {Array.from(selectedFileIds).every(id => files.find(f => f.id === id)?.visibility === 'public') && (
@@ -2269,7 +2269,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         onClick={() => openBulkShareModal()}
                         className="cursor-pointer"
                       >
-                        <Share2 className="h-4 w-4 ml-2" />
+                        <Share2 className="h-4 w-4 me-2" />
                         مشاركة مع مستخدمين
                       </DropdownMenuItem>
                     )}
@@ -2374,7 +2374,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     >
                       <Users className="h-3.5 w-3.5" />
                       <span>مشارك مع {file.total_recipients_count || (file.other_recipients.length + 1)} شخص</span>
-                      <span className="flex -space-x-1.5 space-x-reverse mr-1">
+                      <span className="flex -space-x-1.5 space-x-reverse ms-1">
                         {file.other_recipients.slice(0, 3).map((r) => (
                           <span key={r.id} className="inline-block h-5 w-5 rounded-full bg-muted border-2 border-background overflow-hidden">
                             {r.avatar_url ? (
@@ -2636,7 +2636,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <span className="text-sm text-muted-foreground">
                   {pendingUploads.filter((p) => p.done).length}/{pendingUploads.length} مكتمل
                   {pendingUploads.some((p) => p.errorCode === 'duplicate_name') && (
-                    <span className="text-amber-600 text-xs mr-1">({pendingUploads.filter((p) => p.errorCode === 'duplicate_name').length} بحاجة لتغيير الاسم)</span>
+                    <span className="text-amber-600 text-xs ms-1">({pendingUploads.filter((p) => p.errorCode === 'duplicate_name').length} بحاجة لتغيير الاسم)</span>
                   )}
                 </span>
                 <div className="flex items-center gap-2">

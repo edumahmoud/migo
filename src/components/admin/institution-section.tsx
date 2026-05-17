@@ -404,7 +404,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   </div>
                   <span className="text-sm font-medium">{label}</span>
                   {institution.type === key && (
-                    <CheckCircle2 className="h-4 w-4 mr-auto text-sky-600" />
+                    <CheckCircle2 className="h-4 w-4 ms-auto text-sky-600" />
                   )}
                 </button>
               ))}

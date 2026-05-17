@@ -468,7 +468,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
-        <span className="mr-3 text-muted-foreground">جاري تحميل المجموعات...</span>
+        <span className="ms-3 text-muted-foreground">جاري تحميل المجموعات...</span>
       </div>
     );
   }
@@ -518,7 +518,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               إلغاء
             </Button>
             <Button onClick={isEdit ? handleUpdateTeam : handleCreateTeam} disabled={saving || !formName.trim()} className="bg-sky-700 hover:bg-sky-800">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : null}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : null}
               {isEdit ? 'حفظ التعديلات' : 'إنشاء'}
             </Button>
           </DialogFooter>
@@ -556,7 +556,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => setAutoAssignOpen(false)}>إلغاء</Button>
           <Button onClick={handleAutoAssign} disabled={saving} className="bg-sky-700 hover:bg-sky-800">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin ml-2" /> : <Shuffle className="h-4 w-4 ml-2" />}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Shuffle className="h-4 w-4 me-2" />}
             توزيع تلقائي
           </Button>
         </DialogFooter>
@@ -596,7 +596,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                   }}
                   className="text-sky-700 hover:text-sky-800"
                 >
-                  <UserPlus className="h-4 w-4 ml-1" />
+                  <UserPlus className="h-4 w-4 me-1" />
                   إضافة
                 </Button>
               </div>
@@ -646,15 +646,15 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => openEdit(team)}>
-                  <Edit3 className="h-4 w-4 ml-2" />
+                  <Edit3 className="h-4 w-4 me-2" />
                   تعديل
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setAddMemberTeamId(team.id)}>
-                  <UserPlus className="h-4 w-4 ml-2" />
+                  <UserPlus className="h-4 w-4 me-2" />
                   إضافة عضو
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleDeleteTeam(team.id)} className="text-red-600">
-                  <Trash2 className="h-4 w-4 ml-2" />
+                  <Trash2 className="h-4 w-4 me-2" />
                   حذف
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -730,11 +730,11 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleExportAll}>
-                <FileSpreadsheet className="h-4 w-4 ml-2" />
+                <FileSpreadsheet className="h-4 w-4 me-2" />
                 تنزيل كل المجموعات
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => { setSelectedTeamIds(new Set()); setExportOpen(true); }}>
-                <CheckSquare className="h-4 w-4 ml-2" />
+                <CheckSquare className="h-4 w-4 me-2" />
                 تحديد مجموعات
               </DropdownMenuItem>
             </DropdownMenuContent>

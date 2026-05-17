@@ -465,7 +465,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                             className="text-sm font-medium text-foreground hover:text-sky-700 transition-colors"
                           >
                             {titleLabel && (
-                              <span className="text-sky-700 ml-0.5 text-xs font-normal">{titleLabel}</span>
+                              <span className="text-sky-700 me-0.5 text-xs font-normal">{titleLabel}</span>
                             )}
                             {ct.teacher_name || 'معلم'}
                           </button>

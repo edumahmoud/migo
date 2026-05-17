@@ -978,7 +978,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                               )}
 
                               {/* Actions */}
-                              <div className="flex items-center gap-2 shrink-0 mr-auto sm:mr-0">
+                              <div className="flex items-center gap-2 shrink-0 ms-auto sm:ms-0">
                                 <Button
                                   size="sm"
                                   variant="outline"

@@ -71,7 +71,7 @@ export default function UserLink({
       <span className="flex flex-col items-start min-w-0">
         <span className="flex items-center gap-1 truncate max-w-[200px]">
           <span className="text-sm font-medium text-foreground group-hover:text-sky-700 transition-colors truncate">
-            {titleLabel && <span className="text-sky-700 ml-0.5 text-xs font-normal">{titleLabel}</span>}
+            {titleLabel && <span className="text-sky-700 me-0.5 text-xs font-normal">{titleLabel}</span>}
             {name}
           </span>
           {showRole && roleLabel && role && (

@@ -2105,7 +2105,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
       {/* Main content - dynamic offset for collapsible sidebar */}
       <main className={`min-h-screen pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
-        sidebarOpen ? 'md:mr-64' : 'md:mr-[68px]'
+        sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
       }`}>
         <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4">
           <AnnouncementsBanner userId={profile.id} />
@@ -2246,7 +2246,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                     <span className="font-medium">{k}</span>
                                     <Link2 className="h-2.5 w-2.5" />
                                     <span className={isPairCorrect ? 'text-teal-700 font-medium' : 'text-rose-700 font-medium'}>{v}</span>
-                                    {isPairCorrect ? <CheckCircle2 className="h-2.5 w-2.5 text-teal-500 mr-auto" /> : <XCircle className="h-2.5 w-2.5 text-rose-500 mr-auto" />}
+                                    {isPairCorrect ? <CheckCircle2 className="h-2.5 w-2.5 text-teal-500 ms-auto" /> : <XCircle className="h-2.5 w-2.5 text-rose-500 ms-auto" />}
                                   </div>
                                 );
                               })}
