@@ -373,6 +373,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // the INITIAL_SESSION event provides the valid session. Without handling this,
       // the user gets redirected to the login page on refresh.
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+        // ─── Prevent race condition with signInWithEmail ───
+        // If the user was already set (by signInWithEmail), and the existing profile
+        // has a non-fallback role (not 'student' from createFallbackProfile), skip
+        // this update to avoid overwriting the correct profile with a fallback.
+        const currentUser = get().user;
+        if (currentUser && currentUser.id === session.user.id && currentUser.role !== 'student') {
+          // User already set with a non-fallback profile - skip to avoid race condition
+          // Only skip for SIGNED_IN (not INITIAL_SESSION which may be the only source)
+          if (event === 'SIGNED_IN') {
+            return;
+          }
+        }
+
         // ─── Use server-side API to fetch profile (bypasses RLS) ───
         try {
           const res = await fetch('/api/auth/me', {
@@ -859,17 +872,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       sessionCheckCleanup = null;
     }
 
-    // Unsubscribe auth state listener to prevent memory leaks
-    if (authSubscription) {
-      authSubscription.data.subscription.unsubscribe();
-      authSubscription = null;
-    }
+    // NOTE: We intentionally do NOT unsubscribe the auth listener here.
+    // Unsubscribing breaks the re-login flow: after sign-out, the listener
+    // is gone, so when the user signs in again, the SIGNED_IN event is not
+    // detected, and the profile isn't fetched via onAuthStateChange.
+    // The auth listener should stay active for the lifetime of the app.
 
-    // Reset initialized and loading so the next initialize() call actually runs.
-    // Without this, after signOut → cleanup(), the initialized flag stays true,
-    // so the next login's initialize() returns immediately without setting up
-    // the new user's session (auth listener, session validation, etc.).
-    set({ initialized: false, loading: true, user: null, banInfo: null, sessionKickedMessage: null });
+    // Reset user state but keep initialized=true and auth listener active.
+    // This is critical: setting initialized=false would prevent the routing
+    // useEffect from redirecting to the dashboard after re-login, because
+    // initialize() is only called once on mount.
+    set({ loading: false, user: null, banInfo: null, sessionKickedMessage: null });
   },
 }));
 

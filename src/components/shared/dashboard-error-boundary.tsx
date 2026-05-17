@@ -114,20 +114,24 @@ export default class DashboardErrorBoundary extends React.Component<
   handleRetry = () => {
     // Clear potentially corrupted state that might be causing the error
     try {
-      localStorage.removeItem('attendo-app-store');
       localStorage.removeItem('_wsr');
       localStorage.removeItem('_sw_reload_pending');
       localStorage.removeItem('_attendo_busy');
     } catch {}
 
-    // Reset retryCount to give users a fresh start on manual retry
+    // NOTE: We intentionally do NOT reset retryCount to 0 here.
+    // Resetting it would allow the auto-retry mechanism to trigger again,
+    // creating an infinite loop: error → auto-retry → handleRetry(reset count) →
+    // error → auto-retry → handleRetry(reset count) → ...
+    // Instead, keep the retryCount so auto-retry is disabled after MAX_RETRIES.
+
     // Force remount by changing the key
     this.setState(prev => ({
       hasError: false,
       error: null,
       errorInfo: null,
       autoRetrying: false,
-      retryCount: 0,
+      // Keep retryCount as-is to prevent infinite auto-retry loops
       retryKey: prev.retryKey + 1,
     }));
   };

@@ -35,13 +35,14 @@ import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary
 // so transient layout-level errors don't permanently crash the app.
 class AppErrorBoundary extends React.Component<
   { children: React.ReactNode; onFallbackToLogin?: () => void },
-  { hasError: boolean; error: Error | null; retryKey: number; autoRetrying: boolean }
+  { hasError: boolean; error: Error | null; retryKey: number; retryCount: number; autoRetrying: boolean }
 > {
   private autoRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  static MAX_AUTO_RETRIES = 1; // Only auto-retry once to prevent infinite loops
 
   constructor(props: { children: React.ReactNode; onFallbackToLogin?: () => void }) {
     super(props);
-    this.state = { hasError: false, error: null, retryKey: 0, autoRetrying: false };
+    this.state = { hasError: false, error: null, retryKey: 0, retryCount: 0, autoRetrying: false };
   }
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error, autoRetrying: false };
@@ -49,11 +50,17 @@ class AppErrorBoundary extends React.Component<
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[AppErrorBoundary] Layout-level crash:', error, errorInfo);
 
-    // Auto-retry after 3 seconds for transient layout-level errors
-    this.setState({ autoRetrying: true });
-    this.autoRecoveryTimer = setTimeout(() => {
-      this.handleRetry();
-    }, 3000);
+    // Auto-retry after 3 seconds ONLY on the first error to prevent infinite loops
+    // After the first auto-retry, the user must manually click the retry button
+    const nextRetryCount = this.state.retryCount + 1;
+    this.setState({ retryCount: nextRetryCount });
+
+    if (nextRetryCount <= AppErrorBoundary.MAX_AUTO_RETRIES) {
+      this.setState({ autoRetrying: true });
+      this.autoRecoveryTimer = setTimeout(() => {
+        this.handleRetry();
+      }, 3000);
+    }
   }
 
   componentWillUnmount() {
@@ -64,30 +71,18 @@ class AppErrorBoundary extends React.Component<
   }
 
   handleRetry = () => {
-    // Clear potentially corrupted localStorage flags and persisted store
+    // Clear potentially corrupted localStorage flags
     try {
-      localStorage.removeItem('attendo-app-store');
       localStorage.removeItem('_wsr');
       localStorage.removeItem('_sw_reload_pending');
       localStorage.removeItem('_attendo_busy');
     } catch {}
 
-    // Reset Zustand stores to clear stale state that might cause the same error
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { useAppStore } = require('@/stores/app-store');
-      useAppStore.getState().reset();
-    } catch {}
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { useNotificationStore } = require('@/stores/notification-store');
-      useNotificationStore.getState().cleanup();
-    } catch {}
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { useStatusStore } = require('@/stores/status-store');
-      useStatusStore.getState().cleanup();
-    } catch {}
+    // NOTE: We intentionally do NOT reset Zustand stores here.
+    // Resetting the app store (setCurrentPage('auth')) causes the routing
+    // useEffect to redirect back to the dashboard (since user is still set),
+    // which triggers the same error again → infinite loop.
+    // Instead, just force remount via retryKey and keep current state.
 
     // Force remount via retryKey and clear error state
     this.setState(prev => ({
