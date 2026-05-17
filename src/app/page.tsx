@@ -492,7 +492,7 @@ function HomeContent() {
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, ease: 'easeOut' }}
+              transition={{ duration: 0.7, ease: 'easeOut' as const }}
               className="text-center max-w-lg"
             >
               {/* Logo — removed per user request: no app icon on auth pages */}
@@ -730,7 +730,7 @@ function HomeContent() {
           userRole={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
           userGender={user.gender}
           titleId={user.title_id}
-          avatarUrl={user.avatar_url}
+          avatarUrl={user.avatar_url ?? undefined}
           onSignOut={() => {
             // Same fix as handleSignOut: setCurrentPage('auth') first, then signOut
             setCurrentPage('auth');

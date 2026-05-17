@@ -185,7 +185,7 @@ function createFallbackProfile(authUser: { id: string; email?: string; user_meta
     avatar_url: avatarUrl,
     gender: userGender,
     title_id: userTitleId,
-    teacher_code: null, // Never grant teacher_code from fallback
+    teacher_code: undefined, // Never grant teacher_code from fallback
     created_at: authUser.created_at || new Date().toISOString(),
     updated_at: authUser.updated_at || new Date().toISOString(),
   };

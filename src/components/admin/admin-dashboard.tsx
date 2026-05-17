@@ -95,13 +95,13 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
 };
 
 const cardHover = {
   whileHover: { scale: 1.02, y: -2 },
   whileTap: { scale: 0.98 },
-  transition: { type: 'spring', stiffness: 400, damping: 25 },
+  transition: { type: 'spring' as const, stiffness: 400, damping: 25 },
 };
 
 // -------------------------------------------------------
@@ -2872,8 +2872,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         fontSize: '12px',
                         direction: 'rtl',
                       }}
-                      labelFormatter={(val: string) => {
-                        const d = new Date(val);
+                      labelFormatter={(val: unknown) => {
+                        const d = new Date(String(val));
                         return d.toLocaleDateString('ar-SA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
                       }}
                     />
@@ -2983,7 +2983,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       outerRadius={80}
                       paddingAngle={5}
                       dataKey="value"
-                      label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }: { name?: string; percent?: number }) => `${name || ''} ${((percent || 0) * 100).toFixed(0)}%`}
                     >
                       <Cell fill="#0284c7" />
                       <Cell fill="#14b8a6" />
@@ -3352,7 +3352,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         userRole={profile.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
         userGender={profile.gender}
         titleId={profile.title_id}
-        avatarUrl={profile.avatar_url}
+        avatarUrl={profile.avatar_url ?? undefined}
         onSignOut={onSignOut}
         onOpenSettings={() => handleSectionChange('settings')}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}

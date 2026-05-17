@@ -175,25 +175,25 @@ export const useStatusStore = create<StatusState>((set, get) => ({
     }
 
     // Remove any previously attached listeners (safe even if none exist)
-    socket.off('connect', handleConnect);
-    socket.off('online-users', handleOnlineUsers);
-    socket.off('user-online', handleUserOnline);
-    socket.off('user-offline', handleUserOffline);
-    socket.off('user-status-changed', handleUserStatusChanged);
-    socket.off('user-statuses', handleUserStatuses);
+    socket!.off('connect', handleConnect);
+    socket!.off('online-users', handleOnlineUsers);
+    socket!.off('user-online', handleUserOnline);
+    socket!.off('user-offline', handleUserOffline);
+    socket!.off('user-status-changed', handleUserStatusChanged);
+    socket!.off('user-statuses', handleUserStatuses);
 
     listenersRegistered = true;
 
     // ─── On connect/reconnect: re-request online users ───
     function handleConnect() {
-      socket.emit('get-online-users');
+      socket!.emit('get-online-users');
       // Also re-emit our own status so others see us as online
       const { myStatus, myUserId } = get();
       if (myUserId && myStatus !== 'offline') {
-        socket.emit('status-change', { userId: myUserId, status: myStatus });
+        socket!.emit('status-change', { userId: myUserId, status: myStatus });
       }
     }
-    socket.on('connect', handleConnect);
+    socket!.on('connect', handleConnect);
 
     // ─── Receive online users list (on connect/reconnect) ───
     function handleOnlineUsers(userIds: string[]) {
@@ -208,7 +208,7 @@ export const useStatusStore = create<StatusState>((set, get) => ({
         return { userStatuses: next };
       });
     }
-    socket.on('online-users', handleOnlineUsers);
+    socket!.on('online-users', handleOnlineUsers);
 
     // ─── User came online ───
     function handleUserOnline(userId: string) {
@@ -221,7 +221,7 @@ export const useStatusStore = create<StatusState>((set, get) => ({
         return { userStatuses: next };
       });
     }
-    socket.on('user-online', handleUserOnline);
+    socket!.on('user-online', handleUserOnline);
 
     // ─── User went offline ───
     function handleUserOffline(userId: string) {
@@ -231,7 +231,7 @@ export const useStatusStore = create<StatusState>((set, get) => ({
         return { userStatuses: next };
       });
     }
-    socket.on('user-offline', handleUserOffline);
+    socket!.on('user-offline', handleUserOffline);
 
     // ─── User status changed (online/busy/away/offline/invisible) ───
     function handleUserStatusChanged(data: { userId: string; status: UserStatus }) {
@@ -245,7 +245,7 @@ export const useStatusStore = create<StatusState>((set, get) => ({
         };
       });
     }
-    socket.on('user-status-changed', handleUserStatusChanged);
+    socket!.on('user-status-changed', handleUserStatusChanged);
 
     // ─── Receive statuses from get-user-status response ───
     function handleUserStatuses(statuses: Record<string, UserStatus>) {
@@ -257,17 +257,17 @@ export const useStatusStore = create<StatusState>((set, get) => ({
         return { userStatuses: next };
       });
     }
-    socket.on('user-statuses', handleUserStatuses);
+    socket!.on('user-statuses', handleUserStatuses);
 
     // If already connected, request online users immediately
-    if (socket.connected) {
-      socket.emit('get-online-users');
+    if (socket!.connected) {
+      socket!.emit('get-online-users');
     }
 
     // Also emit our own status if we have a userId
     const { myStatus, myUserId } = get();
-    if (myUserId && socket.connected && myStatus !== 'offline') {
-      socket.emit('status-change', { userId: myUserId, status: myStatus });
+    if (myUserId && socket!.connected && myStatus !== 'offline') {
+      socket!.emit('status-change', { userId: myUserId, status: myStatus });
     }
 
     set({ initialized: true });

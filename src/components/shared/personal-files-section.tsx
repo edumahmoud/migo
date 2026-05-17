@@ -73,7 +73,7 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
 };
 
 // -------------------------------------------------------
@@ -1279,7 +1279,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           totalCreated += result.data.created || 0;
           totalUpdated += result.data.updated || 0;
         } else {
-          lastError = result.error;
+          lastError = result.error || 'خطأ غير معروف';
         }
       }
 
@@ -1436,7 +1436,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         coursesResult = await supabase
           .from('subject_files')
           .select('subject_id, created_at, subjects(name)')
-          .eq('file_url', file.file_url);
+          .eq('file_url', file.file_url) as typeof coursesResult;
       }
 
       const sharesResult = await supabase

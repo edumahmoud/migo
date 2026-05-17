@@ -465,11 +465,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // Safety net: ensure `initializing` is always reset, even if an unexpected
     // error occurs between the two try blocks or in any early return path.
     // Without this, the flag stays `true` forever, blocking all future init attempts.
-    finally {
-      if (get().initializing) {
-        set({ initializing: false });
-      }
+  } finally {
+    if (get().initializing) {
+      set({ initializing: false });
     }
+  }
   },
 
   createNotification: async (notification) => {

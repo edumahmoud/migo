@@ -386,6 +386,7 @@ export interface LectureWithAttendance extends Lecture {
 export interface AttendanceRecordWithStudent extends AttendanceRecord {
   student_name?: string;
   student_email?: string;
+  student_avatar?: string | null;
 }
 
 // Lecture note with author info

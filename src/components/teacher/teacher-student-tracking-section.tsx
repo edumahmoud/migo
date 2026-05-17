@@ -58,7 +58,7 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
 };
 
 // -------------------------------------------------------
@@ -929,7 +929,7 @@ export default function TeacherStudentTrackingSection({
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${Math.max(percentage, 0)}%` }}
-                                transition={{ duration: 0.6, ease: 'easeOut' }}
+                                transition={{ duration: 0.6, ease: 'easeOut' as const }}
                                 className={`h-full ${range.color} rounded-full`}
                               />
                             </div>
@@ -1128,7 +1128,7 @@ function EfficiencyGauge({
             strokeLinecap="round"
             initial={{ strokeDasharray: `0 ${circumference}` }}
             animate={{ strokeDasharray: `${progress} ${circumference - progress}` }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
+            transition={{ duration: 0.8, ease: 'easeOut' as const }}
           />
         </svg>
         {/* Center text */}
@@ -1173,7 +1173,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(subject.quizAvg, 100)}%` }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
+              transition={{ duration: 0.5, ease: 'easeOut' as const }}
               className="h-full bg-sky-500 rounded-full"
             />
           </div>
@@ -1188,7 +1188,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(subject.attendanceRate, 100)}%` }}
-              transition={{ duration: 0.5, ease: 'easeOut', delay: 0.1 }}
+              transition={{ duration: 0.5, ease: 'easeOut' as const, delay: 0.1 }}
               className="h-full bg-teal-500 rounded-full"
             />
           </div>
@@ -1203,7 +1203,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${subject.assignmentCount > 0 ? (subject.completedAssignments / subject.assignmentCount) * 100 : 0}%` }}
-              transition={{ duration: 0.5, ease: 'easeOut', delay: 0.2 }}
+              transition={{ duration: 0.5, ease: 'easeOut' as const, delay: 0.2 }}
               className="h-full bg-amber-500 rounded-full"
             />
           </div>
@@ -1242,7 +1242,7 @@ function StudentCard({
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
+      transition={{ duration: 0.25, ease: 'easeOut' as const }}
       className={`rounded-xl border-2 transition-all duration-200 ${
         isExpanded
           ? `${levelConfig.bgColor} ${levelConfig.ringColor} ring-1`

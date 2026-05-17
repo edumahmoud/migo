@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
             .from('conversation_participants')
             .select('conversation_id, last_read_at')
             .eq('user_id', userId);
-          participations = fallback.data;
+          participations = fallback.data as { conversation_id: any; last_read_at: any; is_hidden: any; is_archived: any; }[] | null;
           pError = fallback.error;
           // Merge with file-based fallback store for archive/hidden state
           if (participations) {
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
                 ...p,
                 is_hidden: settings?.is_hidden || false,
                 is_archived: settings?.is_archived || false,
-              };
+              } as { conversation_id: any; last_read_at: any; is_hidden: any; is_archived: any; };
             });
           }
         }
@@ -428,9 +428,9 @@ export async function GET(request: NextRequest) {
             ...studentUsers,
             teacherUser,
           ]
-            .filter(Boolean)
-            .filter((u: Record<string, unknown>) => u.id !== userId)
-            .filter((u: Record<string, unknown>) =>
+            .filter((u): u is Record<string, unknown> => u != null)
+            .filter((u) => u.id !== userId)
+            .filter((u) =>
               (u.name as string || '').toLowerCase().includes(query.toLowerCase()) ||
               (u.email as string || '').toLowerCase().includes(query.toLowerCase())
             );

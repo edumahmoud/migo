@@ -73,6 +73,7 @@ export async function POST(request: Request) {
 
     // Helper: accept a single teacher link request
     async function acceptTeacherRequest(tid: string) {
+      if (!profile) return { success: false, message: 'الملف الشخصي غير موجود' };
       // Check if link already exists
       const { data: existingLink } = await supabaseServer
         .from('teacher_student_links')
@@ -125,6 +126,7 @@ export async function POST(request: Request) {
 
     // Helper: reject a single teacher link request
     async function rejectTeacherRequest(tid: string) {
+      if (!profile) return { success: false, message: 'الملف الشخصي غير موجود' };
       // Check if link already exists (pending from student side)
       const { data: existingLink } = await supabaseServer
         .from('teacher_student_links')

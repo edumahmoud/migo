@@ -168,7 +168,7 @@ export async function POST(request: Request) {
       }
 
       // Send notifications to all approved students (DB + push)
-      const approvedStudentIds = pendingLinks.map((l: { student_id: string }) => l.student_id);
+      const approvedStudentIds = (pendingLinks || []).map((l: { student_id: string }) => l.student_id);
       await notifyUsers(
         approvedStudentIds,
         'system',
@@ -208,7 +208,7 @@ export async function POST(request: Request) {
       }
 
       // Send notifications to all rejected students (DB + push)
-      const rejectedStudentIds = pendingLinks.map((l: { student_id: string }) => l.student_id);
+      const rejectedStudentIds = (pendingLinks || []).map((l: { student_id: string }) => l.student_id);
       await notifyUsers(
         rejectedStudentIds,
         'system',

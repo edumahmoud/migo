@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
             shared_by: authUser.id,
             shared_with: req.requester_id,
             permission: 'download',
-          }).catch(() => {}); // Ignore if already exists
+          }).then(() => {}, () => {}); // Ignore if already exists
         }
       } catch {}
 

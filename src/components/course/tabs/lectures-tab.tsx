@@ -59,7 +59,7 @@ const containerVariants = {
 };
 const itemVariants = {
   hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
 };
 
 // -------------------------------------------------------
@@ -1133,7 +1133,21 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             }
           } catch (err) {
             console.error('File upload error:', err);
-            const classifiedError = classifyError(err);
+            const classifyUploadError = (e: unknown): string => {
+              if (e instanceof DOMException && e.name === 'AbortError') return 'انتهت مهلة الطلب — يرجى التحقق من اتصال الإنترنت';
+              if (e instanceof TypeError && e.message?.includes('network')) return 'خطأ في الاتصال بالشبكة — يرجى التحقق من اتصال الإنترنت';
+              if (e instanceof TypeError) return 'خطأ في نوع البيانات — قد يكون الملف تالفاً';
+              if (e instanceof Error) {
+                const m = e.message || '';
+                if (m.includes('401') || m.includes('403') || m.includes('JWT')) return 'خطأ في المصادقة — يرجى إعادة تسجيل الدخول';
+                if (m.includes('storage') || m.includes('Storage') || m.includes('bucket')) return 'خطأ في خدمة التخزين — يرجى المحاولة لاحقاً';
+                if (m.includes('network') || m.includes('fetch') || m.includes('Network')) return 'خطأ في الاتصال بالشبكة — يرجى التحقق من اتصال الإنترنت';
+                if (m.includes('timeout') || m.includes('مهلة')) return 'انتهت مهلة الرفع — قد يكون الاتصال بطيئاً';
+                if (m.includes('413') || m.includes('too large') || m.includes('payload')) return 'حجم الملف كبير جداً — الحد الأقصى 4 ميغابايت';
+              }
+              return 'خطأ غير معروف أثناء رفع الملف';
+            };
+            const classifiedError = classifyUploadError(err);
             uploadResults.push({ index: i, succeeded: false, error: classifiedError });
             if (mountedRef.current) {
               setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));

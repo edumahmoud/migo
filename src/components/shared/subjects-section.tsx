@@ -127,7 +127,7 @@ const cardVariants = {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] },
   },
 };
 
@@ -143,7 +143,7 @@ const modalContentVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] },
   },
   exit: {
     opacity: 0,
@@ -601,6 +601,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           teacher_id: '', // will be filled on re-fetch
           join_code: '',
           created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           level: '',
           sub_level: '',
         };

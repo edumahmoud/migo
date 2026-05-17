@@ -126,7 +126,7 @@ export async function waitForSession(maxWaitMs = 15000): Promise<string> {
 
         // Check if token is about to expire (within 60 seconds)
         // If so, try to refresh it to avoid using a stale token
-        if (session.expires_at) {
+        if (session?.expires_at) {
           const expiresInSeconds = session.expires_at - Math.floor(Date.now() / 1000);
           if (expiresInSeconds < 60) {
             console.warn(`[waitForSession] Token expires in ${expiresInSeconds}s, refreshing...`);

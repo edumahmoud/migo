@@ -63,13 +63,13 @@ const typeIcons: Record<QuizQuestion['type'], React.ReactNode> = {
 // -------------------------------------------------------
 const pageVariants = {
   hidden: { opacity: 0, x: 30 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: 'easeOut' } },
-  exit: { opacity: 0, x: -30, transition: { duration: 0.25, ease: 'easeIn' } },
+  visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
+  exit: { opacity: 0, x: -30, transition: { duration: 0.25, ease: 'easeIn' as const } },
 };
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
 };
 
 const staggerContainer = {

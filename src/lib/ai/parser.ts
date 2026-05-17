@@ -43,7 +43,7 @@ export function extractJson<T = unknown>(text: string): T {
     } catch {
       // Try to fix common errors
       const fixed = tryFixJson(objectMatch[0]);
-      if (fixed !== null) return fixed;
+      if (fixed !== null) return fixed as T;
     }
   }
 
@@ -53,7 +53,7 @@ export function extractJson<T = unknown>(text: string): T {
       return JSON.parse(arrayMatch[0]);
     } catch {
       const fixed = tryFixJson(arrayMatch[0]);
-      if (fixed !== null) return fixed;
+      if (fixed !== null) return fixed as T;
     }
   }
 

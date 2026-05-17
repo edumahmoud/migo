@@ -152,7 +152,7 @@ const sectionVariants = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.06, duration: 0.3, ease: 'easeOut' },
+    transition: { delay: i * 0.06, duration: 0.3, ease: 'easeOut' as const },
   }),
 };
 
@@ -204,7 +204,7 @@ export default function SettingsSection({
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   // ─── Notification permission ───
-  const [pushPermission, setPushPermission] = useState<NotificationPermissionState>('default');
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
   const [isTogglingPush, setIsTogglingPush] = useState(false);
 
   // ─── Orientation lock ───

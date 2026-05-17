@@ -74,7 +74,7 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' as const } },
 };
 
 const slideInLeft = {
@@ -660,7 +660,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
   // ─── Helper: add or merge a message into the messages list ───
   const addMessageToList = useCallback((msg: ChatMessage, currentActiveId: string | null) => {
-    const convId = msg.conversation_id || (msg as Record<string, unknown>).conversationId as string;
+    const convId = msg.conversation_id || (msg as unknown as Record<string, unknown>).conversationId as string;
     if (!convId) return;
 
     if (convId === currentActiveId) {
@@ -1632,8 +1632,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       msg.sender?.gender
     );
     const showAvatar = !isOwn && (index === 0 || messages[index - 1]?.sender_id !== msg.sender_id);
-    const isDeleted = (msg as Record<string, unknown>).is_deleted as boolean;
-    const isEdited = (msg as Record<string, unknown>).is_edited as boolean;
+    const isDeleted = (msg as unknown as Record<string, unknown>).is_deleted as boolean;
+    const isEdited = (msg as unknown as Record<string, unknown>).is_edited as boolean;
     const isEditing = editingMessageId === msg.id;
     const isMenuOpen = messageMenuId === msg.id;
 

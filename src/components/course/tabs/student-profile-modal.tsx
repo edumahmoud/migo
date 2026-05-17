@@ -206,7 +206,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                 avatarUrl={performance.student.avatar_url}
                 role="student"
                 gender={performance.student.gender}
-                size="xl"
+                size="lg"
                 showAvatar={true}
                 showUsername={false}
               />

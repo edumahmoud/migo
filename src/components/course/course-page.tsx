@@ -143,7 +143,7 @@ const SUB_LEVEL_OPTIONS = [
 // -------------------------------------------------------
 const pageVariants = {
   hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.4, ease: 'easeOut' } },
+  visible: { opacity: 1, transition: { duration: 0.4, ease: 'easeOut' as const } },
 };
 
 const modalOverlayVariants = {
@@ -158,7 +158,7 @@ const modalContentVariants = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] },
   },
   exit: {
     opacity: 0,
@@ -249,8 +249,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   const t = teacher as { name: string; title_id?: string | null; gender?: string | null; role?: string | null };
                   setTeacherName(formatNameWithTitle(t.name, t.role, t.title_id, t.gender));
                 }
-              })
-              .catch(() => {});
+              }, () => {});
           }
 
           // Fetch co-teachers for students

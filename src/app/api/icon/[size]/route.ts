@@ -12,8 +12,13 @@ let cachedLogoUrl: string | null = null;
 let cacheExpiry = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-function isValidSize(size: string): size is ValidSize {
-  return VALID_SIZES.includes(Number(size) as ValidSize);
+function isValidSize(size: string): boolean {
+  return (VALID_SIZES as readonly number[]).includes(Number(size));
+}
+
+function toValidSize(size: string): ValidSize | null {
+  const num = Number(size);
+  return (VALID_SIZES as readonly number[]).includes(num) ? (num as ValidSize) : null;
 }
 
 /**
@@ -197,7 +202,7 @@ export async function GET(
     }
   }
 
-  return new NextResponse(finalData, {
+  return new NextResponse(new Uint8Array(finalData), {
     status: 200,
     headers: {
       'Content-Type': finalContentType,
