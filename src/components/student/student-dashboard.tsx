@@ -753,8 +753,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Load all data — PROGRESSIVE: show content as each fetch completes
   // Instead of blocking the entire UI on all 8 parallel requests,
   // we set loading false after a short delay (3s) or when critical data is ready.
-  const fetchAllData = useCallback(async () => {
-    setLoadingData(true);
+  const fetchAllData = useCallback(async (silent = false) => {
+    if (!silent) setLoadingData(true);
 
     // Start all fetches in parallel but don't await them all before showing UI
     const fetchPromises = [
@@ -782,7 +782,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       loadingTimeout,
     ]);
 
-    setLoadingData(false);
+    if (!silent) setLoadingData(false);
 
     // Continue any still-pending fetches in the background
     // (they will update state when they complete)
@@ -1013,6 +1013,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Supabase Realtime can silently disconnect (network issues, WebSocket drops).
   // This polling mechanism ensures summaries stay up-to-date even if Realtime fails.
   // We poll every POLL_INTERVAL_MS (60s) only when the dashboard is visible.
+  // Note: Visibility change handler removed — Realtime subscriptions now handle
+  // instant state updates automatically. No need to refresh all data when returning to the tab.
   useEffect(() => {
     let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -1029,22 +1031,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       pollTimer = setInterval(doPoll, POLL_INTERVAL_MS);
     }
 
-    // Also poll when the page becomes visible again (user returns to tab)
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        // Refresh on visibility change (catches up on missed Realtime events)
-        fetchSummaries();
-        fetchQuizzes();
-        fetchScores();
-        fetchSubmissionsAndAssignments();
-        fetchAttendance();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
     return () => {
       if (pollTimer) clearInterval(pollTimer);
-      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [fetchSummaries, loadingData]);
 

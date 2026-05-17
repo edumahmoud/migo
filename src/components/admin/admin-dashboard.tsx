@@ -494,16 +494,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     fetchBannedUsers();
   }, [fetchAllData, fetchBannedUsers]);
 
-  // ─── Visibility change handler for admin dashboard ───
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        fetchAllData(true); // silent refresh
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [fetchAllData]);
+  // ─── Note: Visibility change handler removed ───
+  // Realtime subscriptions now handle instant state updates automatically.
+  // No need to refresh all data when returning to the tab.
+  // Fallback polling below catches any missed events if Realtime disconnects.
 
   // ─── Fallback polling for admin dashboard ───
   // Poll every 60s as a fallback for Realtime disconnections.

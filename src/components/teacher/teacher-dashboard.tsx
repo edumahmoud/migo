@@ -397,8 +397,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     }
   }, [profile.id]);
 
-  const fetchAllData = useCallback(async () => {
-    setLoadingData(true);
+  const fetchAllData = useCallback(async (silent = false) => {
+    if (!silent) setLoadingData(true);
 
     // Start all fetches in parallel but don't await them all before showing UI
     const fetchPromises = [
@@ -425,7 +425,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       loadingTimeout,
     ]);
 
-    setLoadingData(false);
+    if (!silent) setLoadingData(false);
 
     // Continue any still-pending fetches in the background
     Promise.allSettled(fetchPromises).catch(() => {});
@@ -456,8 +456,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (cancelled) return;
       if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-        console.log('[TeacherDashboard] Session ready (event:', event, '), re-fetching data...');
-        fetchAllData();
+        console.log('[TeacherDashboard] Session ready (event:', event, '), re-fetching data (silent)...');
+        fetchAllData(true); // silent — don't show loading spinner
       }
     });
     return () => {
@@ -466,30 +466,25 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     };
   }, [fetchAllData]);
 
-  // ─── Visibility change handler for mobile (fix: stale data after tab switch) ───
-  useEffect(() => {
-    let cancelled = false;
-    const handleVisibility = () => {
-      if (cancelled) return;
-      if (!document.hidden) {
-        console.log('[TeacherDashboard] Tab visible, refreshing data...');
-        fetchAllData();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => {
-      cancelled = true;
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, [fetchAllData]);
+  // ─── Note: Visibility change handler removed ───
+  // Realtime subscriptions now handle instant state updates automatically.
+  // No need to refresh all data when returning to the tab.
+  // Fallback polling below catches any missed events if Realtime disconnects.
 
   // ─── Fallback polling for mobile (fix: Realtime disconnect on mobile) ───
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchAllData();
+      // Silent refresh — only poll for data, don't show loading spinner
+      fetchStudents();
+      fetchQuizzes();
+      fetchScores();
+      fetchTeacherSubjects();
+      fetchTeacherSubmissionsAndAssignments();
+      fetchTeacherAttendance();
+      fetchTeacherFilesCount();
     }, 120000); // 2 minutes
     return () => clearInterval(interval);
-  }, [fetchAllData]);
+  }, [fetchStudents, fetchQuizzes, fetchScores, fetchTeacherSubjects, fetchTeacherSubmissionsAndAssignments, fetchTeacherAttendance, fetchTeacherFilesCount]);
 
   // ─── Loading timeout safety net ───
   // If loading takes too long (slow session hydration on mobile/PWA),
