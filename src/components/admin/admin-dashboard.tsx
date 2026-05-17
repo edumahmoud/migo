@@ -495,8 +495,6 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   }, [fetchAllData, fetchBannedUsers]);
 
   // ─── Visibility change handler for admin dashboard ───
-  // Admin dashboard has no Realtime subscriptions, so we need to
-  // refresh data when the admin returns to the tab.
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -508,12 +506,78 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   }, [fetchAllData]);
 
   // ─── Fallback polling for admin dashboard ───
-  // Since admin has no Realtime subscriptions, poll every 60s to keep data fresh.
+  // Poll every 60s as a fallback for Realtime disconnections.
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAllData(true); // silent background refresh
     }, 60000);
     return () => clearInterval(interval);
+  }, [fetchAllData]);
+
+  // ─── Realtime subscriptions for instant state updates ───
+  useEffect(() => {
+    // Subscribe to subjects table for instant create/update/delete
+    const subjectsChannel = supabase
+      .channel('admin-subjects-changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'subjects' },
+        (payload) => {
+          const newRecord = payload.new as Subject | null;
+          if (!newRecord) return;
+          setAllSubjects(prev => {
+            const exists = prev.some(s => s.id === newRecord.id);
+            if (exists) return prev;
+            return [newRecord, ...prev];
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'subjects' },
+        (payload) => {
+          const newRecord = payload.new as Subject | null;
+          if (!newRecord) return;
+          setAllSubjects(prev => prev.map(s =>
+            s.id === newRecord.id ? newRecord : s
+          ));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'subjects' },
+        (payload) => {
+          const oldRecord = payload.old as { id: string } | null;
+          if (!oldRecord) return;
+          setAllSubjects(prev => prev.filter(s => s.id !== oldRecord.id));
+        }
+      )
+      .subscribe();
+
+    // Subscribe to users table for instant user changes
+    const usersChannel = supabase
+      .channel('admin-users-changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'users' },
+        () => { fetchAllData(true); } // Full refetch for users (need batch API for profiles)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users' },
+        () => { fetchAllData(true); }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'users' },
+        () => { fetchAllData(true); }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subjectsChannel);
+      supabase.removeChannel(usersChannel);
+    };
   }, [fetchAllData]);
 
   // ─── Loading timeout safety net ───

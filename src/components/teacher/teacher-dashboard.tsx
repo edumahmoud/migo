@@ -536,15 +536,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       )
       .subscribe();
 
-    // ─── Realtime: subjects for instant CRUD updates ───
-    const subjectsChannel = supabase
-      .channel('teacher-subjects-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'subjects', filter: `teacher_id=eq.${profile.id}` },
-        () => { fetchTeacherSubjects(); }
-      )
-      .subscribe();
+    // ─── Note: subjects Realtime is handled by SubjectsSection component (surgical updates) ───
 
     // ─── Realtime: assignments & submissions for instant CRUD updates ───
     const assignmentsChannel = supabase
@@ -579,7 +571,6 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       supabase.removeChannel(linksChannel);
       supabase.removeChannel(quizzesChannel);
       supabase.removeChannel(scoresChannel);
-      supabase.removeChannel(subjectsChannel);
       supabase.removeChannel(assignmentsChannel);
       supabase.removeChannel(submissionsChannel);
       supabase.removeChannel(attendanceChannel);

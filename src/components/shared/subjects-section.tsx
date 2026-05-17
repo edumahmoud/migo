@@ -199,6 +199,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   // ─── Refs for stable real-time callbacks ───
   const fetchSubjectsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | undefined>(undefined);
 
+  // ─── Enrollment ID → Subject ID mapping (student only, for surgical Realtime DELETE) ───
+  const enrollmentIdMapRef = useRef<Record<string, string>>({});
+
   // -------------------------------------------------------
   // Fetch teacher names (student only, non-blocking)
   // -------------------------------------------------------
@@ -312,15 +315,16 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         // Student: single join query — also fetch enrollment status
         const { data, error } = await supabase
           .from('subject_students')
-          .select('subject_id, status, subjects(*)')
+          .select('id, subject_id, status, subjects(*)')
           .eq('student_id', profile.id);
 
         if (error) {
           console.error('Error fetching enrolled subjects:', error.message, error.code);
         } else if (data && data.length > 0) {
-          // Build enrollment status map
+          // Build enrollment status map and enrollment ID map
           const statusMap: Record<string, string> = {};
           const subjectsList: Subject[] = [];
+          const enrollmentMap: Record<string, string> = {};
 
           (data as Record<string, unknown>[]).forEach((e) => {
             const subject = e.subjects as Subject | null;
@@ -328,11 +332,14 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               subjectsList.push(subject);
               // status might be undefined if column doesn't exist yet
               statusMap[subject.id] = (e.status as string) || 'approved';
+              // Map enrollment ID → subject ID for Realtime DELETE handling
+              if (e.id) enrollmentMap[e.id as string] = subject.id;
             }
           });
 
           setSubjects(subjectsList);
           setEnrollmentStatuses(statusMap);
+          enrollmentIdMapRef.current = enrollmentMap;
 
           // Save to cache (teacherNames will be updated after fetchTeacherNames completes)
           subjectsCache.set(cacheKey, {
@@ -358,6 +365,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         } else {
           setSubjects([]);
           setEnrollmentStatuses({});
+          enrollmentIdMapRef.current = {};
 
           // Save empty result to cache
           subjectsCache.set(cacheKey, {
@@ -388,10 +396,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   }, [fetchSubjects]);
 
   // -------------------------------------------------------
-  // Real-time subscription for subjects (teacher only)
+  // Real-time subscription for subjects — SURGICAL updates
   // -------------------------------------------------------
   useEffect(() => {
+    const cacheKey = `${profile.id}-${role}`;
+
     if (role === 'teacher') {
+      // ─── Teacher: subscribe to subjects table for instant CRUD ───
       const channel = supabase
         .channel(`subjects-${profile.id}`)
         .on(
@@ -402,8 +413,32 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             table: 'subjects',
             filter: `teacher_id=eq.${profile.id}`,
           },
-          () => {
-            fetchSubjectsRef.current?.(true); // forceRefresh = true to bypass cache on real-time updates
+          (payload) => {
+            const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
+            const newRecord = payload.new as Subject | null;
+            const oldRecord = payload.old as { id: string } | null;
+
+            if (eventType === 'INSERT' && newRecord) {
+              setSubjects(prev => {
+                const exists = prev.some(s => s.id === newRecord.id);
+                if (exists) return prev;
+                return [{ ...newRecord, is_co_teacher: false } as Subject, ...prev];
+              });
+              subjectsCache.delete(cacheKey);
+            } else if (eventType === 'UPDATE' && newRecord) {
+              setSubjects(prev => prev.map(s =>
+                s.id === newRecord.id
+                  ? { ...newRecord, is_co_teacher: s.is_co_teacher } as Subject
+                  : s
+              ));
+              subjectsCache.delete(cacheKey);
+            } else if (eventType === 'DELETE' && oldRecord) {
+              setSubjects(prev => prev.filter(s => s.id !== oldRecord.id));
+              subjectsCache.delete(cacheKey);
+            } else {
+              // Fallback for unknown events
+              fetchSubjectsRef.current?.(true);
+            }
           }
         )
         .subscribe();
@@ -413,10 +448,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       };
     }
 
-    // ─── Student: subscribe to subject_students for enrollment status changes ───
-    // When a teacher approves/rejects an enrollment request, the student's
-    // subject list updates instantly without requiring a page refresh.
-    const channel = supabase
+    // ─── Student: subscribe to subject_students for enrollment changes ───
+    const enrollmentChannel = supabase
       .channel(`student-subjects-${profile.id}`)
       .on(
         'postgres_changes',
@@ -426,16 +459,129 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           table: 'subject_students',
           filter: `student_id=eq.${profile.id}`,
         },
-        () => {
-          fetchSubjectsRef.current?.(true); // forceRefresh to update enrollment status
+        (payload) => {
+          const eventType = payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE';
+          const newRecord = payload.new as { id: string; subject_id: string; status: string } | null;
+          const oldRecord = payload.old as { id: string } | null;
+
+          if (eventType === 'INSERT' && newRecord) {
+            // New enrollment — fetch the subject data and add to state
+            const subjectId = newRecord.subject_id;
+            supabase
+              .from('subjects')
+              .select('*')
+              .eq('id', subjectId)
+              .single()
+              .then(({ data }) => {
+                if (data) {
+                  setSubjects(prev => {
+                    const exists = prev.some(s => s.id === data.id);
+                    if (exists) return prev;
+                    return [data as Subject, ...prev];
+                  });
+                  setEnrollmentStatuses(prev => ({
+                    ...prev,
+                    [subjectId]: newRecord.status || 'pending'
+                  }));
+                  enrollmentIdMapRef.current = {
+                    ...enrollmentIdMapRef.current,
+                    [newRecord.id]: subjectId
+                  };
+                  fetchTeacherNames([data as Subject]);
+                }
+              });
+            subjectsCache.delete(cacheKey);
+          } else if (eventType === 'UPDATE' && newRecord) {
+            // Enrollment status changed (e.g., approved/rejected)
+            setEnrollmentStatuses(prev => ({
+              ...prev,
+              [newRecord.subject_id]: newRecord.status || 'approved'
+            }));
+            subjectsCache.delete(cacheKey);
+          } else if (eventType === 'DELETE' && oldRecord) {
+            // Enrollment removed — look up subject ID from our mapping
+            const subjectId = enrollmentIdMapRef.current[oldRecord.id];
+            if (subjectId) {
+              setSubjects(prev => prev.filter(s => s.id !== subjectId));
+              setEnrollmentStatuses(prev => {
+                const updated = { ...prev };
+                delete updated[subjectId];
+                return updated;
+              });
+              // Clean up the enrollment map
+              const newMap = { ...enrollmentIdMapRef.current };
+              delete newMap[oldRecord.id];
+              enrollmentIdMapRef.current = newMap;
+            } else {
+              // Fallback if mapping not found
+              fetchSubjectsRef.current?.(true);
+            }
+            subjectsCache.delete(cacheKey);
+          } else {
+            fetchSubjectsRef.current?.(true);
+          }
+        }
+      )
+      .subscribe();
+
+    // ─── Student: also subscribe to subjects table for data changes by teacher ───
+    // When a teacher updates a course name/description/color, students see it instantly.
+    // When a teacher or admin deletes a course, students see it removed instantly.
+    const subjectsDataChannel = supabase
+      .channel(`student-subjects-data-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'subjects',
+        },
+        (payload) => {
+          const newRecord = payload.new as Subject | null;
+          if (!newRecord) return;
+          // Only update if this subject is in the student's enrolled list
+          setSubjects(prev => {
+            const idx = prev.findIndex(s => s.id === newRecord.id);
+            if (idx === -1) return prev; // Not in our list, ignore
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], ...newRecord } as Subject;
+            subjectsCache.delete(cacheKey);
+            return updated;
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'subjects',
+        },
+        (payload) => {
+          const oldRecord = payload.old as { id: string } | null;
+          if (!oldRecord) return;
+          // Only remove if this subject is in the student's enrolled list
+          setSubjects(prev => {
+            const exists = prev.some(s => s.id === oldRecord.id);
+            if (!exists) return prev; // Not in our list, ignore
+            subjectsCache.delete(cacheKey);
+            return prev.filter(s => s.id !== oldRecord.id);
+          });
+          setEnrollmentStatuses(prev => {
+            if (!(oldRecord.id in prev)) return prev;
+            const updated = { ...prev };
+            delete updated[oldRecord.id];
+            return updated;
+          });
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(enrollmentChannel);
+      supabase.removeChannel(subjectsDataChannel);
     };
-  }, [profile.id, role]);
+  }, [profile.id, role, fetchTeacherNames]);
 
   // -------------------------------------------------------
   // Copy join code to clipboard
