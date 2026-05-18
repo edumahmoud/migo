@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { explainWrongAnswer, isAiError } from '@/lib/ai';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
+import { supabaseServer } from '@/lib/supabase-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +20,19 @@ export async function POST(request: NextRequest) {
 
     const authResult = await authenticateRequest(request);
     if (!authResult.success) return authErrorResponse(authResult);
+
+    // Fetch student name from DB for personalized AI responses
+    let studentName: string | undefined;
+    try {
+      const { data: profile } = await supabaseServer
+        .from('users')
+        .select('name')
+        .eq('id', authResult.user.id)
+        .single();
+      studentName = profile?.name || undefined;
+    } catch {
+      // Name lookup failed — will use default in AI prompt
+    }
 
     const body = await request.json();
     const { question, correctAnswer, studentAnswer, questionType } = body;
@@ -39,7 +53,8 @@ export async function POST(request: NextRequest) {
       sanitizedQuestion,
       sanitizedCorrectAnswer,
       sanitizedStudentAnswer,
-      sanitizedType
+      sanitizedType,
+      studentName
     );
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('انتهت مهلة الشرح')), 30000)

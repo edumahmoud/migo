@@ -198,5 +198,6 @@ export interface AiService {
     correctAnswer: string,
     studentAnswer: string,
     questionType: string,
+    studentName?: string,
   ): Promise<string>;
 }

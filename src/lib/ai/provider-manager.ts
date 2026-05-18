@@ -446,10 +446,12 @@ export async function explainWrongAnswer(
   correctAnswer: string,
   studentAnswer: string,
   questionType: string,
+  studentName?: string,
 ): Promise<string> {
+  const name = studentName || 'الطالب';
   return chatWithFallback(
-    EXPLAIN_SYSTEM,
-    EXPLAIN_USER(questionType, question, correctAnswer, studentAnswer),
+    EXPLAIN_SYSTEM(name),
+    EXPLAIN_USER(questionType, question, correctAnswer, studentAnswer, name),
     { temperature: 0.4, maxTokens: 512, timeoutMs: 30000, retries: 1, operation: 'explain' },
   );
 }
