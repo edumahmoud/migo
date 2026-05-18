@@ -180,14 +180,14 @@ export interface AiLogEntry {
 // -------------------------------------------------------
 
 export interface AiService {
-  generateSummary(content: string): Promise<string>;
-  refineTranscribedText(content: string): Promise<string>;
+  generateSummary(content: string, studentName?: string): Promise<string>;
+  refineTranscribedText(content: string, studentName?: string): Promise<string>;
   generateQuiz(content: string, questionTypes?: {
     mcq?: number;
     boolean?: number;
     completion?: number;
     matching?: number;
-  }): Promise<QuizQuestion[]>;
+  }, studentName?: string): Promise<QuizQuestion[]>;
   evaluateCompletionAnswer(
     question: string,
     correctAnswer: string,

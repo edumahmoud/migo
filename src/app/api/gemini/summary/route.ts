@@ -47,6 +47,19 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
 
+    // Fetch user name for personalized AI responses
+    let studentName: string | undefined;
+    try {
+      const { data: profile } = await supabaseServer
+        .from('users')
+        .select('name')
+        .eq('id', userId)
+        .single();
+      studentName = profile?.name || undefined;
+    } catch {
+      // Name lookup failed — will use default in AI prompt
+    }
+
     // Parse JSON body with specific error handling
     let body: { content?: string; title?: string; subject_id?: string; source_file_type?: 'pdf' | 'docx'; source_file_url?: string };
     try {
@@ -88,7 +101,7 @@ export async function POST(request: NextRequest) {
     const authTime = Date.now() - requestStartTime;
     console.log('[Summary API] Generating summary for user:', userId, 'content length:', sanitizedContent.length, 'auth took:', authTime + 'ms');
 
-    const summary = await generateSummary(sanitizedContent);
+    const summary = await generateSummary(sanitizedContent, studentName);
 
     const aiTime = Date.now() - requestStartTime;
     console.log('[Summary API] Summary generated successfully, length:', summary.length, 'total time so far:', aiTime + 'ms');
@@ -226,6 +239,19 @@ export async function PUT(request: NextRequest) {
     const authResult = await authenticateRequest(request);
     if (!authResult.success) return authErrorResponse(authResult);
 
+    // Fetch user name for personalized AI responses
+    let refineStudentName: string | undefined;
+    try {
+      const { data: profile } = await supabaseServer
+        .from('users')
+        .select('name')
+        .eq('id', authResult.user.id)
+        .single();
+      refineStudentName = profile?.name || undefined;
+    } catch {
+      // Name lookup failed — will use default in AI prompt
+    }
+
     // Rate limiting
     const rateLimit = checkRateLimit(request, authResult.user.id);
     const rateLimitHeaders = getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs);
@@ -277,7 +303,7 @@ export async function PUT(request: NextRequest) {
 
     // Refine the transcribed text using AI
     console.log('[Summary API] Refining transcribed text for:', summaryId, 'content length:', originalContent.length);
-    const refinedText = await refineTranscribedText(originalContent);
+    const refinedText = await refineTranscribedText(originalContent, refineStudentName);
 
     const aiTime = Date.now() - requestStartTime;
     console.log('[Summary API] Refinement completed, length:', refinedText.length, 'total time:', aiTime + 'ms');

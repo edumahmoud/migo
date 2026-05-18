@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 import { generateQuiz, isAiError } from '@/lib/ai';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit, getRateLimitHeaders, validateRequest, sanitizeString, safeErrorResponse } from '@/lib/api-security';
+import { supabaseServer } from '@/lib/supabase-server';
 
 /**
  * POST /api/gemini/quiz
@@ -25,6 +26,19 @@ export async function POST(request: NextRequest) {
 
     const authResult = await authenticateRequest(request);
     if (!authResult.success) return authErrorResponse(authResult);
+
+    // Fetch user name for personalized AI responses
+    let studentName: string | undefined;
+    try {
+      const { data: profile } = await supabaseServer
+        .from('users')
+        .select('name')
+        .eq('id', authResult.user.id)
+        .single();
+      studentName = profile?.name || undefined;
+    } catch {
+      // Name lookup failed — will use default in AI prompt
+    }
 
     const rateLimit = checkRateLimit(request, authResult.success ? authResult.user.id : undefined);
     const rateLimitHeaders = getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs);
@@ -56,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     // Generate quiz using AI (Gemini) with fallback chain
     console.log('[Quiz API] Generating quiz for user:', authResult.user.id, 'config:', questionTypes);
-    const quizPromise = generateQuiz(sanitizedContent, questionTypes);
+    const quizPromise = generateQuiz(sanitizedContent, questionTypes, studentName);
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 55000)
     );

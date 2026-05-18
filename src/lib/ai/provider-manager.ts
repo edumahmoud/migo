@@ -308,12 +308,13 @@ function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LEN
  * Generate a summary of the given content.
  * Uses Gemini with fallback chain and caching.
  */
-export async function generateSummary(content: string): Promise<string> {
+export async function generateSummary(content: string, studentName?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
+  const name = studentName || 'الطالب';
 
   return chatWithFallback(
-    SUMMARY_SYSTEM,
-    SUMMARY_USER(truncatedContent),
+    SUMMARY_SYSTEM(name),
+    SUMMARY_USER(truncatedContent, name),
     { temperature: 0.3, maxTokens: 8192, retries: 1, operation: 'summary' },
   );
 }
@@ -321,12 +322,13 @@ export async function generateSummary(content: string): Promise<string> {
 /**
  * Refine/format transcribed (OCR-extracted) text.
  */
-export async function refineTranscribedText(content: string): Promise<string> {
+export async function refineTranscribedText(content: string, studentName?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
+  const name = studentName || 'الطالب';
 
   return chatWithFallback(
-    REFINE_SYSTEM,
-    REFINE_USER(truncatedContent),
+    REFINE_SYSTEM(name),
+    REFINE_USER(truncatedContent, name),
     { temperature: 0.2, maxTokens: 8192, retries: 1, operation: 'refine' },
   );
 }
@@ -338,6 +340,7 @@ export async function refineTranscribedText(content: string): Promise<string> {
 export async function generateQuiz(
   content: string,
   questionTypes?: { mcq?: number; boolean?: number; completion?: number; matching?: number },
+  studentName?: string,
 ): Promise<QuizQuestion[]> {
   const mcqCount = questionTypes?.mcq ?? 2;
   const booleanCount = questionTypes?.boolean ?? 2;
@@ -353,9 +356,11 @@ export async function generateQuiz(
   if (completionCount > 0) typeConfig.push(`${completionCount} أكمل الفراغ (completion)`);
   if (matchingCount > 0) typeConfig.push(`${matchingCount} مطابقة (matching)`);
 
+  const name = studentName || 'الطالب';
+
   const text = await chatWithFallback(
-    QUIZ_SYSTEM(totalCount, typeConfig),
-    QUIZ_USER(truncatedContent, totalCount),
+    QUIZ_SYSTEM(totalCount, typeConfig, name),
+    QUIZ_USER(truncatedContent, totalCount, name),
     { temperature: 0.5, maxTokens: 8192, retries: 1, jsonMode: true, operation: 'quiz' },
   );
 
