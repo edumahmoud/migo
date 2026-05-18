@@ -192,6 +192,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Track recently deleted summary IDs to filter stale re-fetch results
   const recentlyDeletedSummaryIdsRef = useRef<Set<string>>(new Set());
 
+  // Track recently added summary IDs to protect optimistic updates from being overwritten
+  // by a stale fetchSummaries result that hasn't picked up the new summary yet.
+  // Entries auto-expire after 15 seconds (enough for DB propagation + Realtime).
+  const recentlyAddedSummaryIdsRef = useRef<Map<string, number>>(new Map());
+
   // ─── FIX #8: Fallback polling for auto-update ───
   // Poll every 60s as a fallback for Realtime disconnections
   const POLL_INTERVAL_MS = 60000;
@@ -388,7 +393,32 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       } catch { /* ignore */ }
     }
     // Filter out recently deleted IDs before setting state
-    const filtered = newSummaries.filter(s => !recentlyDeletedSummaryIdsRef.current.has(s.id));
+    let filtered = newSummaries.filter(s => !recentlyDeletedSummaryIdsRef.current.has(s.id));
+
+    // ─── Protect recently added summaries from being overwritten by stale fetches ───
+    // When we do an optimistic update after creating a summary, the next fetchSummaries()
+    // may return data that doesn't include the new summary yet (DB propagation delay).
+    // We preserve recently added summaries by merging them into the fetched result.
+    const now = Date.now();
+    const PROTECTION_DURATION_MS = 15000; // 15 seconds — enough for DB propagation + Realtime
+    if (recentlyAddedSummaryIdsRef.current.size > 0) {
+      const fetchedIds = new Set(filtered.map(s => s.id));
+      const currentSummaries = summariesRef.current;
+      for (const [id, addedAt] of recentlyAddedSummaryIdsRef.current) {
+        // Only protect if within the protection window and not already in the fetched result
+        if (now - addedAt < PROTECTION_DURATION_MS && !fetchedIds.has(id)) {
+          const existingInLocal = currentSummaries.find(s => s.id === id);
+          if (existingInLocal) {
+            console.log('[safeSetSummaries] Preserving recently added summary:', id);
+            filtered = [existingInLocal, ...filtered];
+          }
+        } else if (now - addedAt >= PROTECTION_DURATION_MS) {
+          // Expired — clean up
+          recentlyAddedSummaryIdsRef.current.delete(id);
+        }
+      }
+    }
+
     setSummaries(filtered);
   }, [profile.id]);
 
@@ -947,6 +977,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               } catch { /* ignore */ }
               return updated;
             });
+            // Clear the protection for this summary since it's now confirmed in DB
+            recentlyAddedSummaryIdsRef.current.delete(newRecord.id);
           } else if (eventType === 'UPDATE' && newRecord) {
             // Update the existing summary in local state
             setSummaries(prev => {
@@ -1693,11 +1725,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           original_content: originalContent,
           summary_content: summaryContent,
           subject_id: selectedSubjectId || null,
+          source_file_type: sourceFileType,
           created_at: new Date().toISOString(),
         };
         // Use safeSetSummaries with force=true for optimistic local update
         const updatedSummaries = [newSummary, ...summariesRef.current.filter(s => s.id !== savedSummaryId && !s.id.startsWith('temp-'))];
         safeSetSummaries(updatedSummaries, 0, true);
+
+        // Protect this optimistic update from being overwritten by a stale fetchSummaries result
+        const optimisticId = newSummary.id;
+        recentlyAddedSummaryIdsRef.current.set(optimisticId, Date.now());
 
         // Generate quiz in background (non-blocking) — delay 5s to let things settle
         // Skip quiz generation for transcribe-only mode (no AI summarization = no quiz)
@@ -1715,8 +1752,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         // The optimistic update above uses generation=0, but fetchSummaries
         // increments the generation counter. If we call fetchSummaries immediately,
         // the server data (which may not include the new summary yet) overwrites
-        // the optimistic update. Waiting 3-5s gives the DB time to propagate.
-        setTimeout(() => fetchSummaries(), savedSummaryId ? 1000 : 5000);
+        // the optimistic update. Waiting 5s gives the DB time to propagate.
+        // The recentlyAddedSummaryIdsRef also protects the new summary during this window.
+        setTimeout(() => fetchSummaries(), 5000);
       } catch (err) {
         console.error('[Summary] Background error:', err);
 

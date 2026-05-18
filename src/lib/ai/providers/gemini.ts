@@ -529,7 +529,7 @@ export class GeminiProvider implements AiProvider {
   private buildGenerationConfig(options?: AiChatOptions): GenerationConfig {
     const config: GenerationConfig = {
       temperature: options?.temperature ?? 0.4,
-      maxOutputTokens: options?.maxTokens ?? 8192,
+      maxOutputTokens: options?.maxTokens ?? 16384,
     };
 
     if (options?.jsonMode) {
