@@ -344,7 +344,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         summaryId,
         show_results: quizAnswerMode === 'after' ? false : true,
         allow_retake: quizAllowRetake,
-        shuffle_questions: quizShuffleQuestions,
+        // NOTE: shuffle_questions is client-side only, not stored in DB
       };
 
       // If teacher mode and summary has a subject_id, include it
@@ -360,7 +360,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
       if (saveRes.ok) {
         const saveData = await saveRes.json();
-        setRelatedQuiz(saveData.data as Quiz);
+        // Merge the local shuffle setting with the server response
+        const savedQuiz = { ...saveData.data, shuffle_questions: quizShuffleQuestions } as Quiz;
+        setRelatedQuiz(savedQuiz);
         toast.success('تم إنشاء الاختبار بنجاح');
         setShowQuizConfig(false);
       } else {

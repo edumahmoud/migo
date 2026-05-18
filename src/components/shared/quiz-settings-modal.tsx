@@ -127,7 +127,8 @@ export default function QuizSettingsModal({
       const updates: Record<string, unknown> = {
         allow_retake: allowRetake,
         show_results: showResults,
-        shuffle_questions: shuffleQuestions,
+        // NOTE: shuffle_questions is NOT a DB column — it's client-side only.
+        // We do NOT send it to the server. The quiz-view.tsx handles shuffling locally.
       };
 
       const dur = parseInt(duration, 10);
@@ -145,8 +146,10 @@ export default function QuizSettingsModal({
 
       const data = await res.json();
       if (res.ok && data.success) {
+        // Merge the local shuffle setting with the server response
+        const updatedQuiz = { ...data.data, shuffle_questions: shuffleQuestions } as Partial<Quiz>;
         toast.success('تم تحديث إعدادات الاختبار بنجاح');
-        onUpdate(data.data as Partial<Quiz>);
+        onUpdate(updatedQuiz);
         onClose();
       } else {
         toast.error(data.error || 'فشل تحديث إعدادات الاختبار');

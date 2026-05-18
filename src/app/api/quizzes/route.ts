@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
     const body = await request.json();
-    const { title, questions, summaryId, subject_id, show_results, allow_retake, shuffle_questions } = body;
+    const { title, questions, summaryId, subject_id, show_results, allow_retake } = body;
 
     if (!title || !questions || !Array.isArray(questions)) {
       return NextResponse.json(
@@ -50,9 +50,9 @@ export async function POST(request: NextRequest) {
       insertData.allow_retake = allow_retake;
     }
 
-    if (shuffle_questions !== undefined) {
-      insertData.shuffle_questions = shuffle_questions;
-    }
+    // NOTE: shuffle_questions is a client-side-only feature.
+    // It is NOT stored in the DB (no such column exists).
+    // The quiz-view.tsx handles shuffling locally based on the toggle state.
 
     const { data: quiz, error } = await supabaseServer
       .from('quizzes')
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
           questions,
         };
         if (summaryId) safeData.summary_id = summaryId;
+        if (subject_id) safeData.subject_id = subject_id;
         if (show_results !== undefined) safeData.show_results = show_results;
         if (allow_retake !== undefined) safeData.allow_retake = allow_retake;
 
@@ -164,7 +165,8 @@ export async function PUT(request: NextRequest) {
       }
 
       // Build the update payload from allowed fields
-      const allowedFields = ['allow_retake', 'show_results', 'shuffle_questions', 'duration', 'is_finished', 'title'];
+      const allowedFields = ['allow_retake', 'show_results', 'duration', 'is_finished', 'title'];
+      // NOTE: shuffle_questions is NOT in the DB schema — it's a client-side-only feature
       const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
         if (field in updates) {
@@ -233,7 +235,7 @@ export async function PUT(request: NextRequest) {
       // Preserve the quiz settings for the re-generated quiz
       const { data: fullQuiz } = await supabaseServer
         .from('quizzes')
-        .select('allow_retake, show_results, shuffle_questions, duration, subject_id, is_finished')
+        .select('allow_retake, show_results, duration, subject_id, is_finished')
         .eq('id', quizId)
         .single();
 
@@ -315,7 +317,7 @@ export async function PUT(request: NextRequest) {
       // Preserve settings from the original quiz
       allow_retake: preservedSettings.allow_retake ?? false,
       show_results: preservedSettings.show_results ?? true,
-      shuffle_questions: preservedSettings.shuffle_questions ?? true,
+      // NOTE: shuffle_questions is NOT a DB column — it's client-side only
     };
 
     if (preservedSettings.duration !== undefined && preservedSettings.duration !== null) {

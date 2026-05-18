@@ -1973,7 +1973,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summaryId: quizConfigSummaryId,
           show_results: quizAnswerMode === 'after' ? false : true,
           allow_retake: quizAllowRetake,
-          shuffle_questions: quizShuffleQuestions,
+          // NOTE: shuffle_questions is client-side only, not stored in DB
         }),
       });
 
@@ -1991,7 +1991,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           summary_id: quizConfigSummaryId,
           show_results: quizAnswerMode === 'after' ? false : true,
           allow_retake: quizAllowRetake,
-          shuffle_questions: quizShuffleQuestions,
+          // NOTE: shuffle_questions is client-side only, not stored in DB
         });
         if (!error) {
           toast.success('تم إنشاء الاختبار بنجاح');
