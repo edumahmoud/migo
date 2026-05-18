@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
     const body = await request.json();
-    const { title, questions, summaryId, subject_id, show_results, allow_retake } = body;
+    const { title, questions, summaryId, subject_id, show_results, allow_retake, shuffle_questions } = body;
 
     if (!title || !questions || !Array.isArray(questions)) {
       return NextResponse.json(
@@ -48,6 +48,10 @@ export async function POST(request: NextRequest) {
 
     if (allow_retake !== undefined) {
       insertData.allow_retake = allow_retake;
+    }
+
+    if (shuffle_questions !== undefined) {
+      insertData.shuffle_questions = shuffle_questions;
     }
 
     const { data: quiz, error } = await supabaseServer
@@ -80,10 +84,9 @@ export async function POST(request: NextRequest) {
 /**
  * PUT /api/quizzes
  *
- * Re-generate a quiz for a summary.
- * Deletes the old quiz and creates a new one from the summary content.
- *
- * Body: { quizId: string }  OR  { summaryId: string }
+ * Two modes:
+ * 1. Partial update: { quizId: string, updates: object } — updates specific fields on the quiz
+ * 2. Re-generate: { quizId: string } OR { summaryId: string } — deletes old quiz and creates a new one from the summary content
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -101,8 +104,69 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { quizId, summaryId } = body;
+    const { quizId, summaryId, updates } = body;
 
+    // ─── Mode 1: Partial update ───
+    if (quizId && updates && typeof updates === 'object') {
+      // Verify ownership
+      const { data: existingQuiz, error: fetchError } = await supabaseServer
+        .from('quizzes')
+        .select('id, user_id')
+        .eq('id', quizId)
+        .single();
+
+      if (fetchError || !existingQuiz) {
+        return NextResponse.json(
+          { success: false, error: 'الاختبار غير موجود' },
+          { status: 404 }
+        );
+      }
+
+      if (existingQuiz.user_id !== authResult.user.id) {
+        return NextResponse.json(
+          { success: false, error: 'غير مصرح بتعديل هذا الاختبار' },
+          { status: 403 }
+        );
+      }
+
+      // Build the update payload from allowed fields
+      const allowedFields = ['allow_retake', 'show_results', 'shuffle_questions', 'duration', 'is_finished', 'title'];
+      const updateData: Record<string, unknown> = {};
+      for (const field of allowedFields) {
+        if (field in updates) {
+          updateData[field] = updates[field];
+        }
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return NextResponse.json(
+          { success: false, error: 'لا توجد حقول للتحديث' },
+          { status: 400 }
+        );
+      }
+
+      const { data: updatedQuiz, error: updateError } = await supabaseServer
+        .from('quizzes')
+        .update(updateData)
+        .eq('id', quizId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('[Quizzes API] Update error:', updateError.message);
+        return NextResponse.json(
+          { success: false, error: 'فشل تحديث الاختبار' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: updatedQuiz,
+      }, { headers: rateLimitHeaders });
+    }
+
+    // ─── Mode 2: Re-generate ───
     let targetSummaryId = summaryId;
     let quizTitle = '';
     let originalContent = '';

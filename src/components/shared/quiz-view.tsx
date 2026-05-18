@@ -121,6 +121,9 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   const [explainingIdx, setExplainingIdx] = useState<number | null>(null);
   const [explanations, setExplanations] = useState<Record<number, string>>({});
 
+  // ─── Shuffle question order state (Feature 8) ───
+  const [shuffledOrder, setShuffledOrder] = useState<number[]>([]);
+
   // ─── Timer state ───
   const [timeLeft, setTimeLeft] = useState<number | null>(null); // seconds remaining
   const [timerWarning, setTimerWarning] = useState(false);
@@ -238,11 +241,25 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     fetchQuiz();
   }, [fetchQuiz]);
 
+  // ─── Shuffle questions on first load (Feature 8) ───
+  useEffect(() => {
+    if (!quiz?.questions?.length) return;
+    if (shuffledOrder.length > 0) return;
+    const indices = Array.from({ length: quiz.questions.length }, (_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    setShuffledOrder(indices);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quiz]);
+
   // ─── Load saved answer when navigating between questions ───
   useEffect(() => {
     if (!quiz) return;
-    const savedAnswer = userAnswers.find(a => a.questionIndex === currentIdx);
-    const q = quiz.questions?.[currentIdx];
+    const originalIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx;
+    const savedAnswer = userAnswers.find(a => a.questionIndex === originalIdx);
+    const q = quiz.questions?.[originalIdx];
     if (!q) return;
 
     if (savedAnswer) {
@@ -323,7 +340,8 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       if (!quiz) return;
 
       const allAnswers = [...userAnswers];
-      if (currentQuestion && !allAnswers.find(a => a.questionIndex === currentIdx)) {
+      const autoOriginalIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx;
+      if (currentQuestion && !allAnswers.find(a => a.questionIndex === autoOriginalIdx)) {
         let answerValue: string | Record<string, string> = '';
         if (currentQuestion.type === 'matching') {
           answerValue = matchedPairs;
@@ -333,7 +351,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
           answerValue = selectedOption || '';
         }
         allAnswers.push({
-          questionIndex: currentIdx,
+          questionIndex: autoOriginalIdx,
           type: currentQuestion.type,
           answer: answerValue,
           isCorrect,
@@ -373,7 +391,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   // -------------------------------------------------------
   // Current question
   // -------------------------------------------------------
-  const currentQuestion: QuizQuestion | null = quiz?.questions?.[currentIdx] ?? null;
+  const currentQuestion: QuizQuestion | null = quiz?.questions?.[shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx] ?? null;
   const totalQuestions = quiz?.questions?.length ?? 0;
   const progressPct = totalQuestions > 0 ? ((currentIdx + 1) / totalQuestions) * 100 : 0;
 
@@ -381,8 +399,9 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   // Load saved answer for a question (when navigating back)
   // -------------------------------------------------------
   const loadSavedAnswer = useCallback((idx: number) => {
-    const savedAnswer = userAnswers.find(a => a.questionIndex === idx);
-    const q = quiz?.questions?.[idx];
+    const originalIdx = shuffledOrder.length > 0 ? shuffledOrder[idx] : idx;
+    const savedAnswer = userAnswers.find(a => a.questionIndex === originalIdx);
+    const q = quiz?.questions?.[originalIdx];
     if (!q) return;
 
     if (savedAnswer) {
@@ -408,7 +427,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       setMatchedPairs({});
       setMatchingFeedback(null);
     }
-  }, [userAnswers, quiz]);
+  }, [userAnswers, quiz, shuffledOrder]);
 
   // -------------------------------------------------------
   // Reset question state
@@ -596,27 +615,30 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     }
 
     const newAnswer: UserAnswer = {
-      questionIndex: currentIdx,
+      questionIndex: shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx,
       type: currentQuestion.type,
       answer: answerValue,
       isCorrect,
     };
 
-    setUserAnswers((prev) => [...prev, newAnswer]);
+    setUserAnswers((prev) => {
+      const filtered = prev.filter(a => a.questionIndex !== newAnswer.questionIndex);
+      return [...filtered, newAnswer];
+    });
 
     // Next question or finish
     if (currentIdx < totalQuestions - 1) {
       setCurrentIdx((prev) => prev + 1);
       // Load the next question's saved state or reset
-      const nextIdx = currentIdx + 1;
-      const nextSaved = userAnswers.find(a => a.questionIndex === nextIdx);
+      const nextOriginalIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx + 1] : currentIdx + 1;
+      const nextSaved = userAnswers.find(a => a.questionIndex === nextOriginalIdx);
       if (!nextSaved) {
         resetQuestionState();
       }
       // Will be handled by useEffect on currentIdx change
     } else {
       // Calculate final score and show results
-      const finalAnswers = [...userAnswers, newAnswer];
+      const finalAnswers = [...userAnswers.filter(a => a.questionIndex !== newAnswer.questionIndex), newAnswer];
       const finalScore = finalAnswers.filter((a) => a.isCorrect).length;
       saveScore(finalScore, finalAnswers);
       setShowResults(true);
@@ -697,7 +719,8 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     const allAnswers = [...userAnswers];
 
     // Add current question answer if not already saved
-    if (currentQuestion && !allAnswers.find(a => a.questionIndex === currentIdx)) {
+    const finishOriginalIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx;
+    if (currentQuestion && !allAnswers.find(a => a.questionIndex === finishOriginalIdx)) {
       let answerValue: string | Record<string, string> = '';
       if (currentQuestion.type === 'matching') {
         answerValue = matchedPairs;
@@ -708,7 +731,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       }
 
       allAnswers.push({
-        questionIndex: currentIdx,
+        questionIndex: finishOriginalIdx,
         type: currentQuestion.type,
         answer: answerValue,
         isCorrect,
@@ -736,7 +759,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     saveScore(finalScore, allAnswers);
     setShowResults(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quiz, userAnswers, currentIdx, currentQuestion, isCorrect, matchedPairs, completionInput, selectedOption, totalQuestions, showResults]);
+  }, [quiz, userAnswers, currentIdx, currentQuestion, isCorrect, matchedPairs, completionInput, selectedOption, totalQuestions, showResults, shuffledOrder]);
 
   // -------------------------------------------------------
   // Retry quiz
@@ -750,6 +773,26 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     // Clear timer so it restarts on retry
     sessionStorage.removeItem(`quiz-start-${quizId}`);
     setTimeLeft(null);
+    // Re-shuffle questions on retry (Feature 8)
+    if (quiz?.questions?.length) {
+      const indices = Array.from({ length: quiz.questions.length }, (_, i) => i);
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      setShuffledOrder(indices);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Change answer (Feature 7)
+  // -------------------------------------------------------
+  const handleChangeAnswer = () => {
+    const originalIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx;
+    // Remove old answer from userAnswers
+    setUserAnswers((prev) => prev.filter(a => a.questionIndex !== originalIdx));
+    // Reset question state to allow re-answering
+    resetQuestionState();
   };
 
   // -------------------------------------------------------
@@ -1146,6 +1189,18 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     >
                       <ChevronRight className="h-4 w-4" />
                       السؤال السابق
+                    </Button>
+                  )}
+
+                  {/* Change answer button (Feature 7) */}
+                  {answered && (
+                    <Button
+                      onClick={handleChangeAnswer}
+                      variant="outline"
+                      className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+                    >
+                      <PenLine className="h-4 w-4" />
+                      تغيير الإجابة
                     </Button>
                   )}
 

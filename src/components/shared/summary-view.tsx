@@ -82,6 +82,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // ─── Quiz config states ───
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
   const [quizAnswerMode, setQuizAnswerMode] = useState<'during' | 'after'>('after');
+  const [quizAllowRetake, setQuizAllowRetake] = useState(true);
+  const [quizShuffleQuestions, setQuizShuffleQuestions] = useState(true);
   const [showQuizConfig, setShowQuizConfig] = useState(false);
 
   // ─── Related quiz ───
@@ -341,6 +343,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         questions: quizData.data.questions,
         summaryId,
         show_results: quizAnswerMode === 'after' ? false : true,
+        allow_retake: quizAllowRetake,
+        shuffle_questions: quizShuffleQuestions,
       };
 
       // If teacher mode and summary has a subject_id, include it
@@ -543,6 +547,21 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           </p>
         </div>
         <div className="flex shrink-0 gap-1.5">
+          {/* Delete button — always visible on mobile */}
+          <Button
+            onClick={() => setDeleteConfirmOpen(true)}
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-rose-300 text-rose-600 hover:bg-rose-50 print:hidden sm:hidden"
+            title="حذف الملخص"
+            disabled={deleting}
+          >
+            {deleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+          </Button>
           {/* Copy button */}
           <Button
             onClick={handleCopyContent}
@@ -777,7 +796,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                         </button>
                         <span className="w-6 text-center text-sm font-bold text-foreground">{quizConfigTypes[qt.key]}</span>
                         <button
-                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.min(5, prev[qt.key] + 1) }))}
+                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.min(10, prev[qt.key] + 1) }))}
                           className="flex h-6 w-6 items-center justify-center rounded border text-muted-foreground hover:bg-muted transition-colors text-xs"
                         >
                           +
@@ -814,6 +833,47 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   </div>
                 </div>
 
+                {/* Retake & Shuffle toggles */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">إعدادات إضافية</label>
+                  <div className="flex items-center justify-between rounded-lg border bg-card p-2.5">
+                    <span className="text-sm font-medium text-foreground">السماح بإعادة الاختبار</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={quizAllowRetake}
+                      onClick={() => setQuizAllowRetake(!quizAllowRetake)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+                        quizAllowRetake ? 'bg-teal-600' : 'bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
+                          quizAllowRetake ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border bg-card p-2.5">
+                    <span className="text-sm font-medium text-foreground">ترتيب عشوائي للأسئلة</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={quizShuffleQuestions}
+                      onClick={() => setQuizShuffleQuestions(!quizShuffleQuestions)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+                        quizShuffleQuestions ? 'bg-teal-600' : 'bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
+                          quizShuffleQuestions ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 {/* Confirm / Cancel */}
                 <div className="flex gap-2">
                   <Button
@@ -845,6 +905,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   onClick={() => {
                     setQuizConfigTypes({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
                     setQuizAnswerMode('after');
+                    setQuizAllowRetake(true);
+                    setQuizShuffleQuestions(true);
                     setShowQuizConfig(true);
                   }}
                   disabled={generatingQuiz}

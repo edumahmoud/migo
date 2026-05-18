@@ -211,6 +211,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [summaryInputMode, setSummaryInputMode] = useState<'text' | 'file' | 'transcribe' | 'existing'>('text');
   const [summaryText, setSummaryText] = useState('');
   const [summaryFile, setSummaryFile] = useState<File | null>(null);
+  const [summaryFileBuffer, setSummaryFileBuffer] = useState<ArrayBuffer | null>(null);
+  const [summaryFileName, setSummaryFileName] = useState<string>('');
   const [creatingSummary, setCreatingSummary] = useState(false);
   const [summaryStep, setSummaryStep] = useState<'input' | 'processing'>('input');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -218,7 +220,41 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Mobile detection ───
   const isMobile = useIsMobile();
 
-  // Reset 'file' mode on mobile - no longer needed since file upload works on mobile
+  // ─── File input handler: pre-read file into ArrayBuffer immediately ───
+  // On mobile browsers, File objects can become invalid when the <input>
+  // element is unmounted (e.g. modal closes) or when the user switches tabs.
+  // By reading the ArrayBuffer immediately in the onChange handler, we
+  // ensure the file data is captured in memory regardless of what happens
+  // to the File reference later.
+  const handleSummaryFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setSummaryFile(null);
+      setSummaryFileBuffer(null);
+      setSummaryFileName('');
+      return;
+    }
+    setSummaryFile(file);
+    setSummaryFileName(file.name);
+    // Enforce file size limit (10MB) immediately
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB). يرجى اختيار ملف أصغر');
+      setSummaryFile(null);
+      setSummaryFileBuffer(null);
+      setSummaryFileName('');
+      return;
+    }
+    try {
+      const buffer = await file.arrayBuffer();
+      setSummaryFileBuffer(buffer);
+      console.log('[Summary] Pre-read file data in onChange, size:', buffer.byteLength, 'bytes');
+    } catch (err) {
+      console.error('[Summary] Failed to pre-read file in onChange:', err);
+      // Don't block — the file object is still available as fallback
+      setSummaryFileBuffer(null);
+    }
+  }, []);
 
   // ─── Existing files state (for 'existing' mode) ───
   const [existingFiles, setExistingFiles] = useState<UserFile[]>([]);
@@ -290,6 +326,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [quizConfigSummaryTitle, setQuizConfigSummaryTitle] = useState('');
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
   const [quizAnswerMode, setQuizAnswerMode] = useState<'during' | 'after'>('after');
+  const [quizAllowRetake, setQuizAllowRetake] = useState(true);
+  const [quizShuffleQuestions, setQuizShuffleQuestions] = useState(true);
   const [creatingQuizFromSummary, setCreatingQuizFromSummary] = useState(false);
 
   // ─── Teacher detail modal ───
@@ -1114,29 +1152,33 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     const inputMode = summaryInputMode;
     const capturedFile = summaryFile;
     const capturedText = summaryText.trim();
+    const capturedFileBuffer = summaryFileBuffer;
+    const capturedFileName = summaryFileName || capturedFile?.name || '';
 
     // ───────────────────────────────────────────────────────
-    // MOBILE FIX: Pre-read file data BEFORE closing the modal.
-    // On mobile browsers, File objects can become invalid when
-    // the <input type="file"> element is unmounted from the DOM
-    // (which happens when the modal closes). By reading the
-    // ArrayBuffer now, we ensure the file data is captured in
-    // memory regardless of what happens to the File reference.
+    // MOBILE FIX: Use pre-read ArrayBuffer from onChange handler.
+    // The file data was already read into memory when the user
+    // selected the file (in handleSummaryFileChange). This avoids
+    // the issue where File objects become invalid on mobile when
+    // the <input> element is unmounted from the DOM (modal closes).
+    //
+    // If the buffer wasn't pre-read (unlikely), fall back to
+    // reading from the File object now, before the modal closes.
     // ───────────────────────────────────────────────────────
-    let preReadFileData: ArrayBuffer | null = null;
-    if ((inputMode === 'file' || inputMode === 'transcribe') && capturedFile) {
-      // Enforce file size limit (10MB) to prevent memory issues on mobile
-      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    let preReadFileData: ArrayBuffer | null = capturedFileBuffer;
+    if ((inputMode === 'file' || inputMode === 'transcribe') && capturedFile && !preReadFileData) {
+      // Fallback: try to read now if we didn't get the buffer earlier
+      const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (capturedFile.size > MAX_FILE_SIZE) {
         toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB). يرجى اختيار ملف أصغر');
         return;
       }
       try {
         preReadFileData = await capturedFile.arrayBuffer();
-        console.log('[Summary] Pre-read file data, size:', preReadFileData.byteLength, 'bytes');
+        console.log('[Summary] Fallback pre-read file data, size:', preReadFileData.byteLength, 'bytes');
       } catch (readErr) {
         console.error('[Summary] Failed to pre-read file data:', readErr);
-        toast.error('فشل في قراءة الملف. يرجى المحاولة مرة أخرى');
+        toast.error('فشل في قراءة الملف. يرجى إعادة اختيار الملف والمحاولة مرة أخرى');
         return;
       }
     }
@@ -1171,6 +1213,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setSummaryTitle('');
     setSummaryText('');
     setSummaryFile(null);
+    setSummaryFileBuffer(null);
+    setSummaryFileName('');
     setSummaryInputMode('text');
     setNewSummaryOpen(false);
     setSummaryStep('input');
@@ -1247,11 +1291,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           //   - Worker is disabled on mobile (fake worker mode)
           {
             const pdfSource = preReadFileData || capturedFile!;
-            console.log('[Summary] Trying CLIENT-SIDE extraction first', isMobile ? '(mobile mode)' : '(desktop mode)', 'file:', capturedFile?.name);
+            console.log('[Summary] Trying CLIENT-SIDE extraction first', isMobile ? '(mobile mode)' : '(desktop mode)', 'file:', capturedFileName);
 
             // Race the extraction against a 30-second timeout to prevent indefinite hangs
             const extractionTimeoutMs = 30000;
-            const extractionPromise = extractTextFromFile(pdfSource, capturedFile?.name);
+            const extractionPromise = extractTextFromFile(pdfSource, capturedFileName);
             const timeoutPromise = new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
             );
@@ -1274,6 +1318,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           if (!extractionSucceeded) {
             try {
               const sourceBuffer = preReadFileData || (capturedFile ? await capturedFile.arrayBuffer() : null);
+              // Note: capturedFile.arrayBuffer() may fail on mobile if File ref is invalid,
+              // but preReadFileData should always be available from the onChange pre-read.
               if (!sourceBuffer) {
                 throw new Error('لم يتم العثور على بيانات الملف');
               }
@@ -1281,8 +1327,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               console.log('[Summary] Trying SERVER-SIDE extraction as fallback');
 
               // Detect file type from filename for sourceFileType tracking
-              if (!sourceFileType && capturedFile?.name) {
-                sourceFileType = /\.(docx|doc)$/i.test(capturedFile.name) ? 'docx' : 'pdf';
+              if (!sourceFileType && capturedFileName) {
+                sourceFileType = /\.(docx|doc)$/i.test(capturedFileName) ? 'docx' : 'pdf';
               }
 
               // Send with correct MIME type so the server can handle both PDF and DOCX
@@ -1888,6 +1934,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           questions: quizData.data.questions,
           summaryId: quizConfigSummaryId,
           show_results: quizAnswerMode === 'after' ? false : true,
+          allow_retake: quizAllowRetake,
+          shuffle_questions: quizShuffleQuestions,
         }),
       });
 
@@ -1904,6 +1952,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           questions: quizData.data.questions,
           summary_id: quizConfigSummaryId,
           show_results: quizAnswerMode === 'after' ? false : true,
+          allow_retake: quizAllowRetake,
+          shuffle_questions: quizShuffleQuestions,
         });
         if (!error) {
           toast.success('تم إنشاء الاختبار بنجاح');
@@ -2670,7 +2720,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         </button>
                         <span className="w-8 text-center text-sm font-bold text-foreground">{quizConfigTypes[qt.key]}</span>
                         <button
-                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.min(5, prev[qt.key] + 1) }))}
+                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.min(10, prev[qt.key] + 1) }))}
                           className="flex h-7 w-7 items-center justify-center rounded-md border text-muted-foreground hover:bg-muted transition-colors"
                         >
                           +
@@ -2703,6 +2753,47 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       }`}
                     >
                       أثناء الاختبار
+                    </button>
+                  </div>
+                </div>
+
+                {/* Retake & Shuffle toggles */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">إعدادات إضافية</label>
+                  <div className="flex items-center justify-between rounded-lg border bg-card p-3">
+                    <span className="text-sm font-medium text-foreground">السماح بإعادة الاختبار</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={quizAllowRetake}
+                      onClick={() => setQuizAllowRetake(!quizAllowRetake)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+                        quizAllowRetake ? 'bg-teal-600' : 'bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
+                          quizAllowRetake ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border bg-card p-3">
+                    <span className="text-sm font-medium text-foreground">ترتيب عشوائي للأسئلة</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={quizShuffleQuestions}
+                      onClick={() => setQuizShuffleQuestions(!quizShuffleQuestions)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+                        quizShuffleQuestions ? 'bg-teal-600' : 'bg-muted'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
+                          quizShuffleQuestions ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
                     </button>
                   </div>
                 </div>
@@ -2936,7 +3027,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       ref={fileInputRef}
                       type="file"
                       accept=".pdf,.docx,.doc"
-                      onChange={(e) => setSummaryFile(e.target.files?.[0] || null)}
+                      onChange={handleSummaryFileChange}
                       className="hidden"
 
                     />
@@ -3102,75 +3193,184 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           </button>
         </motion.div>
       ) : (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {quizzes.map((quiz) => {
-            const isCompleted = completedQuizIds.has(quiz.id);
-            const score = scores.find((s) => s.quiz_id === quiz.id);
-            const pct = score ? scorePercentage(score.score, score.total) : null;
+        (() => {
+          // Separate quizzes: active (not completed OR retakeable) vs finished (completed + not retakeable)
+          const activeQuizzes = quizzes.filter(q => {
+            const completed = completedQuizIds.has(q.id);
+            return !completed || q.allow_retake !== false;
+          });
+          const finishedQuizzes = quizzes.filter(q => {
+            const completed = completedQuizIds.has(q.id);
+            return completed && q.allow_retake === false;
+          });
 
-            return (
-              <motion.div key={quiz.id} variants={itemVariants} {...cardHover}>
-                <div className="group rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50 transition-transform group-hover:scale-110">
-                      <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-semibold text-foreground truncate">{quiz.title}</h3>
-                      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Hash className="h-3 w-3" />
-                          {quiz.questions?.length || 0} أسئلة
-                        </span>
-                        {quiz.duration && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {quiz.duration} دقيقة
-                          </span>
-                        )}
-                      </div>
-                    </div>
+          return (
+            <>
+              {/* Active quizzes */}
+              {activeQuizzes.length > 0 && (
+                <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {activeQuizzes.map((quiz) => {
+                    const isCompleted = completedQuizIds.has(quiz.id);
+                    const score = scores.find((s) => s.quiz_id === quiz.id);
+                    const pct = score ? scorePercentage(score.score, score.total) : null;
 
-                    {/* Status badge */}
-                    {isCompleted && pct !== null && (
-                      <span
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
-                          pct >= 80
-                            ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30'
-                            : pct >= 60
-                              ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50'
-                              : 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50'
-                        }`}
-                      >
-                        {pct}%
-                      </span>
-                    )}
-                  </div>
+                    return (
+                      <motion.div key={quiz.id} variants={itemVariants} {...cardHover}>
+                        <div className="group rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow relative">
+                          {/* Completed badge */}
+                          {isCompleted && (
+                            <span className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-teal-100 dark:bg-teal-900/50 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:text-teal-300">
+                              <CheckCircle2 className="h-3 w-3" />
+                              مكتمل
+                            </span>
+                          )}
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50 transition-transform group-hover:scale-110">
+                              <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-semibold text-foreground truncate">{quiz.title}</h3>
+                              <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Hash className="h-3 w-3" />
+                                  {quiz.questions?.length || 0} أسئلة
+                                </span>
+                                {quiz.duration && (
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    {quiz.duration} دقيقة
+                                  </span>
+                                )}
+                              </div>
+                            </div>
 
-                  <div className="mt-4 flex items-center gap-2">
-                    {isCompleted ? (
-                      <button
-                        onClick={() => setViewingQuizId(quiz.id)}
-                        className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 transition-colors hover:bg-sky-100"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        عرض النتائج
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setViewingQuizId(quiz.id)}
-                        className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-teal-700"
-                      >
-                        <Play className="h-3.5 w-3.5" />
-                        ابدأ الاختبار
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+                            {/* Score badge */}
+                            {isCompleted && pct !== null && (
+                              <span
+                                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                                  pct >= 80
+                                    ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30'
+                                    : pct >= 60
+                                      ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50'
+                                      : 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50'
+                                }`}
+                              >
+                                {pct}%
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-4 flex items-center gap-2">
+                            {isCompleted ? (
+                              <>
+                                <button
+                                  onClick={() => setViewingQuizId(quiz.id)}
+                                  className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 transition-colors hover:bg-sky-100"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  عرض النتائج
+                                </button>
+                                {quiz.allow_retake !== false && (
+                                  <button
+                                    onClick={() => setViewingQuizId(quiz.id)}
+                                    className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-teal-700"
+                                  >
+                                    <Play className="h-3.5 w-3.5" />
+                                    إعادة الاختبار
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => setViewingQuizId(quiz.id)}
+                                className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-teal-700"
+                              >
+                                <Play className="h-3.5 w-3.5" />
+                                ابدأ الاختبار
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </motion.div>
+              )}
+
+              {/* Finished / completed non-retakeable quizzes */}
+              {finishedQuizzes.length > 0 && (
+                <>
+                  <motion.div variants={itemVariants} className="mt-8">
+                    <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
+                      اختبارات منتهية
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">اختبارات مكتملة لا يمكن إعادتها</p>
+                  </motion.div>
+                  <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {finishedQuizzes.map((quiz) => {
+                      const score = scores.find((s) => s.quiz_id === quiz.id);
+                      const pct = score ? scorePercentage(score.score, score.total) : null;
+
+                      return (
+                        <motion.div key={quiz.id} variants={itemVariants}>
+                          <div className="group rounded-xl border border-muted bg-card/60 p-5 shadow-sm opacity-80 relative">
+                            <span className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                              <CheckCircle2 className="h-3 w-3" />
+                              مكتمل
+                            </span>
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+                                <ClipboardList className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-foreground truncate">{quiz.title}</h3>
+                                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Hash className="h-3 w-3" />
+                                    {quiz.questions?.length || 0} أسئلة
+                                  </span>
+                                  {quiz.duration && (
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      {quiz.duration} دقيقة
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {pct !== null && (
+                                <span
+                                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                                    pct >= 80
+                                      ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30'
+                                      : pct >= 60
+                                        ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50'
+                                        : 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50'
+                                  }`}
+                                >
+                                  {pct}%
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-4 flex items-center gap-2">
+                              <button
+                                onClick={() => setViewingQuizId(quiz.id)}
+                                className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 transition-colors hover:bg-sky-100"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                عرض النتائج
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+                </>
+              )}
+            </>
+          );
+        })()
       )}
     </motion.div>
   );

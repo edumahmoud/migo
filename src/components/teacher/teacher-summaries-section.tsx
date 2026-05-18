@@ -85,6 +85,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   const [summaryTitle, setSummaryTitle] = useState('');
   const [summaryText, setSummaryText] = useState('');
   const [summaryFile, setSummaryFile] = useState<File | null>(null);
+  const [summaryFileBuffer, setSummaryFileBuffer] = useState<ArrayBuffer | null>(null);
+  const [summaryFileName, setSummaryFileName] = useState<string>('');
+  const [summaryFileType, setSummaryFileType] = useState<string>('');
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const [creatingSummary, setCreatingSummary] = useState(false);
 
@@ -105,6 +108,45 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
   // Track recently deleted IDs to filter them from stale re-fetch results
   const recentlyDeletedIdsRef = useRef<Set<string>>(new Set());
+
+  // ─── File input handler: pre-read file into ArrayBuffer immediately ───
+  // On mobile browsers, File objects can become invalid when the <input>
+  // element is unmounted (e.g. modal closes) or when the user switches tabs.
+  // By reading the ArrayBuffer immediately in the onChange handler, we
+  // ensure the file data is captured in memory regardless of what happens
+  // to the File reference later.
+  const handleSummaryFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setSummaryFile(null);
+      setSummaryFileBuffer(null);
+      setSummaryFileName('');
+      setSummaryFileType('');
+      return;
+    }
+    setSummaryFile(file);
+    setSummaryFileName(file.name);
+    setSummaryFileType(file.type || 'application/octet-stream');
+    // Enforce file size limit (10MB) immediately
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB)');
+      setSummaryFile(null);
+      setSummaryFileBuffer(null);
+      setSummaryFileName('');
+      setSummaryFileType('');
+      return;
+    }
+    try {
+      const buffer = await file.arrayBuffer();
+      setSummaryFileBuffer(buffer);
+      console.log('[Summary] Pre-read file data in onChange, size:', buffer.byteLength, 'bytes');
+    } catch (err) {
+      console.error('[Summary] Failed to pre-read file in onChange:', err);
+      // Don't block — the file object is still available as fallback
+      setSummaryFileBuffer(null);
+    }
+  }, []);
 
   // -------------------------------------------------------
   // Fetch summaries
@@ -298,10 +340,23 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     const inputMode = summaryInputMode;
     const capturedFile = summaryFile;
     const capturedText = summaryText.trim();
+    const capturedFileBuffer = summaryFileBuffer;
+    const capturedFileName = summaryFileName || capturedFile?.name || '';
+    const capturedFileType = summaryFileType || capturedFile?.type || 'application/octet-stream';
 
-    // Pre-read file data for mobile
-    let preReadFileData: ArrayBuffer | null = null;
-    if ((inputMode === 'file' || inputMode === 'transcribe') && capturedFile) {
+    // ───────────────────────────────────────────────────────
+    // MOBILE FIX: Use pre-read ArrayBuffer from onChange handler.
+    // The file data was already read into memory when the user
+    // selected the file (in handleSummaryFileChange). This avoids
+    // the issue where File objects become invalid on mobile when
+    // the <input> element is unmounted from the DOM (modal closes).
+    //
+    // If the buffer wasn't pre-read (unlikely), fall back to
+    // reading from the File object now, before the modal closes.
+    // ───────────────────────────────────────────────────────
+    let preReadFileData: ArrayBuffer | null = capturedFileBuffer;
+    if ((inputMode === 'file' || inputMode === 'transcribe') && capturedFile && !preReadFileData) {
+      // Fallback: try to read now if we didn't get the buffer earlier
       const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (capturedFile.size > MAX_FILE_SIZE) {
         toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB)');
@@ -310,8 +365,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       }
       try {
         preReadFileData = await capturedFile.arrayBuffer();
+        console.log('[Summary] Fallback pre-read file data, size:', preReadFileData.byteLength, 'bytes');
       } catch {
-        toast.error('فشل في قراءة الملف');
+        toast.error('فشل في قراءة الملف. يرجى إعادة اختيار الملف والمحاولة مرة أخرى');
         setCreatingSummary(false);
         return;
       }
@@ -335,6 +391,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     setSummaryTitle('');
     setSummaryText('');
     setSummaryFile(null);
+    setSummaryFileBuffer(null);
+    setSummaryFileName('');
+    setSummaryFileType('');
     setSummaryInputMode('text');
     setNewSummaryOpen(false);
     setCreatingSummary(false);
@@ -376,19 +435,17 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         // This uploads the raw file so the user can download it later from the summary.
         if ((inputMode === 'file' || inputMode === 'transcribe') && (preReadFileData || capturedFile)) {
           try {
-            const fileToUpload = capturedFile!;
-            const ext = fileToUpload.name.split('.').pop()?.toLowerCase() || 'pdf';
             const timestamp = Date.now();
-            const sanitized = fileToUpload.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const sanitized = capturedFileName.replace(/[^a-zA-Z0-9._-]/g, '_');
             const storagePath = `${profile.id}/summaries/${timestamp}_${sanitized}`;
-            const uploadData = preReadFileData || await fileToUpload.arrayBuffer();
-            const uploadBlob = new Blob([uploadData], { type: fileToUpload.type });
+            const uploadData = preReadFileData || await capturedFile!.arrayBuffer();
+            const uploadBlob = new Blob([uploadData], { type: capturedFileType });
 
             const { error: uploadError } = await supabase.storage
               .from('user-files')
               .upload(storagePath, uploadBlob, {
                 cacheControl: '3600',
-                contentType: fileToUpload.type || 'application/octet-stream',
+                contentType: capturedFileType || 'application/octet-stream',
                 upsert: false,
               });
 
@@ -411,7 +468,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           {
             const pdfSource = preReadFileData || capturedFile!;
             const extractionTimeoutMs = 30000;
-            const extractionPromise = extractTextFromFile(pdfSource, capturedFile?.name);
+            const extractionPromise = extractTextFromFile(pdfSource, capturedFileName);
             const timeoutPromise = new Promise<never>((_, reject) =>
               setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
             );
@@ -430,10 +487,12 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           if (!extractionSucceeded) {
             try {
               const sourceBuffer = preReadFileData || (capturedFile ? await capturedFile.arrayBuffer() : null);
+              // Note: capturedFile.arrayBuffer() may fail on mobile if File ref is invalid,
+              // but preReadFileData should always be available from the onChange pre-read.
               if (!sourceBuffer) throw new Error('لم يتم العثور على بيانات الملف');
 
-              if (!sourceFileType && capturedFile?.name) {
-                sourceFileType = /\.(docx|doc)$/i.test(capturedFile.name) ? 'docx' : 'pdf';
+              if (!sourceFileType && capturedFileName) {
+                sourceFileType = /\.(docx|doc)$/i.test(capturedFileName) ? 'docx' : 'pdf';
               }
 
               // Send with correct MIME type so the server can handle both PDF and DOCX
@@ -808,7 +867,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       handleDeleteSummary(summary.id);
                     }}
                     disabled={deletingSummaryId === summary.id}
-                    className="absolute top-3 left-3 rounded-md p-1.5 text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    className="absolute top-3 left-3 rounded-md p-1.5 text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
                   >
                     {deletingSummaryId === summary.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1052,7 +1111,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       ref={fileInputRef}
                       type="file"
                       accept=".pdf,.docx,.doc"
-                      onChange={(e) => setSummaryFile(e.target.files?.[0] || null)}
+                      onChange={handleSummaryFileChange}
                       className="hidden"
                     />
                     <button

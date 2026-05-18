@@ -62,6 +62,7 @@ export interface Quiz {
   questions: QuizQuestion[];
   show_results?: boolean;
   allow_retake?: boolean;
+  shuffle_questions?: boolean;
   is_finished?: boolean;
   subject_id?: string;
   created_at: string;

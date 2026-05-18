@@ -27,6 +27,7 @@ import {
   Smartphone,
   Sun,
   Moon,
+  Unlock,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -206,6 +207,9 @@ export default function SettingsSection({
   const [pushPermission, setPushPermission] = useState<NotificationPermission>('default');
   const [isTogglingPush, setIsTogglingPush] = useState(false);
 
+  // ─── Screen orientation lock ───
+  const [orientationLocked, setOrientationLocked] = useState(false);
+
 
 
   // ─── Status / Presence (now from global store) ───
@@ -235,6 +239,15 @@ export default function SettingsSection({
     if (typeof window === 'undefined') return;
     if (!('Notification' in window)) return;
     setPushPermission(Notification.permission);
+  }, []);
+
+  // ─── Load orientation lock preference ───
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = localStorage.getItem('attenddo-orientation-locked');
+    if (stored === 'true') {
+      setOrientationLocked(true);
+    }
   }, []);
 
 
@@ -536,6 +549,33 @@ export default function SettingsSection({
 
   // ─── Current status info ───
   const currentStatusInfo = STATUS_OPTIONS.find(s => s.value === userStatus) || STATUS_OPTIONS[0];
+
+  // ─── Toggle screen orientation lock ───
+  const handleToggleOrientation = async () => {
+    try {
+      if (!orientationLocked) {
+        // Lock to portrait
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock('portrait');
+          setOrientationLocked(true);
+          localStorage.setItem('attenddo-orientation-locked', 'true');
+          toast.success('تم قفل تدوير الشاشة');
+        } else {
+          toast.error('المتصفح لا يدعم قفل التدوير');
+        }
+      } else {
+        // Unlock
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+          setOrientationLocked(false);
+          localStorage.removeItem('attenddo-orientation-locked');
+          toast.success('تم فتح تدوير الشاشة');
+        }
+      }
+    } catch {
+      toast.error('فشل تغيير إعداد التدوير');
+    }
+  };
 
   // ─── Helper: wait for SW with timeout ───
   const waitForServiceWorker = async (timeoutMs = 4000): Promise<ServiceWorkerRegistration | null> => {
@@ -1127,6 +1167,47 @@ export default function SettingsSection({
                   إرسال إشعار تجريبي
                 </button>
               )}
+
+              {/* Divider */}
+              <div className="border-t" />
+
+              {/* Screen Orientation Lock Toggle */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                    orientationLocked
+                      ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300'
+                      : 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {orientationLocked ? (
+                      <Lock className="h-4 w-4" />
+                    ) : (
+                      <Unlock className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">
+                      {orientationLocked ? 'فتح تدوير الشاشة' : 'قفل تدوير الشاشة'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {orientationLocked
+                        ? 'الشاشة مقفلة بالوضع العمودي'
+                        : 'الشاشة تدور تلقائياً'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleToggleOrientation}
+                  className={`relative shrink-0 h-6 w-11 rounded-full transition-colors duration-200 ${
+                    orientationLocked ? 'bg-sky-600' : 'bg-muted-foreground/30'
+                  }`}
+                  aria-label={orientationLocked ? 'فتح تدوير الشاشة' : 'قفل تدوير الشاشة'}
+                >
+                  <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-200 ${
+                    orientationLocked ? 'end-0.5' : 'start-0.5'
+                  }`} />
+                </button>
+              </div>
 
               {/* Divider */}
               <div className="border-t" />
