@@ -47,17 +47,15 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
 
-    // Fetch user name and role for personalized AI responses
+    // Fetch user name for personalized AI responses
     let studentName: string | undefined;
-    let studentRole: string | undefined;
     try {
       const { data: profile } = await supabaseServer
         .from('users')
-        .select('name, role')
+        .select('name')
         .eq('id', userId)
         .single();
       studentName = profile?.name || undefined;
-      studentRole = profile?.role || undefined;
     } catch {
       // Name lookup failed — will use default in AI prompt
     }
@@ -103,7 +101,7 @@ export async function POST(request: NextRequest) {
     const authTime = Date.now() - requestStartTime;
     console.log('[Summary API] Generating summary for user:', userId, 'content length:', sanitizedContent.length, 'auth took:', authTime + 'ms');
 
-    const summary = await generateSummary(sanitizedContent, studentName, studentRole);
+    const summary = await generateSummary(sanitizedContent, studentName);
 
     const aiTime = Date.now() - requestStartTime;
     console.log('[Summary API] Summary generated successfully, length:', summary.length, 'total time so far:', aiTime + 'ms');
@@ -241,17 +239,15 @@ export async function PUT(request: NextRequest) {
     const authResult = await authenticateRequest(request);
     if (!authResult.success) return authErrorResponse(authResult);
 
-    // Fetch user name and role for personalized AI responses
+    // Fetch user name for personalized AI responses
     let refineStudentName: string | undefined;
-    let refineStudentRole: string | undefined;
     try {
       const { data: profile } = await supabaseServer
         .from('users')
-        .select('name, role')
+        .select('name')
         .eq('id', authResult.user.id)
         .single();
       refineStudentName = profile?.name || undefined;
-      refineStudentRole = profile?.role || undefined;
     } catch {
       // Name lookup failed — will use default in AI prompt
     }
@@ -307,7 +303,7 @@ export async function PUT(request: NextRequest) {
 
     // Refine the transcribed text using AI
     console.log('[Summary API] Refining transcribed text for:', summaryId, 'content length:', originalContent.length);
-    const refinedText = await refineTranscribedText(originalContent, refineStudentName, refineStudentRole);
+    const refinedText = await refineTranscribedText(originalContent, refineStudentName);
 
     const aiTime = Date.now() - requestStartTime;
     console.log('[Summary API] Refinement completed, length:', refinedText.length, 'total time:', aiTime + 'ms');
