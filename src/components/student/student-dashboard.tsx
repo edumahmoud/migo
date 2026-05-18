@@ -203,6 +203,20 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+
+  // ─── Helper: Find quiz score for a summary ───
+  // Chain: summary.id → quiz.summary_id → score.quiz_id
+  // Returns the student's score for the quiz linked to this summary (if any)
+  const getScoreForSummary = useCallback((summaryId: string): { score: number; total: number; percentage: number } | null => {
+    // Find quizzes linked to this summary
+    const linkedQuiz = quizzes.find(q => q.summary_id === summaryId);
+    if (!linkedQuiz) return null;
+    // Find the student's score for this quiz
+    const quizScore = scores.find(s => s.quiz_id === linkedQuiz.id);
+    if (!quizScore) return null;
+    const percentage = quizScore.total > 0 ? Math.round((quizScore.score / quizScore.total) * 100) : 0;
+    return { score: quizScore.score, total: quizScore.total, percentage };
+  }, [quizzes, scores]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<{ id: string; session_id: string; student_id: string; checked_in_at: string }[]>([]);
   const [attendanceSessions, setAttendanceSessions] = useState<{ id: string; subject_id: string; status: string }[]>([]);
@@ -2497,7 +2511,24 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">{summary.title}</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-foreground truncate">{summary.title}</p>
+                          {(() => {
+                            const quizResult = getScoreForSummary(summary.id);
+                            if (!quizResult) return null;
+                            const colorClass = quizResult.percentage >= 80
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                              : quizResult.percentage >= 60
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                                : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+                            return (
+                              <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${colorClass}`}>
+                                <Award className="h-2.5 w-2.5" />
+                                {quizResult.percentage}%
+                              </span>
+                            );
+                          })()}
+                        </div>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
                           {summary.summary_content?.slice(0, 80) || summary.original_content?.slice(0, 80) || ''}...
                         </p>
@@ -2683,9 +2714,26 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                     {summary.summary_content?.slice(0, 120) || summary.original_content?.slice(0, 120) || ''}...
                   </p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(summary.created_at)}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(summary.created_at)}
+                    </div>
+                    {(() => {
+                      const quizResult = getScoreForSummary(summary.id);
+                      if (!quizResult) return null;
+                      const colorClass = quizResult.percentage >= 80
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        : quizResult.percentage >= 60
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                          : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+                      return (
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${colorClass}`}>
+                          <Award className="h-3 w-3" />
+                          {quizResult.percentage}%
+                        </span>
+                      );
+                    })()}
                   </div>
                 </button>
               </div>
