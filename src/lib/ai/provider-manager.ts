@@ -140,7 +140,7 @@ async function chatWithFallback(
 
   // ─── 2. Try each provider in the fallback chain ───
   let lastError: AiProviderError | null = null;
-  const noRetryCodes: AiErrorCode[] = ['NOT_CONFIGURED'];
+  let primaryError: AiProviderError | null = null; // Track primary provider error separately
 
   for (const provider of PROVIDER_CHAIN) {
     try {
@@ -169,6 +169,10 @@ async function chatWithFallback(
         ? error as AiProviderError
         : new AiProviderError('UNKNOWN', 'حدث خطأ غير متوقع', provider.id, error);
 
+      // Track primary (Gemini) error separately — it's more relevant to the user
+      if (provider.id === 'gemini' && !primaryError) {
+        primaryError = classified;
+      }
       lastError = classified;
 
       log({
@@ -187,13 +191,6 @@ async function chatWithFallback(
         `[ProviderManager] ${provider.name} failed (${classified.code}), trying next provider...`,
       );
 
-      // If it's a configuration error, no point trying other providers
-      // (they might also not be configured)
-      if (classified.code === 'NOT_CONFIGURED' && provider.id === 'gemini') {
-        // Gemini not configured — try fallbacks
-        continue;
-      }
-
       continue;
     }
   }
@@ -201,13 +198,27 @@ async function chatWithFallback(
   // ─── 3. All providers failed — graceful failure ───
   console.error('[ProviderManager] All providers failed');
 
-  // Return a useful error with retry option
-  if (lastError) {
+  // Prefer the primary provider's error (Gemini) over fallback NOT_CONFIGURED errors.
+  // Users shouldn't see "OpenRouter API غير مفعّل" when the real issue is with Gemini.
+  const meaningfulError = primaryError || lastError;
+
+  if (meaningfulError) {
+    // If the error is NOT_CONFIGURED from a fallback provider, show a generic message
+    // instead of exposing internal provider names the user doesn't know about
+    if (meaningfulError.code === 'NOT_CONFIGURED' && meaningfulError.provider !== 'gemini') {
+      throw new AiProviderError(
+        'NOT_CONFIGURED',
+        'خدمة الذكاء الاصطناعي غير مفعلة حالياً. يرجى التواصل مع الإدارة',
+        meaningfulError.provider,
+        meaningfulError,
+      );
+    }
+
     throw new AiProviderError(
-      lastError.code,
-      `${lastError.userMessage}. يرجى المحاولة مرة أخرى لاحقاً`,
-      lastError.provider,
-      lastError,
+      meaningfulError.code,
+      `${meaningfulError.userMessage}. يرجى المحاولة مرة أخرى لاحقاً`,
+      meaningfulError.provider,
+      meaningfulError,
     );
   }
 
