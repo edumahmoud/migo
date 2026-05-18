@@ -557,23 +557,36 @@ export default function SettingsSection({
         // Lock to portrait
         if (screen.orientation && typeof screen.orientation.lock === 'function') {
           try {
+            // First attempt: try locking directly (works in some PWA standalone contexts)
             await screen.orientation.lock('portrait');
             setOrientationLocked(true);
             localStorage.setItem('attenddo-orientation-locked', 'true');
             toast.success('تم قفل تدوير الشاشة');
           } catch (lockError: unknown) {
             // The Screen Orientation API requires a fullscreen context in most browsers.
-            // On mobile PWA (standalone mode) it may work; otherwise it throws.
+            // If direct lock fails, request fullscreen first then retry.
             const errMsg = lockError instanceof Error ? lockError.message : String(lockError);
-            console.warn('[Orientation Lock] Failed:', errMsg);
-            // Try using CSS screen.orientation.type as a fallback check
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-            if (isStandalone) {
-              toast.error('لم يتمكن التطبيق من قفل التدوير. جرّب فتح التطبيق بشاشة كاملة.');
-            } else {
-              toast.error('قفل التدوير يتطلب تثبيت التطبيق كـ PWA أو تشغيله بشاشة كاملة.', {
-                duration: 5000,
-              });
+            console.warn('[Orientation Lock] Direct lock failed, trying fullscreen:', errMsg);
+
+            try {
+              // Request fullscreen on the document element
+              const docEl = document.documentElement;
+              if (docEl.requestFullscreen) {
+                await docEl.requestFullscreen();
+              } else if ((docEl as any).webkitRequestFullscreen) {
+                // Safari fallback
+                await (docEl as any).webkitRequestFullscreen();
+              }
+
+              // Now try locking orientation again in fullscreen context
+              await screen.orientation.lock('portrait');
+              setOrientationLocked(true);
+              localStorage.setItem('attenddo-orientation-locked', 'true');
+              toast.success('تم قفل تدوير الشاشة');
+            } catch (fullscreenError: unknown) {
+              const fsErrMsg = fullscreenError instanceof Error ? fullscreenError.message : String(fullscreenError);
+              console.warn('[Orientation Lock] Fullscreen + lock failed:', fsErrMsg);
+              toast.error('لم يتمكن التطبيق من قفل التدوير. تأكد من السماح بملء الشاشة.');
             }
           }
         } else {
@@ -584,6 +597,14 @@ export default function SettingsSection({
         if (screen.orientation && typeof screen.orientation.unlock === 'function') {
           screen.orientation.unlock();
         }
+        // Exit fullscreen if we entered it for orientation lock
+        if (document.fullscreenElement) {
+          try {
+            await document.exitFullscreen();
+          } catch {
+            // Ignore fullscreen exit errors
+          }
+        }
         setOrientationLocked(false);
         localStorage.removeItem('attenddo-orientation-locked');
         toast.success('تم فتح تدوير الشاشة');
@@ -592,6 +613,23 @@ export default function SettingsSection({
       toast.error('فشل تغيير إعداد التدوير');
     }
   };
+
+  // ─── Sync orientation lock state when fullscreen changes (e.g. user presses Escape) ───
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      // If we were locked but user exited fullscreen (Esc key), sync state
+      if (!document.fullscreenElement && orientationLocked) {
+        if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+          screen.orientation.unlock();
+        }
+        setOrientationLocked(false);
+        localStorage.removeItem('attenddo-orientation-locked');
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, [orientationLocked]);
 
   // ─── Helper: wait for SW with timeout ───
   const waitForServiceWorker = async (timeoutMs = 4000): Promise<ServiceWorkerRegistration | null> => {
