@@ -9,7 +9,7 @@
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '2';
+export const PROMPT_VERSION = '3';
 
 // -------------------------------------------------------
 // Summary Prompts
@@ -89,8 +89,8 @@ export const QUIZ_SYSTEM = (
 11. في أسئلة MCQ، لا تكرر نفس الخيار أكثر من مرة — كل خيار يجب أن يكون مختلفاً تماماً
 12. في أسئلة Matching، لا تكرر نفس العنصر في key أو value — كل عنصر يجب أن يظهر مرة واحدة فقط`;
 
-export const QUIZ_USER = (content: string, totalCount: number, studentName: string) =>
-  `يا ${studentName}، بناءً على المحتوى التالي، قم بإنشاء اختبار شامل مكون من ${totalCount} سؤال بالتوزيع المحدد:\n\n${content}`;
+export const QUIZ_USER = (content: string, totalCount: number) =>
+  `بناءً على المحتوى التالي، قم بإنشاء اختبار شامل مكون من ${totalCount} سؤال بالتوزيع المحدد. الرد يجب أن يكون JSON فقط:\n\n${content}`;
 
 // -------------------------------------------------------
 // Evaluation Prompts

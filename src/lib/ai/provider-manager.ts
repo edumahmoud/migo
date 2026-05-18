@@ -288,6 +288,20 @@ async function chatWithRetry(
 
 const MAX_AI_CONTENT_LENGTH = 100000;
 
+/**
+ * Extract the first name from a full name.
+ * Arabic names like "أحمد محمد علي" → "أحمد"
+ * Also handles English names like "John Smith" → "John"
+ */
+function extractFirstName(fullName: string | undefined): string {
+  if (!fullName) return 'الطالب';
+  const trimmed = fullName.trim();
+  if (!trimmed) return 'الطالب';
+  // Split by spaces and take the first word
+  const firstName = trimmed.split(/\s+/)[0];
+  return firstName || 'الطالب';
+}
+
 function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LENGTH): string {
   if (content.length <= maxLength) return content;
 
@@ -310,7 +324,7 @@ function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LEN
  */
 export async function generateSummary(content: string, studentName?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
-  const name = studentName || 'الطالب';
+  const name = extractFirstName(studentName);
 
   return chatWithFallback(
     SUMMARY_SYSTEM(name),
@@ -324,7 +338,7 @@ export async function generateSummary(content: string, studentName?: string): Pr
  */
 export async function refineTranscribedText(content: string, studentName?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
-  const name = studentName || 'الطالب';
+  const name = extractFirstName(studentName);
 
   return chatWithFallback(
     REFINE_SYSTEM(name),
@@ -356,11 +370,11 @@ export async function generateQuiz(
   if (completionCount > 0) typeConfig.push(`${completionCount} أكمل الفراغ (completion)`);
   if (matchingCount > 0) typeConfig.push(`${matchingCount} مطابقة (matching)`);
 
-  const name = studentName || 'الطالب';
+  const name = extractFirstName(studentName);
 
   const text = await chatWithFallback(
     QUIZ_SYSTEM(totalCount, typeConfig, name),
-    QUIZ_USER(truncatedContent, totalCount, name),
+    QUIZ_USER(truncatedContent, totalCount),
     { temperature: 0.5, maxTokens: 8192, retries: 1, jsonMode: true, operation: 'quiz' },
   );
 
@@ -464,7 +478,7 @@ export async function explainWrongAnswer(
   questionType: string,
   studentName?: string,
 ): Promise<string> {
-  const name = studentName || 'الطالب';
+  const name = extractFirstName(studentName);
   return chatWithFallback(
     EXPLAIN_SYSTEM(name),
     EXPLAIN_USER(questionType, question, correctAnswer, studentAnswer, name),

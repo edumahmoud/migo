@@ -288,7 +288,19 @@ export async function PUT(request: NextRequest) {
 
     // Generate new quiz
     console.log('[Quizzes API] Re-generating quiz for summary:', targetSummaryId);
-    const quizPromise = generateQuiz(originalContent);
+    // Fetch user name for personalized AI prompts
+    let regenStudentName: string | undefined;
+    try {
+      const { data: profile } = await supabaseServer
+        .from('users')
+        .select('name')
+        .eq('id', authResult.user.id)
+        .single();
+      regenStudentName = profile?.name || undefined;
+    } catch {
+      // Name lookup failed — will use default
+    }
+    const quizPromise = generateQuiz(originalContent, undefined, regenStudentName);
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 90000)
     );
