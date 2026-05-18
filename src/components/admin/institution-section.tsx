@@ -243,7 +243,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
     return (
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
           <span className="text-sm text-muted-foreground">جاري تحميل بيانات المؤسسة...</span>
         </div>
       </div>
@@ -273,18 +273,18 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-sky-700" />
+            <Building2 className="h-6 w-6 text-sky-700 dark:text-sky-300" />
             بيانات المؤسسة
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">إدارة بيانات وإعدادات المؤسسة التعليمية</p>
 
           {/* Migration banner for tagline column */}
           {taglineMigrationStatus === 'pending' && (
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-amber-800">تحديث قاعدة البيانات مطلوب</p>
-                <p className="text-[10px] text-amber-700 mt-0.5">
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-200">تحديث قاعدة البيانات مطلوب</p>
+                <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">
                   لتتمكن من استخدام حقل "الوصف المختصر"، يرجى تنفيذ SQL التالي في محرر SQL بلوحة تحكم Supabase:
                 </p>
                 <code className="mt-1 block text-[10px] bg-amber-100/80 rounded p-1.5 font-mono text-amber-900 select-all">
@@ -295,7 +295,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           )}
         </div>
         {institution.name && (
-          <Badge className="bg-sky-100 text-sky-800 border-sky-200 text-xs">
+          <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 text-xs">
             {typeLabelMap[institution.type]}
           </Badge>
         )}
@@ -314,7 +314,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={0}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <ImagePlus className="h-4 w-4 text-sky-700" />
+              <ImagePlus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               <h3 className="font-semibold text-foreground text-sm">شعار المؤسسة</h3>
             </div>
             <div className="p-4 flex flex-col items-center gap-4">
@@ -323,12 +323,12 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   <img
                     src={institution.logo_url}
                     alt="شعار المؤسسة"
-                    className="h-28 w-28 rounded-2xl object-cover border-2 border-sky-200 shadow-sm"
+                    className="h-28 w-28 rounded-2xl object-cover border-2 border-sky-200 dark:border-sky-800 shadow-sm"
                   />
                 ) : (
-                  <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-sky-50 to-teal-50 border-2 border-dashed border-sky-300 flex flex-col items-center justify-center gap-2">
+                  <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-sky-50 to-teal-50 dark:from-sky-950/30 dark:to-teal-950/30 border-2 border-dashed border-sky-300 dark:border-sky-800 flex flex-col items-center justify-center gap-2">
                     <Building2 className="h-10 w-10 text-sky-400" />
-                    <span className="text-[10px] text-sky-600">لا يوجد شعار</span>
+                    <span className="text-[10px] text-sky-600 dark:text-sky-400">لا يوجد شعار</span>
                   </div>
                 )}
                 {uploadingLogo && (
@@ -352,7 +352,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                    className="h-8 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                     onClick={() => updateField('logo_url', null)}
                     disabled={uploadingLogo}
                   >
@@ -381,7 +381,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={1}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <School className="h-4 w-4 text-sky-700" />
+              <School className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               <h3 className="font-semibold text-foreground text-sm">نوع المؤسسة</h3>
             </div>
             <div className="p-4 space-y-2">
@@ -392,19 +392,19 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   onClick={() => updateField('type', key)}
                   className={`w-full flex items-center gap-3 rounded-xl p-3 border-2 transition-all duration-200 ${
                     institution.type === key
-                      ? 'border-sky-600 bg-sky-50 text-sky-800 shadow-sm'
-                      : 'border-border text-muted-foreground hover:border-sky-200 hover:bg-sky-50/50'
+                      ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 shadow-sm'
+                      : 'border-border text-muted-foreground hover:border-sky-200 dark:hover:border-sky-800 hover:bg-sky-50/50 dark:hover:bg-sky-950/30'
                   }`}
                   disabled={saving}
                 >
                   <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                    institution.type === key ? 'bg-sky-100' : 'bg-muted/50'
+                    institution.type === key ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted/50'
                   }`}>
                     {icon}
                   </div>
                   <span className="text-sm font-medium">{label}</span>
                   {institution.type === key && (
-                    <CheckCircle2 className="h-4 w-4 ms-auto text-sky-600" />
+                    <CheckCircle2 className="h-4 w-4 ms-auto text-sky-600 dark:text-sky-400" />
                   )}
                 </button>
               ))}
@@ -414,7 +414,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           {/* Quick info card */}
           {institution.name && (
             <motion.div
-              className="rounded-xl border bg-sky-50/50 shadow-sm overflow-hidden"
+              className="rounded-xl border bg-sky-50/50 dark:bg-sky-950/30 shadow-sm overflow-hidden"
               variants={sectionVariants}
               initial="hidden"
               animate="visible"
@@ -422,8 +422,8 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             >
               <div className="p-4 space-y-2">
                 <div className="flex items-center gap-2 mb-3">
-                  <AlertCircle className="h-4 w-4 text-sky-700" />
-                  <span className="text-xs font-medium text-sky-800">ملخص المؤسسة</span>
+                  <AlertCircle className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <span className="text-xs font-medium text-sky-800 dark:text-sky-200">ملخص المؤسسة</span>
                 </div>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between">
@@ -473,7 +473,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={3}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <FileText className="h-4 w-4 text-sky-700" />
+              <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               <h3 className="font-semibold text-foreground text-sm">المعلومات الأساسية</h3>
             </div>
             <div className="p-4 space-y-4">
@@ -583,7 +583,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={4}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <Phone className="h-4 w-4 text-sky-700" />
+              <Phone className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               <h3 className="font-semibold text-foreground text-sm">بيانات التواصل</h3>
             </div>
             <div className="p-4 space-y-4">
@@ -709,7 +709,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={5}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <FileText className="h-4 w-4 text-sky-700" />
+              <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               <h3 className="font-semibold text-foreground text-sm">وصف المؤسسة</h3>
             </div>
             <div className="p-4">

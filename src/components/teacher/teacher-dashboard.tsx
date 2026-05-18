@@ -120,10 +120,10 @@ function scorePercentage(score: number, total: number): number {
 }
 
 function pctColorClass(pct: number): string {
-  if (pct >= 90) return 'text-teal-700 bg-teal-100';
-  if (pct >= 75) return 'text-teal-700 bg-teal-100';
-  if (pct >= 60) return 'text-amber-700 bg-amber-100';
-  return 'text-rose-700 bg-rose-100';
+  if (pct >= 90) return 'text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/50';
+  if (pct >= 75) return 'text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/50';
+  if (pct >= 60) return 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50';
+  return 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50';
 }
 
 // Pie chart colors
@@ -1118,7 +1118,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
           onClick={handleCopyTeacherCode}
-          className="flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 shadow-sm transition-colors hover:bg-sky-100 hover:border-sky-300"
+          className="flex items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 shadow-sm transition-colors hover:bg-sky-100 hover:border-sky-300"
           title="انقر للنسخ"
         >
           <Copy className="h-3 w-3" />
@@ -1329,7 +1329,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           {/* Pending Link Requests Button */}
           <button
             onClick={() => setPendingPanelOpen(true)}
-            className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 bg-gradient-to-b from-amber-50 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
+            className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 dark:border-amber-800 bg-gradient-to-b from-amber-50 dark:from-amber-950/30 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
           >
             <UserPlus className="h-4 w-4" />
             <span>طلبات الارتباط</span>
@@ -1338,14 +1338,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {pendingStudents.length}
               </span>
             ) : (
-              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-200/80 px-1.5 text-[10px] font-bold text-amber-600">
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-200/80 px-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
                 0
               </span>
             )}
           </button>
           <button
             onClick={() => setSendRequestOpen(true)}
-            className="flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100 transition-colors"
+            className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-2 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
           >
             <UserPlus className="h-4 w-4" />
             إرسال طلب لطالب
@@ -1468,7 +1468,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     <button
                       onClick={() => setConfirmRejectAllOpen(true)}
                       disabled={processingBulk}
-                      className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50/80 px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-100 hover:border-rose-300 transition-all duration-200 disabled:opacity-50"
+                      className="flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/80 dark:bg-rose-950/30 px-4 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-100 hover:border-rose-300 transition-all duration-200 disabled:opacity-50"
                     >
                       {processingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-4 w-4" />}
                       رفض الكل
@@ -1480,7 +1480,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                 {pendingStudents.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 mb-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30 mb-4">
                       <UserPlus className="h-7 w-7 text-amber-300" />
                     </div>
                     <p className="text-sm font-medium text-muted-foreground">لا توجد طلبات معلقة</p>
@@ -1522,7 +1522,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                         <button
                           onClick={() => handleRejectStudent(student.id)}
                           disabled={processingRequestId === student.id || processingBulk}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50 transition-all duration-200 active:scale-90"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 text-rose-500 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50 transition-all duration-200 active:scale-90"
                           title="رفض"
                         >
                           {processingRequestId === student.id ? (
@@ -1559,7 +1559,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               dir="rtl"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 mb-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 mb-4">
                   <CheckCircle2 className="h-7 w-7 text-amber-600" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-2">قبول جميع الطلبات</h3>
@@ -1606,7 +1606,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               dir="rtl"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 mb-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
                   <AlertTriangle className="h-7 w-7 text-rose-600" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-2">رفض جميع الطلبات</h3>
@@ -1676,7 +1676,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               </button>
 
               <div className="flex flex-col items-center text-center mb-6">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 mb-3">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-3">
                   <UserPlus className="h-6 w-6 text-sky-700" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground">إرسال طلب ارتباط</h3>
@@ -1774,9 +1774,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       {filteredStudents.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <Users className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
@@ -2041,7 +2041,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       <tr key={quiz.id} className="hover:bg-muted/30 transition-colors">
                         <td className="p-3">
                           <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
                               <ClipboardList className="h-4 w-4 text-teal-600" />
                             </div>
                             <span className="text-sm font-medium text-foreground truncate">{quiz.title}</span>
@@ -2217,14 +2217,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           {/* Question header */}
                           <div className="flex items-start gap-2">
                             <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                              ans?.isCorrect ? 'bg-teal-100 text-teal-700' : 'bg-rose-100 text-rose-700'
+                              ans?.isCorrect ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300' : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
                             }`}>
                               {ans?.isCorrect ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 mb-1">
                                 <span className="text-[10px] text-muted-foreground">سؤال {idx + 1}</span>
-                                <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-1.5 py-0.5 text-[9px] font-medium text-teal-700">
+                                <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 px-1.5 py-0.5 text-[9px] font-medium text-teal-700 dark:text-teal-300">
                                   {typeIcon}
                                   {typeLabel}
                                 </span>
@@ -2241,7 +2241,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                 const isPairCorrect = q.pairs?.find(p => p.key === k)?.value === v;
                                 return (
                                   <div key={k} className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] ${
-                                    isPairCorrect ? 'bg-teal-50 border border-teal-200' : 'bg-rose-50 border border-rose-200'
+                                    isPairCorrect ? 'bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800' : 'bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800'
                                   }`}>
                                     <span className="font-medium">{k}</span>
                                     <Link2 className="h-2.5 w-2.5" />
@@ -2335,7 +2335,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                     }
                                   }}
                                   disabled={aiGradingIdx !== null}
-                                  className="flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 hover:bg-sky-100 hover:border-sky-300 transition-colors disabled:opacity-50"
+                                  className="flex items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100 hover:border-sky-300 transition-colors disabled:opacity-50"
                                 >
                                   {aiGradingIdx === idx ? (
                                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -2347,7 +2347,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                               ) : (
                                 <div className="space-y-1.5">
                                   <div className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs ${
-                                    aiResult.isCorrect ? 'bg-teal-50 border border-teal-200 text-teal-700' : 'bg-rose-50 border border-rose-200 text-rose-700'
+                                    aiResult.isCorrect ? 'bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300' : 'bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'
                                   }`}>
                                     <Sparkles className="h-3 w-3" />
                                     <span className="font-medium">{aiResult.isCorrect ? 'الذكاء الاصطناعي: إجابة صحيحة' : 'الذكاء الاصطناعي: إجابة خاطئة'}</span>
@@ -2366,7 +2366,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                         }));
                                         toast.success('تم تعديل التقييم: صحيحة');
                                       }}
-                                      className="flex items-center gap-1 rounded-md bg-teal-100 px-2 py-1 text-[10px] font-medium text-teal-700 hover:bg-teal-200 transition-colors"
+                                      className="flex items-center gap-1 rounded-md bg-teal-100 dark:bg-teal-900/50 px-2 py-1 text-[10px] font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-200 transition-colors"
                                     >
                                       <CheckCircle2 className="h-2.5 w-2.5" />
                                       تعديل: صحيحة
@@ -2380,7 +2380,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                         }));
                                         toast.success('تم تعديل التقييم: خاطئة');
                                       }}
-                                      className="flex items-center gap-1 rounded-md bg-rose-100 px-2 py-1 text-[10px] font-medium text-rose-700 hover:bg-rose-200 transition-colors"
+                                      className="flex items-center gap-1 rounded-md bg-rose-100 dark:bg-rose-900/50 px-2 py-1 text-[10px] font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-200 transition-colors"
                                     >
                                       <XCircle className="h-2.5 w-2.5" />
                                       تعديل: خاطئة
@@ -2411,7 +2411,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       const pct = scorePercentage(score.score, score.total);
                       return (
                         <div key={score.id} className="flex items-center gap-3 rounded-lg border p-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 dark:bg-teal-950/30">
                             <ClipboardList className="h-4 w-4 text-teal-600" />
                           </div>
                           <div className="min-w-0 flex-1">
@@ -2458,7 +2458,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 <button
                   onClick={() => setConfirmRemoveOpen(true)}
                   disabled={processingRequestId === selectedStudent.id}
-                  className="flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-500 transition-colors hover:bg-rose-100 hover:border-rose-300 disabled:opacity-60"
+                  className="flex items-center gap-1.5 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1.5 text-xs font-medium text-rose-500 transition-colors hover:bg-rose-100 hover:border-rose-300 disabled:opacity-60"
                 >
                   {processingRequestId === selectedStudent.id ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -2501,7 +2501,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               dir="rtl"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 mb-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
                   <Trash2 className="h-7 w-7 text-rose-600" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-2">إزالة طالب</h3>

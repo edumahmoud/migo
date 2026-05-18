@@ -577,28 +577,28 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     switch (status) {
       case 'scheduled':
         return (
-          <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-[10px]">
+          <Badge variant="outline" className="text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-[10px]">
             <Clock className="h-2.5 w-2.5 me-1" />
             مجدول
           </Badge>
         );
       case 'active':
         return (
-          <Badge className="bg-sky-100 text-sky-800 border-sky-200 text-[10px]">
+          <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 text-[10px]">
             <Play className="h-2.5 w-2.5 me-1" />
             متاح
           </Badge>
         );
       case 'completed':
         return (
-          <Badge variant="outline" className="text-teal-700 border-teal-300 bg-teal-50 text-[10px]">
+          <Badge variant="outline" className="text-teal-700 dark:text-teal-300 border-teal-300 bg-teal-50 dark:bg-teal-950/30 text-[10px]">
             <Trophy className="h-2.5 w-2.5 me-1" />
             مكتمل
           </Badge>
         );
       case 'expired':
         return (
-          <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 text-[10px]">
+          <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 dark:bg-orange-950/30 text-[10px]">
             <Clock className="h-2.5 w-2.5 me-1" />
             انتهى الوقت
           </Badge>
@@ -625,7 +625,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   const renderQuestionBuilder = () => (
     <div className="border-t pt-5">
       <h4 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
-        <Plus className="h-4 w-4 text-sky-700" />
+        <Plus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
         إضافة سؤال
       </h4>
 
@@ -645,7 +645,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               disabled={savingQuiz}
               className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                 currentQuestionType === opt.type
-                  ? 'border-sky-600 bg-sky-50 text-sky-800'
+                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -719,7 +719,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               disabled={savingQuiz}
               className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-all ${
                 booleanCorrect
-                  ? 'border-sky-600 bg-sky-50 text-sky-800'
+                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -730,7 +730,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               disabled={savingQuiz}
               className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-all ${
                 !booleanCorrect
-                  ? 'border-rose-500 bg-rose-50 text-rose-700'
+                  ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -806,7 +806,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           <button
             onClick={() => setMatchingPairs([...matchingPairs, { key: '', value: '' }])}
             disabled={savingQuiz}
-            className="flex items-center gap-1 text-xs font-medium text-sky-700 hover:text-sky-800 transition-colors"
+            className="flex items-center gap-1 text-xs font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             إضافة زوج آخر
@@ -818,7 +818,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       <button
         onClick={handleAddQuestion}
         disabled={savingQuiz}
-        className="flex items-center gap-2 rounded-lg border-2 border-dashed border-sky-300 bg-sky-50/30 px-4 py-3 text-sm font-medium text-sky-800 hover:bg-sky-50 hover:border-sky-400 transition-colors w-full justify-center"
+        className="flex items-center gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 px-4 py-3 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-50 hover:border-sky-400 transition-colors w-full justify-center"
       >
         <Plus className="h-4 w-4" />
         إضافة سؤال
@@ -839,7 +839,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
           {quizQuestions.map((q, idx) => (
             <div key={idx} className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-800 text-xs font-bold">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 text-xs font-bold">
                 {idx + 1}
               </span>
               <div className="min-w-0 flex-1">
@@ -887,7 +887,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             {/* Header */}
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <ClipboardList className="h-5 w-5 text-sky-700" />
+                <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                 {editingQuiz ? 'تعديل الاختبار' : 'إنشاء اختبار جديد'}
               </h3>
               <button
@@ -1027,8 +1027,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           </div>
 
           <div className="flex items-center gap-3 mb-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100">
-              <ClipboardList className="h-5 w-5 text-sky-700" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+              <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
             </div>
             <div className="min-w-0 flex-1">
               <h4 className="font-semibold text-foreground truncate">{quiz.title}</h4>
@@ -1066,7 +1066,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 <span className="text-xs text-muted-foreground">{qScores.length} مشارك</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Trophy className="h-3.5 w-3.5 text-amber-600" />
+                <Trophy className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                 <span className="text-xs font-medium text-foreground">متوسط: {avgScore}%</span>
               </div>
             </div>
@@ -1082,11 +1082,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               {togglingQuizId === quiz.id ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
               ) : quiz.show_results === false ? (
-                <EyeOff className="h-3.5 w-3.5 text-amber-600" />
+                <EyeOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
               ) : (
-                <Eye className="h-3.5 w-3.5 text-sky-700" />
+                <Eye className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
               )}
-              <span className={quiz.show_results === false ? 'text-amber-600' : 'text-sky-700'}>
+              <span className={quiz.show_results === false ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}>
                 {quiz.show_results === false ? 'النتائج مخفية' : 'إظهار النتائج'}
               </span>
             </button>
@@ -1096,11 +1096,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               className="flex items-center gap-1.5 transition-colors"
             >
               {quiz.allow_retake ? (
-                <RotateCcw className="h-3.5 w-3.5 text-sky-700" />
+                <RotateCcw className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
               ) : (
                 <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
               )}
-              <span className={quiz.allow_retake ? 'text-sky-700' : 'text-muted-foreground'}>
+              <span className={quiz.allow_retake ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'}>
                 {quiz.allow_retake ? 'إعادة مسموحة' : 'بدون إعادة'}
               </span>
             </button>
@@ -1114,8 +1114,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               disabled={togglingQuizId === quiz.id}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                 isFinishedTab
-                  ? 'text-sky-800 border-sky-200 bg-sky-50 hover:bg-sky-100'
-                  : 'text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100'
+                  ? 'text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 hover:bg-sky-100'
+                  : 'text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100'
               }`}
             >
               {isFinishedTab ? 'إعادة تفعيل' : 'إنهاء الاختبار'}
@@ -1125,7 +1125,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             {isFinishedTab && qScores.length > 0 && (
               <button
                 onClick={() => handleExportQuizResults(quiz)}
-                className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-teal-700 border-teal-200 bg-teal-50 hover:bg-teal-100 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 hover:bg-teal-100 transition-colors"
               >
                 <Download className="h-3.5 w-3.5" />
                 تصدير النتائج
@@ -1148,8 +1148,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       <motion.div key={quiz.id} variants={itemVariants}>
         <div className="group relative rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all">
           <div className="flex items-center gap-3 mb-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100">
-              <ClipboardList className="h-5 w-5 text-sky-700" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+              <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
             </div>
             <div className="min-w-0 flex-1">
               <h4 className="font-semibold text-foreground truncate">{quiz.title}</h4>
@@ -1166,16 +1166,16 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           {myScore && (
             <div className="flex items-center gap-2 mt-2 p-2.5 rounded-lg bg-muted/50">
               <Trophy className={`h-4 w-4 ${
-                scorePct !== null && scorePct >= 80 ? 'text-sky-700' :
-                scorePct !== null && scorePct >= 60 ? 'text-amber-600' : 'text-rose-600'
+                scorePct !== null && scorePct >= 80 ? 'text-sky-700 dark:text-sky-300' :
+                scorePct !== null && scorePct >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
               }`} />
               <span className="text-sm font-medium text-foreground">
                 {myScore.score} / {myScore.total}
               </span>
               {scorePct !== null && (
                 <span className={`text-xs font-bold ${
-                  scorePct >= 80 ? 'text-sky-800' :
-                  scorePct >= 60 ? 'text-amber-700' : 'text-rose-700'
+                  scorePct >= 80 ? 'text-sky-800 dark:text-sky-200' :
+                  scorePct >= 60 ? 'text-amber-700 dark:text-amber-300' : 'text-rose-700 dark:text-rose-300'
                 }`}>
                   {scorePct}%
                 </span>
@@ -1281,17 +1281,17 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       {/* Quiz list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
         </div>
       ) : subTab === 'active' ? (
         // ─── Active tab ───
         activeQuizzes.length === 0 ? (
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
-              <ClipboardList className="h-8 w-8 text-sky-700" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
+              <ClipboardList className="h-8 w-8 text-sky-700 dark:text-sky-300" />
             </div>
             <p className="text-lg font-semibold text-foreground mb-1">لا توجد اختبارات نشطة</p>
             <p className="text-sm text-muted-foreground">
@@ -1321,7 +1321,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         finishedQuizzes.length === 0 ? (
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
           >
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted-100 mb-4">
               <ClipboardList className="h-8 w-8 text-muted-400" />

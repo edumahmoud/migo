@@ -171,15 +171,15 @@ function getRoleLabel(role: string): string {
 function getRoleBadgeClass(role: string): string {
   switch (role) {
     case 'superadmin':
-      return 'bg-amber-100 text-amber-700 border-amber-200';
+      return 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
     case 'admin':
-      return 'bg-sky-100 text-sky-800 border-sky-200';
+      return 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800';
     case 'teacher':
-      return 'bg-teal-100 text-teal-700 border-teal-200';
+      return 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800';
     case 'student':
-      return 'bg-blue-100 text-blue-700 border-blue-200';
+      return 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-sky-800';
     default:
-      return 'bg-gray-100 text-gray-700 border-gray-200';
+      return 'bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
   }
 }
 
@@ -187,13 +187,13 @@ function getRoleBadgeClass(role: string): string {
 function getRoleCardClass(role: string): string {
   switch (role) {
     case 'superadmin':
-      return 'border-amber-200 hover:border-amber-400';
+      return 'border-amber-200 dark:border-amber-800 hover:border-amber-400';
     case 'admin':
-      return 'border-sky-200 hover:border-sky-400';
+      return 'border-sky-200 dark:border-sky-800 hover:border-sky-400';
     case 'teacher':
-      return 'border-teal-200 hover:border-teal-400';
+      return 'border-teal-200 dark:border-teal-800 hover:border-teal-400';
     case 'student':
-      return 'border-sky-200 hover:border-sky-400';
+      return 'border-sky-200 dark:border-sky-800 hover:border-sky-400';
     default:
       return 'border-border';
   }
@@ -224,10 +224,10 @@ function scorePercentage(score: number, total: number): number {
 }
 
 function pctColorClass(pct: number): string {
-  if (pct >= 90) return 'text-teal-700 bg-teal-100';
-  if (pct >= 75) return 'text-teal-700 bg-teal-100';
-  if (pct >= 60) return 'text-amber-700 bg-amber-100';
-  return 'text-rose-700 bg-rose-100';
+  if (pct >= 90) return 'text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/50';
+  if (pct >= 75) return 'text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/50';
+  if (pct >= 60) return 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50';
+  return 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50';
 }
 
 // -------------------------------------------------------
@@ -1128,7 +1128,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const renderLoading = () => (
     <div className="flex items-center justify-center py-32">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
         <span className="text-sm text-muted-foreground">جاري تحميل البيانات...</span>
       </div>
     </div>
@@ -1184,12 +1184,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <UserCircle className="h-4 w-4 text-sky-700" />
+                <UserCircle className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                 أحدث المستخدمين
               </h3>
               <button
                 onClick={() => setActiveSection('users')}
-                className="text-xs text-sky-700 hover:text-sky-800 font-medium flex items-center gap-1"
+                className="text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 font-medium flex items-center gap-1"
               >
                 عرض الكل
                 <ChevronLeft className="h-3 w-3" />
@@ -1257,15 +1257,15 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-sky-700" />
+                <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                 إحصائيات المنصة
               </h3>
             </div>
             <div className="p-5 space-y-4">
               {/* Total quizzes */}
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100">
-                  <ClipboardList className="h-4 w-4 text-sky-700" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                  <ClipboardList className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-muted-foreground">إجمالي الاختبارات</p>
@@ -1275,8 +1275,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
               {/* Total submissions */}
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100">
-                  <Award className="h-4 w-4 text-sky-700" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                  <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-muted-foreground">إجمالي التسليمات</p>
@@ -1286,8 +1286,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
               {/* Active subjects */}
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100">
-                  <BookOpen className="h-4 w-4 text-teal-600" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
+                  <BookOpen className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-muted-foreground">المقررات النشطة</p>
@@ -1297,8 +1297,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
               {/* Average score */}
               <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
-                  <TrendingUp className="h-4 w-4 text-amber-600" />
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
+                  <TrendingUp className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div className="flex-1">
                   <p className="text-xs text-muted-foreground">متوسط الدرجات</p>
@@ -1395,7 +1395,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               onClick={() => { setRoleFilter(role); setUserPage(1); }}
               className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all whitespace-nowrap ${
                 roleFilter === role
-                  ? 'border-sky-600 bg-sky-50 text-sky-800'
+                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -1455,8 +1455,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           variants={itemVariants}
           className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
-            <Users className="h-8 w-8 text-sky-700" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
+            <Users className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
             {userSearch || roleFilter !== 'all' ? 'لا توجد نتائج للبحث' : 'لا يوجد مستخدمون'}
@@ -1496,7 +1496,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         {getRoleLabel(user.role)}
                       </span>
                       {bannedUsers.some(b => b.email === user.email && b.is_active !== false && (!b.ban_until || new Date(b.ban_until) > new Date())) && (
-                        <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border bg-rose-100 text-rose-700 border-rose-200">
+                        <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800">
                           محظور
                         </span>
                       )}
@@ -1512,11 +1512,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <div className="flex items-center gap-2 pt-2 border-t border-border/50">
                       {user.role === 'teacher' && (
                         <>
-                          <span className="inline-flex items-center gap-1 text-[11px] text-teal-700 bg-teal-50 rounded-md px-1.5 py-0.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 rounded-md px-1.5 py-0.5">
                             <BookOpen className="h-3 w-3" />
                             {user.subjectCount ?? 0} مقرر
                           </span>
-                          <span className="inline-flex items-center gap-1 text-[11px] text-teal-600 bg-teal-50 rounded-md px-1.5 py-0.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/30 rounded-md px-1.5 py-0.5">
                             <Users className="h-3 w-3" />
                             {user.studentCount ?? 0} طالب
                           </span>
@@ -1524,11 +1524,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       )}
                       {user.role === 'student' && (
                         <>
-                          <span className="inline-flex items-center gap-1 text-[11px] text-teal-700 bg-teal-50 rounded-md px-1.5 py-0.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 rounded-md px-1.5 py-0.5">
                             <BookOpen className="h-3 w-3" />
                             {user.subjectCount ?? 0} مقرر
                           </span>
-                          <span className="inline-flex items-center gap-1 text-[11px] text-sky-700 bg-sky-50 rounded-md px-1.5 py-0.5">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 rounded-md px-1.5 py-0.5">
                             <GraduationCap className="h-3 w-3" />
                             {user.teacherCount ?? 0} معلم
                           </span>
@@ -1611,13 +1611,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 {/* Stats for teacher */}
                 {selectedUser.role === 'teacher' && (
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-center">
-                      <p className="text-lg font-bold text-teal-700">{selectedUser.subjectCount ?? 0}</p>
-                      <p className="text-xs text-teal-600">مقرر دراسي</p>
+                    <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
+                      <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.subjectCount ?? 0}</p>
+                      <p className="text-xs text-teal-600 dark:text-teal-400">مقرر دراسي</p>
                     </div>
-                    <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-center">
-                      <p className="text-lg font-bold text-teal-700">{selectedUser.studentCount ?? 0}</p>
-                      <p className="text-xs text-teal-600">طالب مسجل</p>
+                    <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
+                      <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.studentCount ?? 0}</p>
+                      <p className="text-xs text-teal-600 dark:text-teal-400">طالب مسجل</p>
                     </div>
                   </div>
                 )}
@@ -1625,25 +1625,25 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 {/* Stats for student */}
                 {selectedUser.role === 'student' && (
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg bg-sky-50 border border-sky-200 p-3 text-center">
-                      <p className="text-lg font-bold text-sky-800">{selectedUser.teacherCount ?? 0}</p>
-                      <p className="text-xs text-sky-700">معلم مربوط</p>
+                    <div className="rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 p-3 text-center">
+                      <p className="text-lg font-bold text-sky-800 dark:text-sky-200">{selectedUser.teacherCount ?? 0}</p>
+                      <p className="text-xs text-sky-700 dark:text-sky-300">معلم مربوط</p>
                     </div>
-                    <div className="rounded-lg bg-teal-50 border border-teal-200 p-3 text-center">
-                      <p className="text-lg font-bold text-teal-700">{selectedUser.subjectCount ?? 0}</p>
-                      <p className="text-xs text-teal-600">مقرر دراسي</p>
+                    <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
+                      <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.subjectCount ?? 0}</p>
+                      <p className="text-xs text-teal-600 dark:text-teal-400">مقرر دراسي</p>
                     </div>
                   </div>
                 )}
 
                 {/* Role change section - not for self */}
                 {!isSelf(selectedUser.id) && (
-                  <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-4">
+                  <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <Shield className="h-4 w-4 text-sky-600" />
-                      <span className="text-sm font-semibold text-sky-700">تغيير الدور</span>
+                      <Shield className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                      <span className="text-sm font-semibold text-sky-700 dark:text-sky-300">تغيير الدور</span>
                     </div>
-                    <p className="text-xs text-sky-700 mb-3">
+                    <p className="text-xs text-sky-700 dark:text-sky-300 mb-3">
                       تغيير دور المستخدم في المنصة
                     </p>
                     <div className="flex gap-2 flex-wrap">
@@ -1661,7 +1661,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                             className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                               selectedUser.role === role
                                 ? 'bg-sky-700 text-white cursor-default'
-                                : 'border border-sky-200 text-sky-800 hover:bg-sky-100 disabled:opacity-50'
+                                : 'border border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-100 dark:hover:bg-sky-900/50 disabled:opacity-50'
                             }`}
                           >
                             {changingRole ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -1684,43 +1684,43 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   const isBanExpired = userBan?.ban_until ? new Date(userBan.ban_until) <= new Date() : false;
                   const isUserBanned = !!userBan && !isBanExpired;
                   return (
-                  <div className={`rounded-lg border p-4 mt-4 ${isUserBanned ? 'border-amber-200 bg-amber-50/50' : 'border-rose-200 bg-rose-50/50'}`}>
+                  <div className={`rounded-lg border p-4 mt-4 ${isUserBanned ? 'border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30' : 'border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/30'}`}>
                     <div className="flex items-center gap-2 mb-2">
                       {isUserBanned ? (
                         <Gavel className="h-4 w-4 text-amber-500" />
                       ) : (
                         <AlertTriangle className="h-4 w-4 text-rose-500" />
                       )}
-                      <span className={`text-sm font-semibold ${isUserBanned ? 'text-amber-600' : 'text-rose-600'}`}>
+                      <span className={`text-sm font-semibold ${isUserBanned ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
                         {isUserBanned ? 'المستخدم محظور' : 'منطقة الخطر'}
                       </span>
                     </div>
 
                     {isUserBanned && userBan && (
-                      <div className="rounded-lg bg-amber-100/60 border border-amber-200 p-3 mb-3 space-y-1.5">
+                      <div className="rounded-lg bg-amber-100/60 dark:bg-amber-900/50 border border-amber-200 dark:border-amber-800 p-3 mb-3 space-y-1.5">
                         <div className="flex items-center gap-2">
                           <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border ${
                             userBan.ban_until
-                              ? 'bg-amber-100 text-amber-700 border-amber-200'
-                              : 'bg-rose-100 text-rose-700 border-rose-200'
+                              ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                              : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
                           }`}>
                             {userBan.ban_until ? 'حظر مؤقت' : 'حظر نهائي'}
                           </span>
                         </div>
                         {userBan.reason && (
-                          <p className="text-xs text-amber-700">السبب: {userBan.reason}</p>
+                          <p className="text-xs text-amber-700 dark:text-amber-300">السبب: {userBan.reason}</p>
                         )}
                         {userBan.ban_until && (
-                          <p className="text-xs text-amber-700">ينتهي في: {formatDate(userBan.ban_until)}</p>
+                          <p className="text-xs text-amber-700 dark:text-amber-300">ينتهي في: {formatDate(userBan.ban_until)}</p>
                         )}
                         {userBan.banned_by_name && (
-                          <p className="text-xs text-amber-600">بواسطة: {userBan.banned_by_name}</p>
+                          <p className="text-xs text-amber-600 dark:text-amber-400">بواسطة: {userBan.banned_by_name}</p>
                         )}
                       </div>
                     )}
 
                     {!isUserBanned && (
-                      <p className="text-xs text-rose-600 mb-3">
+                      <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">
                         حذف المستخدم سيؤدي إلى إزالة جميع بياناته نهائياً.
                       </p>
                     )}
@@ -1777,12 +1777,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
                 {/* Self-action notice */}
                 {isSelf(selectedUser.id) && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 p-4">
                     <div className="flex items-center gap-2">
                       <Shield className="h-4 w-4 text-amber-500" />
-                      <span className="text-sm font-semibold text-amber-700">لا يمكنك اتخاذ إجراءات بحق حسابك</span>
+                      <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">لا يمكنك اتخاذ إجراءات بحق حسابك</span>
                     </div>
-                    <p className="text-xs text-amber-600 mt-1">
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                       لا يمكنك تغيير صفتك أو حظر أو حذف حسابك الخاص.
                     </p>
                   </div>
@@ -1815,8 +1815,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100">
-                    <Gavel className="h-5 w-5 text-amber-600" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
+                    <Gavel className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-foreground">حظر المستخدم</h3>
@@ -1861,7 +1861,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         onClick={() => setBanDuration(opt.value)}
                         className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium transition-all ${
                           banDuration === opt.value
-                            ? 'border-amber-500 bg-amber-50 text-amber-700'
+                            ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
                             : 'border-border text-muted-foreground hover:bg-muted/50'
                         }`}
                       >
@@ -1875,7 +1875,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     onClick={() => setBanDuration('custom')}
                     className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium transition-all mt-2 w-full ${
                       banDuration === 'custom'
-                        ? 'border-amber-500 bg-amber-50 text-amber-700'
+                        ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1894,8 +1894,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 </div>
 
                 {/* Warning */}
-                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
-                  <p className="text-xs text-amber-700">
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
                     {banDuration === 'permanent'
                       ? '⚠️ الحظر النهائي سيمنع المستخدم من الوصول لجميع الميزات نهائياً ما لم يتم إلغاء الحظر يدوياً.'
                       : '⚠️ الحظر المؤقت سيمنع المستخدم من الوصول للمقررات والمحادثات والإشعارات حتى انتهاء المدة المحددة.'
@@ -2006,7 +2006,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <Filter className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">فلاتر نشطة:</span>
               {subjectSearch && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-xs font-medium text-teal-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 px-2.5 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-300">
                   بحث: {subjectSearch}
                   <button onClick={() => setSubjectSearch('')} className="hover:text-teal-900">
                     <X className="h-3 w-3" />
@@ -2014,7 +2014,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 </span>
               )}
               {subjectLevelFilter && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-xs font-medium text-teal-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 px-2.5 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-300">
                   {subjectLevelFilter}
                   <button onClick={() => setSubjectLevelFilter('')} className="hover:text-teal-900">
                     <X className="h-3 w-3" />
@@ -2022,7 +2022,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 </span>
               )}
               {subjectSubLevelFilter && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-0.5 text-xs font-medium text-teal-700">
+                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 px-2.5 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-300">
                   {subjectSubLevelFilter}
                   <button onClick={() => setSubjectSubLevelFilter('')} className="hover:text-teal-900">
                     <X className="h-3 w-3" />
@@ -2046,8 +2046,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           variants={itemVariants}
           className="flex flex-col items-center justify-center rounded-xl border border-dashed border-teal-300 bg-teal-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 mb-4">
-            <BookOpen className="h-8 w-8 text-teal-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900/50 mb-4">
+            <BookOpen className="h-8 w-8 text-teal-600 dark:text-teal-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا توجد مقررات بعد</p>
           <p className="text-sm text-muted-foreground">سيظهر المقررات هنا بعد إنشائها من قبل المعلمين</p>
@@ -2057,14 +2057,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           variants={itemVariants}
           className="flex flex-col items-center justify-center rounded-xl border border-dashed border-teal-300 bg-teal-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 mb-4">
-            <Search className="h-8 w-8 text-teal-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900/50 mb-4">
+            <Search className="h-8 w-8 text-teal-600 dark:text-teal-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا توجد نتائج</p>
           <p className="text-sm text-muted-foreground">جرّب البحث بكلمات مختلفة أو تغيير الفلاتر</p>
           <button
             onClick={() => { setSubjectSearch(''); setSubjectLevelFilter(''); setSubjectSubLevelFilter(''); }}
-            className="mt-3 text-sm text-teal-600 hover:text-teal-700 font-medium underline"
+            className="mt-3 text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium underline"
           >
             مسح الفلاتر
           </button>
@@ -2123,7 +2123,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleViewSubject(subject)}
-                        className="flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 font-medium"
+                        className="flex items-center gap-1 text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 font-medium"
                       >
                         <Eye className="h-3.5 w-3.5" />
                         عرض
@@ -2151,7 +2151,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       ) : (
                         <button
                           onClick={() => setConfirmDeleteSubject(subject.id)}
-                          className="flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 font-medium"
+                          className="flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 font-medium"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           حذف
@@ -2215,7 +2215,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <div className="p-5 space-y-4">
                 {loadingSubjectDetail ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
+                    <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-300" />
                   </div>
                 ) : (
                   <>
@@ -2258,12 +2258,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     </div>
 
                     {/* Danger zone */}
-                    <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-4 mt-4">
+                    <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/30 p-4 mt-4">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="h-4 w-4 text-rose-500" />
-                        <span className="text-sm font-semibold text-rose-600">منطقة الخطر</span>
+                        <span className="text-sm font-semibold text-rose-600 dark:text-rose-400">منطقة الخطر</span>
                       </div>
-                      <p className="text-xs text-rose-600 mb-3">
+                      <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">
                         حذف المقرر سيؤدي إلى إزالة جميع البيانات المرتبطة به نهائياً.
                       </p>
                       <button
@@ -2324,7 +2324,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         </div>
         <button
           onClick={fetchBannedUsers}
-          className="flex items-center gap-2 rounded-lg border border-sky-200 px-3 py-2 text-xs font-medium text-sky-800 hover:bg-sky-50 transition-colors"
+          className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 px-3 py-2 text-xs font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
         >
           <Loader2 className={`h-3.5 w-3.5 ${loadingBanned ? 'animate-spin' : 'hidden'}`} />
           تحديث
@@ -2334,11 +2334,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* Stats summary */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-xl border bg-card p-4 text-center">
-          <p className="text-2xl font-bold text-rose-700">{activeBans.length}</p>
+          <p className="text-2xl font-bold text-rose-700 dark:text-rose-300">{activeBans.length}</p>
           <p className="text-xs text-muted-foreground">حظر نشط</p>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
-          <p className="text-2xl font-bold text-amber-700">{activeBans.filter((b) => b.ban_until).length}</p>
+          <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{activeBans.filter((b) => b.ban_until).length}</p>
           <p className="text-xs text-muted-foreground">حظر مؤقت</p>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
@@ -2356,8 +2356,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           variants={itemVariants}
           className="flex flex-col items-center justify-center rounded-xl border border-dashed border-rose-300 bg-rose-50/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 mb-4">
-            <Ban className="h-8 w-8 text-rose-600" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
+            <Ban className="h-8 w-8 text-rose-600 dark:text-rose-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا يوجد مستخدمون محظورون</p>
           <p className="text-sm text-muted-foreground">سيظهر المستخدمون المحظورون هنا عند حظر مستخدم</p>
@@ -2376,9 +2376,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
                       isActive
                         ? isPermanent
-                          ? 'bg-rose-100 text-rose-700'
-                          : 'bg-amber-100 text-amber-700'
-                        : 'bg-gray-100 text-gray-500'
+                          ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
+                          : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                        : 'bg-gray-100 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400'
                     }`}>
                       {isPermanent ? <Ban className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
                     </div>
@@ -2399,9 +2399,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${
                       isActive
                         ? isPermanent
-                          ? 'bg-rose-100 text-rose-700 border-rose-200'
-                          : 'bg-amber-100 text-amber-700 border-amber-200'
-                        : 'bg-gray-100 text-gray-500 border-gray-200'
+                          ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+                          : 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                        : 'bg-gray-100 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700'
                     }`}>
                       {isActive
                         ? isPermanent
@@ -2475,11 +2475,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     };
     const priorityClass = (p: string) => {
       switch (p) {
-        case 'urgent': return 'bg-rose-100 text-rose-700 border-rose-200';
-        case 'high': return 'bg-amber-100 text-amber-700 border-amber-200';
-        case 'normal': return 'bg-sky-100 text-sky-700 border-sky-200';
-        case 'low': return 'bg-gray-100 text-gray-700 border-gray-200';
-        default: return 'bg-gray-100 text-gray-700 border-gray-200';
+        case 'urgent': return 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+        case 'high': return 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+        case 'normal': return 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800';
+        case 'low': return 'bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+        default: return 'bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700';
       }
     };
 
@@ -2505,8 +2505,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             variants={itemVariants}
             className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
-              <Megaphone className="h-8 w-8 text-sky-700" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
+              <Megaphone className="h-8 w-8 text-sky-700 dark:text-sky-300" />
             </div>
             <p className="text-lg font-semibold text-foreground mb-1">لا توجد إعلانات</p>
             <p className="text-sm text-muted-foreground mb-4">ابدأ بإنشاء إعلان جديد للمستخدمين</p>
@@ -2524,8 +2524,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <motion.div key={ann.id} variants={itemVariants}>
                 <div className={`group rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow ${!ann.is_active ? 'opacity-60' : ''}`}>
                   <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 transition-transform group-hover:scale-110">
-                      <Megaphone className="h-5 w-5 text-sky-700" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50 transition-transform group-hover:scale-110">
+                      <Megaphone className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
@@ -2534,7 +2534,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           {priorityLabel(ann.priority)}
                         </span>
                         {!ann.is_active && (
-                          <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-bold border bg-gray-100 text-gray-600 border-gray-200">
+                          <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-bold border bg-gray-100 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700">
                             متوقف
                           </span>
                         )}
@@ -2550,7 +2550,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="flex items-center gap-2 mt-3 pt-3 border-t">
                     <button
                       onClick={() => handleToggleAnnouncement(ann.id, ann.is_active)}
-                      className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors border-sky-200 text-sky-800 hover:bg-sky-50"
+                      className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30"
                     >
                       {ann.is_active ? (
                         <>
@@ -2567,7 +2567,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <button
                       onClick={() => handleDeleteAnnouncement(ann.id)}
                       disabled={deletingAnnouncementId === ann.id}
-                      className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-rose-700 border-rose-200 bg-rose-50 hover:bg-rose-100 transition-colors"
+                      className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-colors"
                     >
                       {deletingAnnouncementId === ann.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2604,7 +2604,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               >
                 <div className="flex items-center justify-between border-b p-5">
                   <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    <Megaphone className="h-5 w-5 text-sky-700" />
+                    <Megaphone className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                     إعلان جديد
                   </h3>
                   <button
@@ -2652,7 +2652,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           disabled={creatingAnnouncement}
                           className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                             newAnnPriority === p
-                              ? 'border-sky-600 bg-sky-50 text-sky-800'
+                              ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                               : 'border-border text-muted-foreground hover:bg-muted/50'
                           }`}
                         >
@@ -2720,8 +2720,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-sky-500 to-sky-700" />
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100">
-                <Radio className="h-5 w-5 text-sky-700" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
+                <Radio className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -2732,7 +2732,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   </span>
                 </p>
                 <p className="text-2xl font-bold text-foreground">
-                  {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 inline" /> : (usageStats?.activeLectures ?? 0)}
+                  {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300 inline" /> : (usageStats?.activeLectures ?? 0)}
                 </p>
               </div>
             </div>
@@ -2744,17 +2744,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-teal-400 to-teal-600" />
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100">
-                <Activity className="h-5 w-5 text-teal-600" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 dark:bg-teal-900/50">
+                <Activity className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground">المستخدمون النشطون ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
-                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-teal-600 inline" /> : (usageStats?.activeUsers ?? 0)}
+                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-teal-600 dark:text-teal-400 inline" /> : (usageStats?.activeUsers ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.activeUsers >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.activeUsers >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-rose-600 dark:text-rose-400'}`}>
                       {usageStats.changes.activeUsers >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.activeUsers)}%
                     </span>
@@ -2770,17 +2770,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-amber-400 to-amber-600" />
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100">
-                <Users className="h-5 w-5 text-amber-600" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/50">
+                <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground">التسجيلات الجديدة ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
-                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-amber-600 inline" /> : (usageStats?.newRegistrations ?? 0)}
+                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-amber-600 dark:text-amber-400 inline" /> : (usageStats?.newRegistrations ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.newRegistrations >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.newRegistrations >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-rose-600 dark:text-rose-400'}`}>
                       {usageStats.changes.newRegistrations >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.newRegistrations)}%
                     </span>
@@ -2796,17 +2796,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-700" />
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100">
-                <ClipboardList className="h-5 w-5 text-sky-700" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
+                <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground">جلسات الحضور ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
-                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 inline" /> : (usageStats?.attendanceSessions ?? 0)}
+                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300 inline" /> : (usageStats?.attendanceSessions ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.attendanceSessions >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.attendanceSessions >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-rose-600 dark:text-rose-400'}`}>
                       {usageStats.changes.attendanceSessions >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.attendanceSessions)}%
                     </span>
@@ -2822,17 +2822,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-rose-400 to-rose-600" />
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100">
-                <Award className="h-5 w-5 text-rose-600" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-900/50">
+                <Award className="h-5 w-5 text-rose-600 dark:text-rose-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground">الاختبارات المؤدّاة ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
-                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-rose-600 inline" /> : (usageStats?.quizzesTaken ?? 0)}
+                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-rose-600 dark:text-rose-400 inline" /> : (usageStats?.quizzesTaken ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.quizzesTaken >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.quizzesTaken >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-rose-600 dark:text-rose-400'}`}>
                       {usageStats.changes.quizzesTaken >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.quizzesTaken)}%
                     </span>
@@ -2848,17 +2848,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-600" />
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100">
-                <ClipboardList className="h-5 w-5 text-sky-600" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
+                <ClipboardList className="h-5 w-5 text-sky-600 dark:text-sky-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground">محاضرات جديدة ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
-                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-600 inline" /> : (usageStats?.lecturesCreated ?? 0)}
+                    {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-600 dark:text-sky-400 inline" /> : (usageStats?.lecturesCreated ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.lecturesCreated >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.lecturesCreated >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-rose-600 dark:text-rose-400'}`}>
                       {usageStats.changes.lecturesCreated >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.lecturesCreated)}%
                     </span>
@@ -2884,7 +2884,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-orange-600 inline" /> : (usageStats?.assignmentsCreated ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.assignmentsCreated >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${usageStats.changes.assignmentsCreated >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-rose-600 dark:text-rose-400'}`}>
                       {usageStats.changes.assignmentsCreated >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                       {Math.abs(usageStats.changes.assignmentsCreated)}%
                     </span>
@@ -2906,7 +2906,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               onClick={() => setUsagePeriod(p)}
               className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
                 usagePeriod === p
-                  ? 'border-sky-600 bg-sky-50 text-sky-800 shadow-sm'
+                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 shadow-sm'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -2922,7 +2922,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm p-5">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-sky-700" />
+              <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               النشاط اليومي
               <span className="text-xs font-normal text-muted-foreground ms-1">آخر 30 يوم</span>
             </h3>
@@ -2980,7 +2980,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm p-5">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-teal-600" />
+              <TrendingUp className="h-4 w-4 text-teal-600 dark:text-teal-400" />
               اتجاه التسجيلات
               <span className="text-xs font-normal text-muted-foreground ms-1">آخر 12 شهر</span>
             </h3>
@@ -3038,7 +3038,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm p-5">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Award className="h-4 w-4 text-amber-600" />
+              <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               توزيع الدرجات
             </h3>
             {allScores.length > 0 ? (
@@ -3098,7 +3098,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Award className="h-4 w-4 text-amber-600" />
+                <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 أداء الاختبارات
               </h3>
               <span className="text-xs text-muted-foreground">{allScores.length} نتيجة</span>
@@ -3182,7 +3182,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           <div className="flex items-center justify-between border-b p-4">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-sky-700" />
+              <TrendingUp className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               إحصائيات تفصيلية
             </h3>
             <span className="text-xs text-muted-foreground">مقارنة مع الفترة السابقة</span>
@@ -3203,8 +3203,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <tr className="hover:bg-muted/30 transition-colors">
                       <td className="p-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-100">
-                            <Activity className="h-3.5 w-3.5 text-teal-600" />
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
+                            <Activity className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
                           </div>
                           <span className="text-sm font-medium text-foreground">المستخدمون النشطون</span>
                         </div>
@@ -3217,7 +3217,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </td>
                       <td className="p-3 text-center">
                         {usageStats.changes && (
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.activeUsers >= 0 ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.activeUsers >= 0 ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'}`}>
                             {usageStats.changes.activeUsers >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                             {Math.abs(usageStats.changes.activeUsers)}%
                           </span>
@@ -3227,8 +3227,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <tr className="hover:bg-muted/30 transition-colors">
                       <td className="p-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100">
-                            <Users className="h-3.5 w-3.5 text-amber-600" />
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
+                            <Users className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                           </div>
                           <span className="text-sm font-medium text-foreground">التسجيلات الجديدة</span>
                         </div>
@@ -3241,7 +3241,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </td>
                       <td className="p-3 text-center">
                         {usageStats.changes && (
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.newRegistrations >= 0 ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.newRegistrations >= 0 ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'}`}>
                             {usageStats.changes.newRegistrations >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                             {Math.abs(usageStats.changes.newRegistrations)}%
                           </span>
@@ -3251,8 +3251,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <tr className="hover:bg-muted/30 transition-colors">
                       <td className="p-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100">
-                            <ClipboardList className="h-3.5 w-3.5 text-sky-700" />
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                            <ClipboardList className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
                           </div>
                           <span className="text-sm font-medium text-foreground">جلسات الحضور</span>
                         </div>
@@ -3265,7 +3265,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </td>
                       <td className="p-3 text-center">
                         {usageStats.changes && (
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.attendanceSessions >= 0 ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.attendanceSessions >= 0 ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'}`}>
                             {usageStats.changes.attendanceSessions >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                             {Math.abs(usageStats.changes.attendanceSessions)}%
                           </span>
@@ -3289,7 +3289,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </td>
                       <td className="p-3 text-center">
                         {usageStats.changes && (
-                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.quizzesTaken >= 0 ? 'bg-sky-100 text-sky-700' : 'bg-rose-100 text-rose-700'}`}>
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${usageStats.changes.quizzesTaken >= 0 ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'}`}>
                             {usageStats.changes.quizzesTaken >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                             {Math.abs(usageStats.changes.quizzesTaken)}%
                           </span>
@@ -3320,7 +3320,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         <span className="text-xs text-muted-foreground">—</span>
                       </td>
                       <td className="p-3 text-center">
-                        <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold bg-sky-100 text-sky-700">
+                        <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300">
                           مباشر
                         </span>
                       </td>
@@ -3350,25 +3350,25 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <motion.div variants={itemVariants}>
         <div className="rounded-xl border bg-card shadow-sm p-5">
           <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-            <BarChart3 className="h-4 w-4 text-sky-700" />
+            <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
             ملخص إحصائيات المنصة
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="text-center p-3 rounded-lg bg-sky-50 border border-sky-100">
-              <p className="text-2xl font-bold text-sky-800">{allUsers.length}</p>
-              <p className="text-xs text-sky-700 mt-1">مستخدم</p>
+            <div className="text-center p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800">
+              <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{allUsers.length}</p>
+              <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">مستخدم</p>
             </div>
-            <div className="text-center p-3 rounded-lg bg-sky-50 border border-sky-100">
-              <p className="text-2xl font-bold text-sky-700">{allSubjects.length}</p>
-              <p className="text-xs text-sky-700 mt-1">مقرر</p>
+            <div className="text-center p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800">
+              <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{allSubjects.length}</p>
+              <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">مقرر</p>
             </div>
-            <div className="text-center p-3 rounded-lg bg-teal-50 border border-teal-100">
-              <p className="text-2xl font-bold text-teal-700">{totalQuizzes}</p>
-              <p className="text-xs text-teal-600 mt-1">اختبار</p>
+            <div className="text-center p-3 rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-800">
+              <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{totalQuizzes}</p>
+              <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">اختبار</p>
             </div>
-            <div className="text-center p-3 rounded-lg bg-amber-50 border border-amber-100">
-              <p className="text-2xl font-bold text-amber-700">{avgPlatformScore}%</p>
-              <p className="text-xs text-amber-600 mt-1">متوسط الدرجات</p>
+            <div className="text-center p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-800">
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{avgPlatformScore}%</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">متوسط الدرجات</p>
             </div>
           </div>
         </div>
@@ -3379,12 +3379,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100">
-                <Shield className="h-5 w-5 text-sky-700" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                <Shield className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">المشرفون</p>
-                <p className="text-2xl font-bold text-sky-800">{adminCount}</p>
+                <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{adminCount}</p>
               </div>
             </div>
           </div>
@@ -3393,12 +3393,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100">
-                <GraduationCap className="h-5 w-5 text-sky-700" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                <GraduationCap className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">المعلمون</p>
-                <p className="text-2xl font-bold text-sky-800">{teacherCount}</p>
+                <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{teacherCount}</p>
               </div>
             </div>
           </div>
@@ -3407,12 +3407,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card p-5 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100">
-                <Users className="h-5 w-5 text-teal-600" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
+                <Users className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">الطلاب</p>
-                <p className="text-2xl font-bold text-teal-700">{studentCount}</p>
+                <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{studentCount}</p>
               </div>
             </div>
           </div>

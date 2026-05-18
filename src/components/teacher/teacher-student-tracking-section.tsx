@@ -81,36 +81,36 @@ const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
     key: 'excellent',
     label: 'ممتاز',
     color: 'bg-emerald-500',
-    bgColor: 'bg-emerald-50',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
     ringColor: 'ring-emerald-100',
-    textColor: 'text-emerald-700',
+    textColor: 'text-emerald-700 dark:text-emerald-300',
     icon: '★',
   },
   {
     key: 'good',
     label: 'جيد',
     color: 'bg-sky-500',
-    bgColor: 'bg-sky-50',
+    bgColor: 'bg-sky-50 dark:bg-sky-950/30',
     ringColor: 'ring-sky-100',
-    textColor: 'text-sky-700',
+    textColor: 'text-sky-700 dark:text-sky-300',
     icon: '◆',
   },
   {
     key: 'average',
     label: 'متوسط',
     color: 'bg-amber-500',
-    bgColor: 'bg-amber-50',
+    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
     ringColor: 'ring-amber-100',
-    textColor: 'text-amber-700',
+    textColor: 'text-amber-700 dark:text-amber-300',
     icon: '●',
   },
   {
     key: 'weak',
     label: 'ضعيف',
     color: 'bg-rose-500',
-    bgColor: 'bg-rose-50',
+    bgColor: 'bg-rose-50 dark:bg-rose-950/30',
     ringColor: 'ring-rose-100',
-    textColor: 'text-rose-700',
+    textColor: 'text-rose-700 dark:text-rose-300',
     icon: '▼',
   },
 ];
@@ -136,45 +136,45 @@ const PERCENTAGE_RANGES: PercentageRangeConfig[] = [
     label: 'ممتاز',
     range: '90% - 100%',
     color: 'bg-emerald-500',
-    bgColor: 'bg-emerald-50',
-    textColor: 'text-emerald-700',
-    borderColor: 'border-emerald-200',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
+    textColor: 'text-emerald-700 dark:text-emerald-300',
+    borderColor: 'border-emerald-200 dark:border-emerald-800',
   },
   {
     key: '80-89',
     label: 'جيد جداً',
     range: '80% - 89%',
     color: 'bg-sky-500',
-    bgColor: 'bg-sky-50',
-    textColor: 'text-sky-700',
-    borderColor: 'border-sky-200',
+    bgColor: 'bg-sky-50 dark:bg-sky-950/30',
+    textColor: 'text-sky-700 dark:text-sky-300',
+    borderColor: 'border-sky-200 dark:border-sky-800',
   },
   {
     key: '70-79',
     label: 'جيد',
     range: '70% - 79%',
     color: 'bg-teal-500',
-    bgColor: 'bg-teal-50',
-    textColor: 'text-teal-700',
-    borderColor: 'border-teal-200',
+    bgColor: 'bg-teal-50 dark:bg-teal-950/30',
+    textColor: 'text-teal-700 dark:text-teal-300',
+    borderColor: 'border-teal-200 dark:border-teal-800',
   },
   {
     key: '60-69',
     label: 'مقبول',
     range: '60% - 69%',
     color: 'bg-amber-500',
-    bgColor: 'bg-amber-50',
-    textColor: 'text-amber-700',
-    borderColor: 'border-amber-200',
+    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+    textColor: 'text-amber-700 dark:text-amber-300',
+    borderColor: 'border-amber-200 dark:border-amber-800',
   },
   {
     key: 'below-60',
     label: 'ضعيف',
     range: 'أقل من 60%',
     color: 'bg-rose-500',
-    bgColor: 'bg-rose-50',
-    textColor: 'text-rose-700',
-    borderColor: 'border-rose-200',
+    bgColor: 'bg-rose-50 dark:bg-rose-950/30',
+    textColor: 'text-rose-700 dark:text-rose-300',
+    borderColor: 'border-rose-200 dark:border-rose-800',
   },
 ];
 
@@ -196,25 +196,25 @@ const EFFICIENCY_LEVELS: EfficiencyLevelConfig[] = [
   {
     key: 'high',
     label: 'عالي الكفاءة',
-    color: 'text-emerald-600',
-    bgColor: 'bg-emerald-50',
-    textColor: 'text-emerald-700',
+    color: 'text-emerald-600 dark:text-emerald-400',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
+    textColor: 'text-emerald-700 dark:text-emerald-300',
     ringColor: 'stroke-emerald-500',
   },
   {
     key: 'medium',
     label: 'متوسط الكفاءة',
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-50',
-    textColor: 'text-amber-700',
+    color: 'text-amber-600 dark:text-amber-400',
+    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+    textColor: 'text-amber-700 dark:text-amber-300',
     ringColor: 'stroke-amber-500',
   },
   {
     key: 'low',
     label: 'منخفض الكفاءة',
-    color: 'text-rose-600',
-    bgColor: 'bg-rose-50',
-    textColor: 'text-rose-700',
+    color: 'text-rose-600 dark:text-rose-400',
+    bgColor: 'bg-rose-50 dark:bg-rose-950/30',
+    textColor: 'text-rose-700 dark:text-rose-300',
     ringColor: 'stroke-rose-500',
   },
 ];
@@ -717,11 +717,11 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-sky-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 ring-2 ring-sky-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-950/30 ring-2 ring-sky-100">
                   <Users className="h-5 w-5 text-sky-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-sky-800">{overviewStats.totalStudents}</p>
+                  <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{overviewStats.totalStudents}</p>
                   <p className="text-xs text-muted-foreground">إجمالي الطلاب</p>
                 </div>
               </div>
@@ -732,11 +732,11 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-teal-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 ring-2 ring-teal-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 dark:bg-teal-950/30 ring-2 ring-teal-100">
                   <TrendingUp className="h-5 w-5 text-teal-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-teal-700">{Math.round(overviewStats.avgPerformance)}%</p>
+                  <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{Math.round(overviewStats.avgPerformance)}%</p>
                   <p className="text-xs text-muted-foreground">متوسط الأداء</p>
                 </div>
               </div>
@@ -747,11 +747,11 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-amber-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 ring-2 ring-amber-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/30 ring-2 ring-amber-100">
                   <Clock className="h-5 w-5 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-amber-700">{Math.round(overviewStats.avgAttendance)}%</p>
+                  <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{Math.round(overviewStats.avgAttendance)}%</p>
                   <p className="text-xs text-muted-foreground">معدل الحضور</p>
                 </div>
               </div>
@@ -762,7 +762,7 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-violet-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 ring-2 ring-violet-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/30 ring-2 ring-violet-100">
                   <Zap className="h-5 w-5 text-violet-600" />
                 </div>
                 <div>
@@ -777,11 +777,11 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-emerald-100/50 shadow-sm col-span-2 lg:col-span-1">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 ring-2 ring-emerald-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/30 ring-2 ring-emerald-100">
                   <Award className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-emerald-700">{overviewStats.topPerformers}</p>
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{overviewStats.topPerformers}</p>
                   <p className="text-xs text-muted-foreground">ممتاز</p>
                 </div>
               </div>
@@ -800,13 +800,13 @@ export default function TeacherStudentTrackingSection({
                 تصنيف الطلاب حسب الأداء
               </CardTitle>
               {/* Tab switcher */}
-              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-0.5">
                 <button
                   onClick={() => setActiveFilterTab('level')}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                     activeFilterTab === 'level'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-white dark:bg-card text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
                   }`}
                 >
                   حسب المستوى
@@ -815,8 +815,8 @@ export default function TeacherStudentTrackingSection({
                   onClick={() => setActiveFilterTab('range')}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                     activeFilterTab === 'range'
-                      ? 'bg-white text-gray-900 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'bg-white dark:bg-card text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
                   }`}
                 >
                   حسب النسبة
@@ -847,13 +847,13 @@ export default function TeacherStudentTrackingSection({
                           className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${
                             isActive
                               ? `${level.bgColor} ${level.ringColor} ring-2 border-current ${level.textColor}`
-                              : 'bg-white border-gray-100 hover:border-gray-200 text-gray-600'
+                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-gray-300'
                           }`}
                         >
                           <span className={`text-3xl font-bold ${isActive ? level.textColor : 'text-gray-400'}`}>
                             {count}
                           </span>
-                          <span className={`text-sm font-medium ${isActive ? level.textColor : 'text-gray-500'}`}>
+                          <span className={`text-sm font-medium ${isActive ? level.textColor : 'text-gray-500 dark:text-gray-400'}`}>
                             {level.label}
                           </span>
                           <span className={`text-xs ${isActive ? level.textColor : 'text-gray-400'}`}>
@@ -893,13 +893,13 @@ export default function TeacherStudentTrackingSection({
                           className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200 ${
                             isActive
                               ? `${range.bgColor} ${range.borderColor} border-current ${range.textColor}`
-                              : 'bg-white border-gray-100 hover:border-gray-200 text-gray-600'
+                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-gray-300'
                           }`}
                         >
                           <span className={`text-2xl font-bold ${isActive ? range.textColor : 'text-gray-400'}`}>
                             {count}
                           </span>
-                          <span className={`text-xs font-medium ${isActive ? range.textColor : 'text-gray-500'}`}>
+                          <span className={`text-xs font-medium ${isActive ? range.textColor : 'text-gray-500 dark:text-gray-400'}`}>
                             {range.label}
                           </span>
                           <span className={`text-[10px] ${isActive ? range.textColor : 'text-gray-400'}`}>
@@ -911,7 +911,7 @@ export default function TeacherStudentTrackingSection({
                   </div>
 
                   {/* Performance Distribution Horizontal Bar Chart */}
-                  <div className="mt-2 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 to-white border border-gray-100/80">
+                  <div className="mt-2 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 dark:from-gray-800/50 to-white dark:to-card border border-gray-100/80 dark:border-gray-700">
                     <div className="flex items-center gap-2 mb-3">
                       <BarChart3 className="h-4 w-4 text-sky-600" />
                       <span className="text-sm font-medium text-gray-900">توزيع الأداء</span>
@@ -925,7 +925,7 @@ export default function TeacherStudentTrackingSection({
                             <span className="text-[11px] font-medium text-gray-600 min-w-[70px] text-left">
                               {range.range}
                             </span>
-                            <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${Math.max(percentage, 0)}%` }}
@@ -1010,7 +1010,7 @@ export default function TeacherStudentTrackingSection({
                     placeholder="بحث عن طالب..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full sm:w-48 h-9 pr-9 pl-3 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 transition-all"
+                    className="w-full sm:w-48 h-9 pr-9 pl-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 transition-all"
                     dir="rtl"
                   />
                 </div>
@@ -1020,7 +1020,7 @@ export default function TeacherStudentTrackingSection({
                   <select
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value as SortOption)}
-                    className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 appearance-none cursor-pointer"
+                    className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 appearance-none cursor-pointer"
                     dir="rtl"
                   >
                     {SORT_OPTIONS.map(opt => (
@@ -1160,7 +1160,7 @@ function EfficiencyGauge({
 // -------------------------------------------------------
 function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
   return (
-    <div className="p-3 rounded-xl bg-white/80 border border-gray-100/80 space-y-2">
+    <div className="p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80 space-y-2">
       <div className="flex items-center gap-2">
         <BookOpen className="h-3.5 w-3.5 text-sky-600 shrink-0" />
         <span className="text-xs font-medium text-gray-900 truncate">{subject.subjectName}</span>
@@ -1169,7 +1169,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
         {/* Quiz avg */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-gray-500 min-w-[50px]">الاختبارات</span>
-          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(subject.quizAvg, 100)}%` }}
@@ -1177,14 +1177,14 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
               className="h-full bg-sky-500 rounded-full"
             />
           </div>
-          <span className="text-[10px] font-bold text-sky-700 min-w-[28px] text-left">
+          <span className="text-[10px] font-bold text-sky-700 dark:text-sky-300 min-w-[28px] text-left">
             {Math.round(subject.quizAvg)}%
           </span>
         </div>
         {/* Attendance */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-gray-500 min-w-[50px]">الحضور</span>
-          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(subject.attendanceRate, 100)}%` }}
@@ -1192,14 +1192,14 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
               className="h-full bg-teal-500 rounded-full"
             />
           </div>
-          <span className="text-[10px] font-bold text-teal-700 min-w-[28px] text-left">
+          <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 min-w-[28px] text-left">
             {Math.round(subject.attendanceRate)}%
           </span>
         </div>
         {/* Assignments */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-gray-500 min-w-[50px]">المهام</span>
-          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${subject.assignmentCount > 0 ? (subject.completedAssignments / subject.assignmentCount) * 100 : 0}%` }}
@@ -1207,7 +1207,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
               className="h-full bg-amber-500 rounded-full"
             />
           </div>
-          <span className="text-[10px] font-bold text-amber-700 min-w-[28px] text-left">
+          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 min-w-[28px] text-left">
             {subject.completedAssignments}/{subject.assignmentCount}
           </span>
         </div>
@@ -1246,7 +1246,7 @@ function StudentCard({
       className={`rounded-xl border-2 transition-all duration-200 ${
         isExpanded
           ? `${levelConfig.bgColor} ${levelConfig.ringColor} ring-1`
-          : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50/50'
+          : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 hover:bg-gray-50/50'
       }`}
     >
       {/* ── Main Row ── */}
@@ -1303,8 +1303,8 @@ function StudentCard({
         {/* Efficiency mini indicator */}
         <div className="hidden sm:flex flex-col items-center gap-0.5 shrink-0">
           <div className={`text-sm font-bold ${
-            data.efficiencyLevel === 'high' ? 'text-emerald-600' :
-            data.efficiencyLevel === 'medium' ? 'text-amber-600' : 'text-rose-600'
+            data.efficiencyLevel === 'high' ? 'text-emerald-600 dark:text-emerald-400' :
+            data.efficiencyLevel === 'medium' ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
           }`}>
             {Math.round(data.efficiency)}%
           </div>
@@ -1331,20 +1331,20 @@ function StudentCard({
               {/* Performance breakdown cards */}
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {/* Quiz average */}
-                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 border border-gray-100/80">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100">
+                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
                     <BarChart3 className="h-4 w-4 text-sky-700" />
                   </div>
-                  <span className="text-lg font-bold text-sky-800">{Math.round(data.quizAvg)}%</span>
+                  <span className="text-lg font-bold text-sky-800 dark:text-sky-200">{Math.round(data.quizAvg)}%</span>
                   <span className="text-[10px] text-muted-foreground text-center leading-tight">متوسط الاختبارات</span>
                 </div>
 
                 {/* Attendance rate */}
-                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 border border-gray-100/80">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100">
+                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
                     <CheckCircle2 className="h-4 w-4 text-teal-700" />
                   </div>
-                  <span className="text-lg font-bold text-teal-700">{Math.round(data.attendanceRate)}%</span>
+                  <span className="text-lg font-bold text-teal-700 dark:text-teal-300">{Math.round(data.attendanceRate)}%</span>
                   <span className="text-[10px] text-muted-foreground text-center leading-tight">نسبة الحضور</span>
                   <span className="text-[9px] text-muted-foreground">
                     {data.attendedSessionIds.size}/{totalSessions} جلسة
@@ -1352,11 +1352,11 @@ function StudentCard({
                 </div>
 
                 {/* Assignment completion */}
-                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 border border-gray-100/80">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
+                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
                     <ClipboardList className="h-4 w-4 text-amber-700" />
                   </div>
-                  <span className="text-lg font-bold text-amber-700">{Math.round(data.assignmentCompletion)}%</span>
+                  <span className="text-lg font-bold text-amber-700 dark:text-amber-300">{Math.round(data.assignmentCompletion)}%</span>
                   <span className="text-[10px] text-muted-foreground text-center leading-tight">إكمال المهام</span>
                   <span className="text-[9px] text-muted-foreground">
                     {data.studentSubmissions.filter(s => s.status === 'graded' || s.status === 'submitted').length}/{totalAssignments} مهمة
@@ -1380,8 +1380,8 @@ function StudentCard({
                   />
                   {/* Efficiency breakdown */}
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 border border-gray-100/50">
-                      <span className="text-[11px] text-gray-600">الجهد المبذول</span>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-700/50">
+                      <span className="text-[11px] text-gray-600 dark:text-gray-400">الجهد المبذول</span>
                       <div className="flex items-center gap-2">
                         <Progress value={Math.round(data.effortScore)} className="h-1.5 w-16" />
                         <span className="text-xs font-bold text-gray-700">{Math.round(data.effortScore)}%</span>
@@ -1390,8 +1390,8 @@ function StudentCard({
                     <div className="text-[9px] text-gray-400 pr-2">
                       حضور ({Math.round(data.attendanceRate)}%) × 50% + مهام ({Math.round(data.assignmentCompletion)}%) × 50%
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 border border-gray-100/50">
-                      <span className="text-[11px] text-gray-600">النتائج المحققة</span>
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-700/50">
+                      <span className="text-[11px] text-gray-600 dark:text-gray-400">النتائج المحققة</span>
                       <div className="flex items-center gap-2">
                         <Progress value={Math.round(data.resultScore)} className="h-1.5 w-16" />
                         <span className="text-xs font-bold text-gray-700">{Math.round(data.resultScore)}%</span>
@@ -1425,7 +1425,7 @@ function StudentCard({
                   <div className="flex items-center gap-2 mb-3">
                     <BookOpen className="h-4 w-4 text-sky-600" />
                     <span className="text-sm font-medium text-gray-900">الأداء حسب المقرر</span>
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-sky-50 text-sky-700 border-sky-100">
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800">
                       {data.subjectPerformances.length} مقرر
                     </Badge>
                   </div>
@@ -1446,15 +1446,15 @@ function StudentCard({
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-[10px] text-muted-foreground">اختبارات (40%)</p>
-                    <p className="text-sm font-bold text-sky-700">{Math.round(data.quizAvg * 0.4)}</p>
+                    <p className="text-sm font-bold text-sky-700 dark:text-sky-300">{Math.round(data.quizAvg * 0.4)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground">حضور (30%)</p>
-                    <p className="text-sm font-bold text-teal-700">{Math.round(data.attendanceRate * 0.3)}</p>
+                    <p className="text-sm font-bold text-teal-700 dark:text-teal-300">{Math.round(data.attendanceRate * 0.3)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground">مهمات (30%)</p>
-                    <p className="text-sm font-bold text-amber-700">{Math.round(data.assignmentCompletion * 0.3)}</p>
+                    <p className="text-sm font-bold text-amber-700 dark:text-amber-300">{Math.round(data.assignmentCompletion * 0.3)}</p>
                   </div>
                 </div>
               </div>
@@ -1465,7 +1465,7 @@ function StudentCard({
                   <div className="flex items-center gap-2 mb-3">
                     <Route className="h-4 w-4 text-teal-600" />
                     <span className="text-sm font-medium text-gray-900">مسار الطالب</span>
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-50 text-teal-700 border-teal-100">
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800">
                       {data.recentActivities.length} نشاط
                     </Badge>
                   </div>
@@ -1480,9 +1480,9 @@ function StudentCard({
                         assignment: <ClipboardList className="h-3.5 w-3.5 text-amber-600" />,
                       };
                       const bgMap = {
-                        attendance: 'bg-teal-50 ring-teal-100',
-                        quiz: 'bg-sky-50 ring-sky-100',
-                        assignment: 'bg-amber-50 ring-amber-100',
+                        attendance: 'bg-teal-50 dark:bg-teal-950/30 ring-teal-100',
+                        quiz: 'bg-sky-50 dark:bg-sky-950/30 ring-sky-100',
+                        assignment: 'bg-amber-50 dark:bg-amber-950/30 ring-amber-100',
                       };
                       const dotColorMap = {
                         attendance: 'bg-teal-400',
@@ -1490,9 +1490,9 @@ function StudentCard({
                         assignment: 'bg-amber-400',
                       };
                       const badgeMap = {
-                        attendance: { label: 'حضور', className: 'bg-teal-50 text-teal-700 border-teal-100' },
-                        quiz: { label: 'اختبار', className: 'bg-sky-50 text-sky-700 border-sky-100' },
-                        assignment: { label: 'مهمة', className: 'bg-amber-50 text-amber-700 border-amber-100' },
+                        attendance: { label: 'حضور', className: 'bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800' },
+                        quiz: { label: 'اختبار', className: 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800' },
+                        assignment: { label: 'مهمة', className: 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-800' },
                       };
 
                       return (

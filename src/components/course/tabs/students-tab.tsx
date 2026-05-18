@@ -111,12 +111,12 @@ function ConfirmDialog({
           >
             <div className="flex flex-col items-center text-center">
               <div className={`flex h-14 w-14 items-center justify-center rounded-full mb-4 ${
-                variant === 'danger' ? 'bg-rose-100' : 'bg-amber-100'
+                variant === 'danger' ? 'bg-rose-100 dark:bg-rose-900/50' : 'bg-amber-100 dark:bg-amber-900/50'
               }`}>
                 {variant === 'danger' ? (
-                  <Trash2 className="h-7 w-7 text-rose-600" />
+                  <Trash2 className="h-7 w-7 text-rose-600 dark:text-rose-400" />
                 ) : (
-                  <AlertTriangle className="h-7 w-7 text-amber-600" />
+                  <AlertTriangle className="h-7 w-7 text-amber-600 dark:text-amber-400" />
                 )}
               </div>
               <h3 className="text-lg font-bold text-foreground mb-2">{title}</h3>
@@ -632,7 +632,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
           {statusColumnExists && (
             <button
               onClick={() => setPendingPanelOpen(true)}
-              className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 bg-gradient-to-b from-amber-50 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
+              className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 bg-gradient-to-b from-amber-50 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
             >
               <UserPlus className="h-4 w-4" />
               <span>طلبات الانضمام</span>
@@ -641,7 +641,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                   {pendingRequests.length}
                 </span>
               ) : (
-                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-200/80 px-1.5 text-[10px] font-bold text-amber-600">
+                <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-200/80 px-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
                   0
                 </span>
               )}
@@ -652,8 +652,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             onClick={() => setShowAddSearch(!showAddSearch)}
             className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
               showAddSearch
-                ? 'bg-sky-100 text-sky-800 border border-sky-200'
-                : 'border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100'
+                ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border border-sky-200 dark:border-sky-800'
+                : 'border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 hover:bg-sky-100'
             }`}
           >
             <UserPlus className="h-4 w-4" />
@@ -675,7 +675,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             <div className="rounded-xl border bg-card p-4 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <UserPlus className="h-4 w-4 text-sky-700" />
+                  <UserPlus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                   إضافة طالب جديد للمقرر
                 </h4>
                 <button
@@ -702,7 +702,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 <div className="rounded-lg border bg-background overflow-hidden max-h-60 overflow-y-auto">
                   {addSearching ? (
                     <div className="flex items-center justify-center py-6">
-                      <Loader2 className="h-5 w-5 animate-spin text-sky-700" />
+                      <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300" />
                     </div>
                   ) : addSearchResults.length === 0 ? (
                     <div className="p-4 text-center text-muted-foreground text-sm">لا توجد نتائج</div>
@@ -757,15 +757,15 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       {/* Students list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
         </div>
       ) : students.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
-            <Users className="h-8 w-8 text-sky-700" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
+            <Users className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا يوجد طلاب مسجلون</p>
           <p className="text-sm text-muted-foreground">ابحث عن طالب وأضفه للمقرر</p>
@@ -773,7 +773,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       ) : filteredStudents.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-12"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-12"
         >
           <Search className="h-8 w-8 text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground">لا توجد نتائج مطابقة للبحث</p>
@@ -804,7 +804,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 key={student.id}
                 variants={itemVariants}
                 className={`px-4 py-3 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center space-y-2 sm:space-y-0 transition-colors ${
-                  selectedStudentIds.has(student.id) ? 'bg-sky-50/30' : 'hover:bg-muted/30'
+                  selectedStudentIds.has(student.id) ? 'bg-sky-50/30 dark:bg-sky-950/30' : 'hover:bg-muted/30'
                 }`}
               >
                 <div className="col-span-1 flex items-center justify-center">
@@ -888,7 +888,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             dir="rtl"
           >
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-sky-800">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
                 <span className="text-xs font-bold">{selectedStudentIds.size}</span>
               </div>
               <span className="text-sm font-semibold text-foreground">طالب محدد</span>
@@ -993,7 +993,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
                 <div className="flex items-center gap-3">
-                  <BarChart3 className="h-5 w-5 text-sky-700" />
+                  <BarChart3 className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                   <h3 className="text-lg font-bold text-foreground">أداء الطالب</h3>
                 </div>
                 <button
@@ -1008,14 +1008,14 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               <div className="p-5 space-y-5">
                 {loadingPerformance ? (
                   <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-8 w-8 text-sky-600 animate-spin" />
+                    <Loader2 className="h-8 w-8 text-sky-600 dark:text-sky-400 animate-spin" />
                   </div>
                 ) : performanceData ? (
                   <>
                     {/* Average Grade */}
                     <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100">
-                        <Award className="h-6 w-6 text-sky-700" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50">
+                        <Award className="h-6 w-6 text-sky-700 dark:text-sky-300" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground">متوسط الدرجات</p>
@@ -1027,8 +1027,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
 
                     {/* Attendance */}
                     <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-100">
-                        <UserCheck className="h-6 w-6 text-teal-600" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900/50">
+                        <UserCheck className="h-6 w-6 text-teal-600 dark:text-teal-400" />
                       </div>
                       <div className="flex-1">
                         <p className="text-xs text-muted-foreground">الحضور</p>
@@ -1056,7 +1056,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                     {/* Submissions by task */}
                     <div>
                       <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                        <ClipboardList className="h-4 w-4 text-amber-600" />
+                        <ClipboardList className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                         التسليمات ({performanceData.submissions.length})
                       </h4>
                       {performanceData.submissions.length === 0 ? (
@@ -1068,10 +1068,10 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                             return (
                               <div key={i} className="flex items-center gap-3 rounded-lg border p-3">
                                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                                  pct >= 75 ? 'bg-sky-50' : pct >= 50 ? 'bg-amber-50' : 'bg-rose-50'
+                                  pct >= 75 ? 'bg-sky-50 dark:bg-sky-950/30' : pct >= 50 ? 'bg-amber-50 dark:bg-amber-950/30' : 'bg-rose-50 dark:bg-rose-950/30'
                                 }`}>
                                   <span className={`text-xs font-bold ${
-                                    pct >= 75 ? 'text-sky-700' : pct >= 50 ? 'text-amber-600' : 'text-rose-600'
+                                    pct >= 75 ? 'text-sky-700 dark:text-sky-300' : pct >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
                                   }`}>{pct}%</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -1139,7 +1139,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-teal-100 shadow-sm shadow-sky-200/50">
-                      <UserPlus className="h-5.5 w-5.5 text-sky-700" />
+                      <UserPlus className="h-5.5 w-5.5 text-sky-700 dark:text-sky-300" />
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-foreground">طلبات الانضمام</h3>
@@ -1193,7 +1193,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 {loadingPending ? (
                   <div className="flex flex-col items-center justify-center py-16">
                     <div className="relative">
-                      <div className="h-12 w-12 rounded-full border-2 border-sky-200 border-t-sky-600 animate-spin" />
+                      <div className="h-12 w-12 rounded-full border-2 border-sky-200 dark:border-sky-800 border-t-sky-600 animate-spin" />
                     </div>
                     <p className="text-sm text-muted-foreground mt-4">جارٍ تحميل الطلبات...</p>
                   </div>

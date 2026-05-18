@@ -477,7 +477,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         const content = (data.content as string) || msg.content || '';
         toast(`رسالة جديدة من ${senderName}`, {
           description: content.substring(0, 60) + (content.length > 60 ? '...' : ''),
-          icon: <Bell className="h-4 w-4 text-sky-700" />,
+          icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
           duration: 5000,
         });
       }
@@ -998,7 +998,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
         <p className="text-sm text-muted-foreground">جاري تحميل المحادثة...</p>
       </div>
     );
@@ -1016,7 +1016,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         className="flex flex-col items-center justify-center py-20"
       >
         <motion.div variants={itemVariants} className="flex flex-col items-center text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 border border-sky-100 mb-5">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 dark:bg-sky-950/30 border border-sky-100 mb-5">
             <MessageCircle className="h-10 w-10 text-sky-400" />
           </div>
           <h3 className="text-lg font-bold text-foreground mb-2">المحادثة الجماعية</h3>
@@ -1025,11 +1025,11 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           </p>
           {setupInfo ? (
             <div className="mt-5 max-w-sm w-full space-y-3">
-              <div className="rounded-xl border bg-amber-50 border-amber-200 p-4 text-right">
-                <p className="text-sm font-semibold text-amber-800 mb-2">⚠️ جداول المحادثات لسه متعملتش</p>
-                <p className="text-xs text-amber-700 mb-3">لازم تشغّل SQL في Supabase عشان المحادثات تشتغل</p>
+              <div className="rounded-xl border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 p-4 text-right">
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">⚠️ جداول المحادثات لسه متعملتش</p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">لازم تشغّل SQL في Supabase عشان المحادثات تشتغل</p>
                 {setupInfo.steps && (
-                  <ol className="text-xs text-amber-700 space-y-1.5 mb-3">
+                  <ol className="text-xs text-amber-700 dark:text-amber-300 space-y-1.5 mb-3">
                     {setupInfo.steps.map((step, i) => (
                       <li key={i}>{step}</li>
                     ))}
@@ -1048,7 +1048,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               </div>
               <button
                 onClick={() => initConversation()}
-                className="text-xs text-sky-700 hover:text-sky-800 font-medium transition-colors"
+                className="text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 font-medium transition-colors"
               >
                 إعادة المحاولة ←
               </button>
@@ -1076,8 +1076,8 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       {/* Header */}
       <motion.div variants={itemVariants} className="shrink-0 flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100">
-            <Hash className="h-5 w-5 text-sky-700" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
+            <Hash className="h-5 w-5 text-sky-700 dark:text-sky-300" />
           </div>
           <div>
             <h3 className="text-base font-bold text-foreground">محادثة المقرر</h3>
@@ -1112,7 +1112,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-10">
             <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-50 to-sky-100 border border-sky-200/50 mb-5 shadow-sm">
-              <MessageCircle className="h-10 w-10 text-sky-600" />
+              <MessageCircle className="h-10 w-10 text-sky-600 dark:text-sky-400" />
             </div>
             <h4 className="text-base font-bold text-foreground mb-1.5">ابدأ المحادثة!</h4>
             <p className="text-sm text-muted-foreground max-w-[250px] leading-relaxed">
@@ -1137,14 +1137,14 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 4, pointerEvents: 'none' as const }}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50/80 border border-sky-100"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50/80 dark:bg-sky-950/30 border border-sky-100"
             >
               <div className="flex gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '150ms' }} />
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
-              <span className="text-xs text-sky-800 font-medium">
+              <span className="text-xs text-sky-800 dark:text-sky-200 font-medium">
                 {Array.from(typingUsers.values()).join('، ')} يكتب الآن...
               </span>
             </motion.div>

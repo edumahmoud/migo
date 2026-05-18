@@ -736,7 +736,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
       {/* Pending summaries progress */}
       {pendingSummaries.length > 0 && (
-        <motion.div variants={itemVariants} className="rounded-xl border border-sky-200 bg-sky-50/50 p-4">
+        <motion.div variants={itemVariants} className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-4">
           <div className="flex items-center gap-2 mb-2">
             <Loader2 className="h-4 w-4 animate-spin text-sky-700" />
             <span className="text-sm font-medium text-sky-800">
@@ -776,9 +776,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       ) : summaries.length === 0 && pendingSummaries.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <FileText className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملخصات</p>
@@ -821,8 +821,8 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                   <div className="flex items-center gap-2 mb-3">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${
                       isTranscribed
-                        ? 'bg-teal-100 text-teal-700'
-                        : 'bg-sky-100 text-sky-800'
+                        ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300'
+                        : 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
                     }`}>
                       {isTranscribed ? (
                         <><BookOpen className="h-3 w-3" /> تفريغ</>
@@ -923,7 +923,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       onClick={() => setSummaryInputMode('text')}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'text'
-                          ? 'border-sky-600 bg-sky-50 text-sky-800'
+                          ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -934,7 +934,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       onClick={() => setSummaryInputMode('transcribe')}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'transcribe'
-                          ? 'border-teal-500 bg-teal-50 text-teal-700'
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -945,7 +945,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       onClick={() => setSummaryInputMode('file')}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'file'
-                          ? 'border-sky-600 bg-sky-50 text-sky-800'
+                          ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -975,7 +975,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       }}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'existing'
-                          ? 'border-sky-500 bg-sky-50 text-sky-700'
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -1059,14 +1059,14 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       onClick={() => fileInputRef.current?.click()}
                       className={`flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
                         summaryInputMode === 'transcribe'
-                          ? 'border-teal-300 bg-teal-50/30 hover:border-teal-400 hover:bg-teal-50/50'
-                          : 'border-sky-300 bg-sky-50/30 hover:border-sky-400 hover:bg-sky-50/50'
+                          ? 'border-teal-300 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-950/30 hover:border-teal-400 hover:bg-teal-50/50'
+                          : 'border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 hover:border-sky-400 hover:bg-sky-50/50'
                       }`}
                     >
                       {summaryFile ? (
                         <>
-                          <FileText className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-600' : 'text-sky-700'}`} />
-                          <span className={`text-sm font-medium ${summaryInputMode === 'transcribe' ? 'text-teal-700' : 'text-sky-800'}`}>{summaryFile.name}</span>
+                          <FileText className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-600 dark:text-teal-400' : 'text-sky-700 dark:text-sky-300'}`} />
+                          <span className={`text-sm font-medium ${summaryInputMode === 'transcribe' ? 'text-teal-700 dark:text-teal-300' : 'text-sky-800 dark:text-sky-200'}`}>{summaryFile.name}</span>
                           <span className="text-xs text-muted-foreground">{(summaryFile.size / 1024 / 1024).toFixed(2)} MB</span>
                         </>
                       ) : (
@@ -1090,7 +1090,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                         <span className="text-sm text-muted-foreground">جاري تحميل الملفات...</span>
                       </div>
                     ) : existingFiles.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-lg border-2 border-dashed border-sky-300 bg-sky-50/30">
+                      <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30">
                         <FolderOpen className="h-8 w-8 text-sky-400" />
                         <span className="text-sm text-muted-foreground">لا توجد ملفات مستندية مرفوعة</span>
                         <span className="text-xs text-muted-foreground/60">ارفع ملفات PDF أو Word من قسم الملفات</span>
@@ -1105,12 +1105,12 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                               onClick={() => setSelectedExistingFile(file)}
                               className={`flex items-center gap-3 w-full rounded-lg border p-3 text-right transition-all ${
                                 selectedExistingFile?.id === file.id
-                                  ? 'border-sky-500 bg-sky-50'
+                                  ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30'
                                   : 'border-border hover:bg-muted/50'
                               }`}
                             >
                               <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                                isPdf ? 'bg-rose-100' : 'bg-blue-100'
+                                isPdf ? 'bg-rose-100 dark:bg-rose-900/50' : 'bg-blue-100 dark:bg-blue-900/50'
                               }`}>
                                 {isPdf ? (
                                   <FileText className="h-4 w-4 text-rose-600" />

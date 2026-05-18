@@ -97,18 +97,18 @@ const STATUS_OPTIONS: {
     value: 'online',
     label: 'متصل',
     color: 'bg-sky-600',
-    textColor: 'text-sky-800',
+    textColor: 'text-sky-800 dark:text-sky-200',
     borderColor: 'border-sky-600',
-    bgColor: 'bg-sky-50',
+    bgColor: 'bg-sky-50 dark:bg-sky-950/30',
     description: 'متاح',
   },
   {
     value: 'busy',
     label: 'مشغول',
     color: 'bg-amber-500',
-    textColor: 'text-amber-700',
+    textColor: 'text-amber-700 dark:text-amber-300',
     borderColor: 'border-amber-500',
-    bgColor: 'bg-amber-50',
+    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
     description: 'مشغول',
   },
   {
@@ -124,18 +124,18 @@ const STATUS_OPTIONS: {
     value: 'invisible',
     label: 'غير مرئي',
     color: 'bg-gray-400',
-    textColor: 'text-gray-600',
+    textColor: 'text-gray-600 dark:text-gray-400',
     borderColor: 'border-gray-400',
-    bgColor: 'bg-gray-50',
+    bgColor: 'bg-gray-50 dark:bg-gray-800/50',
     description: 'مخفي',
   },
   {
     value: 'offline',
     label: 'غير متصل',
     color: 'bg-gray-400',
-    textColor: 'text-gray-500',
+    textColor: 'text-gray-500 dark:text-gray-400',
     borderColor: 'border-gray-400',
-    bgColor: 'bg-gray-50',
+    bgColor: 'bg-gray-50 dark:bg-gray-800/50',
     description: 'غير مرئي',
   },
 ];
@@ -344,12 +344,12 @@ export default function SettingsSection({
   const roleLabel = getRoleLabel(profile.role, gender || profile.gender, titleId || profile.title_id);
 
   const roleBadgeClass = profile.role === 'superadmin'
-    ? 'bg-amber-100 text-amber-700 border-amber-200'
+    ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
     : profile.role === 'admin'
-      ? 'bg-sky-100 text-sky-800 border-sky-200'
+      ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800'
       : profile.role === 'teacher'
-        ? 'bg-sky-100 text-sky-800 border-sky-200'
-        : 'bg-sky-100 text-sky-700 border-sky-200';
+        ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800'
+        : 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800';
 
   // ─── Server-side profile update (bypasses RLS) ───
   const updateProfileServer = async (updates: Partial<UserProfile>): Promise<{ error: string | null }> => {
@@ -707,7 +707,7 @@ export default function SettingsSection({
             custom={0}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <User className="h-4 w-4 text-sky-700" />
+              <User className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               <h3 className="font-semibold text-foreground text-sm">الملف الشخصي</h3>
             </div>
 
@@ -716,11 +716,11 @@ export default function SettingsSection({
               <div className="flex items-start gap-4">
                 <div className="relative shrink-0 group">
                   <Avatar
-                    className="h-20 w-20 border-2 border-sky-200 shadow-sm cursor-pointer"
+                    className="h-20 w-20 border-2 border-sky-200 dark:border-sky-800 shadow-sm cursor-pointer"
                     onClick={() => profile.avatar_url && setAvatarPreviewOpen(true)}
                   >
                     <AvatarImage src={avatarSrc} alt={profile.name} className="object-cover" />
-                    <AvatarFallback className="bg-sky-100 text-sky-800">
+                    <AvatarFallback className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
                       <User className="h-8 w-8" />
                     </AvatarFallback>
                   </Avatar>
@@ -790,7 +790,7 @@ export default function SettingsSection({
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                           )}
                           {!isCheckingUsername && usernameAvailable === true && username.trim().length >= 3 && (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-sky-600" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
                           )}
                           {!isCheckingUsername && usernameAvailable === false && (
                             <X className="h-3.5 w-3.5 text-rose-500" />
@@ -828,7 +828,7 @@ export default function SettingsSection({
                         onClick={() => setGender(gender === opt.value ? '' : opt.value)}
                         className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                           gender === opt.value
-                            ? 'border-sky-600 bg-sky-50 text-sky-800'
+                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                             : 'border-border text-muted-foreground hover:bg-muted/50'
                         }`}
                         disabled={isSaving}
@@ -885,7 +885,7 @@ export default function SettingsSection({
                           onClick={() => setTitleId(title.value)}
                           className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
                             titleId === title.value
-                              ? 'border-sky-600 bg-sky-50 text-sky-800'
+                              ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                               : 'border-border text-muted-foreground hover:bg-muted/50'
                           }`}
                           disabled={isSaving}
@@ -897,7 +897,7 @@ export default function SettingsSection({
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="text-[10px] text-muted-foreground">سيظهر كـ:</span>
-                    <span className="text-xs font-semibold text-sky-800">
+                    <span className="text-xs font-semibold text-sky-800 dark:text-sky-200">
                       {(() => {
                         const t = ACADEMIC_TITLES.find((t) => t.value === titleId);
                         if (!t) return '';
@@ -941,7 +941,7 @@ export default function SettingsSection({
           >
             {/* Header */}
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-sky-100">
+              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-sky-100 dark:bg-sky-900/50">
                 <div className={`h-2.5 w-2.5 rounded-full ${currentStatusInfo.color} ${userStatus === 'online' && isConnected ? 'animate-pulse' : ''}`} />
               </div>
               <h3 className="font-semibold text-foreground text-sm">الحالة والظهور</h3>
@@ -973,8 +973,8 @@ export default function SettingsSection({
                           : 'bg-red-400'
                       }`} />
                       <span className={`text-[10px] ${
-                        isConnected ? 'text-sky-700' 
-                          : socketStatus === 'connecting' ? 'text-amber-600' 
+                        isConnected ? 'text-sky-700 dark:text-sky-300' 
+                          : socketStatus === 'connecting' ? 'text-amber-600 dark:text-amber-400' 
                           : 'text-red-500'
                       }`}>
                         {isConnected ? 'متصل' 
@@ -1037,9 +1037,9 @@ export default function SettingsSection({
 
               {/* Invisible mode note */}
               {userStatus === 'invisible' && (
-                <div className="rounded-lg border border-gray-200 bg-gray-50/50 p-2.5 flex items-start gap-2">
-                  <WifiOff className="h-3.5 w-3.5 text-gray-500 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-gray-600">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 p-2.5 flex items-start gap-2">
+                  <WifiOff className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-gray-600 dark:text-gray-400">
                     أنت في وضع عدم الظهور. يمكنك استخدام المحادثة واستقبال الرسائل، لكنك ستظهر كغير متصل للآخرين.
                   </p>
                 </div>
@@ -1059,7 +1059,7 @@ export default function SettingsSection({
             custom={2}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <Smartphone className="h-4 w-4 text-sky-700" />
+              <Smartphone className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               <h3 className="font-semibold text-foreground text-sm">إعدادات التطبيق</h3>
             </div>
 
@@ -1069,10 +1069,10 @@ export default function SettingsSection({
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
                     pushPermission === 'granted'
-                      ? 'bg-sky-100 text-sky-700'
+                      ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300'
                       : pushPermission === 'denied'
-                        ? 'bg-rose-100 text-rose-600'
-                        : 'bg-amber-100 text-amber-600'
+                        ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400'
+                        : 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
                   }`}>
                     {pushPermission === 'granted' ? (
                       <BellRing className="h-4 w-4" />
@@ -1105,12 +1105,12 @@ export default function SettingsSection({
                   }`}
                   aria-label={pushPermission === 'granted' ? 'إيقاف الإشعارات' : 'تفعيل الإشعارات'}
                 >
-                  <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                    pushPermission === 'granted' ? 'translate-x-[22px]' : 'translate-x-0.5'
+                  <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-200 ${
+                    pushPermission === 'granted' ? 'end-0.5' : 'start-0.5'
                   }`}>
                     {isTogglingPush && (
                       <div className="flex h-full w-full items-center justify-center">
-                        <Loader2 className="h-3 w-3 animate-spin text-sky-700" />
+                        <Loader2 className="h-3 w-3 animate-spin text-sky-700 dark:text-sky-300" />
                       </div>
                     )}
                   </div>
@@ -1121,7 +1121,7 @@ export default function SettingsSection({
               {pushPermission === 'granted' && (
                 <button
                   onClick={handleTestNotification}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-sky-300 bg-sky-50/50 px-3 py-2 text-xs font-medium text-sky-800 hover:bg-sky-100/60 active:bg-sky-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 px-3 py-2 text-xs font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100/60 active:bg-sky-100 transition-colors"
                 >
                   <BellRing className="h-3.5 w-3.5" />
                   إرسال إشعار تجريبي
@@ -1145,7 +1145,7 @@ export default function SettingsSection({
             custom={2}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <Lock className="h-4 w-4 text-sky-700" />
+              <Lock className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               <h3 className="font-semibold text-foreground text-sm">تغيير كلمة المرور</h3>
             </div>
 
@@ -1251,25 +1251,25 @@ export default function SettingsSection({
           {/* Danger Zone Card - hidden for superadmin */}
           {profile.role !== 'superadmin' && (
           <motion.div
-            className="rounded-xl border border-rose-200 bg-rose-50/30 shadow-sm overflow-hidden"
+            className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-950/30 shadow-sm overflow-hidden"
             variants={sectionVariants}
             initial="hidden"
             animate="visible"
             custom={3}
           >
-            <div className="flex items-center gap-2 border-b border-rose-200 px-4 py-2.5 bg-rose-50/50">
+            <div className="flex items-center gap-2 border-b border-rose-200 dark:border-rose-800 px-4 py-2.5 bg-rose-50/50 dark:bg-rose-950/30">
               <Shield className="h-4 w-4 text-rose-500" />
-              <h3 className="font-semibold text-rose-700 text-sm">منطقة الخطر</h3>
+              <h3 className="font-semibold text-rose-700 dark:text-rose-300 text-sm">منطقة الخطر</h3>
             </div>
 
             <div className="p-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h4 className="text-sm font-semibold text-rose-700 flex items-center gap-1.5">
+                  <h4 className="text-sm font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
                     <AlertTriangle className="h-3.5 w-3.5" />
                     حذف الحساب
                   </h4>
-                  <p className="text-[11px] text-rose-600/80 mt-0.5">
+                  <p className="text-[11px] text-rose-600/80 dark:text-rose-400 mt-0.5">
                     سيؤدي إلى إزالة جميع بياناتك نهائياً. هذا الإجراء لا يمكن التراجع عنه.
                   </p>
                 </div>
@@ -1303,7 +1303,7 @@ export default function SettingsSection({
 
                   <div className="space-y-3 py-2">
                     <p className="text-sm text-muted-foreground">
-                      يرجى كتابة <span className="font-bold text-rose-600">حذف</span> للتأكيد:
+                      يرجى كتابة <span className="font-bold text-rose-600 dark:text-rose-400">حذف</span> للتأكيد:
                     </p>
                     <Input
                       value={deleteConfirmText}

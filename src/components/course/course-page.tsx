@@ -51,7 +51,7 @@ const TeamsTab = lazy(() => import('@/components/course/tabs/teams-tab'));
 function TabLoader() {
   return (
     <div className="flex items-center justify-center py-16">
-      <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
+      <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-300" />
     </div>
   );
 }
@@ -424,7 +424,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
       </div>
     );
   }
@@ -435,8 +435,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   if (!subject) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
-          <BookOpen className="h-8 w-8 text-sky-700" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
+          <BookOpen className="h-8 w-8 text-sky-700 dark:text-sky-300" />
         </div>
         <p className="text-lg font-semibold text-foreground mb-1">لم يتم العثور على المقرر</p>
         <p className="text-sm text-muted-foreground mb-4">قد يكون المقرر محذوفاً أو غير متاح</p>
@@ -936,8 +936,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               dir="rtl"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 mb-4">
-                  <Trash2 className="h-7 w-7 text-rose-600" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
+                  <Trash2 className="h-7 w-7 text-rose-600 dark:text-rose-400" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-2">حذف المقرر</h3>
                 <p className="text-sm text-muted-foreground mb-6">
@@ -1000,8 +1000,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               dir="rtl"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 mb-4">
-                  <LogOut className="h-7 w-7 text-rose-600" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
+                  <LogOut className="h-7 w-7 text-rose-600 dark:text-rose-400" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-2">انسحاب من المقرر</h3>
                 <p className="text-sm text-muted-foreground mb-2">

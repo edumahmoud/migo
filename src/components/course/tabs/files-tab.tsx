@@ -142,10 +142,10 @@ function getFileIcon(fileType: string) {
     lower.includes('svg') ||
     lower.includes('webp')
   ) {
-    return <ImageIcon className="h-5 w-5 text-sky-600" />;
+    return <ImageIcon className="h-5 w-5 text-sky-600 dark:text-sky-400" />;
   }
   if (lower.includes('video') || lower.includes('mp4') || lower.includes('avi') || lower.includes('mov')) {
-    return <FileVideo className="h-5 w-5 text-sky-600" />;
+    return <FileVideo className="h-5 w-5 text-sky-600 dark:text-sky-400" />;
   }
   if (lower.includes('audio') || lower.includes('mp3') || lower.includes('wav') || lower.includes('ogg')) {
     return <FileAudio className="h-5 w-5 text-amber-500" />;
@@ -547,12 +547,12 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               onClick={() => setCategoryFilter(cat)}
               className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
                 categoryFilter === cat
-                  ? 'bg-sky-100 text-sky-800'
+                  ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
               {cat}
-              <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700' : 'text-muted-foreground'}`}>
+              <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'}`}>
                 ({count})
               </span>
             </button>
@@ -568,14 +568,14 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             {selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
-              <CheckSquare className="h-4 w-4 text-sky-700" />
+              <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-300" />
             ) : (
               <Square className="h-4 w-4" />
             )}
             تحديد الكل
           </button>
           {selectedFileIds.size > 0 && (
-            <span className="text-xs text-sky-700 font-medium">
+            <span className="text-xs text-sky-700 dark:text-sky-300 font-medium">
               تم تحديد {selectedFileIds.size} ملف
             </span>
           )}
@@ -585,15 +585,15 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
       {/* Files list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
         </div>
       ) : filteredFiles.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
-            <File className="h-8 w-8 text-sky-700" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
+            <File className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملفات</p>
           <p className="text-sm text-muted-foreground">
@@ -611,7 +611,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                     onClick={() => toggleFileSelection(file.id)}
                     className={`touch-target shrink-0 flex items-center justify-center rounded-md transition-colors ${
                       selectedFileIds.has(file.id)
-                        ? 'text-sky-700'
+                        ? 'text-sky-700 dark:text-sky-300'
                         : 'text-muted-foreground/40 hover:text-foreground'
                     }`}
                   >
@@ -620,7 +620,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                 )}
 
                 {/* File icon */}
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
                   {getFileIcon(file.file_type)}
                 </div>
 
@@ -631,7 +631,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                     <span>{formatFileSize(file.file_size)}</span>
                     <span title="تاريخ الإسناد للمقرر">{formatDate(file.created_at)}</span>
                     {file.category && (
-                      <span className="rounded-full bg-sky-100 text-sky-800 px-2 py-0.5 text-[10px] font-medium">
+                      <span className="rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2 py-0.5 text-[10px] font-medium">
                         {file.category}
                       </span>
                     )}
@@ -652,8 +652,8 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                       disabled={togglingVisibilityId === file.id}
                       className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
                         (file.visibility ?? 'public') === 'public'
-                          ? 'bg-sky-50 text-sky-800 hover:bg-amber-50 hover:text-amber-600'
-                          : 'bg-amber-50 text-amber-700 hover:bg-sky-50 hover:text-sky-700'
+                          ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 hover:bg-amber-50 hover:text-amber-600'
+                          : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 hover:bg-sky-50 hover:text-sky-700'
                       } disabled:opacity-60`}
                       title={(file.visibility ?? 'public') === 'public' ? 'إخفاء عن الطلاب' : 'إظهار للطلاب'}
                     >
@@ -735,7 +735,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               <div className="h-6 w-px bg-border" />
               {confirmBulkDelete ? (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-rose-600 font-medium">حذف الملفات المحددة؟</span>
+                  <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">حذف الملفات المحددة؟</span>
                   <button
                     onClick={handleBulkDelete}
                     disabled={bulkActionLoading}
@@ -761,7 +761,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                     <DropdownMenuContent align="start" className="w-48">
                       <DropdownMenuItem
                         onClick={() => setConfirmBulkDelete(true)}
-                        className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
+                        className="text-rose-600 dark:text-rose-400 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4 me-2" />
                         حذف
@@ -842,7 +842,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <FolderPlus className="h-5 w-5 text-sky-700" />
+                  <FolderPlus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                   إسناد لمقررات أخرى
                 </h3>
                 <button
@@ -854,8 +854,8 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               </div>
               <div className="p-5 space-y-4">
                 <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100">
-                    <FolderPlus className="h-4 w-4 text-sky-700" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                    <FolderPlus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                   </div>
                   <p className="text-sm font-medium text-foreground">
                     {selectedFileIds.size} ملف محدد
@@ -880,7 +880,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                                 return next;
                               });
                             }}
-                            className="rounded border-gray-300 text-sky-700 focus:ring-sky-600"
+                            className="rounded border-gray-300 dark:border-gray-700 text-sky-700 dark:text-sky-300 focus:ring-sky-600"
                           />
                           <span className="text-sm text-foreground">{s.name}</span>
                         </label>
