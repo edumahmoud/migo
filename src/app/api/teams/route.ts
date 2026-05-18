@@ -591,6 +591,152 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, assignedCount: inserts.length, teamCount: teamIds.length });
       }
 
+      case 'auto-assign-by-performance': {
+        const { subjectId, teamCount } = body;
+        if (!subjectId || !teamCount) {
+          return NextResponse.json({ error: 'معرف المقرر وعدد الفرق مطلوبان' }, { status: 400 });
+        }
+
+        // Get all approved students
+        const { data: enrollments } = await supabaseServer
+          .from('subject_students')
+          .select('student_id')
+          .eq('subject_id', subjectId)
+          .eq('status', 'approved');
+
+        if (!enrollments || enrollments.length === 0) {
+          return NextResponse.json({ error: 'لا يوجد طلاب مسجلون في هذا المقرر' }, { status: 400 });
+        }
+
+        const studentIds = enrollments.map((e: { student_id: string }) => e.student_id);
+
+        // Get quiz IDs for this subject
+        const { data: quizzes } = await supabaseServer
+          .from('quizzes')
+          .select('id')
+          .eq('subject_id', subjectId);
+
+        const quizIds = (quizzes || []).map((q: { id: string }) => q.id);
+
+        // Get scores for these quizzes for the enrolled students
+        type ScoreRow = { student_id: string; score: number; total: number };
+        let studentScores: Record<string, { totalScore: number; totalMax: number }> = {};
+
+        if (quizIds.length > 0) {
+          const { data: scores } = await supabaseServer
+            .from('scores')
+            .select('student_id, score, total')
+            .in('quiz_id', quizIds)
+            .in('student_id', studentIds);
+
+          if (scores) {
+            for (const s of (scores as ScoreRow[])) {
+              if (!studentScores[s.student_id]) {
+                studentScores[s.student_id] = { totalScore: 0, totalMax: 0 };
+              }
+              studentScores[s.student_id].totalScore += s.score;
+              studentScores[s.student_id].totalMax += s.total;
+            }
+          }
+        }
+
+        // Calculate average percentage for each student
+        const studentPerformance = studentIds.map(id => ({
+          id,
+          avgPct: studentScores[id] && studentScores[id].totalMax > 0
+            ? (studentScores[id].totalScore / studentScores[id].totalMax) * 100
+            : -1, // -1 means no scores yet
+        }));
+
+        // Sort by performance (highest first)
+        studentPerformance.sort((a, b) => b.avgPct - a.avgPct);
+
+        // Create performance level labels
+        const levelNames = ['متقدم', 'متوسط', 'مبتدئ'];
+        const levelColors = ['#0369a1', '#f59e0b', '#ef4444'];
+        const neededTeams = Math.max(teamCount, 1);
+
+        // Get or create teams with performance levels
+        let { data: existingTeams } = await supabaseServer
+          .from('subject_teams')
+          .select('id')
+          .eq('subject_id', subjectId);
+
+        const existingCount = existingTeams?.length || 0;
+        const teamsToCreate = [];
+
+        for (let i = existingCount; i < neededTeams; i++) {
+          teamsToCreate.push({
+            subject_id: subjectId,
+            name: levelNames[i % levelNames.length] || `مستوى ${i + 1}`,
+            level: levelNames[i % levelNames.length] || `مستوى ${i + 1}`,
+            color: levelColors[i % levelColors.length] || '#6366f1',
+            created_by: authResult.user.id,
+          });
+        }
+
+        if (teamsToCreate.length > 0) {
+          const { data: created } = await supabaseServer
+            .from('subject_teams')
+            .insert(teamsToCreate)
+            .select();
+          if (created) {
+            existingTeams = [...(existingTeams || []), ...created];
+          }
+        }
+
+        // Clear existing assignments
+        if (existingTeams && existingTeams.length > 0) {
+          await supabaseServer
+            .from('team_members')
+            .delete()
+            .in('team_id', existingTeams.map(t => t.id));
+        }
+
+        // Distribute by performance: top performers to team 0, next to team 1, etc.
+        // This creates homogeneous groups by performance level
+        const teamIds = (existingTeams || []).slice(0, neededTeams).map(t => t.id);
+
+        // Calculate chunk sizes for even distribution
+        const totalStudents = studentPerformance.length;
+        const baseSize = Math.floor(totalStudents / neededTeams);
+        const remainder = totalStudents % neededTeams;
+
+        const inserts: { team_id: string; student_id: string }[] = [];
+        let idx = 0;
+        for (let t = 0; t < neededTeams; t++) {
+          const chunkSize = baseSize + (t < remainder ? 1 : 0);
+          for (let j = 0; j < chunkSize; j++) {
+            if (idx < totalStudents && teamIds[t]) {
+              inserts.push({
+                team_id: teamIds[t],
+                student_id: studentPerformance[idx].id,
+              });
+              idx++;
+            }
+          }
+        }
+
+        if (inserts.length > 0) {
+          const { error: insertError } = await supabaseServer
+            .from('team_members')
+            .insert(inserts);
+
+          if (insertError) {
+            console.error('[Teams API] Auto-assign by performance error:', insertError);
+            return NextResponse.json({ error: 'فشل التوزيع حسب الأداء' }, { status: 500 });
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          assignedCount: inserts.length,
+          teamCount: teamIds.length,
+          studentsWithScores: Object.keys(studentScores).length,
+          studentsWithoutScores: studentIds.length - Object.keys(studentScores).length,
+        });
+      }
+
       default:
         return NextResponse.json({ error: 'إجراء غير صالح' }, { status: 400 });
     }

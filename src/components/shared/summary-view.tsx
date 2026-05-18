@@ -796,7 +796,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                         </button>
                         <span className="w-6 text-center text-sm font-bold text-foreground">{quizConfigTypes[qt.key]}</span>
                         <button
-                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.min(10, prev[qt.key] + 1) }))}
+                          onClick={() => setQuizConfigTypes(prev => ({ ...prev, [qt.key]: prev[qt.key] + 1 }))}
                           className="flex h-6 w-6 items-center justify-center rounded border text-muted-foreground hover:bg-muted transition-colors text-xs"
                         >
                           +

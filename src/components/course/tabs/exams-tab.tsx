@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject, Quiz, QuizQuestion, Score } from '@/lib/types';
+import QuizSettingsModal from '@/components/shared/quiz-settings-modal';
 
 // -------------------------------------------------------
 // Props
@@ -153,6 +154,9 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
   // ─── Quiz toggles ───
   const [togglingQuizId, setTogglingQuizId] = useState<string | null>(null);
+
+  // ─── Quiz settings modal ───
+  const [settingsQuiz, setSettingsQuiz] = useState<Quiz | null>(null);
 
   // -------------------------------------------------------
   // Fetch quizzes and scores
@@ -503,15 +507,26 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     setTogglingQuizId(quiz.id);
     const currentlyFinished = isQuizFinished(quiz);
     try {
+      const updateData: Record<string, unknown> = {
+        is_finished: !currentlyFinished,
+      };
+
+      // When reactivating a quiz (moving from finished to active),
+      // also clear the scheduled date/time so it doesn't auto-classify as finished again
+      if (currentlyFinished) {
+        updateData.scheduled_date = null;
+        updateData.scheduled_time = null;
+      }
+
       const { error } = await supabase
         .from('quizzes')
-        .update({ is_finished: !currentlyFinished })
+        .update(updateData)
         .eq('id', quiz.id);
       if (error) {
         console.error('Error toggling quiz finished state:', error);
         toast.error('حدث خطأ أثناء تحديث حالة الاختبار');
       } else {
-        toast.success(currentlyFinished ? 'تم إعادة تفعيل الاختبار' : 'تم إنهاء الاختبار');
+        toast.success(currentlyFinished ? 'تم إعادة تفعيل الاختبار ونقله إلى النشطة' : 'تم إنهاء الاختبار');
         fetchData();
       }
     } catch {
@@ -1003,6 +1018,14 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         <div className="group relative rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all">
           {/* Top-right action buttons (teacher) */}
           <div className="absolute top-3 left-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Settings */}
+            <button
+              onClick={() => setSettingsQuiz(quiz)}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-teal-50 hover:text-teal-600 transition-colors"
+              title="إعدادات"
+            >
+              <Database className="h-3.5 w-3.5" />
+            </button>
             {/* Edit */}
             <button
               onClick={() => handleEditQuiz(quiz)}
@@ -1345,6 +1368,19 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       {/* Create/Edit quiz modal */}
       {renderQuizModal()}
 
+      {/* Quiz Settings Modal */}
+      {settingsQuiz && (
+        <QuizSettingsModal
+          quiz={settingsQuiz}
+          open={!!settingsQuiz}
+          onClose={() => setSettingsQuiz(null)}
+          onUpdate={(updates) => {
+            // Update local quiz data with the new settings
+            setQuizzes(prev => prev.map(q => q.id === settingsQuiz.id ? { ...q, ...updates } : q));
+            setSettingsQuiz(null);
+          }}
+        />
+      )}
 
     </motion.div>
   );

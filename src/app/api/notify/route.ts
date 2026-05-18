@@ -193,6 +193,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true });
       }
 
+      // ─── 8) Team message (teacher sends note to a group) ───
+      case 'team_message': {
+        const { studentIds: teamStudentIds, message: teamMsg, teacherName: teamTeacher } = body;
+        if (!teamStudentIds || !Array.isArray(teamStudentIds) || teamStudentIds.length === 0 || !teamMsg) {
+          return NextResponse.json({ error: 'معرفات الطلاب والرسالة مطلوبة' }, { status: 400 });
+        }
+
+        await notifyUsers(
+          teamStudentIds,
+          'team_message',
+          'ملاحظة من المعلم',
+          `${teamTeacher || 'المعلم'}: ${teamMsg}`,
+          'teams'
+        );
+        return NextResponse.json({ success: true, notified: teamStudentIds.length });
+      }
+
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }

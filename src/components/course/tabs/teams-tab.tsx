@@ -22,6 +22,9 @@ import {
   ClipboardList,
   CheckSquare,
   Square,
+  BarChart3,
+  Send,
+  MessageSquare,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -119,6 +122,15 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   // Export state
   const [exportOpen, setExportOpen] = useState(false);
   const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set());
+
+  // Performance assign state
+  const [perfAssignOpen, setPerfAssignOpen] = useState(false);
+  const [perfTeamCount, setPerfTeamCount] = useState(3);
+
+  // Group message state
+  const [msgTeamId, setMsgTeamId] = useState<string | null>(null);
+  const [msgText, setMsgText] = useState('');
+  const [msgSending, setMsgSending] = useState(false);
 
   // -------------------------------------------------------
   // Data fetching — single optimized function
@@ -341,6 +353,100 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     setFormName(team.name);
     setFormLevel(team.level || '');
     setFormColor(team.color);
+  };
+
+  // -------------------------------------------------------
+  // Auto-assign by performance
+  // -------------------------------------------------------
+  const handlePerformanceAssign = async () => {
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const res = await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'auto-assign-by-performance', subjectId, teamCount: perfTeamCount }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`تم توزيع ${data.assignedCount} طالب على ${data.teamCount} مجموعة حسب الأداء${data.studentsWithoutScores > 0 ? ` (${data.studentsWithoutScores} طالب بدون درجات)` : ''}`);
+        setPerfAssignOpen(false);
+        fetchAllData();
+      } else {
+        toast.error(data.error || 'فشل التوزيع حسب الأداء');
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء التوزيع حسب الأداء');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Send group message
+  // -------------------------------------------------------
+  const handleSendGroupMessage = async () => {
+    if (!msgTeamId || !msgText.trim()) return;
+    setMsgSending(true);
+    try {
+      const teamMembersList = members[msgTeamId] || [];
+      if (teamMembersList.length === 0) {
+        toast.error('لا يوجد أعضاء في هذه المجموعة');
+        setMsgSending(false);
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
+      // Use the existing /api/notify endpoint with a custom action
+      // We'll send individual notifications to each team member
+      const studentIds = teamMembersList.map(m => m.student_id);
+
+      const res = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'team_message',
+          studentIds,
+          message: msgText.trim(),
+          teacherName: profile.name,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success(`تم إرسال الملاحظة إلى ${teamMembersList.length} طالب`);
+        setMsgTeamId(null);
+        setMsgText('');
+      } else {
+        // Fallback: save notifications directly via Supabase
+        const notifInserts = studentIds.map(sid => ({
+          user_id: sid,
+          title: 'ملاحظة من المعلم',
+          message: msgText.trim(),
+          type: 'team_message',
+          link: `team:${msgTeamId}`,
+          is_read: false,
+        }));
+
+        const { error: notifError } = await supabase
+          .from('notifications')
+          .insert(notifInserts);
+
+        if (notifError) {
+          toast.error('فشل إرسال الملاحظة');
+        } else {
+          toast.success(`تم إرسال الملاحظة إلى ${teamMembersList.length} طالب`);
+          setMsgTeamId(null);
+          setMsgText('');
+        }
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء إرسال الملاحظة');
+    } finally {
+      setMsgSending(false);
+    }
   };
 
   // -------------------------------------------------------
@@ -653,6 +759,10 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                   <UserPlus className="h-4 w-4 me-2" />
                   إضافة عضو
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setMsgTeamId(team.id); setMsgText(''); }}>
+                  <MessageSquare className="h-4 w-4 me-2" />
+                  إرسال ملاحظة
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleDeleteTeam(team.id)} className="text-red-600">
                   <Trash2 className="h-4 w-4 me-2" />
                   حذف
@@ -747,6 +857,15 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
           >
             <Shuffle className="h-4 w-4" />
             توزيع تلقائي
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPerfAssignOpen(true)}
+            className="gap-2"
+          >
+            <BarChart3 className="h-4 w-4" />
+            تقسيم حسب الأداء
           </Button>
           <Button
             size="sm"
@@ -901,6 +1020,84 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       {renderTeamFormDialog()}
       {renderAutoAssignDialog()}
       {renderAddMemberDialog()}
+
+      {/* Performance Assign Dialog */}
+      <Dialog open={perfAssignOpen} onOpenChange={setPerfAssignOpen}>
+        <DialogContent className="sm:max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-sky-700" />
+              تقسيم حسب الأداء
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              سيتم تقسيم الطلاب إلى مجموعات حسب مستوى أدائهم في اختبارات المقرر.
+              الطلاب ذوو الأداء المرتفع في مجموعة، والمتوسط في أخرى، وهكذا.
+            </p>
+            <div>
+              <Label>عدد المستويات</Label>
+              <Input
+                type="number"
+                min={2}
+                max={5}
+                value={perfTeamCount}
+                onChange={(e) => setPerfTeamCount(Math.max(2, Math.min(5, parseInt(e.target.value) || 2)))}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                2 = متقدم/مبتدئ، 3 = متقدم/متوسط/مبتدئ
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPerfAssignOpen(false)}>إلغاء</Button>
+            <Button onClick={handlePerformanceAssign} disabled={saving} className="bg-sky-700 hover:bg-sky-800">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <BarChart3 className="h-4 w-4 me-2" />}
+              تقسيم حسب الأداء
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Group Message Dialog */}
+      <Dialog open={!!msgTeamId} onOpenChange={(open) => { if (!open) { setMsgTeamId(null); setMsgText(''); } }}>
+        <DialogContent className="sm:max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-teal-600" />
+              إرسال ملاحظة للمجموعة
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              ستصل الملاحظة لأعضاء هذه المجموعة فقط ولن يراها الطلاب في المجموعات الأخرى.
+            </p>
+            <div>
+              <Label>نص الملاحظة</Label>
+              <textarea
+                value={msgText}
+                onChange={(e) => setMsgText(e.target.value)}
+                placeholder="اكتب ملاحظتك هنا..."
+                className="mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-600/30 focus:border-teal-600 transition-colors min-h-[100px] resize-y"
+                dir="rtl"
+                disabled={msgSending}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => { setMsgTeamId(null); setMsgText(''); }} disabled={msgSending}>إلغاء</Button>
+            <Button
+              onClick={handleSendGroupMessage}
+              disabled={msgSending || !msgText.trim()}
+              className="bg-teal-600 hover:bg-teal-700 text-white gap-2"
+            >
+              {msgSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              إرسال
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

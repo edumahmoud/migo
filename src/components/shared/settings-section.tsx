@@ -555,22 +555,38 @@ export default function SettingsSection({
     try {
       if (!orientationLocked) {
         // Lock to portrait
-        if (screen.orientation && screen.orientation.lock) {
-          await screen.orientation.lock('portrait');
-          setOrientationLocked(true);
-          localStorage.setItem('attenddo-orientation-locked', 'true');
-          toast.success('تم قفل تدوير الشاشة');
+        if (screen.orientation && typeof screen.orientation.lock === 'function') {
+          try {
+            await screen.orientation.lock('portrait');
+            setOrientationLocked(true);
+            localStorage.setItem('attenddo-orientation-locked', 'true');
+            toast.success('تم قفل تدوير الشاشة');
+          } catch (lockError: unknown) {
+            // The Screen Orientation API requires a fullscreen context in most browsers.
+            // On mobile PWA (standalone mode) it may work; otherwise it throws.
+            const errMsg = lockError instanceof Error ? lockError.message : String(lockError);
+            console.warn('[Orientation Lock] Failed:', errMsg);
+            // Try using CSS screen.orientation.type as a fallback check
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+            if (isStandalone) {
+              toast.error('لم يتمكن التطبيق من قفل التدوير. جرّب فتح التطبيق بشاشة كاملة.');
+            } else {
+              toast.error('قفل التدوير يتطلب تثبيت التطبيق كـ PWA أو تشغيله بشاشة كاملة.', {
+                duration: 5000,
+              });
+            }
+          }
         } else {
           toast.error('المتصفح لا يدعم قفل التدوير');
         }
       } else {
         // Unlock
-        if (screen.orientation && screen.orientation.unlock) {
+        if (screen.orientation && typeof screen.orientation.unlock === 'function') {
           screen.orientation.unlock();
-          setOrientationLocked(false);
-          localStorage.removeItem('attenddo-orientation-locked');
-          toast.success('تم فتح تدوير الشاشة');
         }
+        setOrientationLocked(false);
+        localStorage.removeItem('attenddo-orientation-locked');
+        toast.success('تم فتح تدوير الشاشة');
       }
     } catch {
       toast.error('فشل تغيير إعداد التدوير');

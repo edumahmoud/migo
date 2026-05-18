@@ -106,6 +106,9 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { quizId, summaryId, updates } = body;
 
+    // Preserve settings from the original quiz for re-generation
+    let preservedSettings: Record<string, unknown> = {};
+
     // ─── Mode 1: Partial update ───
     if (quizId && updates && typeof updates === 'object') {
       // Verify ownership
@@ -196,6 +199,17 @@ export async function PUT(request: NextRequest) {
       targetSummaryId = existingQuiz.summary_id;
       quizTitle = existingQuiz.title;
 
+      // Preserve the quiz settings for the re-generated quiz
+      const { data: fullQuiz } = await supabaseServer
+        .from('quizzes')
+        .select('allow_retake, show_results, shuffle_questions, duration, subject_id, is_finished')
+        .eq('id', quizId)
+        .single();
+
+      if (fullQuiz) {
+        preservedSettings = fullQuiz;
+      }
+
       // Delete the old quiz
       const { error: deleteError } = await supabaseServer
         .from('quizzes')
@@ -249,15 +263,29 @@ export async function PUT(request: NextRequest) {
     );
     const questions = await Promise.race([quizPromise, timeoutPromise]);
 
-    // Save the new quiz
+    // Save the new quiz (preserving settings from the original)
+    const newQuizData: Record<string, unknown> = {
+      user_id: authResult.user.id,
+      title: quizTitle,
+      questions,
+      summary_id: targetSummaryId,
+      // Preserve settings from the original quiz
+      allow_retake: preservedSettings.allow_retake ?? false,
+      show_results: preservedSettings.show_results ?? true,
+      shuffle_questions: preservedSettings.shuffle_questions ?? true,
+    };
+
+    if (preservedSettings.duration !== undefined && preservedSettings.duration !== null) {
+      newQuizData.duration = preservedSettings.duration;
+    }
+
+    if (preservedSettings.subject_id) {
+      newQuizData.subject_id = preservedSettings.subject_id;
+    }
+
     const { data: newQuiz, error: insertError } = await supabaseServer
       .from('quizzes')
-      .insert({
-        user_id: authResult.user.id,
-        title: quizTitle,
-        questions,
-        summary_id: targetSummaryId,
-      })
+      .insert(newQuizData)
       .select()
       .single();
 
