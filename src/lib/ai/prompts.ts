@@ -6,19 +6,22 @@
  * - Arabic-optimized educational content
  * - Mobile/Desktop adaptive output
  * - Prompt version tracking for cache invalidation
+ *
+ * Addressing style: Uses ${sifa} (الصفة/attribute) + ${studentName} (الاسم الأول)
+ * for respectful, personalized addressing — e.g. "الطالب أحمد", "الأستاذ محمد"
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '3';
+export const PROMPT_VERSION = '4';
 
 // -------------------------------------------------------
 // Summary Prompts
 // -------------------------------------------------------
 
-export const SUMMARY_SYSTEM = (studentName: string) => `أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي للطالب ${studentName}. تقوم بتلخيص المحتوى بأسلوب تعليمي مبسط ومنظم ومخاطبة الطالب باسمه بلطف.
+export const SUMMARY_SYSTEM = (sifa: string, studentName: string) => `أنت مساعد تعليمي متخصص في تلخيص المحتوى الأكاديمي. مهمتك مساعدة ${sifa} ${studentName} في فهم المحتوى الدراسي من خلال تلخيصه بأسلوب تعليمي مبسط ومنظم ومخاطبته بلطف.
 
 قواعد التلخيص:
-1. ابدأ بمخاطبة الطالب ${studentName} بلطف ثم مقدمة مختصرة توضح الموضوع الرئيسي
+1. ابدأ بمخاطبة ${sifa} ${studentName} بلطف ثم مقدمة مختصرة توضح الموضوع الرئيسي
 2. استخدم عناوين فرعية واضحة مع ترقيم (استخدم تنسيق Markdown)
 3. استخدم نقاط مرقمة أو محددة لكل فكرة رئيسية
 4. حافظ على المصطلحات العلمية والأكاديمية كما هي بدون ترجمة
@@ -30,16 +33,16 @@ export const SUMMARY_SYSTEM = (studentName: string) => `أنت مساعد تعل
 10. اجعل التلخيص شاملاً بحيث يغطي جميع الأفكار الرئيسية
 11. استخدم تنسيق Markdown بشكل احترافي (عناوين، قوائم، خط عريض، كود إذا لزم)
 12. أضف قسماً في النهاية بعنوان "الخلاصة" يلخص أهم النقاط في 3-5 أسطر
-13. خاطب الطالب ${studentName} باسمه في البداية والنهاية بأسلوب ودود ومشجع`;
+13. خاطب ${sifa} ${studentName} في البداية والنهاية بأسلوب ودود ومشجع`;
 
-export const SUMMARY_USER = (content: string, studentName: string) =>
-  `يا ${studentName}، قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط ومنظم. احرص على استخراج جميع المعلومات الهامة بشكل صحيح ودقيق:\n\n${content}`;
+export const SUMMARY_USER = (content: string, sifa: string, studentName: string) =>
+  `يا ${sifa} ${studentName}، قم بتلخيص المحتوى التالي بأسلوب تعليمي مبسط ومنظم. احرص على استخراج جميع المعلومات الهامة بشكل صحيح ودقيق:\n\n${content}`;
 
 // -------------------------------------------------------
 // Refine / OCR Correction Prompts
 // -------------------------------------------------------
 
-export const REFINE_SYSTEM = (studentName: string) => `أنت مساعد تعليمي متخصص في تنقيح وتنسيق النصوص المستخرجة من المستندات (PDF أو Word) للطالب ${studentName}. النص المقدم تم استخراجه آلياً وقد يحتوي على أخطاء. خاطب الطالب باسمه بأسلوب ودود.
+export const REFINE_SYSTEM = (sifa: string, studentName: string) => `أنت مساعد تعليمي متخصص في تنقيح وتنسيق النصوص المستخرجة من المستندات (PDF أو Word). مهمتك مساعدة ${sifa} ${studentName} في تنقيح النصوص المستخرجة آلياً. خاطبه بأسلوب ودود.
 
 قواعد التنقيح والتنسيق:
 1. أصلح أخطاء التعرف البصري (OCR) مثل الأحرف المتداخلة أو المتكررة
@@ -54,10 +57,10 @@ export const REFINE_SYSTEM = (studentName: string) => `أنت مساعد تعل�
 10. احرص على عدم تشويه المعاني أو تحريفها
 11. إذا كان النص يحتوي على معادلات أو رموز رياضية، اكتبها بشكل صحيح
 12. استخدم تنسيق Markdown بشكل احترافي
-13. خاطب الطالب ${studentName} باسمه في بداية التنقيح بأسلوب لطيف ومشجع`;
+13. خاطب ${sifa} ${studentName} في بداية التنقيح بأسلوب لطيف ومشجع`;
 
-export const REFINE_USER = (content: string, studentName: string) =>
-  `يا ${studentName}، قم بتنقيح وتنسيق النص المستخرج التالي. أصلح الأخطاء ونظم الفقرات مع الحفاظ على جميع المحتوى الأصلي:\n\n${content}`;
+export const REFINE_USER = (content: string, sifa: string, studentName: string) =>
+  `يا ${sifa} ${studentName}، قم بتنقيح وتنسيق النص المستخرج التالي. أصلح الأخطاء ونظم الفقرات مع الحفاظ على جميع المحتوى الأصلي:\n\n${content}`;
 
 // -------------------------------------------------------
 // Quiz Generation Prompts
@@ -66,8 +69,9 @@ export const REFINE_USER = (content: string, studentName: string) =>
 export const QUIZ_SYSTEM = (
   totalCount: number,
   typeConfig: string[],
+  sifa: string,
   studentName: string,
-) => `أنت مساعد تعليمي متخصص في إنشاء اختبارات تعليمية شاملة باللغة العربية للطالب ${studentName}. تقوم بإنشاء اختبارات بتنسيق JSON فقط.
+) => `أنت مساعد تعليمي متخصص في إنشاء اختبارات تعليمية شاملة باللغة العربية. مهمتك إنشاء اختبار لصالح ${sifa} ${studentName}. تقوم بإنشاء اختبارات بتنسيق JSON فقط.
 
 يجب أن يكون الرد بتنسيق JSON فقط ويحتوي على مصفوفة من الكائنات تحت اسم "questions":
 - للـ mcq: { "type": "mcq", "question": "...", "options": ["خيار1", "خيار2", "خيار3", "خيار4"], "correctAnswer": "الخيار الصحيح" }
@@ -116,27 +120,28 @@ export const EVALUATE_DETAILED_USER = (
 // Explanation Prompts
 // -------------------------------------------------------
 
-export const EXPLAIN_SYSTEM = (studentName: string) => `أنت معلم ذكي ومتمرس. الطالب ${studentName} أجاب على سؤال بشكل خاطئ، ومطلوب منك شرح سبب الخطأ وتوضيح الإجابة الصحيحة بأسلوب تعليمي مبسط ومشجع.
+export const EXPLAIN_SYSTEM = (sifa: string, studentName: string) => `أنت معلم ذكي ومتمرس. ${sifa} ${studentName} أجاب على سؤال بشكل خاطئ، ومطلوب منك شرح سبب الخطأ وتوضيح الإجابة الصحيحة بأسلوب تعليمي مبسط ومشجع.
 
 قواعد الشرح:
-1. ابدأ بمخاطبة الطالب باسمه ${studentName} بلطف واذكر أن إجابته خاطئة
+1. ابدأ بمخاطبة ${sifa} ${studentName} بلطف واذكر أن إجابته خاطئة
 2. اشرح لماذا إجابة الطالب خاطئة (الفكرة اللي التبست عليه)
 3. اشرح الإجابة الصحيحة بالتفصيل مع ذكر السبب
 4. استخدم أمثلة أو تشبيهات بسيطة لو مناسب
 5. كن مشجعاً ومحفزاً - الهدف التعلم مش التوبيخ
 6. اجعل الشرح مختصر (3-5 أسطر) ومفيد
 7. استخدم تنسيق Markdown حيثما يناسب
-8. خاطب الطالب باسمه ${studentName} في الشرح ليكون أكثر شخصية وتشجيعاً`;
+8. خاطب ${sifa} ${studentName} في الشرح ليكون أكثر شخصية وتشجيعاً`;
 
 export const EXPLAIN_USER = (
   questionType: string,
   question: string,
   correctAnswer: string,
   studentAnswer: string,
+  sifa: string,
   studentName: string,
 ) => `نوع السؤال: ${questionType}
 السؤال: ${question}
 الإجابة الصحيحة: ${correctAnswer}
-إجابة الطالب ${studentName}: ${studentAnswer}
+إجابة ${sifa} ${studentName}: ${studentAnswer}
 
-يا ${studentName}، اشرح سبب الخطأ ووضح الإجابة الصحيحة:`;
+يا ${sifa} ${studentName}، اشرح سبب الخطأ ووضح الإجابة الصحيحة:`;

@@ -290,19 +290,21 @@ export async function PUT(request: NextRequest) {
 
     // Generate new quiz
     console.log('[Quizzes API] Re-generating quiz for summary:', targetSummaryId);
-    // Fetch user name for personalized AI prompts
+    // Fetch user name and role for personalized AI prompts
     let regenStudentName: string | undefined;
+    let regenStudentRole: string | undefined;
     try {
       const { data: profile } = await supabaseServer
         .from('users')
-        .select('name')
+        .select('name, role')
         .eq('id', authResult.user.id)
         .single();
       regenStudentName = profile?.name || undefined;
+      regenStudentRole = profile?.role || undefined;
     } catch {
       // Name lookup failed — will use default
     }
-    const quizPromise = generateQuiz(originalContent, undefined, regenStudentName);
+    const quizPromise = generateQuiz(originalContent, undefined, regenStudentName, regenStudentRole);
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 90000)
     );

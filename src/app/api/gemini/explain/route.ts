@@ -21,15 +21,17 @@ export async function POST(request: NextRequest) {
     const authResult = await authenticateRequest(request);
     if (!authResult.success) return authErrorResponse(authResult);
 
-    // Fetch student name from DB for personalized AI responses
+    // Fetch user name and role from DB for personalized AI responses
     let studentName: string | undefined;
+    let studentRole: string | undefined;
     try {
       const { data: profile } = await supabaseServer
         .from('users')
-        .select('name')
+        .select('name, role')
         .eq('id', authResult.user.id)
         .single();
       studentName = profile?.name || undefined;
+      studentRole = profile?.role || undefined;
     } catch {
       // Name lookup failed — will use default in AI prompt
     }
@@ -54,7 +56,8 @@ export async function POST(request: NextRequest) {
       sanitizedCorrectAnswer,
       sanitizedStudentAnswer,
       sanitizedType,
-      studentName
+      studentName,
+      studentRole
     );
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('انتهت مهلة الشرح')), 30000)

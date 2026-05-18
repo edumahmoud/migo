@@ -294,12 +294,36 @@ const MAX_AI_CONTENT_LENGTH = 100000;
  * Also handles English names like "John Smith" → "John"
  */
 function extractFirstName(fullName: string | undefined): string {
-  if (!fullName) return 'الطالب';
+  if (!fullName) return '';
   const trimmed = fullName.trim();
-  if (!trimmed) return 'الطالب';
+  if (!trimmed) return '';
   // Split by spaces and take the first word
   const firstName = trimmed.split(/\s+/)[0];
-  return firstName || 'الطالب';
+  return firstName || '';
+}
+
+/**
+ * Map user role to Arabic صفة (attribute/description) for addressing.
+ * student → الطالب, teacher → الأستاذ, admin → المشرف
+ */
+function extractSifa(role?: string): string {
+  switch (role) {
+    case 'teacher': return 'الأستاذ';
+    case 'admin': return 'المشرف';
+    case 'student':
+    default: return 'الطالب';
+  }
+}
+
+/**
+ * Build the full addressing string: صفة + اسم أول
+ * e.g. "الطالب أحمد", "الأستاذ محمد", "المشرف خالد"
+ * Falls back to just the صفة when no name is available.
+ */
+function buildAddressing(fullName?: string, role?: string): { sifa: string; firstName: string } {
+  const sifa = extractSifa(role);
+  const firstName = extractFirstName(fullName);
+  return { sifa, firstName };
 }
 
 function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LENGTH): string {
@@ -322,13 +346,13 @@ function truncateContent(content: string, maxLength: number = MAX_AI_CONTENT_LEN
  * Generate a summary of the given content.
  * Uses Gemini with fallback chain and caching.
  */
-export async function generateSummary(content: string, studentName?: string): Promise<string> {
+export async function generateSummary(content: string, studentName?: string, role?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
-  const name = extractFirstName(studentName);
+  const { sifa, firstName } = buildAddressing(studentName, role);
 
   return chatWithFallback(
-    SUMMARY_SYSTEM(name),
-    SUMMARY_USER(truncatedContent, name),
+    SUMMARY_SYSTEM(sifa, firstName),
+    SUMMARY_USER(truncatedContent, sifa, firstName),
     { temperature: 0.3, maxTokens: 16384, retries: 1, timeoutMs: 50000, operation: 'summary' },
   );
 }
@@ -336,13 +360,13 @@ export async function generateSummary(content: string, studentName?: string): Pr
 /**
  * Refine/format transcribed (OCR-extracted) text.
  */
-export async function refineTranscribedText(content: string, studentName?: string): Promise<string> {
+export async function refineTranscribedText(content: string, studentName?: string, role?: string): Promise<string> {
   const truncatedContent = truncateContent(content);
-  const name = extractFirstName(studentName);
+  const { sifa, firstName } = buildAddressing(studentName, role);
 
   return chatWithFallback(
-    REFINE_SYSTEM(name),
-    REFINE_USER(truncatedContent, name),
+    REFINE_SYSTEM(sifa, firstName),
+    REFINE_USER(truncatedContent, sifa, firstName),
     { temperature: 0.2, maxTokens: 16384, retries: 1, timeoutMs: 50000, operation: 'refine' },
   );
 }
@@ -355,6 +379,7 @@ export async function generateQuiz(
   content: string,
   questionTypes?: { mcq?: number; boolean?: number; completion?: number; matching?: number },
   studentName?: string,
+  role?: string,
 ): Promise<QuizQuestion[]> {
   const mcqCount = questionTypes?.mcq ?? 2;
   const booleanCount = questionTypes?.boolean ?? 2;
@@ -370,10 +395,10 @@ export async function generateQuiz(
   if (completionCount > 0) typeConfig.push(`${completionCount} أكمل الفراغ (completion)`);
   if (matchingCount > 0) typeConfig.push(`${matchingCount} مطابقة (matching)`);
 
-  const name = extractFirstName(studentName);
+  const { sifa, firstName } = buildAddressing(studentName, role);
 
   const text = await chatWithFallback(
-    QUIZ_SYSTEM(totalCount, typeConfig, name),
+    QUIZ_SYSTEM(totalCount, typeConfig, sifa, firstName),
     QUIZ_USER(truncatedContent, totalCount),
     { temperature: 0.5, maxTokens: 8192, retries: 1, jsonMode: true, operation: 'quiz' },
   );
@@ -477,11 +502,12 @@ export async function explainWrongAnswer(
   studentAnswer: string,
   questionType: string,
   studentName?: string,
+  role?: string,
 ): Promise<string> {
-  const name = extractFirstName(studentName);
+  const { sifa, firstName } = buildAddressing(studentName, role);
   return chatWithFallback(
-    EXPLAIN_SYSTEM(name),
-    EXPLAIN_USER(questionType, question, correctAnswer, studentAnswer, name),
+    EXPLAIN_SYSTEM(sifa, firstName),
+    EXPLAIN_USER(questionType, question, correctAnswer, studentAnswer, sifa, firstName),
     { temperature: 0.4, maxTokens: 512, timeoutMs: 30000, retries: 1, operation: 'explain' },
   );
 }

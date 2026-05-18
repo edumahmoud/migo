@@ -181,7 +181,22 @@ export async function PUT(request: NextRequest) {
     // Generate new summary — NO duplicate timeout race.
     // The AI call uses streaming with its own two-tier timeout.
     console.log('[Summaries API] Re-generating summary for:', summaryId);
-    const newSummary = await generateSummary(originalContent);
+
+    // Fetch user name and role for personalized AI responses
+    let regenStudentName: string | undefined;
+    let regenStudentRole: string | undefined;
+    try {
+      const { data: profile } = await supabaseServer
+        .from('users')
+        .select('name, role')
+        .eq('id', authResult.user.id)
+        .single();
+      regenStudentName = profile?.name || undefined;
+      regenStudentRole = profile?.role || undefined;
+    } catch {
+      // Name lookup failed — will use default
+    }
+    const newSummary = await generateSummary(originalContent, regenStudentName, regenStudentRole);
 
     // Update the summary in the database
     const { data: updated, error: updateError } = await supabaseServer
