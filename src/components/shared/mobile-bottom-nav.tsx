@@ -81,7 +81,7 @@ export default function MobileBottomNav({
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-50 bg-background/95 backdrop-blur-md border-t border-border dark:bg-card/95 dark:border-border"
+      className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border dark:bg-card/95 dark:border-border"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       dir="rtl"
     >

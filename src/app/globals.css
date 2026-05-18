@@ -520,3 +520,38 @@
     min-width: 44px;
   }
 }
+
+/* ─── Mobile Modal Fix: prevent bottom nav overlap ─── */
+/* On mobile, modal content can be hidden behind the fixed bottom nav (z-40, h-16 + safe-area).
+   These rules ensure modals (z-50) leave space at the bottom for scrolling. */
+@media (max-width: 768px) {
+  /* Radix Dialog content — constrain height and add bottom padding
+     so the scrollable area doesn't extend behind the bottom nav */
+  [data-slot="dialog-content"] {
+    max-height: calc(85dvh - 4rem) !important;
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Sheet content from bottom — add safe area */
+  [data-slot="sheet-content"][data-side="bottom"] {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Vaul Drawer content — add bottom padding */
+  [data-slot="drawer-content"] {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Custom AnimatePresence modals — add bottom padding to the overlay container
+     so the centered modal card is pushed up above the bottom nav.
+     Only targets flex-centered overlays (not Dialog/Sheet/Drawer which handle
+     their own positioning). */
+  .fixed.inset-0.z-50.flex.items-center.justify-center {
+    padding-bottom: 5rem;
+  }
+
+  /* Lecture modal uses pointer-events-none on overlay */
+  .fixed.inset-0.z-50.pointer-events-none {
+    padding-bottom: 5rem;
+  }
+}
