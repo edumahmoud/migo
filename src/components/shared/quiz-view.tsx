@@ -21,6 +21,7 @@ import {
   Lightbulb,
   Clock,
   AlertTriangle,
+  Save,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -31,6 +32,52 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import type { UserProfile, Quiz, QuizQuestion, UserAnswer } from '@/lib/types';
+
+// -------------------------------------------------------
+// Quiz Progress Persistence (localStorage)
+// -------------------------------------------------------
+interface QuizProgress {
+  userAnswers: UserAnswer[];
+  currentIdx: number;
+  shuffledOrder: number[];
+  startedAt: number; // timestamp when quiz was first started
+  updatedAt: number; // timestamp of last save
+}
+
+const PROGRESS_KEY = (quizId: string) => `quiz-progress-${quizId}`;
+
+function saveProgress(quizId: string, progress: QuizProgress): void {
+  try {
+    progress.updatedAt = Date.now();
+    localStorage.setItem(PROGRESS_KEY(quizId), JSON.stringify(progress));
+  } catch {
+    // localStorage might be full or unavailable
+  }
+}
+
+function loadProgress(quizId: string): QuizProgress | null {
+  try {
+    const raw = localStorage.getItem(PROGRESS_KEY(quizId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as QuizProgress;
+    // Validate structure
+    if (!Array.isArray(parsed.userAnswers) || typeof parsed.currentIdx !== 'number' || !Array.isArray(parsed.shuffledOrder)) {
+      localStorage.removeItem(PROGRESS_KEY(quizId));
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearProgress(quizId: string): void {
+  try {
+    localStorage.removeItem(PROGRESS_KEY(quizId));
+  } catch {
+    // ignore
+  }
+}
 
 // -------------------------------------------------------
 // Props
@@ -101,6 +148,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   const [answered, setAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [progressRestored, setProgressRestored] = useState(false);
   const [completionInput, setCompletionInput] = useState('');
   const [evaluatingCompletion, setEvaluatingCompletion] = useState(false);
 
@@ -241,10 +289,25 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     fetchQuiz();
   }, [fetchQuiz]);
 
-  // ─── Shuffle questions on first load (Feature 8) ───
+  // ─── Shuffle questions on first load (Feature 8) — with progress restore ───
   useEffect(() => {
     if (!quiz?.questions?.length) return;
     if (shuffledOrder.length > 0) return;
+
+    // Try to restore saved progress first
+    const saved = loadProgress(quizId);
+    if (saved && saved.shuffledOrder.length === quiz.questions.length) {
+      // Restore progress from localStorage
+      setShuffledOrder(saved.shuffledOrder);
+      setCurrentIdx(saved.currentIdx);
+      setUserAnswers(saved.userAnswers);
+      setProgressRestored(true);
+      // Auto-dismiss the restored indicator after 4 seconds
+      setTimeout(() => setProgressRestored(false), 4000);
+      return;
+    }
+
+    // No saved progress — generate new shuffle
     const indices = Array.from({ length: quiz.questions.length }, (_, i) => i);
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -385,8 +448,29 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   useEffect(() => {
     if (showResults) {
       sessionStorage.removeItem(`quiz-start-${quizId}`);
+      // Clear saved progress when quiz is completed
+      clearProgress(quizId);
     }
   }, [showResults, quizId]);
+
+  // ─── Auto-save quiz progress to localStorage ───
+  // Saves on every answer change and question navigation so progress
+  // is never lost even if the browser crashes or the user navigates away.
+  useEffect(() => {
+    if (!quiz || showResults || alreadyTaken || shuffledOrder.length === 0) return;
+
+    const existingProgress = loadProgress(quizId);
+    const startedAt = existingProgress?.startedAt || Date.now();
+
+    saveProgress(quizId, {
+      userAnswers,
+      currentIdx,
+      shuffledOrder,
+      startedAt,
+      updatedAt: Date.now(),
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userAnswers, currentIdx, shuffledOrder]);
 
   // -------------------------------------------------------
   // Current question
@@ -770,8 +854,9 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     setUserAnswers([]);
     setShowResults(false);
     setShowReview(false);
-    // Clear timer so it restarts on retry
+    // Clear timer and saved progress so it restarts on retry
     sessionStorage.removeItem(`quiz-start-${quizId}`);
+    clearProgress(quizId);
     setTimeLeft(null);
     // Re-shuffle questions on retry (Feature 8)
     if (quiz?.questions?.length) {
@@ -1026,6 +1111,29 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             <span>{totalQuestions}</span>
           </div>
         </div>
+
+        {/* Progress restored indicator + answered count */}
+        <AnimatePresence>
+          {progressRestored && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-700"
+            >
+              <Save className="h-3.5 w-3.5" />
+              <span>تم استعادة تقدمك المحفوظ — {userAnswers.length} {userAnswers.length === 1 ? 'إجابة' : 'إجابات'} من {totalQuestions}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Auto-save indicator */}
+        {userAnswers.length > 0 && !progressRestored && (
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Save className="h-3 w-3" />
+            <span>تم حفظ {userAnswers.length} من {totalQuestions}</span>
+          </div>
+        )}
       </motion.div>
 
       {/* Question card */}
