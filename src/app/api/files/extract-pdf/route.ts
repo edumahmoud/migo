@@ -199,17 +199,13 @@ async function extractPdfTextServer(arrayBuffer: ArrayBuffer): Promise<Extractio
     pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
     console.log('[Extract PDF Server] Loaded pdfjs-dist LEGACY build');
   } catch (legacyErr) {
-    console.warn('[Extract PDF Server] Legacy build failed to load, trying default build:', legacyErr);
-    try {
-      pdfjsLib = await import('pdfjs-dist');
-      console.log('[Extract PDF Server] Loaded pdfjs-dist DEFAULT build (may crash!)');
-    } catch (defaultErr) {
-      console.error('[Extract PDF Server] Both pdfjs-dist builds failed to load:', defaultErr);
-      throw new Error('فشل تحميل مكتبة استخراج النص من PDF على الخادم');
-    }
+    console.error('[Extract PDF Server] Legacy build failed to load:', legacyErr);
+    throw new Error('فشل تحميل مكتبة استخراج النص من PDF على الخادم');
   }
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+  // pdfjs-dist v5: Don't set workerSrc — v5 auto-detects Node.js and uses fake worker mode.
+  // Setting workerSrc = '' was the v4 way to disable the worker, but in v5 it causes
+  // import('') to fail with "No GlobalWorkerOptions.workerSrc specified".
 
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
 
@@ -261,18 +257,11 @@ async function extractDocxTextServer(arrayBuffer: ArrayBuffer): Promise<Extracti
     const mammoth = await import('mammoth');
     console.log('[Extract DOCX Server] Loaded mammoth');
 
-    const result = await mammoth.extractRawText({ arrayBuffer });
-
-    let fullText = result.value;
-
-    // Strip leading whitespace from each line (same as client-side)
-    fullText = fullText
-      .split('\n')
-      .map(line => line.trimStart())
-      .join('\n');
-
-    // Collapse multiple consecutive blank lines into max 2
-    fullText = fullText.replace(/\n{3,}/g, '\n\n');
+    // ─── Use convertToHtml instead of extractRawText ───
+    // extractRawText strips ALL formatting and loses tables, headings, lists, etc.
+    // convertToHtml preserves document structure which we then convert to Markdown.
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+    let fullText = serverHtmlToMarkdown(result.value);
 
     if (!fullText.trim()) {
       throw new Error('NO_TEXT_EXTRACTED');
@@ -280,7 +269,14 @@ async function extractDocxTextServer(arrayBuffer: ArrayBuffer): Promise<Extracti
 
     if (fullText.length > MAX_TEXT_LENGTH) {
       console.log(`[Extract DOCX Server] Text truncated from ${fullText.length} to ${MAX_TEXT_LENGTH} chars`);
-      fullText = fullText.substring(0, MAX_TEXT_LENGTH);
+      const truncated = fullText.substring(0, MAX_TEXT_LENGTH);
+      const lastParagraph = truncated.lastIndexOf('\n\n');
+      if (lastParagraph > MAX_TEXT_LENGTH * 0.7) {
+        fullText = truncated.substring(0, lastParagraph);
+      } else {
+        fullText = truncated;
+      }
+      fullText += '\n\n[... تم اقتطاع جزء من المحتوى لتجاوز الحد الأقصى ...]';
     }
 
     return { text: fullText, pages: 0, sourceFileType: 'docx' };
@@ -300,4 +296,62 @@ async function extractDocxTextServer(arrayBuffer: ArrayBuffer): Promise<Extracti
 
     throw new Error(`فشل في قراءة ملف Word: ${errMsg}`);
   }
+}
+
+/**
+ * Server-side HTML to Markdown converter (mirrors client-side logic in pdf-client.ts).
+ * Preserves: headings, bold, italic, lists, tables, links, and paragraphs.
+ */
+function serverHtmlToMarkdown(html: string): string {
+  let md = html;
+
+  // Headings
+  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, (_, c) => `# ${stripTags(c).trim()}\n\n`);
+  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, (_, c) => `## ${stripTags(c).trim()}\n\n`);
+  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (_, c) => `### ${stripTags(c).trim()}\n\n`);
+  md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, (_, c) => `#### ${stripTags(c).trim()}\n\n`);
+
+  // Bold and italic
+  md = md.replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
+  md = md.replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
+
+  // Links
+  md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)');
+
+  // Lists
+  md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, c) => `- ${stripTags(c).trim()}\n`);
+
+  // Tables
+  md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, tableContent) => {
+    const rows: string[][] = [];
+    for (const rowMatch of tableContent.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+      const cells: string[] = [];
+      for (const cellMatch of rowMatch[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)) {
+        cells.push(stripTags(cellMatch[1]).trim().replace(/\n/g, ' '));
+      }
+      if (cells.length > 0) rows.push(cells);
+    }
+    if (rows.length === 0) return '';
+    const maxCols = Math.max(...rows.map(r => r.length));
+    const normalized = rows.map(r => { while (r.length < maxCols) r.push(''); return r; });
+    let t = '| ' + normalized[0].join(' | ') + ' |\n';
+    t += '| ' + normalized[0].map(() => '---').join(' | ') + ' |\n';
+    for (let i = 1; i < normalized.length; i++) t += '| ' + normalized[i].join(' | ') + ' |\n';
+    return '\n' + t + '\n';
+  });
+
+  // Paragraphs
+  md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n');
+  // Line breaks
+  md = md.replace(/<br\s*\/?>/gi, '\n');
+  // Remove remaining tags
+  md = stripTags(md);
+  // Collapse blank lines
+  md = md.replace(/\n{3,}/g, '\n\n');
+
+  return md.trim();
+}
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, '');
 }

@@ -62,9 +62,9 @@ const typeIcons: Record<QuizQuestion['type'], React.ReactNode> = {
 // Animation variants
 // -------------------------------------------------------
 const pageVariants = {
-  hidden: { opacity: 0, x: 30 },
+  hidden: { opacity: 0, x: -30 },
   visible: { opacity: 1, x: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
-  exit: { opacity: 0, x: -30, transition: { duration: 0.25, ease: 'easeIn' as const } },
+  exit: { opacity: 0, x: 30, transition: { duration: 0.25, ease: 'easeIn' as const } },
 };
 
 const fadeInUp = {
@@ -822,7 +822,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
           variant="outline"
           className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4" />
           العودة
         </Button>
       </div>
@@ -845,7 +845,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
           variant="outline"
           className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4" />
           العودة للرئيسية
         </Button>
       </div>
@@ -995,7 +995,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             onClick={onBack}
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-200 text-sky-800 hover:bg-sky-50 transition-colors"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronRight className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold text-foreground truncate">{quiz.title}</h2>
@@ -1217,7 +1217,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                         {currentIdx < totalQuestions - 1 ? (
                           <>
                             السؤال التالي
-                            <ArrowLeft className="h-4 w-4" />
+                            <ArrowRight className="h-4 w-4" />
                           </>
                         ) : (
                           <>

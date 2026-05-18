@@ -56,24 +56,15 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
     // Dynamic import — only loads pdfjs-dist in the browser
     const pdfjsLib = await import('pdfjs-dist');
 
-    if (isMobile) {
-      // ─── MOBILE: Disable Web Worker ───
-      // On mobile browsers (especially iOS Safari, Android Chrome PWA mode),
-      // the Web Worker script (/pdf.worker.min.mjs) often fails to load due to:
-      // 1. CORS restrictions in PWA standalone mode
-      // 2. Service Worker intercepting the worker script request
-      // 3. Memory limitations killing the worker process
-      // When the worker fails, getDocument() hangs indefinitely with no error.
-      //
-      // FIX: Set workerSrc to empty string to use "fake worker" mode.
-      // This runs pdf.js on the main thread (no Worker needed).
-      // It's slightly slower but 100% reliable on mobile.
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-      console.log('[PDF Client] Mobile detected — worker DISABLED (fake worker mode)');
-    } else {
-      // ─── DESKTOP: Use Web Worker for better performance ───
-      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-    }
+    // ─── Set worker source for both mobile and desktop ───
+    // pdfjs-dist v5: Always point to the worker script. If Worker creation fails
+    // (common on mobile PWA), v5 will automatically fall back to "fake worker" mode
+    // which uses dynamic import() of the worker URL — this works reliably in browsers.
+    // The old approach of setting workerSrc = '' caused v5 to fail with
+    // "No GlobalWorkerOptions.workerSrc specified" because v5 changed how
+    // fake worker mode works internally.
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    console.log('[PDF Client] Worker source set to /pdf.worker.min.mjs');
 
     // Accept either a File object or a pre-read ArrayBuffer
     const arrayBuffer = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
@@ -156,6 +147,109 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
 }
 
 // -------------------------------------------------------
+// HTML to Markdown converter (for DOCX extraction)
+// -------------------------------------------------------
+
+/**
+ * Convert HTML from mammoth.convertToHtml() to Markdown.
+ * Preserves: headings, bold, italic, lists, tables, links, and paragraphs.
+ * This gives much richer output than mammoth.extractRawText() which
+ * strips all structure (losing tables, headings, lists, etc.).
+ */
+function htmlToMarkdown(html: string): string {
+  let md = html;
+
+  // Headings: h1-h6 → # to ######
+  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, (_, content) => `# ${cleanHtmlTags(content).trim()}\n\n`);
+  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, (_, content) => `## ${cleanHtmlTags(content).trim()}\n\n`);
+  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (_, content) => `### ${cleanHtmlTags(content).trim()}\n\n`);
+  md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, (_, content) => `#### ${cleanHtmlTags(content).trim()}\n\n`);
+  md = md.replace(/<h5[^>]*>([\s\S]*?)<\/h5>/gi, (_, content) => `##### ${cleanHtmlTags(content).trim()}\n\n`);
+  md = md.replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, (_, content) => `###### ${cleanHtmlTags(content).trim()}\n\n`);
+
+  // Bold and italic
+  md = md.replace(/<(strong|b)[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
+  md = md.replace(/<(em|i)[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
+
+  // Links: <a href="url">text</a> → [text](url)
+  md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)');
+
+  // Unordered lists: <li> → - item
+  md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, content) => `- ${cleanHtmlTags(content).trim()}\n`);
+
+  // Tables: convert to Markdown table format
+  md = convertTablesToMarkdown(md);
+
+  // Paragraphs: <p>content</p> → content\n\n
+  md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n');
+
+  // Line breaks
+  md = md.replace(/<br\s*\/?>/gi, '\n');
+
+  // Remove remaining HTML tags
+  md = cleanHtmlTags(md);
+
+  // Collapse multiple blank lines
+  md = md.replace(/\n{3,}/g, '\n\n');
+
+  return md.trim();
+}
+
+/**
+ * Remove all remaining HTML tags from text.
+ */
+function cleanHtmlTags(html: string): string {
+  return html.replace(/<[^>]+>/g, '');
+}
+
+/**
+ * Convert HTML tables to Markdown table format.
+ * Handles <table>, <thead>, <tbody>, <tr>, <th>, <td>.
+ */
+function convertTablesToMarkdown(html: string): string {
+  // Process each table
+  return html.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, tableContent) => {
+    const rows: string[][] = [];
+
+    // Extract all rows (from thead, tbody, or directly)
+    const rowMatches = tableContent.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);
+    for (const rowMatch of rowMatches) {
+      const cells: string[] = [];
+      const cellMatches = rowMatch[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi);
+      for (const cellMatch of cellMatches) {
+        cells.push(cleanHtmlTags(cellMatch[1]).trim().replace(/\n/g, ' '));
+      }
+      if (cells.length > 0) {
+        rows.push(cells);
+      }
+    }
+
+    if (rows.length === 0) return '';
+
+    // Build Markdown table
+    // Normalize column count
+    const maxCols = Math.max(...rows.map(r => r.length));
+    const normalizedRows = rows.map(r => {
+      while (r.length < maxCols) r.push('');
+      return r;
+    });
+
+    let mdTable = '';
+
+    // Header row (first row)
+    mdTable += '| ' + normalizedRows[0].join(' | ') + ' |\n';
+    // Separator row
+    mdTable += '| ' + normalizedRows[0].map(() => '---').join(' | ') + ' |\n';
+    // Data rows
+    for (let i = 1; i < normalizedRows.length; i++) {
+      mdTable += '| ' + normalizedRows[i].join(' | ') + ' |\n';
+    }
+
+    return '\n' + mdTable + '\n';
+  });
+}
+
+// -------------------------------------------------------
 // DOCX (Word document) text extraction
 // -------------------------------------------------------
 
@@ -187,33 +281,33 @@ export async function extractDocxTextClient(source: File | ArrayBuffer): Promise
     // Accept either a File object or a pre-read ArrayBuffer
     const arrayBuffer = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
 
-    // Extract text using mammoth
-    const result = await mammoth.extractRawText({ arrayBuffer });
+    // ─── Use convertToHtml instead of extractRawText ───
+    // extractRawText strips ALL formatting and loses tables, headings, lists, etc.
+    // convertToHtml preserves document structure (tables, headings, bold, lists)
+    // which we then convert to Markdown for both AI processing and ReactMarkdown display.
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+    const htmlContent = result.value;
 
-    let fullText = result.value;
-
-    // ─── FIX: Strip leading whitespace from each line ───
-    // mammoth's extractRawText preserves indentation from the Word document.
-    // When rendered through ReactMarkdown, lines with 4+ spaces of indentation
-    // are treated as code blocks, which render as dark <pre> boxes ("black boxes").
-    // By stripping leading whitespace, we prevent this visual artifact while
-    // preserving paragraph structure (empty lines between paragraphs).
-    fullText = fullText
-      .split('\n')
-      .map(line => line.trimStart())
-      .join('\n');
-
-    // Also collapse multiple consecutive blank lines into max 2 (one empty line)
-    fullText = fullText.replace(/\n{3,}/g, '\n\n');
+    // Convert HTML to Markdown to preserve structure while being compatible
+    // with ReactMarkdown and AI summarization
+    let fullText = htmlToMarkdown(htmlContent);
 
     if (!fullText.trim()) {
       throw new Error('NO_TEXT_EXTRACTED');
     }
 
-    // Truncate to max length
+    // Truncate to max length with indicator
     if (fullText.length > MAX_TEXT_LENGTH) {
       console.log(`[DOCX Client] Text truncated from ${fullText.length} to ${MAX_TEXT_LENGTH} chars`);
-      fullText = fullText.substring(0, MAX_TEXT_LENGTH);
+      // Try to truncate at a paragraph boundary
+      const truncated = fullText.substring(0, MAX_TEXT_LENGTH);
+      const lastParagraph = truncated.lastIndexOf('\n\n');
+      if (lastParagraph > MAX_TEXT_LENGTH * 0.7) {
+        fullText = truncated.substring(0, lastParagraph);
+      } else {
+        fullText = truncated;
+      }
+      fullText += '\n\n[... تم اقتطاع جزء من المحتوى لتجاوز الحد الأقصى ...]';
     }
 
     return { text: fullText, sourceFileType: 'docx' };

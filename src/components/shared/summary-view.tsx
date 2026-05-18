@@ -364,7 +364,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         toast.success('تم إنشاء الاختبار بنجاح');
         setShowQuizConfig(false);
       } else {
-        toast.error('فشل حفظ الاختبار');
+        const saveErrData = await saveRes.json().catch(() => ({}));
+        console.error('[SummaryView] Quiz save failed:', saveRes.status, saveErrData);
+        toast.error(saveErrData.error || 'فشل حفظ الاختبار');
       }
     } catch {
       toast.error('حدث خطأ أثناء إنشاء الاختبار');
@@ -849,7 +851,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     >
                       <span
                         className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
-                          quizAllowRetake ? 'translate-x-4' : 'translate-x-0'
+                          quizAllowRetake ? 'rtl:-translate-x-4 translate-x-4' : 'translate-x-0'
                         }`}
                       />
                     </button>
@@ -867,7 +869,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     >
                       <span
                         className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
-                          quizShuffleQuestions ? 'translate-x-4' : 'translate-x-0'
+                          quizShuffleQuestions ? 'rtl:-translate-x-4 translate-x-4' : 'translate-x-0'
                         }`}
                       />
                     </button>

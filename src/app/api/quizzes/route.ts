@@ -61,7 +61,38 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('[Quizzes API] Insert error:', error.message);
+      console.error('[Quizzes API] Insert error:', error.message, 'code:', error.code, 'details:', error.details, 'hint:', error.hint);
+      // If the error is about a missing column, try inserting without the problematic field
+      if (error.code === '42703' || error.message?.includes('does not exist')) {
+        // Try again without optional fields that may not exist in the DB yet
+        const safeData: Record<string, unknown> = {
+          user_id: userId,
+          title,
+          questions,
+        };
+        if (summaryId) safeData.summary_id = summaryId;
+        if (show_results !== undefined) safeData.show_results = show_results;
+        if (allow_retake !== undefined) safeData.allow_retake = allow_retake;
+
+        const { data: retryQuiz, error: retryError } = await supabaseServer
+          .from('quizzes')
+          .insert(safeData)
+          .select()
+          .single();
+
+        if (retryError) {
+          console.error('[Quizzes API] Retry insert also failed:', retryError.message);
+          return NextResponse.json(
+            { success: false, error: 'فشل حفظ الاختبار' },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          data: retryQuiz,
+        });
+      }
       return NextResponse.json(
         { success: false, error: 'فشل حفظ الاختبار' },
         { status: 500 }
