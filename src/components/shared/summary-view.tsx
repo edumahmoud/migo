@@ -409,12 +409,17 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const handleRefineText = async () => {
     if (!summary) return;
     setRefining(true);
+    const controller = new AbortController();
+    // 90s timeout — refine can take a long time for large transcribed documents
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
     try {
       const res = await fetch('/api/gemini/summary', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (res.ok && data.success) {
         setSummary(data.data as Summary);
@@ -423,8 +428,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       } else {
         toast.error(data.error || 'فشل تنقيح النص');
       }
-    } catch {
-      toast.error('حدث خطأ أثناء تنقيح النص');
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast.error('انتهت مهلة تنقيح النص. يرجى المحاولة مرة أخرى');
+      } else {
+        toast.error('حدث خطأ أثناء تنقيح النص. يرجى المحاولة مرة أخرى');
+      }
     } finally {
       setRefining(false);
     }

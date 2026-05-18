@@ -1869,7 +1869,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         // returns stale data (before the delete is committed), re-adding
         // the deleted summary to the UI temporarily.
         const remaining = summaries.filter(s => s.id !== summaryId);
-        safeSetSummaries(remaining, 0, remaining.length === 0); // force=true if all deleted
+        safeSetSummaries(remaining, 0, true); // force=true — always force on delete to bypass generation check
       } else {
         // Fallback to direct Supabase delete
         const { error } = await supabase.from('summaries').delete().eq('id', summaryId);
@@ -1880,7 +1880,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           recentlyDeletedSummaryIdsRef.current.add(summaryId);
           setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
           const remaining = summaries.filter(s => s.id !== summaryId);
-          safeSetSummaries(remaining, 0, remaining.length === 0);
+          safeSetSummaries(remaining, 0, true); // force=true
         }
       }
     } catch {
@@ -1894,7 +1894,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           recentlyDeletedSummaryIdsRef.current.add(summaryId);
           setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
           const remaining = summaries.filter(s => s.id !== summaryId);
-          safeSetSummaries(remaining, 0, remaining.length === 0);
+          safeSetSummaries(remaining, 0, true); // force=true
         }
       } catch {
         toast.error('حدث خطأ غير متوقع');
