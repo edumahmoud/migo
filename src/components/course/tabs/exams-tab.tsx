@@ -88,6 +88,65 @@ function scorePercentage(score: number, total: number): number {
   return Math.round((score / total) * 100);
 }
 
+// -------------------------------------------------------
+// Countdown timer for scheduled quizzes
+// -------------------------------------------------------
+function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string; scheduledTime?: string }) {
+  const [remaining, setRemaining] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+  const [started, setStarted] = useState(false);
+
+  useEffect(() => {
+    const target = new Date(`${scheduledDate}T${scheduledTime || '00:00'}`);
+    if (isNaN(target.getTime())) return;
+
+    const tick = () => {
+      const diff = target.getTime() - Date.now();
+      if (diff <= 0) {
+        setStarted(true);
+        setRemaining(null);
+        return;
+      }
+      setStarted(false);
+      setRemaining({
+        d: Math.floor(diff / 86_400_000),
+        h: Math.floor((diff % 86_400_000) / 3_600_000),
+        m: Math.floor((diff % 3_600_000) / 60_000),
+        s: Math.floor((diff % 60_000) / 1_000),
+      });
+    };
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [scheduledDate, scheduledTime]);
+
+  if (started) {
+    return (
+      <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800">
+        <Play className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
+        <span className="text-xs font-bold text-sky-700 dark:text-sky-300">متاح الآن</span>
+      </div>
+    );
+  }
+
+  if (!remaining) return null;
+
+  const parts: string[] = [];
+  if (remaining.d > 0) parts.push(`${remaining.d} يوم`);
+  if (remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.h} ساعة`);
+  if (remaining.m > 0 || remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.m} دقيقة`);
+  parts.push(`${remaining.s} ثانية`);
+
+  return (
+    <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+      <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 animate-pulse" />
+      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+        يبدأ بعد: {parts.join(' و ')}
+      </span>
+    </div>
+  );
+}
+
 /**
  * Determines if a quiz belongs in the "finished" tab.
  * A quiz is considered finished if:
@@ -1793,12 +1852,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             </div>
           )}
 
-          {/* Date */}
+          {/* Date & Time */}
           {quiz.scheduled_date && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
               <Calendar className="h-3 w-3" />
-              {formatDate(quiz.scheduled_date)}
-              {quiz.scheduled_time && <span>{quiz.scheduled_time}</span>}
+              <span>{formatDate(quiz.scheduled_date)}</span>
+              {quiz.scheduled_time && <span className="font-medium">- {quiz.scheduled_time}</span>}
             </div>
           )}
 
@@ -1810,8 +1869,13 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             </div>
           )}
 
+          {/* Countdown timer for scheduled quizzes */}
+          {quiz.scheduled_date && getQuizStatus(quiz) === 'scheduled' && (
+            <QuizCountdown scheduledDate={quiz.scheduled_date} scheduledTime={quiz.scheduled_time} />
+          )}
+
           {/* Active: Take quiz button (student) */}
-          {!isFinishedTab && !myScore && (
+          {!isFinishedTab && !myScore && getQuizStatus(quiz) !== 'scheduled' && (
             <button
               onClick={() => setViewingQuizId(quiz.id)}
               className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-sky-800 mt-3 w-full justify-center"
