@@ -17,6 +17,7 @@ import {
   Ban,
   Megaphone,
   Building2,
+  Database,
 } from 'lucide-react';
 import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 
@@ -50,6 +51,7 @@ export const studentNavItems: NavItem<StudentSection>[] = [
 export const teacherNavItems: NavItem<TeacherSection>[] = [
   { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
   { id: 'subjects', label: 'المقررات', icon: BookOpen },
+  { id: 'questionBank', label: 'بنك الأسئلة', icon: Database },
   { id: 'chat', label: 'المحادثات', icon: MessageCircle },
   { id: 'students', label: 'الطلاب', icon: Users },
   { id: 'files', label: 'ملفاتي', icon: FolderOpen },

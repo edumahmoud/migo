@@ -32,12 +32,14 @@ import {
   ListChecks,
   Type,
   Link2,
+  BookOpen,
+  Check,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/stores/app-store';
-import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile } from '@/lib/types';
+import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile, QuestionBank, BankQuestion } from '@/lib/types';
 import QuizSettingsModal from '@/components/shared/quiz-settings-modal';
 
 // -------------------------------------------------------
@@ -139,7 +141,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   // ─── Create / Edit quiz modal ───
   const [quizModalOpen, setQuizModalOpen] = useState(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
-  const [quizInputMode, setQuizInputMode] = useState<'manual' | 'ai-file'>('manual');
+  const [quizInputMode, setQuizInputMode] = useState<'manual' | 'ai-file' | 'bank'>('manual');
   const [quizTitle, setQuizTitle] = useState('');
   const [quizDuration, setQuizDuration] = useState('');
   const [quizDate, setQuizDate] = useState('');
@@ -162,6 +164,14 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   const [loadingCourseFiles, setLoadingCourseFiles] = useState(false);
   const [generatingFromAi, setGeneratingFromAi] = useState(false);
   const [aiQuizConfigTypes, setAiQuizConfigTypes] = useState({ mcq: 3, boolean: 2, completion: 2, matching: 2 });
+
+  // ─── Import from bank ───
+  const [subjectBanks, setSubjectBanks] = useState<QuestionBank[]>([]);
+  const [selectedBank, setSelectedBank] = useState<QuestionBank | null>(null);
+  const [bankQuestions, setBankQuestions] = useState<BankQuestion[]>([]);
+  const [selectedBankQuestionIds, setSelectedBankQuestionIds] = useState<Set<string>>(new Set());
+  const [loadingBanks, setLoadingBanks] = useState(false);
+  const [importingFromBank, setImportingFromBank] = useState(false);
 
   // ─── Delete quiz ───
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -254,6 +264,10 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     setQuizInputMode('manual');
     setSelectedCourseFile(null);
     setGeneratingFromAi(false);
+    setSelectedBank(null);
+    setBankQuestions([]);
+    setSelectedBankQuestionIds(new Set());
+    setSubjectBanks([]);
     resetQuestionForm();
   };
 
@@ -582,6 +596,114 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     } finally {
       setGeneratingFromAi(false);
     }
+  };
+
+  // -------------------------------------------------------
+  // Load question banks for this subject
+  // -------------------------------------------------------
+  const loadSubjectBanks = useCallback(async () => {
+    if (subjectBanks.length > 0) return; // Already loaded
+    setLoadingBanks(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
+      const res = await fetch(`/api/question-bank?subjectId=${subjectId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubjectBanks(data.data);
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setLoadingBanks(false);
+    }
+  }, [subjectId, subjectBanks.length]);
+
+  // -------------------------------------------------------
+  // Load questions from a selected bank
+  // -------------------------------------------------------
+  const handleSelectBank = async (bank: QuestionBank) => {
+    setSelectedBank(bank);
+    setBankQuestions([]);
+    setSelectedBankQuestionIds(new Set());
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
+      const res = await fetch(`/api/question-bank?bankId=${bank.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.data.questions) {
+        setBankQuestions(data.data.questions);
+        // Pre-select all questions
+        setSelectedBankQuestionIds(new Set(data.data.questions.map((q: BankQuestion) => q.id)));
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء تحميل أسئلة البنك');
+    }
+  };
+
+  // -------------------------------------------------------
+  // Import selected questions from bank to quiz
+  // -------------------------------------------------------
+  const handleImportFromBank = () => {
+    if (!selectedBank || selectedBankQuestionIds.size === 0) {
+      toast.error('يرجى اختيار سؤال واحد على الأقل');
+      return;
+    }
+
+    const selectedQuestions = bankQuestions
+      .filter(q => selectedBankQuestionIds.has(q.id))
+      .map(q => {
+        // Convert BankQuestion to QuizQuestion format
+        const quizQ: QuizQuestion = {
+          type: q.type,
+          question: q.question,
+        };
+        if (q.type === 'mcq') {
+          quizQ.options = (q.options as string[]) || [];
+          quizQ.correctAnswer = q.correct_answer || '';
+        } else if (q.type === 'boolean') {
+          quizQ.correctAnswer = q.correct_answer || 'صح';
+        } else if (q.type === 'completion') {
+          quizQ.correctAnswer = q.correct_answer || '';
+        } else if (q.type === 'matching') {
+          quizQ.pairs = (q.pairs as { key: string; value: string }[]) || [];
+        }
+        return quizQ;
+      });
+
+    setQuizQuestions([...quizQuestions, ...selectedQuestions]);
+    // Auto-set title if empty
+    if (!quizTitle.trim()) {
+      setQuizTitle(`اختبار: ${selectedBank.name}`);
+    }
+    toast.success(`تم استيراد ${selectedQuestions.length} سؤال من بنك الأسئلة`);
+    // Reset bank state
+    setSelectedBank(null);
+    setBankQuestions([]);
+    setSelectedBankQuestionIds(new Set());
+    // Switch to manual mode to show imported questions
+    setQuizInputMode('manual');
+  };
+
+  // -------------------------------------------------------
+  // Toggle a bank question selection
+  // -------------------------------------------------------
+  const toggleBankQuestion = (qId: string) => {
+    setSelectedBankQuestionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(qId)) {
+        next.delete(qId);
+      } else {
+        next.add(qId);
+      }
+      return next;
+    });
   };
 
   // -------------------------------------------------------
@@ -1095,7 +1217,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               {!editingQuiz && (
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">طريقة الإنشاء</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setQuizInputMode('manual')}
                       disabled={savingQuiz || generatingFromAi}
@@ -1122,6 +1244,21 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     >
                       <Sparkles className="h-4 w-4" />
                       من ملف المقرر
+                    </button>
+                    <button
+                      onClick={() => {
+                        setQuizInputMode('bank');
+                        loadSubjectBanks();
+                      }}
+                      disabled={savingQuiz || generatingFromAi}
+                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                        quizInputMode === 'bank'
+                          ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <Database className="h-4 w-4" />
+                      من بنك الأسئلة
                     </button>
                   </div>
                 </div>
@@ -1250,6 +1387,148 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       </>
                     )}
                   </button>
+                </div>
+              )}
+
+              {/* ─── Import from Bank Section ─── */}
+              {quizInputMode === 'bank' && !editingQuiz && (
+                <div className="space-y-4 rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+                  {/* Section header */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50">
+                      <Database className="h-4 w-4 text-violet-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-violet-700 dark:text-violet-300">استيراد من بنك الأسئلة</p>
+                      <p className="text-xs text-violet-600/70">اختر بنك أسئلة من مقررك واستورد الأسئلة للاختبار</p>
+                    </div>
+                  </div>
+
+                  {/* Bank selection */}
+                  {loadingBanks ? (
+                    <div className="flex items-center justify-center py-6 gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+                      <span className="text-sm text-muted-foreground">جاري تحميل بنوك الأسئلة...</span>
+                    </div>
+                  ) : subjectBanks.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 gap-2 rounded-lg border-2 border-dashed border-violet-300 dark:border-violet-800 bg-violet-50/30 dark:bg-violet-950/30">
+                      <Database className="h-8 w-8 text-violet-400" />
+                      <span className="text-sm text-muted-foreground">لا توجد بنوك أسئلة في هذا المقرر</span>
+                      <span className="text-xs text-muted-foreground/60">أنشئ بنك أسئلة من قسم بنك الأسئلة في القائمة</span>
+                    </div>
+                  ) : !selectedBank ? (
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-2">
+                      {subjectBanks.map((bank) => (
+                        <button
+                          key={bank.id}
+                          onClick={() => handleSelectBank(bank)}
+                          disabled={importingFromBank}
+                          className={`flex items-center gap-3 w-full rounded-lg border p-3 text-right transition-all ${
+                            'border-border hover:bg-violet-50 dark:hover:bg-violet-950/20'
+                          }`}
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50">
+                            <BookOpen className="h-4 w-4 text-violet-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground truncate">{bank.name}</p>
+                            <p className="text-xs text-muted-foreground">{bank.question_count || 0} سؤال</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    /* Selected bank — show questions for selection */
+                    <div className="space-y-3">
+                      {/* Bank header with back button */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setSelectedBank(null); setBankQuestions([]); setSelectedBankQuestionIds(new Set()); }}
+                          disabled={importingFromBank}
+                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="text-sm font-medium text-foreground">{selectedBank.name}</span>
+                        <span className="text-xs text-muted-foreground">({bankQuestions.length} سؤال)</span>
+                        <button
+                          onClick={() => {
+                            if (selectedBankQuestionIds.size === bankQuestions.length) {
+                              setSelectedBankQuestionIds(new Set());
+                            } else {
+                              setSelectedBankQuestionIds(new Set(bankQuestions.map(q => q.id)));
+                            }
+                          }}
+                          className="ms-auto text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                        >
+                          {selectedBankQuestionIds.size === bankQuestions.length ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
+                        </button>
+                      </div>
+
+                      {/* Questions list with checkboxes */}
+                      {bankQuestions.length === 0 ? (
+                        <div className="py-4 text-center text-xs text-muted-foreground">لا توجد أسئلة في هذا البنك</div>
+                      ) : (
+                        <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1.5">
+                          {bankQuestions.map((q) => {
+                            const isSelected = selectedBankQuestionIds.has(q.id);
+                            return (
+                              <button
+                                key={q.id}
+                                onClick={() => toggleBankQuestion(q.id)}
+                                disabled={importingFromBank}
+                                className={`w-full flex items-start gap-2.5 rounded-lg border p-2.5 text-right transition-all ${
+                                  isSelected
+                                    ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/30'
+                                    : 'border-border hover:bg-muted/50'
+                                }`}
+                              >
+                                <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors mt-0.5 ${
+                                  isSelected
+                                    ? 'border-violet-600 bg-violet-600 text-white'
+                                    : 'border-muted-foreground/30'
+                                }`}>
+                                  {isSelected && <Check className="h-3 w-3" />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-medium text-foreground line-clamp-2">{q.question}</p>
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+                                      {q.type === 'mcq' ? 'اختيار متعدد' : q.type === 'boolean' ? 'صح/خطأ' : q.type === 'completion' ? 'إكمال' : 'مطابقة'}
+                                    </span>
+                                    {q.difficulty && (
+                                      <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+                                        {q.difficulty === 'easy' ? 'سهل' : q.difficulty === 'medium' ? 'متوسط' : 'صعب'}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Import button */}
+                      <button
+                        onClick={handleImportFromBank}
+                        disabled={importingFromBank || selectedBankQuestionIds.size === 0}
+                        className="flex items-center gap-2 rounded-lg bg-violet-600 hover:bg-violet-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed w-full justify-center"
+                      >
+                        {importingFromBank ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            جاري الاستيراد...
+                          </>
+                        ) : (
+                          <>
+                            <Database className="h-4 w-4" />
+                            استيراد {selectedBankQuestionIds.size} سؤال
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

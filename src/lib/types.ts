@@ -345,7 +345,7 @@ export type AppPage =
   | 'profile';
 
 export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking';
-export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking';
+export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank';
 export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings';
 
 // API response types
@@ -366,6 +366,36 @@ export interface GenerateQuizResponse {
 
 export interface EvaluateAnswerResponse {
   isCorrect: boolean;
+}
+
+// =====================================================
+// Question Bank
+// =====================================================
+
+export interface QuestionBank {
+  id: string;
+  teacher_id: string;
+  subject_id: string;
+  name: string;
+  description?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  subject_name?: string;
+  question_count?: number;
+}
+
+export interface BankQuestion {
+  id: string;
+  bank_id: string;
+  type: 'mcq' | 'boolean' | 'completion' | 'matching';
+  question: string;
+  options?: string[] | null;        // for mcq
+  correct_answer?: string | null;   // for mcq/boolean/completion
+  pairs?: { key: string; value: string }[] | null; // for matching
+  difficulty?: 'easy' | 'medium' | 'hard' | null;
+  category?: string | null;
+  created_at: string;
 }
 
 // =====================================================
