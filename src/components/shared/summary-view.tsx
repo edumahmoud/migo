@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   Trophy,
+  ArrowUp,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -34,6 +35,374 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
+
+// -------------------------------------------------------
+// fetchWithRetry — resilient fetch with automatic retry on network errors
+// Prevents premature loading-state exit when the connection drops temporarily.
+// Only gives up after all retries are exhausted or the server returns a definitive error.
+// -------------------------------------------------------
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit & { timeoutMs?: number } = {},
+  maxRetries: number = 3,
+): Promise<Response> {
+  const { timeoutMs = 300000, ...fetchOptions } = options; // 5-minute default
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const mergedSignal = AbortSignal.any
+    ? AbortSignal.any([controller.signal, fetchOptions.signal].filter(Boolean) as AbortSignal[])
+    : fetchOptions.signal || controller.signal;
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const backoffMs = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
+        console.log(`[fetchWithRetry] Retry ${attempt}/${maxRetries} after ${backoffMs}ms — ${url}`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
+      const res = await fetch(url, { ...fetchOptions, signal: mergedSignal });
+      clearTimeout(timeoutId);
+      return res;
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const isAbort = lastError.name === 'AbortError';
+      // Don't retry if explicitly aborted (user cancelled) or timeout reached
+      if (isAbort && controller.signal.aborted) {
+        clearTimeout(timeoutId);
+        throw lastError;
+      }
+      console.warn(`[fetchWithRetry] Attempt ${attempt + 1} failed:`, lastError.message);
+    }
+  }
+  clearTimeout(timeoutId);
+  throw lastError || new Error('فشل الاتصال بعد عدة محاولات');
+}
+
+// -------------------------------------------------------
+// recoverSummaryFromDB — after a failed AI operation, re-fetch
+// the summary from the database because the server may have
+// completed the operation and saved to DB even though the HTTP
+// response was lost (Vercel 60s timeout, network drop, etc.)
+// Returns the updated summary if content changed, null otherwise.
+// -------------------------------------------------------
+async function recoverSummaryFromDB(
+  summaryId: string,
+  previousContent: string,
+  maxAttempts: number = 3,
+): Promise<Summary | null> {
+  console.log('[recoverSummaryFromDB] Starting recovery, previous content length:', previousContent.length);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // Wait with increasing delay (5s, 10s, 15s)
+    const delayMs = (attempt + 1) * 5000;
+    console.log(`[recoverSummaryFromDB] Attempt ${attempt + 1}/${maxAttempts}, waiting ${delayMs}ms...`);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+    try {
+      const { waitForSession } = await import('@/lib/client-auth');
+      const token = await waitForSession(5000);
+      const res = await fetch(`/api/summaries?id=${encodeURIComponent(summaryId)}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        if (data && data.summary_content && data.summary_content.trim() !== previousContent.trim()) {
+          console.log('[recoverSummaryFromDB] Content changed! Recovery successful, new length:', data.summary_content.length);
+          return data as Summary;
+        }
+        console.log('[recoverSummaryFromDB] Content unchanged, still waiting...');
+      }
+    } catch (err) {
+      console.warn('[recoverSummaryFromDB] Fetch error:', err instanceof Error ? err.message : err);
+    }
+  }
+  console.log('[recoverSummaryFromDB] All recovery attempts exhausted, content not updated');
+  return null;
+}
+
+// -------------------------------------------------------
+// recoverQuizFromDB — after a failed quiz operation, re-fetch
+// the quiz from the database because the server may have
+// completed the operation even though the HTTP response was lost.
+// Returns the updated quiz if found, null otherwise.
+// -------------------------------------------------------
+async function recoverQuizFromDB(
+  summaryId: string,
+  maxAttempts: number = 3,
+): Promise<Quiz | null> {
+  console.log('[recoverQuizFromDB] Starting recovery for summary:', summaryId);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const delayMs = (attempt + 1) * 5000;
+    console.log(`[recoverQuizFromDB] Attempt ${attempt + 1}/${maxAttempts}, waiting ${delayMs}ms...`);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+    try {
+      const { waitForSession } = await import('@/lib/client-auth');
+      const token = await waitForSession(5000);
+      const res = await fetch(`/api/quizzes?summaryId=${encodeURIComponent(summaryId)}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        const quizzes = data as Quiz[];
+        if (quizzes && quizzes.length > 0) {
+          console.log('[recoverQuizFromDB] Found quiz! Recovery successful');
+          return quizzes[0];
+        }
+      }
+    } catch (err) {
+      console.warn('[recoverQuizFromDB] Fetch error:', err instanceof Error ? err.message : err);
+    }
+  }
+  console.log('[recoverQuizFromDB] All recovery attempts exhausted');
+  return null;
+}
+
+// -------------------------------------------------------
+// AI Operation Progress Tracker
+// -------------------------------------------------------
+interface AiProgressState {
+  percent: number;
+  phase: string;
+}
+
+const AI_PHASES_SUMMARY = [
+  { threshold: 0,  label: 'جاري تحليل المحتوى...' },
+  { threshold: 25, label: 'جاري استخراج المفاهيم الرئيسية...' },
+  { threshold: 50, label: 'جاري بناء الملخص...' },
+  { threshold: 75, label: 'جاري تنسيق النص...' },
+  { threshold: 90, label: 'جاري المراجعة النهائية...' },
+];
+
+const AI_PHASES_REFINE = [
+  { threshold: 0,  label: 'جاري قراءة النص المستخرج...' },
+  { threshold: 20, label: 'جاري تصحيح أخطاء التعرف البصري...' },
+  { threshold: 45, label: 'جاري تنظيم الفقرات والعناوين...' },
+  { threshold: 70, label: 'جاري تنسيق المحتوى...' },
+  { threshold: 90, label: 'جاري المراجعة النهائية...' },
+];
+
+const AI_PHASES_QUIZ = [
+  { threshold: 0,  label: 'جاري تحليل المحتوى...' },
+  { threshold: 30, label: 'جاري إنشاء الأسئلة...' },
+  { threshold: 60, label: 'جاري مراجعة الإجابات...' },
+  { threshold: 85, label: 'جاري التنسيق النهائي...' },
+];
+
+function useAiProgress(isActive: boolean, phases: { threshold: number; label: string }[], estimatedDurationMs: number = 60000) {
+  const [progress, setProgress] = useState<AiProgressState>({ percent: 0, phase: phases[0]?.label || '' });
+  const startTimeRef = useRef<number>(0);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!isActive) {
+      setProgress({ percent: 0, phase: phases[0]?.label || '' });
+      return;
+    }
+
+    startTimeRef.current = Date.now();
+
+    const tick = () => {
+      const elapsed = Date.now() - startTimeRef.current;
+      // Use an adaptive ratio that extends the estimated duration as time passes,
+      // so the progress bar never gets stuck at a ceiling like 92%.
+      // The first 70% of the bar fills in ~estimatedDurationMs,
+      // then it slows down progressively but still creeps toward 98%.
+      const dynamicEstimate = estimatedDurationMs + Math.max(0, elapsed - estimatedDurationMs) * 3;
+      const rawRatio = Math.min(elapsed / dynamicEstimate, 0.98);
+      const eased = rawRatio < 0.7
+        ? rawRatio * 1.0
+        : 0.7 + (rawRatio - 0.7) * 0.9;
+      const percent = Math.min(Math.round(eased * 100), 98);
+
+      let currentPhase = phases[0]?.label || '';
+      for (let i = phases.length - 1; i >= 0; i--) {
+        if (percent >= phases[i].threshold) {
+          currentPhase = phases[i].label;
+          break;
+        }
+      }
+
+      setProgress({ percent, phase: currentPhase });
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [isActive, phases, estimatedDurationMs]);
+
+  const completeProgress = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    setProgress({ percent: 100, phase: 'اكتمل!' });
+  }, []);
+
+  return { progress, completeProgress };
+}
+
+// -------------------------------------------------------
+// Step Progress Indicator — Modern Horizontal Design
+// Shows a gradient progress bar with step dots and phase labels
+// -------------------------------------------------------
+function StepProgress({
+  percent,
+  phase,
+  steps,
+  color = 'sky',
+}: {
+  percent: number;
+  phase: string;
+  steps: { threshold: number; label: string }[];
+  color?: 'sky' | 'teal' | 'rose';
+}) {
+  // Determine active step based on percent and thresholds
+  let activeStepIdx = 0;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (percent >= steps[i].threshold) {
+      activeStepIdx = i;
+      break;
+    }
+  }
+
+  const colorSchemes = {
+    sky: {
+      text: '#0369a1',
+      barGradient: 'linear-gradient(to left, #0369a1, #38bdf8)',
+      barBg: '#e0f2fe',
+      dotActive: '#0ea5e9',
+      dotCompleted: '#38bdf8',
+      dotUpcoming: '#bae6fd',
+      glow: 'rgba(14,165,233,0.25)',
+      labelActive: '#0369a1',
+      labelUpcoming: '#93c5fd',
+      checkColor: '#0369a1',
+    },
+    teal: {
+      text: '#0f766e',
+      barGradient: 'linear-gradient(to left, #0f766e, #5eead4)',
+      barBg: '#ccfbf1',
+      dotActive: '#14b8a6',
+      dotCompleted: '#5eead4',
+      dotUpcoming: '#99f6e4',
+      glow: 'rgba(20,184,166,0.25)',
+      labelActive: '#0f766e',
+      labelUpcoming: '#5eead4',
+      checkColor: '#0f766e',
+    },
+    rose: {
+      text: '#be123c',
+      barGradient: 'linear-gradient(to left, #be123c, #fb7185)',
+      barBg: '#ffe4e6',
+      dotActive: '#f43f5e',
+      dotCompleted: '#fb7185',
+      dotUpcoming: '#fda4af',
+      glow: 'rgba(244,63,94,0.25)',
+      labelActive: '#be123c',
+      labelUpcoming: '#fb7185',
+      checkColor: '#be123c',
+    },
+  };
+  const c = colorSchemes[color];
+
+  return (
+    <div className="w-full max-w-xs mx-auto space-y-4 py-2">
+      {/* Large percentage display */}
+      <div className="text-center">
+        {percent === 100 ? (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          >
+            <CheckCircle2 className="h-12 w-12 mx-auto" style={{ color: c.checkColor }} />
+          </motion.div>
+        ) : (
+          <motion.span
+            className="text-4xl font-bold tabular-nums"
+            style={{ color: c.text }}
+            key={percent}
+            initial={{ scale: 1.05, opacity: 0.8 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.15 }}
+          >
+            {percent}%
+          </motion.span>
+        )}
+      </div>
+
+      {/* Gradient progress bar */}
+      <div className="relative h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: c.barBg }}>
+        <div
+          className="absolute inset-y-0 right-0 rounded-full"
+          style={{
+            width: `${Math.max(percent, 2)}%`,
+            background: c.barGradient,
+            transition: 'width 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        />
+        {/* Glowing leading edge */}
+        {percent > 0 && percent < 100 && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-5 w-5 rounded-full animate-pulse"
+            style={{
+              right: `calc(${percent}% - 10px)`,
+              background: c.dotActive,
+              opacity: 0.4,
+              filter: 'blur(8px)',
+              transition: 'right 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
+          />
+        )}
+      </div>
+
+      {/* Step dots with labels */}
+      <div className="flex justify-between px-0.5">
+        {steps.map((step, i) => {
+          const isCompleted = i < activeStepIdx;
+          const isActive = i === activeStepIdx;
+
+          return (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              <div
+                className="rounded-full transition-all duration-500 flex items-center justify-center"
+                style={{
+                  height: isActive ? 14 : isCompleted ? 11 : 8,
+                  width: isActive ? 14 : isCompleted ? 11 : 8,
+                  backgroundColor: isCompleted ? c.dotCompleted : isActive ? c.dotActive : c.dotUpcoming,
+                  boxShadow: isActive ? `0 0 0 4px ${c.glow}` : 'none',
+                }}
+              >
+                {isCompleted && (
+                  <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+              <span
+                className="text-[10px] font-medium text-center leading-tight transition-colors duration-300"
+                style={{ color: isCompleted || isActive ? c.labelActive : c.labelUpcoming }}
+              >
+                {step.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Current phase label */}
+      <div className="text-center space-y-1.5 pt-1">
+        <div className="flex items-center justify-center gap-1.5">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: c.text }} />
+          <p className="text-sm font-semibold" style={{ color: c.text }}>{phase}</p>
+        </div>
+        <p className="text-xs text-muted-foreground">يرجى الانتظار، لا تغادر الصفحة</p>
+      </div>
+    </div>
+  );
+}
 
 // -------------------------------------------------------
 // Props
@@ -60,6 +429,35 @@ const staggerContainer = {
 };
 
 // -------------------------------------------------------
+// Scroll to Top Button
+// -------------------------------------------------------
+function ScrollToTopButton() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 300);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <motion.button
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      className="fixed bottom-20 left-4 z-50 h-11 w-11 rounded-full bg-sky-600 text-white shadow-lg shadow-sky-600/30 flex items-center justify-center hover:bg-sky-700 active:scale-95 transition-all print:hidden sm:bottom-6 sm:left-6"
+      initial={{ opacity: 0, scale: 0.5, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.5, y: 20 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      aria-label="العودة للأعلى"
+    >
+      <ArrowUp className="h-5 w-5" />
+    </motion.button>
+  );
+}
+
+// -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode }: SummaryViewProps) {
@@ -83,6 +481,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [regeneratingQuiz, setRegeneratingQuiz] = useState(false);
   const [copied, setCopied] = useState(false);
   const [refining, setRefining] = useState(false);
+
+  // ─── AI Progress trackers ───
+  const summaryProgress = useAiProgress(regenerating, AI_PHASES_SUMMARY, 60000);
+  const refineProgress = useAiProgress(refining, AI_PHASES_REFINE, 60000);
+  const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, AI_PHASES_QUIZ, 60000);
 
   // ─── Quiz config states ───
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
@@ -273,13 +676,15 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     fetchCompletedQuizzes();
   }, [fetchSummary, fetchRelatedQuiz, fetchCompletedQuizzes]);
 
-  // ─── Loading timeout for mobile (fix: loading stuck forever) ───
-  // FIX: Reset error state on retry so the timeout can re-trigger properly.
-  // Also increased timeout to 20s for slower mobile connections.
+  // ─── Loading timeout for mobile ───
+  // IMPORTANT: Removed the aggressive 30s timeout that was killing the page
+  // while AI was still working. The server handles its own timeouts, and the
+  // client-side fetch calls have their own AbortController timeouts.
+  // We only use a VERY long safety net (5 minutes) to prevent truly stuck states.
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
-      console.warn('[SummaryView] Loading timeout (20s) — forcing error state');
+      console.warn('[SummaryView] Loading timeout (5min safety net) — forcing error state');
       setLoading(false);
       // Only set error if we don't already have data
       setSummary((prev) => {
@@ -288,7 +693,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         }
         return prev;
       });
-    }, 20000);
+    }, 300000); // 5 minutes — just a safety net, not a real timeout
     return () => clearTimeout(timer);
   }, [loading]);
 
@@ -325,29 +730,156 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   }, []);
 
   // -------------------------------------------------------
+  // Progress Persistence — Save/restore via sessionStorage
+  // Prevents data loss when the page is refreshed during an
+  // AI operation (refine, regenerate, quiz generation).
+  // -------------------------------------------------------
+  const STORAGE_KEY_OP = `attendo-op-${summaryId}`;
+  const STORAGE_KEY_DATA = `attendo-data-${summaryId}`;
+
+  const markOpPending = useCallback((op: string) => {
+    try {
+      sessionStorage.setItem(STORAGE_KEY_OP, JSON.stringify({
+        operation: op,
+        timestamp: Date.now(),
+        previousContent: summary?.summary_content || '',
+      }));
+    } catch { /* sessionStorage may be unavailable in some environments */ }
+  }, [STORAGE_KEY_OP, summary?.summary_content]);
+
+  const markOpComplete = useCallback(() => {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY_OP);
+    } catch {}
+  }, [STORAGE_KEY_OP]);
+
+  // Save summary data to sessionStorage on beforeunload (page refresh/close)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (summary) {
+        try {
+          sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(summary));
+        } catch {}
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [summary, STORAGE_KEY_DATA]);
+
+  // Auto-recover on mount: restore data + resume pending operations
+  useEffect(() => {
+    try {
+      // 1. Restore summary data for instant display
+      const savedData = sessionStorage.getItem(STORAGE_KEY_DATA);
+      if (savedData && !hasValidDataRef.current) {
+        const parsed = JSON.parse(savedData);
+        if (parsed?.id === summaryId) {
+          setSummary(parsed);
+          hasValidDataRef.current = true;
+          setLoading(false);
+        }
+      }
+
+      // 2. Check for pending AI operations and try to recover results from DB
+      const savedOp = sessionStorage.getItem(STORAGE_KEY_OP);
+      if (!savedOp) return;
+      const { operation, timestamp, previousContent } = JSON.parse(savedOp);
+      // Only recover if operation was started within the last 5 minutes
+      if (Date.now() - timestamp > 300000) {
+        sessionStorage.removeItem(STORAGE_KEY_OP);
+        return;
+      }
+      console.log('[SummaryView] Found pending operation:', operation, '— attempting recovery');
+
+      if (operation === 'refine') {
+        setRefining(true);
+        recoverSummaryFromDB(summaryId, previousContent, 5).then(recovered => {
+          if (recovered) {
+            setSummary(recovered);
+            hasValidDataRef.current = true;
+            toast.success('تم استرداد نتيجة التنقيح بنجاح!');
+          } else {
+            toast.info('لم يتم العثور على نتيجة سابقة للتنقيح');
+          }
+          setRefining(false);
+          sessionStorage.removeItem(STORAGE_KEY_OP);
+        });
+      } else if (operation === 'regenerate') {
+        setRegenerating(true);
+        recoverSummaryFromDB(summaryId, previousContent, 5).then(recovered => {
+          if (recovered) {
+            setSummary(recovered);
+            hasValidDataRef.current = true;
+            toast.success('تم استرداد نتيجة إعادة التلخيص بنجاح!');
+          } else {
+            toast.info('لم يتم العثور على نتيجة سابقة');
+          }
+          setRegenerating(false);
+          sessionStorage.removeItem(STORAGE_KEY_OP);
+        });
+      } else if (operation === 'quiz') {
+        setGeneratingQuiz(true);
+        recoverQuizFromDB(summaryId, 5).then(recovered => {
+          if (recovered) {
+            setRelatedQuiz(recovered);
+            toast.success('تم استرداد الاختبار بنجاح!');
+          }
+          setGeneratingQuiz(false);
+          sessionStorage.removeItem(STORAGE_KEY_OP);
+        });
+      }
+    } catch { /* sessionStorage unavailable */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryId]); // Only run once on mount
+
+  // -------------------------------------------------------
   // Re-generate summary
   // -------------------------------------------------------
   const handleRegenerateSummary = async () => {
     setRegenerating(true);
+    markOpPending('regenerate');
+    const previousContent = summary?.summary_content || '';
+
     try {
-      const res = await fetch('/api/summaries', {
+      const res = await fetchWithRetry('/api/summaries', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
-      });
+        timeoutMs: 300000,
+      }, 3);
       const data = await res.json();
       if (res.ok && data.success) {
+        summaryProgress.completeProgress();
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
+        markOpComplete();
         toast.success('تم إعادة توليد الملخص بنجاح');
-      } else {
-        toast.error(data.error || 'فشل إعادة توليد الملخص');
+        setRegenerating(false);
+        return; // ✅ Success — exit loading
       }
+      // Server returned an error — try recovery before giving up
     } catch {
-      toast.error('حدث خطأ أثناء إعادة التلخيص');
-    } finally {
-      setRegenerating(false);
+      // Network error or timeout — try recovery before giving up
     }
+
+    // ─── RECOVERY: The fetch failed, but the server may have completed the operation ───
+    // and saved to DB even though the HTTP response was lost (Vercel 60s timeout, etc.)
+    console.log('[handleRegenerateSummary] Fetch failed, attempting DB recovery...');
+    const recovered = await recoverSummaryFromDB(summaryId, previousContent);
+    if (recovered) {
+      summaryProgress.completeProgress();
+      setSummary(recovered);
+      hasValidDataRef.current = true;
+      markOpComplete();
+      toast.success('تم إعادة توليد الملخص بنجاح');
+      setRegenerating(false);
+      return; // ✅ Recovered — exit loading
+    }
+
+    // Truly failed — all recovery attempts exhausted
+    markOpComplete();
+    toast.error('حدث خطأ أثناء إعادة التلخيص. يرجى المحاولة مرة أخرى');
+    setRegenerating(false);
   };
 
   // -------------------------------------------------------
@@ -381,17 +913,31 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   const handleGenerateQuiz = async () => {
     setGeneratingQuiz(true);
+    markOpPending('quiz');
+
     try {
       const content = summary?.summary_content || summary?.original_content || '';
-      const quizRes = await fetch('/api/gemini/quiz', {
+      const quizRes = await fetchWithRetry('/api/gemini/quiz', {
         method: 'POST',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ content, questionTypes: quizConfigTypes }),
-      });
+        timeoutMs: 300000,
+      }, 3);
       const quizData = await quizRes.json();
 
       if (!quizRes.ok || !quizData.success) {
+        // Try recovery — quiz might have been created but response lost
+        const recoveredQuiz = await recoverQuizFromDB(summaryId);
+        if (recoveredQuiz) {
+          quizProgress.completeProgress();
+          setRelatedQuiz({ ...recoveredQuiz, shuffle_questions: quizShuffleQuestions } as Quiz);
+          toast.success('تم إنشاء الاختبار بنجاح');
+          setShowQuizConfig(false);
+          setGeneratingQuiz(false);
+          return; // ✅ Recovered
+        }
         toast.error(quizData.error || 'فشل إنشاء الاختبار');
+        setGeneratingQuiz(false);
         return;
       }
 
@@ -402,10 +948,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         summaryId,
         show_results: quizAnswerMode === 'after' ? false : true,
         allow_retake: quizAllowRetake,
-        // NOTE: shuffle_questions is client-side only, not stored in DB
       };
 
-      // If teacher mode and summary has a subject_id, include it
       if (teacherMode && summary?.subject_id) {
         quizPayload.subject_id = summary.subject_id;
       }
@@ -418,17 +962,28 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
       if (saveRes.ok) {
         const saveData = await saveRes.json();
-        // Merge the local shuffle setting with the server response
         const savedQuiz = { ...saveData.data, shuffle_questions: quizShuffleQuestions } as Quiz;
+        quizProgress.completeProgress();
         setRelatedQuiz(savedQuiz);
         toast.success('تم إنشاء الاختبار بنجاح');
         setShowQuizConfig(false);
+        setGeneratingQuiz(false);
       } else {
         const saveErrData = await saveRes.json().catch(() => ({}));
         console.error('[SummaryView] Quiz save failed:', saveRes.status, saveErrData);
         toast.error(saveErrData.error || 'فشل حفظ الاختبار');
       }
     } catch {
+      // Network error — try recovery
+      const recoveredQuiz = await recoverQuizFromDB(summaryId);
+      if (recoveredQuiz) {
+        quizProgress.completeProgress();
+        setRelatedQuiz({ ...recoveredQuiz, shuffle_questions: quizShuffleQuestions } as Quiz);
+        toast.success('تم إنشاء الاختبار بنجاح');
+        setShowQuizConfig(false);
+        setGeneratingQuiz(false);
+        return; // ✅ Recovered
+      }
       toast.error('حدث خطأ أثناء إنشاء الاختبار');
     } finally {
       setGeneratingQuiz(false);
@@ -441,24 +996,38 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const handleRegenerateQuiz = async () => {
     if (!relatedQuiz) return;
     setRegeneratingQuiz(true);
+
     try {
-      const res = await fetch('/api/quizzes', {
+      const res = await fetchWithRetry('/api/quizzes', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ quizId: relatedQuiz.id }),
-      });
+        timeoutMs: 300000,
+      }, 3);
       const data = await res.json();
       if (res.ok && data.success) {
         setRelatedQuiz(data.data as Quiz);
+        quizProgress.completeProgress();
         toast.success('تم إعادة إنشاء الاختبار بنجاح');
-      } else {
-        toast.error(data.error || 'فشل إعادة إنشاء الاختبار');
+        setRegeneratingQuiz(false);
+        return; // ✅ Success
       }
     } catch {
-      toast.error('حدث خطأ أثناء إعادة إنشاء الاختبار');
-    } finally {
-      setRegeneratingQuiz(false);
+      // Network error — try recovery
     }
+
+    // ─── RECOVERY ───
+    const recoveredQuiz = await recoverQuizFromDB(summaryId);
+    if (recoveredQuiz) {
+      setRelatedQuiz(recoveredQuiz);
+      quizProgress.completeProgress();
+      toast.success('تم إعادة إنشاء الاختبار بنجاح');
+      setRegeneratingQuiz(false);
+      return; // ✅ Recovered
+    }
+
+    toast.error('حدث خطأ أثناء إعادة إنشاء الاختبار');
+    setRegeneratingQuiz(false);
   };
 
   // -------------------------------------------------------
@@ -467,35 +1036,48 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const handleRefineText = async () => {
     if (!summary) return;
     setRefining(true);
-    const controller = new AbortController();
-    // 90s timeout — refine can take a long time for large transcribed documents
-    const timeoutId = setTimeout(() => controller.abort(), 90000);
+    markOpPending('refine');
+    const previousContent = summary?.summary_content || '';
+
     try {
-      const res = await fetch('/api/gemini/summary', {
+      const res = await fetchWithRetry('/api/gemini/summary', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+        timeoutMs: 300000,
+      }, 3);
       const data = await res.json();
       if (res.ok && data.success) {
+        refineProgress.completeProgress();
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
+        markOpComplete();
         toast.success('تم تنقيح وتنسيق النص بنجاح');
-      } else {
-        toast.error(data.error || 'فشل تنقيح النص');
+        setRefining(false);
+        return; // ✅ Success — exit loading
       }
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        toast.error('انتهت مهلة تنقيح النص. يرجى المحاولة مرة أخرى');
-      } else {
-        toast.error('حدث خطأ أثناء تنقيح النص. يرجى المحاولة مرة أخرى');
-      }
-    } finally {
-      setRefining(false);
+      // Server returned an error — try recovery before giving up
+    } catch {
+      // Network error or timeout — try recovery before giving up
     }
+
+    // ─── RECOVERY: The fetch failed, but the server may have completed the operation ───
+    console.log('[handleRefineText] Fetch failed, attempting DB recovery...');
+    const recovered = await recoverSummaryFromDB(summaryId, previousContent);
+    if (recovered) {
+      refineProgress.completeProgress();
+      setSummary(recovered);
+      hasValidDataRef.current = true;
+      markOpComplete();
+      toast.success('تم تنقيح وتنسيق النص بنجاح');
+      setRefining(false);
+      return; // ✅ Recovered — exit loading
+    }
+
+    // Truly failed — all recovery attempts exhausted
+    markOpComplete();
+    toast.error('حدث خطأ أثناء تنقيح النص. يرجى المحاولة مرة أخرى');
+    setRefining(false);
   };
 
   // -------------------------------------------------------
@@ -558,10 +1140,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         studentAns = typeof studentAnswer === 'string' ? studentAnswer : JSON.stringify(studentAnswer);
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-      const res = await fetch('/api/gemini/explain', {
+      // Use fetchWithRetry for reliable delivery on mobile networks
+      const res = await fetchWithRetry('/api/gemini/explain', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -573,9 +1153,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           studentAnswer: studentAns,
           questionType: question.type,
         }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+        timeoutMs: 300000,
+      }, 2);
 
       const data = await res.json();
       if (data.success && data.data?.explanation) {
@@ -583,12 +1162,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       } else {
         toast.error(data.error || 'فشل الحصول على الشرح');
       }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        toast.error('انتهت مهلة الشرح. يرجى المحاولة مرة أخرى');
-      } else {
-        toast.error('حدث خطأ أثناء الحصول على الشرح');
-      }
+    } catch {
+      toast.error('حدث خطأ أثناء الحصول على الشرح');
     } finally {
       setExplainingIdx(null);
     }
@@ -635,18 +1210,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   }
 
   // -------------------------------------------------------
-  // Loading state
+  // Error / not-found state — only when loading is done
   // -------------------------------------------------------
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" dir="rtl">
-        <Loader2 className="h-10 w-10 animate-spin text-sky-700" />
-        <p className="text-muted-foreground text-sm">جاري تحميل الملخص...</p>
-      </div>
-    );
-  }
-
-  if (!summary) {
+  if (!loading && !summary) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir="rtl">
         <p className="text-lg font-semibold text-foreground">لم يتم العثور على الملخص</p>
@@ -678,11 +1244,20 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           <ChevronLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold text-foreground leading-relaxed">{summary.title}</h1>
-          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-            <BookOpen className="h-3 w-3" />
-            ملخص دراسي
-          </p>
+          {loading ? (
+            <>
+              <div className="h-6 w-48 animate-pulse rounded bg-sky-100" />
+              <div className="mt-2 h-3 w-20 animate-pulse rounded bg-sky-50" />
+            </>
+          ) : (
+            <>
+              <h1 className="text-xl font-bold text-foreground leading-relaxed">{summary?.title}</h1>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                <BookOpen className="h-3 w-3" />
+                ملخص دراسي
+              </p>
+            </>
+          )}
         </div>
         <div className="flex shrink-0 gap-1.5">
           {/* Delete button — always visible on mobile */}
@@ -810,18 +1385,35 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
             {/* Markdown content with RTL typography */}
             {regenerating ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
-                <p className="text-sm text-muted-foreground">جاري إعادة توليد الملخص...</p>
+              <div className="flex flex-col items-center justify-center py-12">
+                <StepProgress
+                  percent={summaryProgress.progress.percent}
+                  phase={summaryProgress.progress.phase}
+                  steps={AI_PHASES_SUMMARY}
+                  color="sky"
+                />
               </div>
             ) : refining ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
-                <p className="text-sm text-muted-foreground">جاري تنقيح وتنسيق النص...</p>
+              <div className="flex flex-col items-center justify-center py-12">
+                <StepProgress
+                  percent={refineProgress.progress.percent}
+                  phase={refineProgress.progress.phase}
+                  steps={AI_PHASES_REFINE}
+                  color="teal"
+                />
+              </div>
+            ) : loading ? (
+              <div className="space-y-3 py-4">
+                <div className="h-4 w-full animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-5/6 animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-4/6 animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-full animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-3/4 animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-5/6 animate-pulse rounded bg-sky-50" />
               </div>
             ) : (
               <div className="prose-summary">
-                <ReactMarkdown>{summary.summary_content}</ReactMarkdown>
+                <ReactMarkdown>{summary?.summary_content || ''}</ReactMarkdown>
               </div>
             )}
           </CardContent>
@@ -904,10 +1496,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 </div>
               </div>
             ) : generatingQuiz ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
-                <p className="text-sm text-muted-foreground">جاري إنشاء الاختبار...</p>
-                <p className="text-xs text-muted-foreground/60">قد يستغرق هذا بضع ثوانٍ</p>
+              <div className="flex flex-col items-center justify-center py-8">
+                <StepProgress
+                  percent={quizProgress.progress.percent}
+                  phase={quizProgress.progress.phase}
+                  steps={AI_PHASES_QUIZ}
+                  color="teal"
+                />
               </div>
             ) : showQuizConfig ? (
               <div className="space-y-4">
@@ -1241,7 +1836,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
               </div>
               <div>
                 <p className="text-sm font-bold text-rose-700">تأكيد الحذف</p>
-                <p className="text-xs text-rose-600/70">هل أنت متأكد من حذف ملخص "{summary.title}"؟ لا يمكن التراجع عن هذا الإجراء.</p>
+                <p className="text-xs text-rose-600/70">هل أنت متأكد من حذف ملخص "{summary?.title}"؟ لا يمكن التراجع عن هذا الإجراء.</p>
               </div>
             </div>
             <div className="flex items-center gap-2 ms-12">
@@ -1271,6 +1866,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           </div>
         )}
       </motion.div>
+
+      {/* Scroll to Top Button */}
+      <ScrollToTopButton />
     </motion.div>
   );
 }

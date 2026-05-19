@@ -274,14 +274,16 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     };
   }, [fetchQuiz]);
 
-  // ─── Loading timeout for mobile (fix: no timeout = stuck forever) ───
+  // ─── Loading timeout for mobile ───
+  // IMPORTANT: Removed aggressive 30s timeout. The server handles its own timeouts.
+  // We use a 5-minute safety net only to prevent truly stuck states.
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
-      console.warn('[QuizView] Loading timeout (15s) — forcing error state');
+      console.warn('[QuizView] Loading timeout (5min safety net) — forcing error state');
       setLoading(false);
       setError('انتهت مهلة تحميل الاختبار. يرجى المحاولة مرة أخرى');
-    }, 15000);
+    }, 300000); // 5 minutes — safety net only
     return () => clearTimeout(timer);
   }, [loading]);
 
@@ -575,13 +577,9 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         return;
       }
 
-      // Call API for semantic evaluation (with AbortController for mobile)
+      // Call API for semantic evaluation — no client-side timeout, let server handle it
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
-
-      // FIX: Add AbortController with timeout for mobile networks
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       let res: Response;
       try {
@@ -596,11 +594,8 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             correctAnswer: currentQuestion?.correctAnswer,
             studentAnswer,
           }),
-          signal: controller.signal,
         });
-        clearTimeout(timeoutId);
-      } catch (fetchErr) {
-        clearTimeout(timeoutId);
+      } catch {
         toast.error('حدث خطأ أثناء تقييم الإجابة');
         setIsCorrect(false);
         setAnswered(true);
@@ -881,35 +876,33 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   };
 
   // -------------------------------------------------------
-  // Loading state
+  // Error state — only show when loading is done AND there's an error
   // -------------------------------------------------------
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" dir="rtl">
-        <Loader2 className="h-10 w-10 animate-spin text-sky-700" />
-        <p className="text-muted-foreground text-sm">جاري تحميل الاختبار...</p>
-      </div>
-    );
-  }
-
-  // -------------------------------------------------------
-  // Error state
-  // -------------------------------------------------------
-  if (error || !quiz) {
+  if (!loading && (error || !quiz)) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir="rtl">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100">
           <XCircle className="h-8 w-8 text-rose-600" />
         </div>
         <p className="text-lg font-semibold text-foreground">{error || 'حدث خطأ غير متوقع'}</p>
-        <Button
-          onClick={onBack}
-          variant="outline"
-          className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
-        >
-          <ChevronRight className="h-4 w-4" />
-          العودة
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => { setError(null); hasValidDataRef.current = false; fetchQuiz(); }}
+            variant="outline"
+            className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
+          >
+            <RotateCcw className="h-4 w-4" />
+            إعادة المحاولة
+          </Button>
+          <Button
+            onClick={onBack}
+            variant="outline"
+            className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
+          >
+            <ChevronRight className="h-4 w-4" />
+            العودة
+          </Button>
+        </div>
       </div>
     );
   }
@@ -986,7 +979,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
 
           <motion.div variants={fadeInUp} className="text-center">
             <h2 className="text-2xl font-bold text-foreground">نتيجة الاختبار</h2>
-            <p className="text-muted-foreground mt-1">{quiz.title}</p>
+            <p className="text-muted-foreground mt-1">{quiz?.title}</p>
           </motion.div>
 
           <motion.div
@@ -1014,7 +1007,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             onClick={handleRetry}
             variant="outline"
             className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50"
-            style={{ display: quiz.allow_retake ? undefined : 'none' }}
+            style={{ display: quiz?.allow_retake ? undefined : 'none' }}
           >
             <RotateCcw className="h-4 w-4" />
             إعادة الاختبار
@@ -1043,7 +1036,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                   <Eye className="h-5 w-5 text-sky-700" />
                   مراجعة الإجابات
                 </h3>
-                {quiz.questions.map((q, idx) => {
+                {quiz?.questions?.map((q, idx) => {
                   const ans = userAnswers.find((a) => a.questionIndex === idx);
                   return (
                     <ReviewQuestionCard
@@ -1083,10 +1076,19 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             <ChevronRight className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold text-foreground truncate">{quiz.title}</h2>
-            <p className="text-xs text-muted-foreground">
-              السؤال {currentIdx + 1} من {totalQuestions}
-            </p>
+            {loading ? (
+              <>
+                <div className="h-5 w-32 animate-pulse rounded bg-sky-100" />
+                <div className="mt-1.5 h-3 w-20 animate-pulse rounded bg-sky-50" />
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-foreground truncate">{quiz?.title}</h2>
+                <p className="text-xs text-muted-foreground">
+                  السؤال {currentIdx + 1} من {totalQuestions}
+                </p>
+              </>
+            )}
           </div>
           {/* Timer display */}
           {timeLeft !== null && !showResults && (
@@ -1139,13 +1141,28 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       {/* Question card */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={currentIdx}
+          key={loading ? 'loading' : currentIdx}
           variants={pageVariants}
           initial="hidden"
           animate="visible"
           exit="exit"
         >
-          {currentQuestion && (
+          {loading ? (
+            <Card className="border-sky-200 bg-white shadow-sm">
+              <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">
+                <div className="space-y-3">
+                  <div className="h-5 w-28 animate-pulse rounded bg-sky-100" />
+                  <div className="h-4 w-full animate-pulse rounded bg-sky-50" />
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-sky-50" />
+                </div>
+                <div className="space-y-3 pt-2">
+                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50" />
+                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50" />
+                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : currentQuestion ? (
             <Card className="border-sky-200 bg-white shadow-sm">
               <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">
                 {/* Type badge + question */}
@@ -1170,7 +1187,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     isCorrect={isCorrect}
                     selectedOption={selectedOption}
                     onAnswer={handleMCQAnswer}
-                    showCorrectness={quiz.show_results !== false}
+                    showCorrectness={quiz?.show_results !== false}
                   />
                 )}
 
@@ -1181,7 +1198,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     isCorrect={isCorrect}
                     selectedOption={selectedOption}
                     onAnswer={handleBooleanAnswer}
-                    showCorrectness={quiz.show_results !== false}
+                    showCorrectness={quiz?.show_results !== false}
                   />
                 )}
 
@@ -1213,7 +1230,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                 )}
 
                 {/* Feedback indicator — only show during quiz if show_results is true */}
-                {answered && quiz.show_results !== false && (
+                {answered && quiz?.show_results !== false && (
                   <>
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
@@ -1257,17 +1274,23 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                               const { data: { session } } = await supabase.auth.getSession();
                               const token = session?.access_token || '';
                               const answerStr = currentQuestion.type === 'matching' ? JSON.stringify(matchedPairs) : (currentQuestion.type === 'completion' ? completionInput : selectedOption || '');
+
+                              // No client-side timeout — let server handle it
                               const res = await fetch('/api/gemini/explain', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
                                 body: JSON.stringify({ question: currentQuestion.question, correctAnswer: currentQuestion.correctAnswer || '', studentAnswer: answerStr, questionType: currentQuestion.type }),
                               });
+
                               const data = await res.json();
-                              if (data.success) {
+                              if (data.success && data.data?.explanation) {
                                 setExplanations(prev => ({ ...prev, [currentIdx]: data.data.explanation }));
+                              } else {
+                                toast.error(data.error || 'فشل الحصول على الشرح');
                               }
-                            } catch { toast.error('حدث خطأ'); }
-                            finally { setExplainingIdx(null); }
+                            } catch {
+                              toast.error('حدث خطأ أثناء الحصول على الشرح');
+                            } finally { setExplainingIdx(null); }
                           }}
                           className="mt-2 flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:underline"
                         >
@@ -1284,8 +1307,8 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                   </>
                 )}
 
-                {/* Previous / Next / Finish buttons */}
-                <div className="flex items-center gap-3">
+                {/* Navigation buttons */}
+                <div className="flex flex-wrap items-center gap-2">
                   {/* Previous button — RTL: ChevronRight points to the start */}
                   {currentIdx > 0 && (
                     <Button
@@ -1293,10 +1316,11 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                         setCurrentIdx(prev => prev - 1);
                       }}
                       variant="outline"
-                      className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
+                      className="gap-1.5 border-sky-300 text-sky-800 hover:bg-sky-50 text-xs sm:text-sm"
                     >
                       <ChevronRight className="h-4 w-4" />
-                      السؤال السابق
+                      <span className="hidden sm:inline">السؤال السابق</span>
+                      <span className="sm:hidden">السابق</span>
                     </Button>
                   )}
 
@@ -1305,10 +1329,11 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     <Button
                       onClick={handleChangeAnswer}
                       variant="outline"
-                      className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+                      className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 text-xs sm:text-sm"
                     >
                       <PenLine className="h-4 w-4" />
-                      تغيير الإجابة
+                      <span className="hidden sm:inline">تغيير الإجابة</span>
+                      <span className="sm:hidden">تعديل</span>
                     </Button>
                   )}
 
@@ -1317,14 +1342,16 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
+                      className="mr-auto"
                     >
                       <Button
                         onClick={handleNext}
-                        className="gap-2 bg-sky-700 text-white hover:bg-sky-800"
+                        className="gap-1.5 bg-sky-700 text-white hover:bg-sky-800 text-xs sm:text-sm"
                       >
                         {currentIdx < totalQuestions - 1 ? (
                           <>
-                            السؤال التالي
+                            <span className="hidden sm:inline">السؤال التالي</span>
+                            <span className="sm:hidden">التالي</span>
                             <ArrowRight className="h-4 w-4" />
                           </>
                         ) : (
@@ -1339,7 +1366,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                 </div>
               </CardContent>
             </Card>
-          )}
+          ) : null}
         </motion.div>
       </AnimatePresence>
     </motion.div>
@@ -2050,6 +2077,8 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                     const answerStr = question.type === 'matching'
                       ? JSON.stringify(userAnswer.answer)
                       : String(userAnswer.answer || '');
+
+                    // No client-side timeout — let server handle it
                     const res = await fetch('/api/gemini/explain', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
@@ -2060,12 +2089,15 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                         questionType: question.type,
                       }),
                     });
+
                     const data = await res.json();
-                    if (data.success) {
+                    if (data.success && data.data?.explanation) {
                       setExplanation(data.data.explanation);
+                    } else {
+                      toast.error(data.error || 'فشل الحصول على الشرح');
                     }
                   } catch {
-                    toast.error('حدث خطأ');
+                    toast.error('حدث خطأ أثناء الحصول على الشرح');
                   } finally {
                     setExplaining(false);
                   }

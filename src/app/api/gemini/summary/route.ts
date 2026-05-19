@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateSummary, refineTranscribedText, isAiError, type AiProviderError } from '@/lib/ai';
 
 // IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
-// The AI call timeout (45s) + auth/validation (~3-5s) must fit within this.
+// The AI layer manages a global timeout budget (53s) that accounts for
+// the entire fallback chain. Auth/validation (~3s) + AI (53s) + DB save (~4s) = 60s.
 // On Pro plan, this can be increased to 120 or 300.
 export const maxDuration = 60;
 // Force Node.js runtime (Edge runtime has 30s limit)
@@ -97,7 +98,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate summary using AI (Gemini) with streaming and fallback chain
-    // The AI layer handles its own timeout, retry, and key rotation internally.
+    // The AI layer manages a global timeout budget (48s) across the entire fallback chain.
+    // No route-level duplicate timeout — the provider-manager handles it internally.
     const authTime = Date.now() - requestStartTime;
     console.log('[Summary API] Generating summary for user:', userId, 'content length:', sanitizedContent.length, 'auth took:', authTime + 'ms');
 
@@ -308,25 +310,81 @@ export async function PUT(request: NextRequest) {
     const aiTime = Date.now() - requestStartTime;
     console.log('[Summary API] Refinement completed, length:', refinedText.length, 'total time:', aiTime + 'ms');
 
-    // Update the summary_content in the database
-    const { data: updated, error: updateError } = await supabaseServer
-      .from('summaries')
-      .update({ summary_content: refinedText })
-      .eq('id', summaryId)
-      .select()
-      .single();
+    // ─── Update DB with time-remaining safety check ───
+    // Same pattern as POST handler: check if we're close to Vercel's 60s limit
+    // and handle the case where time is too short for a full DB update.
+    const timeRemaining = 55000 - (Date.now() - requestStartTime); // Leave 5s buffer for response
+    let dbUpdateSucceeded = false;
+    let updatedData: typeof existing | null = null;
 
-    if (updateError) {
-      console.error('[Summary API] Refinement update error:', updateError.message);
-      return NextResponse.json(
-        { success: false, error: 'فشل تحديث المحتوى المنقّح' },
-        { status: 500 }
+    try {
+      if (timeRemaining < 3000) {
+        // Not enough time — attempt DB save but don't block the response
+        console.warn('[Summary API] Refine: Only', timeRemaining, 'ms remaining — attempting quick DB save');
+        try {
+          await supabaseServer
+            .from('summaries')
+            .update({ summary_content: refinedText })
+            .eq('id', summaryId);
+          dbUpdateSucceeded = true;
+        } catch {
+          // Best-effort save — if it fails, client can retry
+        }
+        // Return the refined text anyway so the client has it
+        return NextResponse.json({
+          success: true,
+          data: { ...existing, summary_content: refinedText },
+          saved: dbUpdateSucceeded,
+        }, { headers: rateLimitHeaders });
+      }
+
+      const dbTimeoutMs = Math.min(timeRemaining - 2000, 10000); // Up to 10s for DB save
+      console.log('[Summary API] Refine: Saving to DB with', dbTimeoutMs, 'ms budget...');
+
+      const updatePromise = supabaseServer
+        .from('summaries')
+        .update({ summary_content: refinedText })
+        .eq('id', summaryId)
+        .select()
+        .single();
+
+      const updateTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('db_update_timeout')), dbTimeoutMs)
       );
+
+      const { data: updated, error: updateError } = await Promise.race([updatePromise, updateTimeoutPromise]);
+
+      if (updateError) {
+        console.error('[Summary API] Refinement update error:', updateError.message);
+        // Still return the refined text — the client can use it
+        return NextResponse.json({
+          success: true,
+          data: { ...existing, summary_content: refinedText },
+          saved: false,
+        }, { headers: rateLimitHeaders });
+      }
+
+      dbUpdateSucceeded = true;
+      updatedData = updated;
+    } catch (saveErr) {
+      const errMsg = saveErr instanceof Error ? saveErr.message : String(saveErr);
+      if (errMsg === 'db_update_timeout') {
+        console.warn('[Summary API] Refine DB update timed out — returning refined text without DB confirmation');
+      } else {
+        console.error('[Summary API] Refine DB save error:', errMsg);
+      }
+      // Return the refined text anyway — client can save it via a separate request
+      return NextResponse.json({
+        success: true,
+        data: { ...existing, summary_content: refinedText },
+        saved: false,
+      }, { headers: rateLimitHeaders });
     }
 
     return NextResponse.json({
       success: true,
-      data: updated,
+      data: updatedData,
+      saved: dbUpdateSucceeded,
     }, { headers: rateLimitHeaders });
   } catch (error: unknown) {
     console.error('[Summary API] PUT (refine) error:', error);

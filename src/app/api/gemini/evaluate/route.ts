@@ -71,16 +71,12 @@ export async function POST(request: NextRequest) {
 
     // ─── Detailed mode: returns isCorrect + reasoning (for teacher AI grading) ───
     if (detailed) {
-      const evalPromise = evaluateCompletionDetailed(
+      // The AI layer manages its own global timeout budget across the fallback chain.
+      const result = await evaluateCompletionDetailed(
         sanitizedQuestion,
         sanitizedCorrectAnswer,
         sanitizedStudentAnswer,
       );
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('انتهت مهلة التقييم')), 30000)
-      );
-
-      const result = await Promise.race([evalPromise, timeoutPromise]);
 
       return NextResponse.json(
         { success: true, data: result },
@@ -89,15 +85,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ─── Standard mode: returns isCorrect only (for student quiz evaluation) ───
-    const evalPromise = evaluateCompletionAnswer(
+    // The AI layer manages its own global timeout budget across the fallback chain.
+    const isCorrect = await evaluateCompletionAnswer(
       sanitizedQuestion,
       sanitizedCorrectAnswer,
       sanitizedStudentAnswer
     );
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة التقييم')), 30000)
-    );
-    const isCorrect = await Promise.race([evalPromise, timeoutPromise]);
 
     return NextResponse.json(
       { success: true, data: { isCorrect } },

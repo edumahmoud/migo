@@ -69,12 +69,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate quiz using AI (Gemini) with fallback chain
+    // The AI layer now manages its own global timeout budget across the fallback chain.
+    // No duplicate route-level timeout — the provider-manager handles it internally.
     console.log('[Quiz API] Generating quiz for user:', authResult.user.id, 'config:', questionTypes);
-    const quizPromise = generateQuiz(sanitizedContent, questionTypes, studentName);
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 55000)
-    );
-    const questions = await Promise.race([quizPromise, timeoutPromise]);
+    const questions = await generateQuiz(sanitizedContent, questionTypes, studentName);
     console.log('[Quiz API] Quiz generated successfully, questions:', questions.length);
 
     return NextResponse.json(
