@@ -363,12 +363,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   }, [fetchSummary, fetchRelatedQuiz, fetchCompletedQuizzes]);
 
   // ─── Loading timeout for mobile (fix: loading stuck forever) ───
-  // FIX: Reset error state on retry so the timeout can re-trigger properly.
-  // Also increased timeout to 20s for slower mobile connections.
+  // FIX: Increased to 30s for slower mobile connections and AI operations.
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
-      console.warn('[SummaryView] Loading timeout (20s) — forcing error state');
+      console.warn('[SummaryView] Loading timeout (30s) — forcing error state');
       setLoading(false);
       // Only set error if we don't already have data
       setSummary((prev) => {
@@ -377,7 +376,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         }
         return prev;
       });
-    }, 20000);
+    }, 30000);
     return () => clearTimeout(timer);
   }, [loading]);
 

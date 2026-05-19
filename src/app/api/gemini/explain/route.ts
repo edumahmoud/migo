@@ -56,10 +56,9 @@ export async function POST(request: NextRequest) {
       sanitizedType,
       studentName
     );
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة الشرح')), 55000)
-    );
-    const explanation = await Promise.race([explainPromise, timeoutPromise]);
+    // The AI layer manages its own global timeout budget across the fallback chain.
+    // No duplicate route-level timeout — the provider-manager handles it internally.
+    const explanation = await explainPromise;
 
     return NextResponse.json(
       { success: true, data: { explanation } },

@@ -302,11 +302,9 @@ export async function PUT(request: NextRequest) {
     } catch {
       // Name lookup failed — will use default
     }
-    const quizPromise = generateQuiz(originalContent, undefined, regenStudentName);
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('انتهت مهلة إنشاء الاختبار. يرجى المحاولة مرة أخرى')), 90000)
-    );
-    const questions = await Promise.race([quizPromise, timeoutPromise]);
+    // The AI layer manages a global timeout budget (45s) across the entire fallback chain.
+    // No duplicate route-level timeout — the provider-manager handles it internally.
+    const questions = await generateQuiz(originalContent, undefined, regenStudentName);
 
     // Save the new quiz (preserving settings from the original)
     const newQuizData: Record<string, unknown> = {

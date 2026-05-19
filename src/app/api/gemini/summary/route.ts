@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateSummary, refineTranscribedText, isAiError, type AiProviderError } from '@/lib/ai';
 
 // IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
-// The AI call timeout (45s) + auth/validation (~3-5s) must fit within this.
+// The AI layer manages a global timeout budget (48s) that accounts for
+// the entire fallback chain. Auth/validation (~5s) + AI (48s) + DB save (~7s) = 60s.
 // On Pro plan, this can be increased to 120 or 300.
 export const maxDuration = 60;
 // Force Node.js runtime (Edge runtime has 30s limit)
@@ -97,7 +98,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate summary using AI (Gemini) with streaming and fallback chain
-    // The AI layer handles its own timeout, retry, and key rotation internally.
+    // The AI layer manages a global timeout budget (48s) across the entire fallback chain.
+    // No route-level duplicate timeout — the provider-manager handles it internally.
     const authTime = Date.now() - requestStartTime;
     console.log('[Summary API] Generating summary for user:', userId, 'content length:', sanitizedContent.length, 'auth took:', authTime + 'ms');
 

@@ -112,6 +112,14 @@ async function chatWithFallback(
   const operation = options?.operation || 'unknown';
   const startTime = Date.now();
 
+  // ─── Global timeout budget ───
+  // The timeoutMs is the TOTAL budget for the entire fallback chain.
+  // Each provider gets a proportional share of the remaining budget.
+  // This prevents the chain from exceeding the Vercel route's maxDuration.
+  const globalTimeoutMs = options?.timeoutMs ?? 55000;
+  const globalDeadline = startTime + globalTimeoutMs;
+  const MIN_PROVIDER_BUDGET_MS = 8000; // Skip provider if less than 8s remains
+
   // ─── 1. Check cache ───
   const cacheKey = generateCacheHash(
     userPrompt,
@@ -143,8 +151,23 @@ async function chatWithFallback(
   let primaryError: AiProviderError | null = null; // Track primary provider error separately
 
   for (const provider of PROVIDER_CHAIN) {
+    const remainingBudget = globalDeadline - Date.now();
+
+    // Skip this provider if not enough time remains for a useful attempt
+    if (remainingBudget < MIN_PROVIDER_BUDGET_MS) {
+      console.warn(
+        `[ProviderManager] Skipping ${provider.name} — only ${remainingBudget}ms remaining (need ${MIN_PROVIDER_BUDGET_MS}ms)`,
+      );
+      continue;
+    }
+
     try {
-      const result = await chatWithRetry(provider, systemPrompt, userPrompt, options);
+      // Pass the remaining budget as the timeout for this provider attempt
+      const providerOptions: AiChatOptions & { operation?: string } = {
+        ...options,
+        timeoutMs: remainingBudget,
+      };
+      const result = await chatWithRetry(provider, systemPrompt, userPrompt, providerOptions);
 
       // Cache the result
       try {
@@ -330,7 +353,9 @@ export async function generateSummary(content: string, studentName?: string): Pr
   return chatWithFallback(
     SUMMARY_SYSTEM(name),
     SUMMARY_USER(truncatedContent, name),
-    { temperature: 0.3, maxTokens: 16384, retries: 2, timeoutMs: 55000, operation: 'summary' },
+    // 48s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
+    // (5s auth + 48s AI + 7s buffer for DB save = 60s)
+    { temperature: 0.3, maxTokens: 16384, retries: 1, timeoutMs: 48000, operation: 'summary' },
   );
 }
 
@@ -344,7 +369,8 @@ export async function refineTranscribedText(content: string, studentName?: strin
   return chatWithFallback(
     REFINE_SYSTEM(name),
     REFINE_USER(truncatedContent, name),
-    { temperature: 0.2, maxTokens: 16384, retries: 2, timeoutMs: 55000, operation: 'refine' },
+    // 48s total budget for the entire fallback chain — must fit within Vercel's 60s maxDuration
+    { temperature: 0.2, maxTokens: 16384, retries: 1, timeoutMs: 48000, operation: 'refine' },
   );
 }
 
@@ -376,7 +402,9 @@ export async function generateQuiz(
   const text = await chatWithFallback(
     QUIZ_SYSTEM(totalCount, typeConfig, name),
     QUIZ_USER(truncatedContent, totalCount),
-    { temperature: 0.5, maxTokens: 8192, retries: 1, jsonMode: true, operation: 'quiz' },
+    // 45s total budget for the entire fallback chain — quiz route has a 55s route-level timeout
+    // Reduced retries to 1 to avoid exceeding Vercel's 60s maxDuration
+    { temperature: 0.5, maxTokens: 8192, retries: 1, jsonMode: true, timeoutMs: 45000, operation: 'quiz' },
   );
 
   // Parse and validate quiz response
