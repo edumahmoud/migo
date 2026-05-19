@@ -330,7 +330,7 @@ export async function generateSummary(content: string, studentName?: string): Pr
   return chatWithFallback(
     SUMMARY_SYSTEM(name),
     SUMMARY_USER(truncatedContent, name),
-    { temperature: 0.3, maxTokens: 16384, retries: 1, timeoutMs: 50000, operation: 'summary' },
+    { temperature: 0.3, maxTokens: 16384, retries: 2, timeoutMs: 55000, operation: 'summary' },
   );
 }
 
@@ -344,7 +344,7 @@ export async function refineTranscribedText(content: string, studentName?: strin
   return chatWithFallback(
     REFINE_SYSTEM(name),
     REFINE_USER(truncatedContent, name),
-    { temperature: 0.2, maxTokens: 16384, retries: 1, timeoutMs: 50000, operation: 'refine' },
+    { temperature: 0.2, maxTokens: 16384, retries: 2, timeoutMs: 55000, operation: 'refine' },
   );
 }
 

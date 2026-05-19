@@ -32,8 +32,92 @@ import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
+
+// -------------------------------------------------------
+// AI Operation Progress Tracker
+// -------------------------------------------------------
+interface AiProgressState {
+  percent: number;
+  phase: string;
+}
+
+const AI_PHASES_SUMMARY = [
+  { threshold: 0,  label: 'جاري تحليل المحتوى...' },
+  { threshold: 25, label: 'جاري استخراج المفاهيم الرئيسية...' },
+  { threshold: 50, label: 'جاري بناء الملخص...' },
+  { threshold: 75, label: 'جاري تنسيق النص...' },
+  { threshold: 90, label: 'جاري المراجعة النهائية...' },
+];
+
+const AI_PHASES_REFINE = [
+  { threshold: 0,  label: 'جاري قراءة النص المستخرج...' },
+  { threshold: 20, label: 'جاري تصحيح أخطاء التعرف البصري...' },
+  { threshold: 45, label: 'جاري تنظيم الفقرات والعناوين...' },
+  { threshold: 70, label: 'جاري تنسيق المحتوى...' },
+  { threshold: 90, label: 'جاري المراجعة النهائية...' },
+];
+
+const AI_PHASES_QUIZ = [
+  { threshold: 0,  label: 'جاري تحليل المحتوى...' },
+  { threshold: 30, label: 'جاري إنشاء الأسئلة...' },
+  { threshold: 60, label: 'جاري مراجعة الإجابات...' },
+  { threshold: 85, label: 'جاري التنسيق النهائي...' },
+];
+
+function useAiProgress(isActive: boolean, phases: { threshold: number; label: string }[], estimatedDurationMs: number = 60000) {
+  const [progress, setProgress] = useState<AiProgressState>({ percent: 0, phase: phases[0]?.label || '' });
+  const startTimeRef = useRef<number>(0);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!isActive) {
+      setProgress({ percent: 0, phase: phases[0]?.label || '' });
+      return;
+    }
+
+    startTimeRef.current = Date.now();
+
+    const tick = () => {
+      const elapsed = Date.now() - startTimeRef.current;
+      // Non-linear progress: fast start, slow middle, fast finish
+      // Using easeInOut curve — reaches ~85% at estimatedDuration, then slows dramatically
+      const rawRatio = Math.min(elapsed / estimatedDurationMs, 1);
+      // Ease function: fast to ~70%, then gradual
+      const eased = rawRatio < 0.7
+        ? rawRatio * 1.1  // Slightly faster in the beginning
+        : 0.77 + (rawRatio - 0.7) * 0.43; // Slows down after 70%
+      const percent = Math.min(Math.round(eased * 92), 92); // Cap at 92% until real completion
+
+      // Find the current phase
+      let currentPhase = phases[0]?.label || '';
+      for (let i = phases.length - 1; i >= 0; i--) {
+        if (percent >= phases[i].threshold) {
+          currentPhase = phases[i].label;
+          break;
+        }
+      }
+
+      setProgress({ percent, phase: currentPhase });
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [isActive, phases, estimatedDurationMs]);
+
+  const completeProgress = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    setProgress({ percent: 100, phase: 'اكتمل!' });
+  }, []);
+
+  return { progress, completeProgress };
+}
 
 // -------------------------------------------------------
 // Props
@@ -83,6 +167,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [regeneratingQuiz, setRegeneratingQuiz] = useState(false);
   const [copied, setCopied] = useState(false);
   const [refining, setRefining] = useState(false);
+
+  // ─── AI Progress trackers ───
+  const summaryProgress = useAiProgress(regenerating, AI_PHASES_SUMMARY, 55000);
+  const refineProgress = useAiProgress(refining, AI_PHASES_REFINE, 55000);
+  const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, AI_PHASES_QUIZ, 45000);
 
   // ─── Quiz config states ───
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
@@ -329,22 +418,32 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   const handleRegenerateSummary = async () => {
     setRegenerating(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s client timeout
     try {
       const res = await fetch('/api/summaries', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (res.ok && data.success) {
+        summaryProgress.completeProgress();
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
         toast.success('تم إعادة توليد الملخص بنجاح');
       } else {
         toast.error(data.error || 'فشل إعادة توليد الملخص');
       }
-    } catch {
-      toast.error('حدث خطأ أثناء إعادة التلخيص');
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast.error('انتهت مهلة إعادة التلخيص. يرجى المحاولة مرة أخرى');
+      } else {
+        toast.error('حدث خطأ أثناء إعادة التلخيص');
+      }
     } finally {
       setRegenerating(false);
     }
@@ -420,6 +519,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         const saveData = await saveRes.json();
         // Merge the local shuffle setting with the server response
         const savedQuiz = { ...saveData.data, shuffle_questions: quizShuffleQuestions } as Quiz;
+        quizProgress.completeProgress();
         setRelatedQuiz(savedQuiz);
         toast.success('تم إنشاء الاختبار بنجاح');
         setShowQuizConfig(false);
@@ -468,8 +568,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     if (!summary) return;
     setRefining(true);
     const controller = new AbortController();
-    // 90s timeout — refine can take a long time for large transcribed documents
-    const timeoutId = setTimeout(() => controller.abort(), 90000);
+    // 120s timeout — refine can take a long time for large transcribed documents
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
     try {
       const res = await fetch('/api/gemini/summary', {
         method: 'PUT',
@@ -480,6 +580,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       clearTimeout(timeoutId);
       const data = await res.json();
       if (res.ok && data.success) {
+        refineProgress.completeProgress();
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
         toast.success('تم تنقيح وتنسيق النص بنجاح');
@@ -810,14 +911,26 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
             {/* Markdown content with RTL typography */}
             {regenerating ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
-                <p className="text-sm text-muted-foreground">جاري إعادة توليد الملخص...</p>
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <div className="w-full max-w-xs space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-sky-700 font-medium">{summaryProgress.progress.phase}</span>
+                    <span className="text-muted-foreground tabular-nums">{summaryProgress.progress.percent}%</span>
+                  </div>
+                  <Progress value={summaryProgress.progress.percent} className="h-2.5 bg-sky-100 [&>div]:bg-sky-700 transition-all duration-500" />
+                </div>
+                <p className="text-xs text-muted-foreground">قد يستغرق هذا بضع ثوانٍ</p>
               </div>
             ) : refining ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
-                <p className="text-sm text-muted-foreground">جاري تنقيح وتنسيق النص...</p>
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <div className="w-full max-w-xs space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-teal-700 font-medium">{refineProgress.progress.phase}</span>
+                    <span className="text-muted-foreground tabular-nums">{refineProgress.progress.percent}%</span>
+                  </div>
+                  <Progress value={refineProgress.progress.percent} className="h-2.5 bg-teal-100 [&>div]:bg-teal-600 transition-all duration-500" />
+                </div>
+                <p className="text-xs text-muted-foreground">قد يستغرق هذا بضع ثوانٍ</p>
               </div>
             ) : (
               <div className="prose-summary">
@@ -904,10 +1017,15 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 </div>
               </div>
             ) : generatingQuiz ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
-                <p className="text-sm text-muted-foreground">جاري إنشاء الاختبار...</p>
-                <p className="text-xs text-muted-foreground/60">قد يستغرق هذا بضع ثوانٍ</p>
+              <div className="flex flex-col items-center justify-center py-8 gap-4">
+                <div className="w-full max-w-xs space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-teal-700 font-medium">{quizProgress.progress.phase}</span>
+                    <span className="text-muted-foreground tabular-nums">{quizProgress.progress.percent}%</span>
+                  </div>
+                  <Progress value={quizProgress.progress.percent} className="h-2.5 bg-teal-100 [&>div]:bg-teal-600 transition-all duration-500" />
+                </div>
+                <p className="text-xs text-muted-foreground">قد يستغرق هذا بضع ثوانٍ</p>
               </div>
             ) : showQuizConfig ? (
               <div className="space-y-4">
