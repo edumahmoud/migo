@@ -578,18 +578,14 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         return;
       }
 
-      // Call API for semantic evaluation — no client-side timeout, let server handle it
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      // Call API for semantic evaluation
+      const headers = await getCachedAuthHeaders();
 
       let res: Response;
       try {
         res = await fetch('/api/gemini/evaluate', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers,
           body: JSON.stringify({
             question: currentQuestion?.question,
             correctAnswer: currentQuestion?.correctAnswer,
@@ -1263,9 +1259,11 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                         </>
                       )}
                     </motion.div>
+                  </>
+                )}
 
-                    {/* Explain wrong answer button */}
-                    {answered && !isCorrect && (
+                {/* Explain wrong answer button — always visible when wrong regardless of show_results */}
+                {answered && !isCorrect && (
                       <>
                         <button
                           onClick={async () => {
@@ -1330,8 +1328,6 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                         )}
                       </>
                     )}
-                  </>
-                )}
 
                 {/* Navigation buttons */}
                 <div className="flex flex-wrap items-center gap-2">
