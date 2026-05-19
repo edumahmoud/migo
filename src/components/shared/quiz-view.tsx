@@ -278,10 +278,10 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
-      console.warn('[QuizView] Loading timeout (15s) — forcing error state');
+      console.warn('[QuizView] Loading timeout (30s) — forcing error state');
       setLoading(false);
       setError('انتهت مهلة تحميل الاختبار. يرجى المحاولة مرة أخرى');
-    }, 15000);
+    }, 30000);
     return () => clearTimeout(timer);
   }, [loading]);
 
@@ -902,14 +902,24 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
           <XCircle className="h-8 w-8 text-rose-600" />
         </div>
         <p className="text-lg font-semibold text-foreground">{error || 'حدث خطأ غير متوقع'}</p>
-        <Button
-          onClick={onBack}
-          variant="outline"
-          className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
-        >
-          <ChevronRight className="h-4 w-4" />
-          العودة
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => { setError(null); hasValidDataRef.current = false; fetchQuiz(); }}
+            variant="outline"
+            className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
+          >
+            <RotateCcw className="h-4 w-4" />
+            إعادة المحاولة
+          </Button>
+          <Button
+            onClick={onBack}
+            variant="outline"
+            className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
+          >
+            <ChevronRight className="h-4 w-4" />
+            العودة
+          </Button>
+        </div>
       </div>
     );
   }

@@ -2750,7 +2750,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-            onClick={() => setQuizConfigOpen(false)}
+            onClick={() => { if (!creatingQuizFromSummary) setQuizConfigOpen(false); }}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
@@ -2758,18 +2758,20 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
+              className="w-full max-w-md max-h-[90vh] rounded-2xl border bg-background shadow-xl overflow-y-auto"
               dir="rtl"
             >
-              {/* Modal header */}
-              <div className="flex items-center justify-between border-b p-5">
+              {/* Modal header — sticky so close button stays visible while scrolling */}
+              <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-400" />
                   إنشاء اختبار
                 </h3>
                 <button
-                  onClick={() => setQuizConfigOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                  onClick={() => { if (!creatingQuizFromSummary) setQuizConfigOpen(false); }}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors touch-manipulation"
+                  aria-label="إغلاق"
+                  disabled={creatingQuizFromSummary}
                 >
                   <X className="h-4 w-4" />
                 </button>
