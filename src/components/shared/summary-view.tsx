@@ -36,6 +36,50 @@ import { toast } from 'sonner';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
 
 // -------------------------------------------------------
+// fetchWithRetry — resilient fetch with automatic retry on network errors
+// Prevents premature loading-state exit when the connection drops temporarily.
+// Only gives up after all retries are exhausted or the server returns a definitive error.
+// -------------------------------------------------------
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit & { timeoutMs?: number } = {},
+  maxRetries: number = 3,
+): Promise<Response> {
+  const { timeoutMs = 300000, ...fetchOptions } = options; // 5-minute default
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const mergedSignal = AbortSignal.any
+    ? AbortSignal.any([controller.signal, fetchOptions.signal].filter(Boolean) as AbortSignal[])
+    : fetchOptions.signal || controller.signal;
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const backoffMs = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
+        console.log(`[fetchWithRetry] Retry ${attempt}/${maxRetries} after ${backoffMs}ms — ${url}`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
+      const res = await fetch(url, { ...fetchOptions, signal: mergedSignal });
+      clearTimeout(timeoutId);
+      return res;
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const isAbort = lastError.name === 'AbortError';
+      // Don't retry if explicitly aborted (user cancelled) or timeout reached
+      if (isAbort && controller.signal.aborted) {
+        clearTimeout(timeoutId);
+        throw lastError;
+      }
+      console.warn(`[fetchWithRetry] Attempt ${attempt + 1} failed:`, lastError.message);
+    }
+  }
+  clearTimeout(timeoutId);
+  throw lastError || new Error('فشل الاتصال بعد عدة محاولات');
+}
+
+// -------------------------------------------------------
 // AI Operation Progress Tracker
 // -------------------------------------------------------
 interface AiProgressState {
@@ -115,97 +159,176 @@ function useAiProgress(isActive: boolean, phases: { threshold: number; label: st
 }
 
 // -------------------------------------------------------
-// Circular Progress Indicator (SVG-based)
+// Circular Progress Indicator (SVG-based) — Enhanced Design
 // -------------------------------------------------------
 function CircularProgress({
   percent,
   phase,
   color = 'sky',
-  size = 140,
+  size = 160,
 }: {
   percent: number;
   phase: string;
   color?: 'sky' | 'teal' | 'rose';
   size?: number;
 }) {
-  const strokeWidth = 6;
+  const strokeWidth = 8;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (percent / 100) * circumference;
 
   const colorMap = {
     sky: {
-      track: '#e0f2fe', fill: '#0284c7', text: '#0369a1',
-      glow: '0 4px 24px rgba(14,165,233,0.25)', bg: '#f0f9ff', dot: '#0ea5e9',
+      track: '#e0f2fe',
+      gradientStart: '#38bdf8',
+      gradientEnd: '#0369a1',
+      text: '#0369a1',
+      glow: '0 0 32px rgba(14,165,233,0.3), 0 0 8px rgba(14,165,233,0.15)',
+      bg: '#f0f9ff',
+      dot: '#0ea5e9',
+      pulseColor: 'rgba(14,165,233,0.12)',
+      sparkle: '#7dd3fc',
     },
     teal: {
-      track: '#ccfbf1', fill: '#0d9488', text: '#0f766e',
-      glow: '0 4px 24px rgba(20,184,166,0.25)', bg: '#f0fdfa', dot: '#14b8a6',
+      track: '#ccfbf1',
+      gradientStart: '#5eead4',
+      gradientEnd: '#0f766e',
+      text: '#0f766e',
+      glow: '0 0 32px rgba(20,184,166,0.3), 0 0 8px rgba(20,184,166,0.15)',
+      bg: '#f0fdfa',
+      dot: '#14b8a6',
+      pulseColor: 'rgba(20,184,166,0.12)',
+      sparkle: '#99f6e4',
     },
     rose: {
-      track: '#ffe4e6', fill: '#e11d48', text: '#be123c',
-      glow: '0 4px 24px rgba(244,63,94,0.25)', bg: '#fff1f2', dot: '#f43f5e',
+      track: '#ffe4e6',
+      gradientStart: '#fb7185',
+      gradientEnd: '#be123c',
+      text: '#be123c',
+      glow: '0 0 32px rgba(244,63,94,0.3), 0 0 8px rgba(244,63,94,0.15)',
+      bg: '#fff1f2',
+      dot: '#f43f5e',
+      pulseColor: 'rgba(244,63,94,0.12)',
+      sparkle: '#fda4af',
     },
   };
   const c = colorMap[color];
+  const gradientId = `progress-gradient-${color}`;
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <div
-        className="relative rounded-full p-4"
-        style={{ backgroundColor: c.bg, boxShadow: c.glow }}
-      >
-        <svg width={size} height={size} className="-rotate-90">
-          {/* Track circle */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            strokeWidth={strokeWidth}
-            stroke={c.track}
-          />
-          {/* Progress arc */}
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            fill="none"
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            stroke={c.fill}
-            style={{ transition: 'stroke-dashoffset 0.7s ease-out' }}
-          />
-          {/* Animated dot at the end of progress arc */}
-          {percent > 0 && percent < 100 && (
+    <div className="flex flex-col items-center gap-5">
+      <div className="relative" style={{ width: size + 32, height: size + 32 }}>
+        {/* Outer pulse ring — animated breathing glow */}
+        <div
+          className="absolute inset-0 rounded-full animate-pulse"
+          style={{ backgroundColor: c.pulseColor, animationDuration: '2.5s' }}
+        />
+
+        {/* Main circle container */}
+        <div
+          className="absolute rounded-full"
+          style={{
+            top: 16, left: 16, width: size, height: size,
+            backgroundColor: c.bg,
+            boxShadow: c.glow,
+          }}
+        >
+          <svg width={size} height={size} className="-rotate-90">
+            <defs>
+              <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={c.gradientStart} />
+                <stop offset="100%" stopColor={c.gradientEnd} />
+              </linearGradient>
+              {/* Glow filter for progress arc */}
+              <filter id={`glow-${color}`} x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            {/* Background track circle */}
             <circle
-              cx={size / 2 + radius * Math.cos((percent / 100) * 2 * Math.PI - Math.PI / 2)}
-              cy={size / 2 + radius * Math.sin((percent / 100) * 2 * Math.PI - Math.PI / 2)}
-              r={strokeWidth}
-              fill={c.dot}
-              style={{ transition: 'cx 0.7s ease-out, cy 0.7s ease-out' }}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              strokeWidth={strokeWidth}
+              stroke={c.track}
             />
-          )}
-        </svg>
-        {/* Center text */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span
-            className="text-2xl font-bold tabular-nums"
-            style={{ color: c.text }}
-          >
-            {percent}%
-          </span>
-          {percent === 100 && (
-            <CheckCircle2 className="h-5 w-5 mt-0.5" style={{ color: c.text }} />
-          )}
+
+            {/* Progress arc with gradient + glow */}
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+              stroke={`url(#${gradientId})`}
+              filter={`url(#glow-${color})`}
+              style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
+            />
+
+            {/* Animated spark dot at the end of progress arc */}
+            {percent > 0 && percent < 100 && (
+              <>
+                <circle
+                  cx={size / 2 + radius * Math.cos((percent / 100) * 2 * Math.PI - Math.PI / 2)}
+                  cy={size / 2 + radius * Math.sin((percent / 100) * 2 * Math.PI - Math.PI / 2)}
+                  r={strokeWidth + 2}
+                  fill={c.sparkle}
+                  opacity={0.4}
+                  style={{ transition: 'cx 0.8s cubic-bezier(0.4, 0, 0.2, 1), cy 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                />
+                <circle
+                  cx={size / 2 + radius * Math.cos((percent / 100) * 2 * Math.PI - Math.PI / 2)}
+                  cy={size / 2 + radius * Math.sin((percent / 100) * 2 * Math.PI - Math.PI / 2)}
+                  r={strokeWidth - 1}
+                  fill={c.dot}
+                  style={{ transition: 'cx 0.8s cubic-bezier(0.4, 0, 0.2, 1), cy 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                />
+              </>
+            )}
+          </svg>
+
+          {/* Center content */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {percent === 100 ? (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              >
+                <CheckCircle2 className="h-10 w-10" style={{ color: c.gradientEnd }} />
+              </motion.div>
+            ) : (
+              <motion.span
+                className="text-3xl font-bold tabular-nums"
+                style={{ color: c.text }}
+                key={percent}
+                initial={{ scale: 1.08 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.2 }}
+              >
+                {percent}%
+              </motion.span>
+            )}
+          </div>
         </div>
       </div>
-      {/* Phase label */}
-      <div className="text-center">
-        <p className="text-sm font-semibold" style={{ color: c.text }}>{phase}</p>
-        <p className="text-xs text-muted-foreground mt-1">يرجى الانتظار، لا تغادر الصفحة</p>
+
+      {/* Phase label with animated dots */}
+      <div className="text-center space-y-1.5">
+        <div className="flex items-center justify-center gap-1.5">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: c.text }} />
+          <p className="text-sm font-semibold" style={{ color: c.text }}>{phase}</p>
+        </div>
+        <p className="text-xs text-muted-foreground">يرجى الانتظار، لا تغادر الصفحة</p>
       </div>
     </div>
   );
@@ -512,15 +635,16 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   const handleRegenerateSummary = async () => {
     setRegenerating(true);
-    // NO client-side timeout — let the server handle it.
-    // The server has its own timeout chain (provider-manager → Gemini),
-    // and aborting early would cut off a response that's still being streamed.
+    // Use fetchWithRetry — the server may take 50+ seconds for AI generation.
+    // Standard fetch() can fail on slow/mobile networks, causing premature loading exit.
+    // fetchWithRetry automatically retries on network errors and uses a 5-minute safety timeout.
     try {
-      const res = await fetch('/api/summaries', {
+      const res = await fetchWithRetry('/api/summaries', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
-      });
+        timeoutMs: 300000, // 5 minutes — server has its own 60s maxDuration
+      }, 3);
       const data = await res.json();
       if (res.ok && data.success) {
         summaryProgress.completeProgress();
@@ -531,7 +655,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         toast.error(data.error || 'فشل إعادة توليد الملخص');
       }
     } catch {
-      toast.error('حدث خطأ أثناء إعادة التلخيص');
+      toast.error('حدث خطأ أثناء إعادة التلخيص. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
     } finally {
       setRegenerating(false);
     }
@@ -570,11 +694,12 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     setGeneratingQuiz(true);
     try {
       const content = summary?.summary_content || summary?.original_content || '';
-      const quizRes = await fetch('/api/gemini/quiz', {
+      const quizRes = await fetchWithRetry('/api/gemini/quiz', {
         method: 'POST',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ content, questionTypes: quizConfigTypes }),
-      });
+        timeoutMs: 300000,
+      }, 3);
       const quizData = await quizRes.json();
 
       if (!quizRes.ok || !quizData.success) {
@@ -630,11 +755,12 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     if (!relatedQuiz) return;
     setRegeneratingQuiz(true);
     try {
-      const res = await fetch('/api/quizzes', {
+      const res = await fetchWithRetry('/api/quizzes', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ quizId: relatedQuiz.id }),
-      });
+        timeoutMs: 300000,
+      }, 3);
       const data = await res.json();
       if (res.ok && data.success) {
         setRelatedQuiz(data.data as Quiz);
@@ -655,15 +781,16 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const handleRefineText = async () => {
     if (!summary) return;
     setRefining(true);
-    // NO client-side timeout — let the server handle it.
-    // The server has its own timeout chain (provider-manager → Gemini),
-    // and aborting early would cut off a response that's still being streamed.
+    // Use fetchWithRetry — the server may take 50+ seconds for AI refinement.
+    // Standard fetch() can fail on slow/mobile networks, causing premature loading exit.
+    // fetchWithRetry automatically retries on network errors and uses a 5-minute safety timeout.
     try {
-      const res = await fetch('/api/gemini/summary', {
+      const res = await fetchWithRetry('/api/gemini/summary', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
-      });
+        timeoutMs: 300000,
+      }, 3);
       const data = await res.json();
       if (res.ok && data.success) {
         refineProgress.completeProgress();
@@ -674,7 +801,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         toast.error(data.error || 'فشل تنقيح النص');
       }
     } catch {
-      toast.error('حدث خطأ أثناء تنقيح النص. يرجى المحاولة مرة أخرى');
+      toast.error('حدث خطأ أثناء تنقيح النص. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
     } finally {
       setRefining(false);
     }
@@ -740,8 +867,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         studentAns = typeof studentAnswer === 'string' ? studentAnswer : JSON.stringify(studentAnswer);
       }
 
-      // NO client-side timeout — let the server handle it.
-      const res = await fetch('/api/gemini/explain', {
+      // Use fetchWithRetry for reliable delivery on mobile networks
+      const res = await fetchWithRetry('/api/gemini/explain', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -753,7 +880,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           studentAnswer: studentAns,
           questionType: question.type,
         }),
-      });
+        timeoutMs: 300000,
+      }, 2);
 
       const data = await res.json();
       if (data.success && data.data?.explanation) {
