@@ -205,11 +205,16 @@ function useAiProgress(isActive: boolean, phases: { threshold: number; label: st
 
     const tick = () => {
       const elapsed = Date.now() - startTimeRef.current;
-      const rawRatio = Math.min(elapsed / estimatedDurationMs, 1);
+      // Use an adaptive ratio that extends the estimated duration as time passes,
+      // so the progress bar never gets stuck at a ceiling like 92%.
+      // The first 70% of the bar fills in ~estimatedDurationMs,
+      // then it slows down progressively but still creeps toward 98%.
+      const dynamicEstimate = estimatedDurationMs + Math.max(0, elapsed - estimatedDurationMs) * 3;
+      const rawRatio = Math.min(elapsed / dynamicEstimate, 0.98);
       const eased = rawRatio < 0.7
-        ? rawRatio * 1.1
-        : 0.77 + (rawRatio - 0.7) * 0.43;
-      const percent = Math.min(Math.round(eased * 92), 92);
+        ? rawRatio * 1.0
+        : 0.7 + (rawRatio - 0.7) * 0.9;
+      const percent = Math.min(Math.round(eased * 100), 98);
 
       let currentPhase = phases[0]?.label || '';
       for (let i = phases.length - 1; i >= 0; i--) {
@@ -440,7 +445,7 @@ function ScrollToTopButton() {
   return (
     <motion.button
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      className="fixed bottom-6 left-6 z-50 h-11 w-11 rounded-full bg-sky-600 text-white shadow-lg shadow-sky-600/30 flex items-center justify-center hover:bg-sky-700 active:scale-95 transition-all print:hidden"
+      className="fixed bottom-20 left-4 z-50 h-11 w-11 rounded-full bg-sky-600 text-white shadow-lg shadow-sky-600/30 flex items-center justify-center hover:bg-sky-700 active:scale-95 transition-all print:hidden sm:bottom-6 sm:left-6"
       initial={{ opacity: 0, scale: 0.5, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.5, y: 20 }}
