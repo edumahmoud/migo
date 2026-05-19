@@ -14,6 +14,9 @@ import {
   Eye,
   EyeOff,
   RotateCcw,
+  Shuffle,
+  Eye as EyeIcon,
+  Settings,
 
   Pencil,
   Plus,
@@ -215,6 +218,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   const [matchingPairs, setMatchingPairs] = useState<{ key: string; value: string }[]>([
     { key: '', value: '' },
   ]);
+  // ─── Quiz settings in creation form ───
+  const [quizShowResults, setQuizShowResults] = useState(true);
+  const [quizAllowRetake, setQuizAllowRetake] = useState(true);
+  const [quizShuffleQuestions, setQuizShuffleQuestions] = useState(true);
+
   const [savingQuiz, setSavingQuiz] = useState(false);
 
   // ─── AI quiz from file ───
@@ -338,6 +346,9 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     setBankQuestions([]);
     setSelectedBankQuestionIds(new Set());
     setSubjectBanks([]);
+    setQuizShowResults(true);
+    setQuizAllowRetake(true);
+    setQuizShuffleQuestions(true);
     resetQuestionForm();
   };
 
@@ -439,6 +450,9 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       const quizData: Record<string, unknown> = {
         title: quizTitle.trim(),
         questions: quizQuestions,
+        show_results: quizShowResults,
+        allow_retake: quizAllowRetake,
+        // NOTE: shuffle_questions is NOT a DB column — stored client-side only
       };
 
       if (quizDuration.trim()) {
@@ -547,6 +561,9 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     setQuizDate(quiz.scheduled_date || '');
     setQuizTime(quiz.scheduled_time || '');
     setQuizQuestions([...(quiz.questions || [])]);
+    setQuizShowResults(quiz.show_results ?? true);
+    setQuizAllowRetake(quiz.allow_retake ?? true);
+    setQuizShuffleQuestions(quiz.shuffle_questions ?? true);
     resetQuestionForm();
     setQuizModalOpen(true);
   };
@@ -1283,6 +1300,58 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                     disabled={savingQuiz || generatingFromAi}
                   />
+                </div>
+              </div>
+
+              {/* ─── Quiz Settings Toggles ─── */}
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Settings className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <span className="text-sm font-semibold text-foreground">إعدادات الاختبار</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* Show Results */}
+                  <button
+                    type="button"
+                    onClick={() => setQuizShowResults(!quizShowResults)}
+                    disabled={savingQuiz || generatingFromAi}
+                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-right ${
+                      quizShowResults
+                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                        : 'border-border text-muted-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <EyeIcon className="h-4 w-4 shrink-0" />
+                    <span className="truncate">عرض النتائج</span>
+                  </button>
+                  {/* Allow Retake */}
+                  <button
+                    type="button"
+                    onClick={() => setQuizAllowRetake(!quizAllowRetake)}
+                    disabled={savingQuiz || generatingFromAi}
+                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-right ${
+                      quizAllowRetake
+                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                        : 'border-border text-muted-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <RotateCcw className="h-4 w-4 shrink-0" />
+                    <span className="truncate">إعادة الاختبار</span>
+                  </button>
+                  {/* Shuffle Questions */}
+                  <button
+                    type="button"
+                    onClick={() => setQuizShuffleQuestions(!quizShuffleQuestions)}
+                    disabled={savingQuiz || generatingFromAi}
+                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-right ${
+                      quizShuffleQuestions
+                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                        : 'border-border text-muted-foreground hover:bg-muted/50'
+                    }`}
+                  >
+                    <Shuffle className="h-4 w-4 shrink-0" />
+                    <span className="truncate">ترتيب عشوائي</span>
+                  </button>
                 </div>
               </div>
 

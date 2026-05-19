@@ -24,6 +24,7 @@ import {
   Save,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -1271,20 +1272,45 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                             if (explainingIdx === currentIdx) return;
                             setExplainingIdx(currentIdx);
                             try {
-                              const { data: { session } } = await supabase.auth.getSession();
-                              const token = session?.access_token || '';
                               const answerStr = currentQuestion.type === 'matching' ? JSON.stringify(matchedPairs) : (currentQuestion.type === 'completion' ? completionInput : selectedOption || '');
 
-                              // No client-side timeout — let server handle it
-                              const res = await fetch('/api/gemini/explain', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-                                body: JSON.stringify({ question: currentQuestion.question, correctAnswer: currentQuestion.correctAnswer || '', studentAnswer: answerStr, questionType: currentQuestion.type }),
-                              });
+                              // Use getCachedAuthHeaders for reliable mobile auth + retry with backoff
+                              let res: Response | null = null;
+                              let lastError: string | null = null;
+                              for (let attempt = 0; attempt < 3; attempt++) {
+                                try {
+                                  const headers = await getCachedAuthHeaders();
+                                  res = await fetch('/api/gemini/explain', {
+                                    method: 'POST',
+                                    headers,
+                                    body: JSON.stringify({ question: currentQuestion.question, correctAnswer: currentQuestion.correctAnswer || '', studentAnswer: answerStr, questionType: currentQuestion.type }),
+                                  });
+                                  if (res.ok || res.status === 400) break; // Success or validation error — don't retry
+                                  if (res.status === 429) {
+                                    // Rate limited — wait and retry
+                                    const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10) * 1000;
+                                    lastError = 'طلبات كثيرة، جاري إعادة المحاولة...';
+                                    if (attempt < 2) await new Promise(r => setTimeout(r, Math.min(retryAfter, 5000 * (attempt + 1))));
+                                    continue;
+                                  }
+                                  break; // Other errors — don't retry
+                                } catch (fetchErr) {
+                                  lastError = 'خطأ في الاتصال، جاري إعادة المحاولة...';
+                                  if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+                                  continue;
+                                }
+                              }
+
+                              if (!res) {
+                                toast.error(lastError || 'فشل الاتصال بالخادم');
+                                return;
+                              }
 
                               const data = await res.json();
                               if (data.success && data.data?.explanation) {
                                 setExplanations(prev => ({ ...prev, [currentIdx]: data.data.explanation }));
+                              } else if (res.status === 429) {
+                                toast.error('طلبات كثيرة جداً. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى');
                               } else {
                                 toast.error(data.error || 'فشل الحصول على الشرح');
                               }
@@ -2072,27 +2098,51 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                   if (explaining) return;
                   setExplaining(true);
                   try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const token = session?.access_token || '';
                     const answerStr = question.type === 'matching'
                       ? JSON.stringify(userAnswer.answer)
                       : String(userAnswer.answer || '');
 
-                    // No client-side timeout — let server handle it
-                    const res = await fetch('/api/gemini/explain', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-                      body: JSON.stringify({
-                        question: question.question,
-                        correctAnswer: question.correctAnswer || '',
-                        studentAnswer: answerStr,
-                        questionType: question.type,
-                      }),
-                    });
+                    // Use getCachedAuthHeaders for reliable mobile auth + retry with backoff
+                    let res: Response | null = null;
+                    let lastError: string | null = null;
+                    for (let attempt = 0; attempt < 3; attempt++) {
+                      try {
+                        const headers = await getCachedAuthHeaders();
+                        res = await fetch('/api/gemini/explain', {
+                          method: 'POST',
+                          headers,
+                          body: JSON.stringify({
+                            question: question.question,
+                            correctAnswer: question.correctAnswer || '',
+                            studentAnswer: answerStr,
+                            questionType: question.type,
+                          }),
+                        });
+                        if (res.ok || res.status === 400) break;
+                        if (res.status === 429) {
+                          const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10) * 1000;
+                          lastError = 'طلبات كثيرة، جاري إعادة المحاولة...';
+                          if (attempt < 2) await new Promise(r => setTimeout(r, Math.min(retryAfter, 5000 * (attempt + 1))));
+                          continue;
+                        }
+                        break;
+                      } catch (fetchErr) {
+                        lastError = 'خطأ في الاتصال، جاري إعادة المحاولة...';
+                        if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+                        continue;
+                      }
+                    }
+
+                    if (!res) {
+                      toast.error(lastError || 'فشل الاتصال بالخادم');
+                      return;
+                    }
 
                     const data = await res.json();
                     if (data.success && data.data?.explanation) {
                       setExplanation(data.data.explanation);
+                    } else if (res.status === 429) {
+                      toast.error('طلبات كثيرة جداً. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى');
                     } else {
                       toast.error(data.error || 'فشل الحصول على الشرح');
                     }

@@ -23,7 +23,7 @@ const RATE_LIMIT_MAX_REQUESTS = 20;
  * Pass a `userId` after authentication to rate-limit per user instead of per IP.
  * Falls back to IP-based limiting for unauthenticated requests.
  */
-export function checkRateLimit(request: NextRequest, userId?: string): {
+export function checkRateLimit(request: NextRequest, userId?: string, maxRequests?: number): {
   allowed: boolean;
   remaining: number;
   retryAfterMs: number;
@@ -31,6 +31,7 @@ export function checkRateLimit(request: NextRequest, userId?: string): {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   // Prefer user-specific key; fall back to IP for anonymous requests
   const key = userId ? `user:${userId}` : `ip:${ip}`;
+  const limit = maxRequests ?? RATE_LIMIT_MAX_REQUESTS;
   const now = Date.now();
 
   // Clean up expired entries periodically
@@ -45,16 +46,16 @@ export function checkRateLimit(request: NextRequest, userId?: string): {
   const entry = rateLimitMap.get(key);
   if (!entry || now > entry.resetTime) {
     rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-    return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - 1, retryAfterMs: 0 };
+    return { allowed: true, remaining: limit - 1, retryAfterMs: 0 };
   }
 
-  if (entry.count >= RATE_LIMIT_MAX_REQUESTS) {
+  if (entry.count >= limit) {
     const retryAfterMs = entry.resetTime - now;
     return { allowed: false, remaining: 0, retryAfterMs };
   }
 
   entry.count++;
-  return { allowed: true, remaining: RATE_LIMIT_MAX_REQUESTS - entry.count, retryAfterMs: 0 };
+  return { allowed: true, remaining: limit - entry.count, retryAfterMs: 0 };
 }
 
 /** Create rate limit headers for the response */

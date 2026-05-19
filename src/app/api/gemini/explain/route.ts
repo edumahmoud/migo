@@ -12,17 +12,21 @@ export async function POST(request: NextRequest) {
     const validationError = validateRequest(request);
     if (validationError) return validationError;
 
-    const rateLimit = checkRateLimit(request);
+    // Authenticate FIRST — we need the user ID for per-user rate limiting
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
+
+    // Per-user rate limiting (fairer for shared networks like schools)
+    // 30 req/min per user — more generous for students reviewing wrong answers
+    // Falls back to IP if userId is somehow missing
+    const rateLimit = checkRateLimit(request, authResult.user.id, 30);
     const rateLimitHeaders = getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs);
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { success: false, error: 'طلبات كثيرة جداً. يرجى المحاولة لاحقاً' },
+        { success: false, error: 'طلبات كثيرة جداً. يرجى الانتظار قليلاً ثم المحاولة' },
         { status: 429, headers: rateLimitHeaders }
       );
     }
-
-    const authResult = await authenticateRequest(request);
-    if (!authResult.success) return authErrorResponse(authResult);
 
     // Fetch student name from DB for personalized AI responses
     let studentName: string | undefined;
@@ -83,9 +87,16 @@ export async function POST(request: NextRequest) {
         'UNKNOWN': 500,
       };
       const status = statusMap[error.code] || 500;
+
+      // Provide friendlier messages for common AI rate limit errors
+      let userMessage = error.userMessage;
+      if (error.code === 'RATE_LIMIT') {
+        userMessage = 'خدمة الذكاء الاصطناعي مشغولة حالياً. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى';
+      }
+
       console.error('[Explain API] AiProviderError:', error.code, error.provider, error.userMessage);
       return NextResponse.json(
-        { success: false, error: error.userMessage },
+        { success: false, error: userMessage },
         { status }
       );
     }

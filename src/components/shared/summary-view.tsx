@@ -1125,9 +1125,6 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
     setExplainingIdx(key);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
-
       // Build correctAnswer and studentAnswer strings
       let correctAnswer = question.correctAnswer || '';
       let studentAns = '';
@@ -1140,13 +1137,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         studentAns = typeof studentAnswer === 'string' ? studentAnswer : JSON.stringify(studentAnswer);
       }
 
-      // Use fetchWithRetry for reliable delivery on mobile networks
+      // Use getCachedAuthHeaders for reliable mobile auth + fetchWithRetry
+      const headers = await getCachedAuthHeaders();
       const res = await fetchWithRetry('/api/gemini/explain', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
+        headers,
         body: JSON.stringify({
           question: question.question,
           correctAnswer,
@@ -1159,6 +1154,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const data = await res.json();
       if (data.success && data.data?.explanation) {
         setExplanations(prev => ({ ...prev, [key]: data.data.explanation }));
+      } else if (res.status === 429) {
+        toast.error('طلبات كثيرة جداً. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى');
       } else {
         toast.error(data.error || 'فشل الحصول على الشرح');
       }
