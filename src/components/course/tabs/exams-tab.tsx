@@ -26,12 +26,18 @@ import {
   AlertTriangle,
   Database,
   Copy,
+  FileText,
+  FolderOpen,
+  Sparkles,
+  ListChecks,
+  Type,
+  Link2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/stores/app-store';
-import type { UserProfile, Subject, Quiz, QuizQuestion, Score } from '@/lib/types';
+import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile } from '@/lib/types';
 import QuizSettingsModal from '@/components/shared/quiz-settings-modal';
 
 // -------------------------------------------------------
@@ -133,6 +139,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   // ─── Create / Edit quiz modal ───
   const [quizModalOpen, setQuizModalOpen] = useState(false);
   const [editingQuiz, setEditingQuiz] = useState<Quiz | null>(null);
+  const [quizInputMode, setQuizInputMode] = useState<'manual' | 'ai-file'>('manual');
   const [quizTitle, setQuizTitle] = useState('');
   const [quizDuration, setQuizDuration] = useState('');
   const [quizDate, setQuizDate] = useState('');
@@ -148,6 +155,13 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     { key: '', value: '' },
   ]);
   const [savingQuiz, setSavingQuiz] = useState(false);
+
+  // ─── AI quiz from file ───
+  const [courseFiles, setCourseFiles] = useState<SubjectFile[]>([]);
+  const [selectedCourseFile, setSelectedCourseFile] = useState<SubjectFile | null>(null);
+  const [loadingCourseFiles, setLoadingCourseFiles] = useState(false);
+  const [generatingFromAi, setGeneratingFromAi] = useState(false);
+  const [aiQuizConfigTypes, setAiQuizConfigTypes] = useState({ mcq: 3, boolean: 2, completion: 2, matching: 2 });
 
   // ─── Delete quiz ───
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -237,6 +251,9 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     setQuizTime('');
     setQuizQuestions([]);
     setEditingQuiz(null);
+    setQuizInputMode('manual');
+    setSelectedCourseFile(null);
+    setGeneratingFromAi(false);
     resetQuestionForm();
   };
 
@@ -327,12 +344,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     }
 
     setSavingQuiz(true);
-    
+
     // Safety timeout: ensure savingQuiz is reset even if something goes wrong
     const safetyTimeout = setTimeout(() => {
       setSavingQuiz(false);
       toast.error('انتهت مهلة الحفظ. يرجى المحاولة مرة أخرى.');
-    }, 15000); // 15 second timeout
+    }, 30000); // 30 second timeout (AI generation may take longer)
     
     try {
       const quizData: Record<string, unknown> = {
@@ -456,6 +473,115 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   const handleOpenCreateModal = () => {
     resetQuizForm();
     setQuizModalOpen(true);
+  };
+
+  // -------------------------------------------------------
+  // Load course files for AI quiz generation
+  // -------------------------------------------------------
+  const loadCourseFiles = useCallback(async () => {
+    if (courseFiles.length > 0) return; // Already loaded
+    setLoadingCourseFiles(true);
+    try {
+      const { data, error } = await supabase
+        .from('subject_files')
+        .select('*')
+        .eq('subject_id', subjectId)
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        // Filter to document files only (PDF/Word)
+        const docFiles = (data as SubjectFile[]).filter(f =>
+          /\.(pdf|docx?)$/i.test(f.file_name)
+        );
+        setCourseFiles(docFiles);
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setLoadingCourseFiles(false);
+    }
+  }, [subjectId, courseFiles.length]);
+
+  // -------------------------------------------------------
+  // Generate quiz from file using AI
+  // -------------------------------------------------------
+  const handleGenerateFromAiFile = async () => {
+    if (!selectedCourseFile) {
+      toast.error('يرجى اختيار ملف');
+      return;
+    }
+
+    setGeneratingFromAi(true);
+    try {
+      // Step 1: Extract text from the file
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
+      const extractRes = await fetch('/api/files/extract-pdf-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          url: selectedCourseFile.file_url,
+          fileName: selectedCourseFile.file_name,
+        }),
+      });
+
+      const extractData = await extractRes.json();
+      if (!extractRes.ok || !extractData.success) {
+        toast.error(extractData.error || 'فشل استخراج النص من الملف');
+        setGeneratingFromAi(false);
+        return;
+      }
+
+      const content = extractData.data.text;
+      if (!content || content.trim().length < 50) {
+        toast.error('المحتوى المستخرج قصير جداً لإنشاء اختبار');
+        setGeneratingFromAi(false);
+        return;
+      }
+
+      // Step 2: Generate quiz questions using AI
+      const quizRes = await fetch('/api/gemini/quiz', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          content,
+          questionTypes: aiQuizConfigTypes,
+        }),
+      });
+
+      const quizData = await quizRes.json();
+      if (!quizRes.ok || !quizData.success) {
+        toast.error(quizData.error || 'فشل إنشاء الأسئلة');
+        setGeneratingFromAi(false);
+        return;
+      }
+
+      // Step 3: Populate the quiz form with generated questions
+      const questions = quizData.data.questions as QuizQuestion[];
+      if (!questions || questions.length === 0) {
+        toast.error('لم يتم إنشاء أي أسئلة');
+        setGeneratingFromAi(false);
+        return;
+      }
+
+      setQuizQuestions(questions);
+      // Auto-set title if empty
+      if (!quizTitle.trim()) {
+        const baseName = selectedCourseFile.file_name.replace(/\.[^.]+$/, '');
+        setQuizTitle(`اختبار: ${baseName}`);
+      }
+      toast.success(`تم إنشاء ${questions.length} سؤال بنجاح`);
+    } catch {
+      toast.error('حدث خطأ أثناء إنشاء الاختبار من الملف');
+    } finally {
+      setGeneratingFromAi(false);
+    }
   };
 
   // -------------------------------------------------------
@@ -924,7 +1050,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   onChange={(e) => setQuizTitle(e.target.value)}
                   placeholder="مثال: اختبار الفصل الثاني - الرياضيات"
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                  disabled={savingQuiz}
+                  disabled={savingQuiz || generatingFromAi}
                   dir="rtl"
                 />
               </div>
@@ -939,7 +1065,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     onChange={(e) => setQuizDuration(e.target.value)}
                     placeholder="30"
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    disabled={savingQuiz}
+                    disabled={savingQuiz || generatingFromAi}
                     dir="ltr"
                   />
                 </div>
@@ -950,7 +1076,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     value={quizDate}
                     onChange={(e) => setQuizDate(e.target.value)}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    disabled={savingQuiz}
+                    disabled={savingQuiz || generatingFromAi}
                   />
                 </div>
                 <div>
@@ -960,12 +1086,175 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     value={quizTime}
                     onChange={(e) => setQuizTime(e.target.value)}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    disabled={savingQuiz}
+                    disabled={savingQuiz || generatingFromAi}
                   />
                 </div>
               </div>
 
-              {renderQuestionBuilder()}
+              {/* ─── Quiz Input Mode Toggle (only for new quizzes, not editing) ─── */}
+              {!editingQuiz && (
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">طريقة الإنشاء</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setQuizInputMode('manual')}
+                      disabled={savingQuiz || generatingFromAi}
+                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                        quizInputMode === 'manual'
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      إدخال يدوي
+                    </button>
+                    <button
+                      onClick={() => {
+                        setQuizInputMode('ai-file');
+                        loadCourseFiles();
+                      }}
+                      disabled={savingQuiz || generatingFromAi}
+                      className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
+                        quizInputMode === 'ai-file'
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                          : 'border-border text-muted-foreground hover:bg-muted/50'
+                      }`}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      من ملف المقرر
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── AI File Quiz Generation Section ─── */}
+              {quizInputMode === 'ai-file' && !editingQuiz && (
+                <div className="space-y-4 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-950/20 p-4">
+                  {/* Section header */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
+                      <Sparkles className="h-4 w-4 text-teal-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-teal-700 dark:text-teal-300">إنشاء اختبار من ملف</p>
+                      <p className="text-xs text-teal-600/70">اختر ملفاً من ملفات المقرر لإنشاء اختبار تلقائي بالذكاء الاصطناعي</p>
+                    </div>
+                  </div>
+
+                  {/* Question types config */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">أنواع الأسئلة وعددها</label>
+                    {([
+                      { key: 'mcq' as const, label: 'اختيار من متعدد', icon: <ListChecks className="h-4 w-4" /> },
+                      { key: 'boolean' as const, label: 'صح أو خطأ', icon: <CheckCircle2 className="h-4 w-4" /> },
+                      { key: 'completion' as const, label: 'أكمل الجملة', icon: <Type className="h-4 w-4" /> },
+                      { key: 'matching' as const, label: 'توصيل', icon: <Link2 className="h-4 w-4" /> },
+                    ]).map((qt) => (
+                      <div key={qt.key} className="flex items-center justify-between gap-3 rounded-lg border bg-card p-2.5">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          {qt.icon}
+                          {qt.label}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setAiQuizConfigTypes(prev => ({ ...prev, [qt.key]: Math.max(0, prev[qt.key] - 1) }))}
+                            disabled={generatingFromAi}
+                            className="flex h-6 w-6 items-center justify-center rounded border text-muted-foreground hover:bg-muted transition-colors text-xs"
+                          >
+                            -
+                          </button>
+                          <span className="w-6 text-center text-sm font-bold text-foreground">{aiQuizConfigTypes[qt.key]}</span>
+                          <button
+                            onClick={() => setAiQuizConfigTypes(prev => ({ ...prev, [qt.key]: prev[qt.key] + 1 }))}
+                            disabled={generatingFromAi}
+                            className="flex h-6 w-6 items-center justify-center rounded border text-muted-foreground hover:bg-muted transition-colors text-xs"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Course files selection */}
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">اختر ملفاً من ملفات المقرر</label>
+                    {loadingCourseFiles ? (
+                      <div className="flex items-center justify-center py-6 gap-2">
+                        <Loader2 className="h-5 w-5 animate-spin text-teal-600" />
+                        <span className="text-sm text-muted-foreground">جاري تحميل الملفات...</span>
+                      </div>
+                    ) : courseFiles.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-6 gap-2 rounded-lg border-2 border-dashed border-teal-300 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-950/30">
+                        <FolderOpen className="h-8 w-8 text-teal-400" />
+                        <span className="text-sm text-muted-foreground">لا توجد ملفات مستندية في المقرر</span>
+                        <span className="text-xs text-muted-foreground/60">ارفع ملفات PDF أو Word من تبويب الملفات</span>
+                      </div>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-2">
+                        {courseFiles.map((file) => {
+                          const isPdf = /\.pdf$/i.test(file.file_name);
+                          return (
+                            <button
+                              key={file.id}
+                              onClick={() => setSelectedCourseFile(file)}
+                              disabled={generatingFromAi}
+                              className={`flex items-center gap-3 w-full rounded-lg border p-3 text-right transition-all ${
+                                selectedCourseFile?.id === file.id
+                                  ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30'
+                                  : 'border-border hover:bg-muted/50'
+                              }`}
+                            >
+                              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                                isPdf ? 'bg-rose-100 dark:bg-rose-900/50' : 'bg-blue-100 dark:bg-blue-900/50'
+                              }`}>
+                                {isPdf ? (
+                                  <FileText className="h-4 w-4 text-rose-600" />
+                                ) : (
+                                  <FileText className="h-4 w-4 text-blue-600" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
+                                <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                  <span>{isPdf ? 'PDF' : 'Word'}</span>
+                                  <span className="text-muted-foreground/40">•</span>
+                                  <span>{(file.file_size / 1024).toFixed(0)} KB</span>
+                                </div>
+                              </div>
+                              {selectedCourseFile?.id === file.id && (
+                                <CheckCircle2 className="h-4 w-4 text-teal-600 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Generate button */}
+                  <button
+                    onClick={handleGenerateFromAiFile}
+                    disabled={generatingFromAi || !selectedCourseFile}
+                    className="flex items-center gap-2 rounded-lg bg-teal-600 hover:bg-teal-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed w-full justify-center"
+                  >
+                    {generatingFromAi ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        جاري إنشاء الأسئلة...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        إنشاء أسئلة من الملف
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* ─── Manual Question Builder (always show when editing, or in manual mode, or after AI generation to add more) ─── */}
+              {(quizInputMode === 'manual' || editingQuiz || quizQuestions.length > 0) && renderQuestionBuilder()}
               {renderQuestionsList()}
             </div>
 
@@ -973,13 +1262,18 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             <div className="flex items-center gap-3 border-t p-5 sticky bottom-0 bg-background">
               <button
                 onClick={handleSaveQuiz}
-                disabled={savingQuiz || !quizTitle.trim() || quizQuestions.length === 0}
+                disabled={savingQuiz || generatingFromAi || !quizTitle.trim() || quizQuestions.length === 0}
                 className="flex items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {savingQuiz ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     جاري الحفظ...
+                  </>
+                ) : generatingFromAi ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    جاري إنشاء الأسئلة...
                   </>
                 ) : (
                   <>
@@ -989,8 +1283,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 )}
               </button>
               <button
-                onClick={() => { if (!savingQuiz) { setQuizModalOpen(false); resetQuizForm(); } }}
-                disabled={savingQuiz}
+                onClick={() => { if (!savingQuiz && !generatingFromAi) { setQuizModalOpen(false); resetQuizForm(); } }}
+                disabled={savingQuiz || generatingFromAi}
                 className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
               >
                 إلغاء
