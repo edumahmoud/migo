@@ -80,6 +80,85 @@ async function fetchWithRetry(
 }
 
 // -------------------------------------------------------
+// recoverSummaryFromDB — after a failed AI operation, re-fetch
+// the summary from the database because the server may have
+// completed the operation and saved to DB even though the HTTP
+// response was lost (Vercel 60s timeout, network drop, etc.)
+// Returns the updated summary if content changed, null otherwise.
+// -------------------------------------------------------
+async function recoverSummaryFromDB(
+  summaryId: string,
+  previousContent: string,
+  maxAttempts: number = 3,
+): Promise<Summary | null> {
+  console.log('[recoverSummaryFromDB] Starting recovery, previous content length:', previousContent.length);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // Wait with increasing delay (5s, 10s, 15s)
+    const delayMs = (attempt + 1) * 5000;
+    console.log(`[recoverSummaryFromDB] Attempt ${attempt + 1}/${maxAttempts}, waiting ${delayMs}ms...`);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+    try {
+      const { waitForSession } = await import('@/lib/client-auth');
+      const token = await waitForSession(5000);
+      const res = await fetch(`/api/summaries?id=${encodeURIComponent(summaryId)}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        if (data && data.summary_content && data.summary_content.trim() !== previousContent.trim()) {
+          console.log('[recoverSummaryFromDB] Content changed! Recovery successful, new length:', data.summary_content.length);
+          return data as Summary;
+        }
+        console.log('[recoverSummaryFromDB] Content unchanged, still waiting...');
+      }
+    } catch (err) {
+      console.warn('[recoverSummaryFromDB] Fetch error:', err instanceof Error ? err.message : err);
+    }
+  }
+  console.log('[recoverSummaryFromDB] All recovery attempts exhausted, content not updated');
+  return null;
+}
+
+// -------------------------------------------------------
+// recoverQuizFromDB — after a failed quiz operation, re-fetch
+// the quiz from the database because the server may have
+// completed the operation even though the HTTP response was lost.
+// Returns the updated quiz if found, null otherwise.
+// -------------------------------------------------------
+async function recoverQuizFromDB(
+  summaryId: string,
+  maxAttempts: number = 3,
+): Promise<Quiz | null> {
+  console.log('[recoverQuizFromDB] Starting recovery for summary:', summaryId);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const delayMs = (attempt + 1) * 5000;
+    console.log(`[recoverQuizFromDB] Attempt ${attempt + 1}/${maxAttempts}, waiting ${delayMs}ms...`);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+    try {
+      const { waitForSession } = await import('@/lib/client-auth');
+      const token = await waitForSession(5000);
+      const res = await fetch(`/api/quizzes?summaryId=${encodeURIComponent(summaryId)}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        const quizzes = data as Quiz[];
+        if (quizzes && quizzes.length > 0) {
+          console.log('[recoverQuizFromDB] Found quiz! Recovery successful');
+          return quizzes[0];
+        }
+      }
+    } catch (err) {
+      console.warn('[recoverQuizFromDB] Fetch error:', err instanceof Error ? err.message : err);
+    }
+  }
+  console.log('[recoverQuizFromDB] All recovery attempts exhausted');
+  return null;
+}
+
+// -------------------------------------------------------
 // AI Operation Progress Tracker
 // -------------------------------------------------------
 interface AiProgressState {
@@ -635,15 +714,14 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   const handleRegenerateSummary = async () => {
     setRegenerating(true);
-    // Use fetchWithRetry — the server may take 50+ seconds for AI generation.
-    // Standard fetch() can fail on slow/mobile networks, causing premature loading exit.
-    // fetchWithRetry automatically retries on network errors and uses a 5-minute safety timeout.
+    const previousContent = summary?.summary_content || '';
+
     try {
       const res = await fetchWithRetry('/api/summaries', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
-        timeoutMs: 300000, // 5 minutes — server has its own 60s maxDuration
+        timeoutMs: 300000,
       }, 3);
       const data = await res.json();
       if (res.ok && data.success) {
@@ -651,14 +729,28 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
         toast.success('تم إعادة توليد الملخص بنجاح');
-      } else {
-        toast.error(data.error || 'فشل إعادة توليد الملخص');
+        return; // ✅ Success — exit loading
       }
+      // Server returned an error — try recovery before giving up
     } catch {
-      toast.error('حدث خطأ أثناء إعادة التلخيص. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
-    } finally {
-      setRegenerating(false);
+      // Network error or timeout — try recovery before giving up
     }
+
+    // ─── RECOVERY: The fetch failed, but the server may have completed the operation ───
+    // and saved to DB even though the HTTP response was lost (Vercel 60s timeout, etc.)
+    console.log('[handleRegenerateSummary] Fetch failed, attempting DB recovery...');
+    const recovered = await recoverSummaryFromDB(summaryId, previousContent);
+    if (recovered) {
+      summaryProgress.completeProgress();
+      setSummary(recovered);
+      hasValidDataRef.current = true;
+      toast.success('تم إعادة توليد الملخص بنجاح');
+      return; // ✅ Recovered — exit loading
+    }
+
+    // Truly failed — all recovery attempts exhausted
+    toast.error('حدث خطأ أثناء إعادة التلخيص. يرجى المحاولة مرة أخرى');
+    setRegenerating(false);
   };
 
   // -------------------------------------------------------
@@ -692,6 +784,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   const handleGenerateQuiz = async () => {
     setGeneratingQuiz(true);
+
     try {
       const content = summary?.summary_content || summary?.original_content || '';
       const quizRes = await fetchWithRetry('/api/gemini/quiz', {
@@ -703,7 +796,17 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const quizData = await quizRes.json();
 
       if (!quizRes.ok || !quizData.success) {
+        // Try recovery — quiz might have been created but response lost
+        const recoveredQuiz = await recoverQuizFromDB(summaryId);
+        if (recoveredQuiz) {
+          quizProgress.completeProgress();
+          setRelatedQuiz({ ...recoveredQuiz, shuffle_questions: quizShuffleQuestions } as Quiz);
+          toast.success('تم إنشاء الاختبار بنجاح');
+          setShowQuizConfig(false);
+          return; // ✅ Recovered
+        }
         toast.error(quizData.error || 'فشل إنشاء الاختبار');
+        setGeneratingQuiz(false);
         return;
       }
 
@@ -714,10 +817,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         summaryId,
         show_results: quizAnswerMode === 'after' ? false : true,
         allow_retake: quizAllowRetake,
-        // NOTE: shuffle_questions is client-side only, not stored in DB
       };
 
-      // If teacher mode and summary has a subject_id, include it
       if (teacherMode && summary?.subject_id) {
         quizPayload.subject_id = summary.subject_id;
       }
@@ -730,7 +831,6 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
       if (saveRes.ok) {
         const saveData = await saveRes.json();
-        // Merge the local shuffle setting with the server response
         const savedQuiz = { ...saveData.data, shuffle_questions: quizShuffleQuestions } as Quiz;
         quizProgress.completeProgress();
         setRelatedQuiz(savedQuiz);
@@ -742,6 +842,15 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         toast.error(saveErrData.error || 'فشل حفظ الاختبار');
       }
     } catch {
+      // Network error — try recovery
+      const recoveredQuiz = await recoverQuizFromDB(summaryId);
+      if (recoveredQuiz) {
+        quizProgress.completeProgress();
+        setRelatedQuiz({ ...recoveredQuiz, shuffle_questions: quizShuffleQuestions } as Quiz);
+        toast.success('تم إنشاء الاختبار بنجاح');
+        setShowQuizConfig(false);
+        return; // ✅ Recovered
+      }
       toast.error('حدث خطأ أثناء إنشاء الاختبار');
     } finally {
       setGeneratingQuiz(false);
@@ -754,6 +863,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const handleRegenerateQuiz = async () => {
     if (!relatedQuiz) return;
     setRegeneratingQuiz(true);
+
     try {
       const res = await fetchWithRetry('/api/quizzes', {
         method: 'PUT',
@@ -765,14 +875,22 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       if (res.ok && data.success) {
         setRelatedQuiz(data.data as Quiz);
         toast.success('تم إعادة إنشاء الاختبار بنجاح');
-      } else {
-        toast.error(data.error || 'فشل إعادة إنشاء الاختبار');
+        return; // ✅ Success
       }
     } catch {
-      toast.error('حدث خطأ أثناء إعادة إنشاء الاختبار');
-    } finally {
-      setRegeneratingQuiz(false);
+      // Network error — try recovery
     }
+
+    // ─── RECOVERY ───
+    const recoveredQuiz = await recoverQuizFromDB(summaryId);
+    if (recoveredQuiz) {
+      setRelatedQuiz(recoveredQuiz);
+      toast.success('تم إعادة إنشاء الاختبار بنجاح');
+      return; // ✅ Recovered
+    }
+
+    toast.error('حدث خطأ أثناء إعادة إنشاء الاختبار');
+    setRegeneratingQuiz(false);
   };
 
   // -------------------------------------------------------
@@ -781,9 +899,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const handleRefineText = async () => {
     if (!summary) return;
     setRefining(true);
-    // Use fetchWithRetry — the server may take 50+ seconds for AI refinement.
-    // Standard fetch() can fail on slow/mobile networks, causing premature loading exit.
-    // fetchWithRetry automatically retries on network errors and uses a 5-minute safety timeout.
+    const previousContent = summary?.summary_content || '';
+
     try {
       const res = await fetchWithRetry('/api/gemini/summary', {
         method: 'PUT',
@@ -797,14 +914,27 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
         toast.success('تم تنقيح وتنسيق النص بنجاح');
-      } else {
-        toast.error(data.error || 'فشل تنقيح النص');
+        return; // ✅ Success — exit loading
       }
+      // Server returned an error — try recovery before giving up
     } catch {
-      toast.error('حدث خطأ أثناء تنقيح النص. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى');
-    } finally {
-      setRefining(false);
+      // Network error or timeout — try recovery before giving up
     }
+
+    // ─── RECOVERY: The fetch failed, but the server may have completed the operation ───
+    console.log('[handleRefineText] Fetch failed, attempting DB recovery...');
+    const recovered = await recoverSummaryFromDB(summaryId, previousContent);
+    if (recovered) {
+      refineProgress.completeProgress();
+      setSummary(recovered);
+      hasValidDataRef.current = true;
+      toast.success('تم تنقيح وتنسيق النص بنجاح');
+      return; // ✅ Recovered — exit loading
+    }
+
+    // Truly failed — all recovery attempts exhausted
+    toast.error('حدث خطأ أثناء تنقيح النص. يرجى المحاولة مرة أخرى');
+    setRefining(false);
   };
 
   // -------------------------------------------------------
