@@ -32,7 +32,6 @@ import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
 
@@ -82,16 +81,12 @@ function useAiProgress(isActive: boolean, phases: { threshold: number; label: st
 
     const tick = () => {
       const elapsed = Date.now() - startTimeRef.current;
-      // Non-linear progress: fast start, slow middle, fast finish
-      // Using easeInOut curve — reaches ~85% at estimatedDuration, then slows dramatically
       const rawRatio = Math.min(elapsed / estimatedDurationMs, 1);
-      // Ease function: fast to ~70%, then gradual
       const eased = rawRatio < 0.7
-        ? rawRatio * 1.1  // Slightly faster in the beginning
-        : 0.77 + (rawRatio - 0.7) * 0.43; // Slows down after 70%
-      const percent = Math.min(Math.round(eased * 92), 92); // Cap at 92% until real completion
+        ? rawRatio * 1.1
+        : 0.77 + (rawRatio - 0.7) * 0.43;
+      const percent = Math.min(Math.round(eased * 92), 92);
 
-      // Find the current phase
       let currentPhase = phases[0]?.label || '';
       for (let i = phases.length - 1; i >= 0; i--) {
         if (percent >= phases[i].threshold) {
@@ -117,6 +112,103 @@ function useAiProgress(isActive: boolean, phases: { threshold: number; label: st
   }, []);
 
   return { progress, completeProgress };
+}
+
+// -------------------------------------------------------
+// Circular Progress Indicator (SVG-based)
+// -------------------------------------------------------
+function CircularProgress({
+  percent,
+  phase,
+  color = 'sky',
+  size = 140,
+}: {
+  percent: number;
+  phase: string;
+  color?: 'sky' | 'teal' | 'rose';
+  size?: number;
+}) {
+  const strokeWidth = 6;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (percent / 100) * circumference;
+
+  const colorMap = {
+    sky: {
+      track: '#e0f2fe', fill: '#0284c7', text: '#0369a1',
+      glow: '0 4px 24px rgba(14,165,233,0.25)', bg: '#f0f9ff', dot: '#0ea5e9',
+    },
+    teal: {
+      track: '#ccfbf1', fill: '#0d9488', text: '#0f766e',
+      glow: '0 4px 24px rgba(20,184,166,0.25)', bg: '#f0fdfa', dot: '#14b8a6',
+    },
+    rose: {
+      track: '#ffe4e6', fill: '#e11d48', text: '#be123c',
+      glow: '0 4px 24px rgba(244,63,94,0.25)', bg: '#fff1f2', dot: '#f43f5e',
+    },
+  };
+  const c = colorMap[color];
+
+  return (
+    <div className="flex flex-col items-center gap-4">
+      <div
+        className="relative rounded-full p-4"
+        style={{ backgroundColor: c.bg, boxShadow: c.glow }}
+      >
+        <svg width={size} height={size} className="-rotate-90">
+          {/* Track circle */}
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            strokeWidth={strokeWidth}
+            stroke={c.track}
+          />
+          {/* Progress arc */}
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            stroke={c.fill}
+            style={{ transition: 'stroke-dashoffset 0.7s ease-out' }}
+          />
+          {/* Animated dot at the end of progress arc */}
+          {percent > 0 && percent < 100 && (
+            <circle
+              cx={size / 2 + radius * Math.cos((percent / 100) * 2 * Math.PI - Math.PI / 2)}
+              cy={size / 2 + radius * Math.sin((percent / 100) * 2 * Math.PI - Math.PI / 2)}
+              r={strokeWidth}
+              fill={c.dot}
+              style={{ transition: 'cx 0.7s ease-out, cy 0.7s ease-out' }}
+            />
+          )}
+        </svg>
+        {/* Center text */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span
+            className="text-2xl font-bold tabular-nums"
+            style={{ color: c.text }}
+          >
+            {percent}%
+          </span>
+          {percent === 100 && (
+            <CheckCircle2 className="h-5 w-5 mt-0.5" style={{ color: c.text }} />
+          )}
+        </div>
+      </div>
+      {/* Phase label */}
+      <div className="text-center">
+        <p className="text-sm font-semibold" style={{ color: c.text }}>{phase}</p>
+        <p className="text-xs text-muted-foreground mt-1">يرجى الانتظار، لا تغادر الصفحة</p>
+      </div>
+    </div>
+  );
 }
 
 // -------------------------------------------------------
@@ -892,26 +984,20 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
             {/* Markdown content with RTL typography */}
             {regenerating ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-4">
-                <div className="w-full max-w-xs space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-sky-700 font-medium">{summaryProgress.progress.phase}</span>
-                    <span className="text-muted-foreground tabular-nums">{summaryProgress.progress.percent}%</span>
-                  </div>
-                  <Progress value={summaryProgress.progress.percent} className="h-2.5 bg-sky-100 [&>div]:bg-sky-700 transition-all duration-500" />
-                </div>
-                <p className="text-xs text-muted-foreground">قد يستغرق هذا بضع ثوانٍ</p>
+              <div className="flex flex-col items-center justify-center py-12">
+                <CircularProgress
+                  percent={summaryProgress.progress.percent}
+                  phase={summaryProgress.progress.phase}
+                  color="sky"
+                />
               </div>
             ) : refining ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-4">
-                <div className="w-full max-w-xs space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-teal-700 font-medium">{refineProgress.progress.phase}</span>
-                    <span className="text-muted-foreground tabular-nums">{refineProgress.progress.percent}%</span>
-                  </div>
-                  <Progress value={refineProgress.progress.percent} className="h-2.5 bg-teal-100 [&>div]:bg-teal-600 transition-all duration-500" />
-                </div>
-                <p className="text-xs text-muted-foreground">قد يستغرق هذا بضع ثوانٍ</p>
+              <div className="flex flex-col items-center justify-center py-12">
+                <CircularProgress
+                  percent={refineProgress.progress.percent}
+                  phase={refineProgress.progress.phase}
+                  color="teal"
+                />
               </div>
             ) : (
               <div className="prose-summary">
@@ -998,15 +1084,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 </div>
               </div>
             ) : generatingQuiz ? (
-              <div className="flex flex-col items-center justify-center py-8 gap-4">
-                <div className="w-full max-w-xs space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-teal-700 font-medium">{quizProgress.progress.phase}</span>
-                    <span className="text-muted-foreground tabular-nums">{quizProgress.progress.percent}%</span>
-                  </div>
-                  <Progress value={quizProgress.progress.percent} className="h-2.5 bg-teal-100 [&>div]:bg-teal-600 transition-all duration-500" />
-                </div>
-                <p className="text-xs text-muted-foreground">قد يستغرق هذا بضع ثوانٍ</p>
+              <div className="flex flex-col items-center justify-center py-8">
+                <CircularProgress
+                  percent={quizProgress.progress.percent}
+                  phase={quizProgress.progress.phase}
+                  color="teal"
+                  size={120}
+                />
               </div>
             ) : showQuizConfig ? (
               <div className="space-y-4">
