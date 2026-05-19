@@ -876,21 +876,9 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   };
 
   // -------------------------------------------------------
-  // Loading state
+  // Error state — only show when loading is done AND there's an error
   // -------------------------------------------------------
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" dir="rtl">
-        <Loader2 className="h-10 w-10 animate-spin text-sky-700" />
-        <p className="text-muted-foreground text-sm">جاري تحميل الاختبار...</p>
-      </div>
-    );
-  }
-
-  // -------------------------------------------------------
-  // Error state
-  // -------------------------------------------------------
-  if (error || !quiz) {
+  if (!loading && (error || !quiz)) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir="rtl">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100">
@@ -991,7 +979,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
 
           <motion.div variants={fadeInUp} className="text-center">
             <h2 className="text-2xl font-bold text-foreground">نتيجة الاختبار</h2>
-            <p className="text-muted-foreground mt-1">{quiz.title}</p>
+            <p className="text-muted-foreground mt-1">{quiz?.title}</p>
           </motion.div>
 
           <motion.div
@@ -1019,7 +1007,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             onClick={handleRetry}
             variant="outline"
             className="gap-2 border-teal-300 text-teal-700 hover:bg-teal-50"
-            style={{ display: quiz.allow_retake ? undefined : 'none' }}
+            style={{ display: quiz?.allow_retake ? undefined : 'none' }}
           >
             <RotateCcw className="h-4 w-4" />
             إعادة الاختبار
@@ -1048,7 +1036,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                   <Eye className="h-5 w-5 text-sky-700" />
                   مراجعة الإجابات
                 </h3>
-                {quiz.questions.map((q, idx) => {
+                {quiz?.questions?.map((q, idx) => {
                   const ans = userAnswers.find((a) => a.questionIndex === idx);
                   return (
                     <ReviewQuestionCard
@@ -1088,10 +1076,19 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             <ChevronRight className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold text-foreground truncate">{quiz.title}</h2>
-            <p className="text-xs text-muted-foreground">
-              السؤال {currentIdx + 1} من {totalQuestions}
-            </p>
+            {loading ? (
+              <>
+                <div className="h-5 w-32 animate-pulse rounded bg-sky-100" />
+                <div className="mt-1.5 h-3 w-20 animate-pulse rounded bg-sky-50" />
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-foreground truncate">{quiz?.title}</h2>
+                <p className="text-xs text-muted-foreground">
+                  السؤال {currentIdx + 1} من {totalQuestions}
+                </p>
+              </>
+            )}
           </div>
           {/* Timer display */}
           {timeLeft !== null && !showResults && (
@@ -1144,13 +1141,28 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       {/* Question card */}
       <AnimatePresence mode="wait">
         <motion.div
-          key={currentIdx}
+          key={loading ? 'loading' : currentIdx}
           variants={pageVariants}
           initial="hidden"
           animate="visible"
           exit="exit"
         >
-          {currentQuestion && (
+          {loading ? (
+            <Card className="border-sky-200 bg-white shadow-sm">
+              <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">
+                <div className="space-y-3">
+                  <div className="h-5 w-28 animate-pulse rounded bg-sky-100" />
+                  <div className="h-4 w-full animate-pulse rounded bg-sky-50" />
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-sky-50" />
+                </div>
+                <div className="space-y-3 pt-2">
+                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50" />
+                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50" />
+                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : currentQuestion ? (
             <Card className="border-sky-200 bg-white shadow-sm">
               <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">
                 {/* Type badge + question */}
@@ -1175,7 +1187,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     isCorrect={isCorrect}
                     selectedOption={selectedOption}
                     onAnswer={handleMCQAnswer}
-                    showCorrectness={quiz.show_results !== false}
+                    showCorrectness={quiz?.show_results !== false}
                   />
                 )}
 
@@ -1186,7 +1198,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     isCorrect={isCorrect}
                     selectedOption={selectedOption}
                     onAnswer={handleBooleanAnswer}
-                    showCorrectness={quiz.show_results !== false}
+                    showCorrectness={quiz?.show_results !== false}
                   />
                 )}
 
@@ -1218,7 +1230,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                 )}
 
                 {/* Feedback indicator — only show during quiz if show_results is true */}
-                {answered && quiz.show_results !== false && (
+                {answered && quiz?.show_results !== false && (
                   <>
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
@@ -1354,7 +1366,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                 </div>
               </CardContent>
             </Card>
-          )}
+          ) : null}
         </motion.div>
       </AnimatePresence>
     </motion.div>
