@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sanitizedContent = sanitizeString(rawContent, 20000);
+    const sanitizedContent = sanitizeString(rawContent, 50000);
     if (sanitizedContent.length === 0) {
       return NextResponse.json(
         { success: false, error: 'المحتوى غير صالح بعد التنظيف' },

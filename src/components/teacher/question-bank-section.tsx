@@ -27,7 +27,52 @@ import {
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app-store';
+import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { extractTextFromFile } from '@/lib/pdf-client';
 import type { UserProfile, Subject, QuestionBank, BankQuestion, QuizQuestion, SubjectFile } from '@/lib/types';
+
+// -------------------------------------------------------
+// fetchWithRetry — resilient fetch with automatic retry on network errors
+// Prevents premature failure when the connection drops temporarily.
+// Only gives up after all retries are exhausted or the server returns a definitive error.
+// -------------------------------------------------------
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit & { timeoutMs?: number } = {},
+  maxRetries: number = 3,
+): Promise<Response> {
+  const { timeoutMs = 300000, ...fetchOptions } = options; // 5-minute default
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const mergedSignal = AbortSignal.any
+    ? AbortSignal.any([controller.signal, fetchOptions.signal].filter(Boolean) as AbortSignal[])
+    : fetchOptions.signal || controller.signal;
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const backoffMs = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
+        console.log(`[QB fetchWithRetry] Retry ${attempt}/${maxRetries} after ${backoffMs}ms — ${url}`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+      }
+      const res = await fetch(url, { ...fetchOptions, signal: mergedSignal });
+      clearTimeout(timeoutId);
+      return res;
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      const isAbort = lastError.name === 'AbortError';
+      if (isAbort && controller.signal.aborted) {
+        clearTimeout(timeoutId);
+        throw lastError;
+      }
+      console.warn(`[QB fetchWithRetry] Attempt ${attempt + 1} failed:`, lastError.message);
+    }
+  }
+  clearTimeout(timeoutId);
+  throw lastError || new Error('فشل الاتصال بعد عدة محاولات');
+}
 
 // -------------------------------------------------------
 // Props
@@ -539,48 +584,95 @@ export default function QuestionBankSection({ profile }: QuestionBankSectionProp
 
     setGeneratingFromAi(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || '';
+      const headers = await getCachedAuthHeaders();
+      const token = headers['Authorization']?.replace('Bearer ', '') || '';
 
-      // Step 1: Extract text from file
-      const extractRes = await fetch('/api/files/extract-pdf-url', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          url: selectedCourseFile.file_url,
-          fileName: selectedCourseFile.file_name,
-        }),
-      });
+      // ─── Step 1: Extract text from file (multi-strategy with fallbacks) ───
+      let content: string | null = null;
 
-      const extractData = await extractRes.json();
-      if (!extractRes.ok || !extractData.success) {
-        toast.error(extractData.error || 'فشل استخراج النص من الملف');
-        setGeneratingFromAi(false);
-        return;
+      // Strategy A: Server-side extraction from URL (most reliable for existing files)
+      try {
+        const extractController = new AbortController();
+        const extractTimeoutId = setTimeout(() => extractController.abort(), 45000);
+
+        const extractRes = await fetchWithRetry('/api/files/extract-pdf-url', {
+          method: 'POST',
+          headers,
+          signal: extractController.signal,
+          timeoutMs: 45000,
+          body: JSON.stringify({
+            url: selectedCourseFile.file_url,
+            fileName: selectedCourseFile.file_name,
+          }),
+        });
+
+        clearTimeout(extractTimeoutId);
+
+        const extractData = await extractRes.json();
+        if (extractRes.ok && extractData.success && extractData.data?.text) {
+          content = extractData.data.text;
+          console.log('[QB AI] Server-side extraction succeeded, text length:', content!.length);
+        }
+      } catch (extractErr) {
+        console.warn('[QB AI] Server-side extraction failed, trying client-side fallback:', extractErr);
       }
 
-      const content = extractData.data.text;
+      // Strategy B: Client-side extraction fallback
+      // If server-side failed, download the file and extract on the client
       if (!content || content.trim().length < 50) {
-        toast.error('المحتوى المستخرج قصير جداً لإنشاء أسئلة');
+        try {
+          console.log('[QB AI] Attempting client-side extraction fallback...');
+          const downloadRes = await fetchWithRetry(selectedCourseFile.file_url, {
+            timeoutMs: 30000,
+          });
+
+          if (downloadRes.ok) {
+            const arrayBuffer = await downloadRes.arrayBuffer();
+            const extractionTimeoutMs = 30000;
+            const extractionPromise = extractTextFromFile(arrayBuffer, selectedCourseFile.file_name);
+            const timeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('EXTRACTION_TIMEOUT')), extractionTimeoutMs)
+            );
+
+            const result = await Promise.race([extractionPromise, timeoutPromise]);
+            content = result.text;
+            console.log('[QB AI] Client-side extraction succeeded, text length:', content.length);
+          }
+        } catch (fallbackErr) {
+          console.warn('[QB AI] Client-side extraction also failed:', fallbackErr);
+        }
+      }
+
+      if (!content || content.trim().length < 50) {
+        toast.error('فشل استخراج النص من الملف. تأكد أن الملف ليس ممسوحاً ضوئياً أو محمياً');
         setGeneratingFromAi(false);
         return;
       }
 
-      // Step 2: Generate questions using AI
-      const quizRes = await fetch('/api/gemini/quiz', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          content,
-          questionTypes: aiConfigTypes,
-        }),
-      });
+      // ─── Step 2: Generate questions using AI ───
+      const quizController = new AbortController();
+      const quizTimeoutId = setTimeout(() => quizController.abort(), 120000);
+
+      let quizRes: Response;
+      try {
+        quizRes = await fetchWithRetry('/api/gemini/quiz', {
+          method: 'POST',
+          headers,
+          signal: quizController.signal,
+          timeoutMs: 120000,
+          body: JSON.stringify({
+            content,
+            questionTypes: aiConfigTypes,
+          }),
+        });
+      } catch (quizErr) {
+        clearTimeout(quizTimeoutId);
+        // Error recovery: re-fetch bank detail in case questions were generated but response was lost
+        await fetchBankDetail(selectedBank.id);
+        throw quizErr;
+      }
+
+      clearTimeout(quizTimeoutId);
 
       const quizData = await quizRes.json();
       if (!quizRes.ok || !quizData.success) {
@@ -596,7 +688,7 @@ export default function QuestionBankSection({ profile }: QuestionBankSectionProp
         return;
       }
 
-      // Step 3: Add questions to the bank via API
+      // ─── Step 3: Add questions to the bank via API ───
       const bankQuestions = questions.map(q => ({
         type: q.type,
         question: q.question,
@@ -605,31 +697,50 @@ export default function QuestionBankSection({ profile }: QuestionBankSectionProp
         pairs: q.pairs || null,
       }));
 
-      const res = await fetch('/api/question-bank', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          bankId: selectedBank.id,
-          addQuestions: bankQuestions,
-        }),
-      });
+      let saveSucceeded = false;
+      try {
+        const saveRes = await fetchWithRetry('/api/question-bank', {
+          method: 'PUT',
+          headers,
+          timeoutMs: 30000,
+          body: JSON.stringify({
+            bankId: selectedBank.id,
+            addQuestions: bankQuestions,
+          }),
+        });
 
-      const result = await res.json();
-      if (result.success) {
+        const result = await saveRes.json();
+        saveSucceeded = result.success === true;
+        if (!saveSucceeded) {
+          toast.error(result.error || 'حدث خطأ أثناء إضافة الأسئلة');
+        }
+      } catch (saveErr) {
+        console.warn('[QB AI] Save request failed, attempting recovery:', saveErr);
+        // Error recovery: re-fetch bank detail — the save may have succeeded on the server
+        // even though the HTTP response was lost (network drop, timeout, etc.)
+        await fetchBankDetail(selectedBank.id);
+        toast.error('حدث خطأ أثناء حفظ الأسئلة. قد تكون تم إضافتها — يرجى التحقق من البنك');
+        setGeneratingFromAi(false);
+        return;
+      }
+
+      if (saveSucceeded) {
         toast.success(`تم إنشاء ${questions.length} سؤال وإضافتهم للبنك بنجاح`);
         setAiModalOpen(false);
         setSelectedCourseFile(null);
         setCourseFiles([]);
         fetchBankDetail(selectedBank.id);
         fetchBanks();
-      } else {
-        toast.error(result.error || 'حدث خطأ أثناء إضافة الأسئلة');
       }
-    } catch {
-      toast.error('حدث خطأ أثناء إنشاء الأسئلة من الملف');
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('abort') || errMsg.includes('AbortError') || errMsg.includes('TIMEOUT')) {
+        toast.error('انتهت مهلة العملية. يرجى المحاولة مرة أخرى');
+        // Recovery: re-fetch in case operation completed on server
+        if (selectedBank) await fetchBankDetail(selectedBank.id);
+      } else {
+        toast.error('حدث خطأ أثناء إنشاء الأسئلة من الملف');
+      }
     } finally {
       setGeneratingFromAi(false);
     }
