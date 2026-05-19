@@ -169,9 +169,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [refining, setRefining] = useState(false);
 
   // ─── AI Progress trackers ───
-  const summaryProgress = useAiProgress(regenerating, AI_PHASES_SUMMARY, 55000);
-  const refineProgress = useAiProgress(refining, AI_PHASES_REFINE, 55000);
-  const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, AI_PHASES_QUIZ, 45000);
+  const summaryProgress = useAiProgress(regenerating, AI_PHASES_SUMMARY, 60000);
+  const refineProgress = useAiProgress(refining, AI_PHASES_REFINE, 60000);
+  const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, AI_PHASES_QUIZ, 60000);
 
   // ─── Quiz config states ───
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
@@ -362,12 +362,15 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     fetchCompletedQuizzes();
   }, [fetchSummary, fetchRelatedQuiz, fetchCompletedQuizzes]);
 
-  // ─── Loading timeout for mobile (fix: loading stuck forever) ───
-  // FIX: Increased to 30s for slower mobile connections and AI operations.
+  // ─── Loading timeout for mobile ───
+  // IMPORTANT: Removed the aggressive 30s timeout that was killing the page
+  // while AI was still working. The server handles its own timeouts, and the
+  // client-side fetch calls have their own AbortController timeouts.
+  // We only use a VERY long safety net (5 minutes) to prevent truly stuck states.
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
-      console.warn('[SummaryView] Loading timeout (30s) — forcing error state');
+      console.warn('[SummaryView] Loading timeout (5min safety net) — forcing error state');
       setLoading(false);
       // Only set error if we don't already have data
       setSummary((prev) => {
@@ -376,7 +379,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         }
         return prev;
       });
-    }, 30000);
+    }, 300000); // 5 minutes — just a safety net, not a real timeout
     return () => clearTimeout(timer);
   }, [loading]);
 
@@ -417,16 +420,15 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   const handleRegenerateSummary = async () => {
     setRegenerating(true);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s client timeout
+    // NO client-side timeout — let the server handle it.
+    // The server has its own timeout chain (provider-manager → Gemini),
+    // and aborting early would cut off a response that's still being streamed.
     try {
       const res = await fetch('/api/summaries', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
-        signal: controller.signal,
       });
-      clearTimeout(timeoutId);
       const data = await res.json();
       if (res.ok && data.success) {
         summaryProgress.completeProgress();
@@ -436,13 +438,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       } else {
         toast.error(data.error || 'فشل إعادة توليد الملخص');
       }
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        toast.error('انتهت مهلة إعادة التلخيص. يرجى المحاولة مرة أخرى');
-      } else {
-        toast.error('حدث خطأ أثناء إعادة التلخيص');
-      }
+    } catch {
+      toast.error('حدث خطأ أثناء إعادة التلخيص');
     } finally {
       setRegenerating(false);
     }
@@ -566,17 +563,15 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const handleRefineText = async () => {
     if (!summary) return;
     setRefining(true);
-    const controller = new AbortController();
-    // 120s timeout — refine can take a long time for large transcribed documents
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    // NO client-side timeout — let the server handle it.
+    // The server has its own timeout chain (provider-manager → Gemini),
+    // and aborting early would cut off a response that's still being streamed.
     try {
       const res = await fetch('/api/gemini/summary', {
         method: 'PUT',
         headers: await getCachedAuthHeaders(),
         body: JSON.stringify({ summaryId }),
-        signal: controller.signal,
       });
-      clearTimeout(timeoutId);
       const data = await res.json();
       if (res.ok && data.success) {
         refineProgress.completeProgress();
@@ -586,13 +581,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       } else {
         toast.error(data.error || 'فشل تنقيح النص');
       }
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        toast.error('انتهت مهلة تنقيح النص. يرجى المحاولة مرة أخرى');
-      } else {
-        toast.error('حدث خطأ أثناء تنقيح النص. يرجى المحاولة مرة أخرى');
-      }
+    } catch {
+      toast.error('حدث خطأ أثناء تنقيح النص. يرجى المحاولة مرة أخرى');
     } finally {
       setRefining(false);
     }
@@ -658,9 +648,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         studentAns = typeof studentAnswer === 'string' ? studentAnswer : JSON.stringify(studentAnswer);
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
-
+      // NO client-side timeout — let the server handle it.
       const res = await fetch('/api/gemini/explain', {
         method: 'POST',
         headers: {
@@ -673,9 +661,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           studentAnswer: studentAns,
           questionType: question.type,
         }),
-        signal: controller.signal,
       });
-      clearTimeout(timeoutId);
 
       const data = await res.json();
       if (data.success && data.data?.explanation) {
@@ -683,12 +669,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       } else {
         toast.error(data.error || 'فشل الحصول على الشرح');
       }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        toast.error('انتهت مهلة الشرح. يرجى المحاولة مرة أخرى');
-      } else {
-        toast.error('حدث خطأ أثناء الحصول على الشرح');
-      }
+    } catch {
+      toast.error('حدث خطأ أثناء الحصول على الشرح');
     } finally {
       setExplainingIdx(null);
     }

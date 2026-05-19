@@ -274,14 +274,16 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     };
   }, [fetchQuiz]);
 
-  // ─── Loading timeout for mobile (fix: no timeout = stuck forever) ───
+  // ─── Loading timeout for mobile ───
+  // IMPORTANT: Removed aggressive 30s timeout. The server handles its own timeouts.
+  // We use a 5-minute safety net only to prevent truly stuck states.
   useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
-      console.warn('[QuizView] Loading timeout (30s) — forcing error state');
+      console.warn('[QuizView] Loading timeout (5min safety net) — forcing error state');
       setLoading(false);
       setError('انتهت مهلة تحميل الاختبار. يرجى المحاولة مرة أخرى');
-    }, 30000);
+    }, 300000); // 5 minutes — safety net only
     return () => clearTimeout(timer);
   }, [loading]);
 
@@ -575,13 +577,9 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         return;
       }
 
-      // Call API for semantic evaluation (with AbortController for mobile)
+      // Call API for semantic evaluation — no client-side timeout, let server handle it
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
-
-      // FIX: Add AbortController with timeout for mobile networks
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       let res: Response;
       try {
@@ -596,11 +594,8 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             correctAnswer: currentQuestion?.correctAnswer,
             studentAnswer,
           }),
-          signal: controller.signal,
         });
-        clearTimeout(timeoutId);
-      } catch (fetchErr) {
-        clearTimeout(timeoutId);
+      } catch {
         toast.error('حدث خطأ أثناء تقييم الإجابة');
         setIsCorrect(false);
         setAnswered(true);
@@ -1268,16 +1263,12 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                               const token = session?.access_token || '';
                               const answerStr = currentQuestion.type === 'matching' ? JSON.stringify(matchedPairs) : (currentQuestion.type === 'completion' ? completionInput : selectedOption || '');
 
-                              const controller = new AbortController();
-                              const timeoutId = setTimeout(() => controller.abort(), 45000);
-
+                              // No client-side timeout — let server handle it
                               const res = await fetch('/api/gemini/explain', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
                                 body: JSON.stringify({ question: currentQuestion.question, correctAnswer: currentQuestion.correctAnswer || '', studentAnswer: answerStr, questionType: currentQuestion.type }),
-                                signal: controller.signal,
                               });
-                              clearTimeout(timeoutId);
 
                               const data = await res.json();
                               if (data.success && data.data?.explanation) {
@@ -1285,12 +1276,8 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                               } else {
                                 toast.error(data.error || 'فشل الحصول على الشرح');
                               }
-                            } catch (err) {
-                              if (err instanceof DOMException && err.name === 'AbortError') {
-                                toast.error('انتهت مهلة الشرح. يرجى المحاولة مرة أخرى');
-                              } else {
-                                toast.error('حدث خطأ أثناء الحصول على الشرح');
-                              }
+                            } catch {
+                              toast.error('حدث خطأ أثناء الحصول على الشرح');
                             } finally { setExplainingIdx(null); }
                           }}
                           className="mt-2 flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:underline"
@@ -2079,9 +2066,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                       ? JSON.stringify(userAnswer.answer)
                       : String(userAnswer.answer || '');
 
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 45000);
-
+                    // No client-side timeout — let server handle it
                     const res = await fetch('/api/gemini/explain', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
@@ -2091,9 +2076,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                         studentAnswer: answerStr,
                         questionType: question.type,
                       }),
-                      signal: controller.signal,
                     });
-                    clearTimeout(timeoutId);
 
                     const data = await res.json();
                     if (data.success && data.data?.explanation) {
@@ -2101,12 +2084,8 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                     } else {
                       toast.error(data.error || 'فشل الحصول على الشرح');
                     }
-                  } catch (err) {
-                    if (err instanceof DOMException && err.name === 'AbortError') {
-                      toast.error('انتهت مهلة الشرح. يرجى المحاولة مرة أخرى');
-                    } else {
-                      toast.error('حدث خطأ أثناء الحصول على الشرح');
-                    }
+                  } catch {
+                    toast.error('حدث خطأ أثناء الحصول على الشرح');
                   } finally {
                     setExplaining(false);
                   }

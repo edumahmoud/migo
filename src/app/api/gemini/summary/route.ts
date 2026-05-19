@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateSummary, refineTranscribedText, isAiError, type AiProviderError } from '@/lib/ai';
 
 // IMPORTANT: On Vercel Hobby plan, maxDuration is capped at 60s.
-// The AI layer manages a global timeout budget (48s) that accounts for
-// the entire fallback chain. Auth/validation (~5s) + AI (48s) + DB save (~7s) = 60s.
+// The AI layer manages a global timeout budget (53s) that accounts for
+// the entire fallback chain. Auth/validation (~3s) + AI (53s) + DB save (~4s) = 60s.
 // On Pro plan, this can be increased to 120 or 300.
 export const maxDuration = 60;
 // Force Node.js runtime (Edge runtime has 30s limit)

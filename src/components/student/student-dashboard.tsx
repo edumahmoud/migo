@@ -295,12 +295,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const [pendingSummaries, setPendingSummaries] = useState<PendingSummary[]>([]);
 
   // ─── Auto-cleanup for stale pending summaries (Bug Fix #3) ───
-  // If a pending summary has been in progress for more than 5 minutes
-  // (mobile connections can be slow for PDF extraction + AI),
+  // If a pending summary has been in progress for more than 10 minutes,
   // something went wrong — abort it and show an error.
   useEffect(() => {
     if (pendingSummaries.length === 0) return;
-    const staleThreshold = 5 * 60 * 1000; // 5 minutes (increased for mobile)
+    const staleThreshold = 10 * 60 * 1000; // 10 minutes (generous for slow mobile + AI)
     const interval = setInterval(() => {
       setPendingSummaries(prev => {
         const now = Date.now();
@@ -1282,19 +1281,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // Run the rest in the background (no await — fire and track)
     const processInBackground = async () => {
       // ─── Client-side timeout for the entire process ───
-      // Server now uses streaming AI (45s max) + short DB timeout (5s).
-      // With streaming, first token arrives in 3-8s, and most responses
-      // complete within 30-40s. On mobile, PDF extraction can add 5-15s.
-      // The 90s client timeout gives mobile users enough time for:
-      //   - Session hydration (up to 15s on slow mobile)
-      //   - PDF text extraction in browser (5-15s)
-      //   - Server AI processing (30-45s)
-      //   - Network latency on mobile (5-10s)
-      const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const clientTimeoutMs = isMobile ? 90000 : 65000; // 90s mobile, 65s desktop
+      // REMOVED aggressive client-side timeout — the server handles its own
+      // timeout chain (provider-manager → Gemini). Aborting early on the client
+      // kills the connection while the AI is still streaming a response.
+      // We keep a VERY long safety net (5 minutes) only to prevent truly stuck states.
+      const clientTimeoutMs = 300000; // 5 minutes — safety net only, NOT a real timeout
       const clientTimeoutId = setTimeout(() => {
         if (!abortController.signal.aborted) {
-          console.warn(`[Summary] Client-side timeout (${clientTimeoutMs}ms) — aborting...`);
+          console.warn(`[Summary] Client-side safety timeout (${clientTimeoutMs}ms) — aborting...`);
           abortController.abort();
         }
       }, clientTimeoutMs);

@@ -262,10 +262,10 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     const interval = setInterval(() => {
       const now = Date.now();
       setPendingSummaries(prev => {
-        const stale = prev.filter(p => now - p.startedAt > 5 * 60 * 1000); // 5 minutes
+        const stale = prev.filter(p => now - p.startedAt > 10 * 60 * 1000); // 10 minutes
         if (stale.length > 0) {
           console.warn('[TeacherSummaries] Cleaning up', stale.length, 'stale pending summaries');
-          return prev.filter(p => now - p.startedAt <= 5 * 60 * 1000);
+          return prev.filter(p => now - p.startedAt <= 10 * 60 * 1000);
         }
         return prev;
       });
@@ -410,9 +410,10 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
     // Process in background
     const processInBackground = async () => {
-      const isMob = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const clientTimeoutMs = isMob ? 90000 : 65000;
       const abortController = new AbortController();
+      // REMOVED aggressive client-side timeout — the server handles its own
+      // timeout chain. We keep a 5-minute safety net only.
+      const clientTimeoutMs = 300000; // 5 minutes — safety net only
       const clientTimeoutId = setTimeout(() => {
         if (!abortController.signal.aborted) {
           abortController.abort();
@@ -420,6 +421,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       }, clientTimeoutMs);
 
       try {
+        const isMob = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         const token = await waitForSession(isMob ? 15000 : 10000);
         if (!token) {
           throw new Error('انتهت جلسة تسجيل الدخول');

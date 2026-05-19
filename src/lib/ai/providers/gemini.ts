@@ -33,7 +33,7 @@ const PRIMARY_MODEL = 'gemini-2.5-flash';
 const HEAVY_MODEL = 'gemini-2.5-pro';
 const MAX_AI_CONTENT_LENGTH = 100000; // Gemini supports much larger context
 const AI_CALL_TIMEOUT_MS = 60000;     // 60s overall (Gemini can be slower for long context)
-const AI_FIRST_TOKEN_TIMEOUT_MS = 15000; // 15s first-token
+const AI_FIRST_TOKEN_TIMEOUT_MS = 25000; // 25s first-token (increased from 15s for slow mobile networks)
 
 // Key rotation settings
 const KEY_COOLDOWN_MS = 120000;         // 2 minutes cooldown for failed keys
