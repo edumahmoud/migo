@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   Trophy,
+  ArrowUp,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -238,171 +239,156 @@ function useAiProgress(isActive: boolean, phases: { threshold: number; label: st
 }
 
 // -------------------------------------------------------
-// Circular Progress Indicator (SVG-based) — Enhanced Design
+// Step Progress Indicator — Modern Horizontal Design
+// Shows a gradient progress bar with step dots and phase labels
 // -------------------------------------------------------
-function CircularProgress({
+function StepProgress({
   percent,
   phase,
+  steps,
   color = 'sky',
-  size = 160,
 }: {
   percent: number;
   phase: string;
+  steps: { threshold: number; label: string }[];
   color?: 'sky' | 'teal' | 'rose';
-  size?: number;
 }) {
-  const strokeWidth = 8;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (percent / 100) * circumference;
+  // Determine active step based on percent and thresholds
+  let activeStepIdx = 0;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (percent >= steps[i].threshold) {
+      activeStepIdx = i;
+      break;
+    }
+  }
 
-  const colorMap = {
+  const colorSchemes = {
     sky: {
-      track: '#e0f2fe',
-      gradientStart: '#38bdf8',
-      gradientEnd: '#0369a1',
       text: '#0369a1',
-      glow: '0 0 32px rgba(14,165,233,0.3), 0 0 8px rgba(14,165,233,0.15)',
-      bg: '#f0f9ff',
-      dot: '#0ea5e9',
-      pulseColor: 'rgba(14,165,233,0.12)',
-      sparkle: '#7dd3fc',
+      barGradient: 'linear-gradient(to left, #0369a1, #38bdf8)',
+      barBg: '#e0f2fe',
+      dotActive: '#0ea5e9',
+      dotCompleted: '#38bdf8',
+      dotUpcoming: '#bae6fd',
+      glow: 'rgba(14,165,233,0.25)',
+      labelActive: '#0369a1',
+      labelUpcoming: '#93c5fd',
+      checkColor: '#0369a1',
     },
     teal: {
-      track: '#ccfbf1',
-      gradientStart: '#5eead4',
-      gradientEnd: '#0f766e',
       text: '#0f766e',
-      glow: '0 0 32px rgba(20,184,166,0.3), 0 0 8px rgba(20,184,166,0.15)',
-      bg: '#f0fdfa',
-      dot: '#14b8a6',
-      pulseColor: 'rgba(20,184,166,0.12)',
-      sparkle: '#99f6e4',
+      barGradient: 'linear-gradient(to left, #0f766e, #5eead4)',
+      barBg: '#ccfbf1',
+      dotActive: '#14b8a6',
+      dotCompleted: '#5eead4',
+      dotUpcoming: '#99f6e4',
+      glow: 'rgba(20,184,166,0.25)',
+      labelActive: '#0f766e',
+      labelUpcoming: '#5eead4',
+      checkColor: '#0f766e',
     },
     rose: {
-      track: '#ffe4e6',
-      gradientStart: '#fb7185',
-      gradientEnd: '#be123c',
       text: '#be123c',
-      glow: '0 0 32px rgba(244,63,94,0.3), 0 0 8px rgba(244,63,94,0.15)',
-      bg: '#fff1f2',
-      dot: '#f43f5e',
-      pulseColor: 'rgba(244,63,94,0.12)',
-      sparkle: '#fda4af',
+      barGradient: 'linear-gradient(to left, #be123c, #fb7185)',
+      barBg: '#ffe4e6',
+      dotActive: '#f43f5e',
+      dotCompleted: '#fb7185',
+      dotUpcoming: '#fda4af',
+      glow: 'rgba(244,63,94,0.25)',
+      labelActive: '#be123c',
+      labelUpcoming: '#fb7185',
+      checkColor: '#be123c',
     },
   };
-  const c = colorMap[color];
-  const gradientId = `progress-gradient-${color}`;
+  const c = colorSchemes[color];
 
   return (
-    <div className="flex flex-col items-center gap-5">
-      <div className="relative" style={{ width: size + 32, height: size + 32 }}>
-        {/* Outer pulse ring — animated breathing glow */}
-        <div
-          className="absolute inset-0 rounded-full animate-pulse"
-          style={{ backgroundColor: c.pulseColor, animationDuration: '2.5s' }}
-        />
-
-        {/* Main circle container */}
-        <div
-          className="absolute rounded-full"
-          style={{
-            top: 16, left: 16, width: size, height: size,
-            backgroundColor: c.bg,
-            boxShadow: c.glow,
-          }}
-        >
-          <svg width={size} height={size} className="-rotate-90">
-            <defs>
-              <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor={c.gradientStart} />
-                <stop offset="100%" stopColor={c.gradientEnd} />
-              </linearGradient>
-              {/* Glow filter for progress arc */}
-              <filter id={`glow-${color}`} x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-
-            {/* Background track circle */}
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              fill="none"
-              strokeWidth={strokeWidth}
-              stroke={c.track}
-            />
-
-            {/* Progress arc with gradient + glow */}
-            <circle
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              fill="none"
-              strokeWidth={strokeWidth}
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={offset}
-              stroke={`url(#${gradientId})`}
-              filter={`url(#glow-${color})`}
-              style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
-            />
-
-            {/* Animated spark dot at the end of progress arc */}
-            {percent > 0 && percent < 100 && (
-              <>
-                <circle
-                  cx={size / 2 + radius * Math.cos((percent / 100) * 2 * Math.PI - Math.PI / 2)}
-                  cy={size / 2 + radius * Math.sin((percent / 100) * 2 * Math.PI - Math.PI / 2)}
-                  r={strokeWidth + 2}
-                  fill={c.sparkle}
-                  opacity={0.4}
-                  style={{ transition: 'cx 0.8s cubic-bezier(0.4, 0, 0.2, 1), cy 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
-                />
-                <circle
-                  cx={size / 2 + radius * Math.cos((percent / 100) * 2 * Math.PI - Math.PI / 2)}
-                  cy={size / 2 + radius * Math.sin((percent / 100) * 2 * Math.PI - Math.PI / 2)}
-                  r={strokeWidth - 1}
-                  fill={c.dot}
-                  style={{ transition: 'cx 0.8s cubic-bezier(0.4, 0, 0.2, 1), cy 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
-                />
-              </>
-            )}
-          </svg>
-
-          {/* Center content */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            {percent === 100 ? (
-              <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              >
-                <CheckCircle2 className="h-10 w-10" style={{ color: c.gradientEnd }} />
-              </motion.div>
-            ) : (
-              <motion.span
-                className="text-3xl font-bold tabular-nums"
-                style={{ color: c.text }}
-                key={percent}
-                initial={{ scale: 1.08 }}
-                animate={{ scale: 1 }}
-                transition={{ duration: 0.2 }}
-              >
-                {percent}%
-              </motion.span>
-            )}
-          </div>
-        </div>
+    <div className="w-full max-w-xs mx-auto space-y-4 py-2">
+      {/* Large percentage display */}
+      <div className="text-center">
+        {percent === 100 ? (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          >
+            <CheckCircle2 className="h-12 w-12 mx-auto" style={{ color: c.checkColor }} />
+          </motion.div>
+        ) : (
+          <motion.span
+            className="text-4xl font-bold tabular-nums"
+            style={{ color: c.text }}
+            key={percent}
+            initial={{ scale: 1.05, opacity: 0.8 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.15 }}
+          >
+            {percent}%
+          </motion.span>
+        )}
       </div>
 
-      {/* Phase label with animated dots */}
-      <div className="text-center space-y-1.5">
+      {/* Gradient progress bar */}
+      <div className="relative h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: c.barBg }}>
+        <div
+          className="absolute inset-y-0 right-0 rounded-full"
+          style={{
+            width: `${Math.max(percent, 2)}%`,
+            background: c.barGradient,
+            transition: 'width 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        />
+        {/* Glowing leading edge */}
+        {percent > 0 && percent < 100 && (
+          <div
+            className="absolute top-1/2 -translate-y-1/2 h-5 w-5 rounded-full animate-pulse"
+            style={{
+              right: `calc(${percent}% - 10px)`,
+              background: c.dotActive,
+              opacity: 0.4,
+              filter: 'blur(8px)',
+              transition: 'right 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
+          />
+        )}
+      </div>
+
+      {/* Step dots with labels */}
+      <div className="flex justify-between px-0.5">
+        {steps.map((step, i) => {
+          const isCompleted = i < activeStepIdx;
+          const isActive = i === activeStepIdx;
+
+          return (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              <div
+                className="rounded-full transition-all duration-500 flex items-center justify-center"
+                style={{
+                  height: isActive ? 14 : isCompleted ? 11 : 8,
+                  width: isActive ? 14 : isCompleted ? 11 : 8,
+                  backgroundColor: isCompleted ? c.dotCompleted : isActive ? c.dotActive : c.dotUpcoming,
+                  boxShadow: isActive ? `0 0 0 4px ${c.glow}` : 'none',
+                }}
+              >
+                {isCompleted && (
+                  <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+              <span
+                className="text-[10px] font-medium text-center leading-tight transition-colors duration-300"
+                style={{ color: isCompleted || isActive ? c.labelActive : c.labelUpcoming }}
+              >
+                {step.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Current phase label */}
+      <div className="text-center space-y-1.5 pt-1">
         <div className="flex items-center justify-center gap-1.5">
           <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: c.text }} />
           <p className="text-sm font-semibold" style={{ color: c.text }}>{phase}</p>
@@ -436,6 +422,35 @@ const staggerContainer = {
   hidden: { opacity: 0 },
   visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
 };
+
+// -------------------------------------------------------
+// Scroll to Top Button
+// -------------------------------------------------------
+function ScrollToTopButton() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 300);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <motion.button
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      className="fixed bottom-6 left-6 z-50 h-11 w-11 rounded-full bg-sky-600 text-white shadow-lg shadow-sky-600/30 flex items-center justify-center hover:bg-sky-700 active:scale-95 transition-all print:hidden"
+      initial={{ opacity: 0, scale: 0.5, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.5, y: 20 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      aria-label="العودة للأعلى"
+    >
+      <ArrowUp className="h-5 w-5" />
+    </motion.button>
+  );
+}
 
 // -------------------------------------------------------
 // Main Component
@@ -710,10 +725,114 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   }, []);
 
   // -------------------------------------------------------
+  // Progress Persistence — Save/restore via sessionStorage
+  // Prevents data loss when the page is refreshed during an
+  // AI operation (refine, regenerate, quiz generation).
+  // -------------------------------------------------------
+  const STORAGE_KEY_OP = `attendo-op-${summaryId}`;
+  const STORAGE_KEY_DATA = `attendo-data-${summaryId}`;
+
+  const markOpPending = useCallback((op: string) => {
+    try {
+      sessionStorage.setItem(STORAGE_KEY_OP, JSON.stringify({
+        operation: op,
+        timestamp: Date.now(),
+        previousContent: summary?.summary_content || '',
+      }));
+    } catch { /* sessionStorage may be unavailable in some environments */ }
+  }, [STORAGE_KEY_OP, summary?.summary_content]);
+
+  const markOpComplete = useCallback(() => {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY_OP);
+    } catch {}
+  }, [STORAGE_KEY_OP]);
+
+  // Save summary data to sessionStorage on beforeunload (page refresh/close)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (summary) {
+        try {
+          sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(summary));
+        } catch {}
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [summary, STORAGE_KEY_DATA]);
+
+  // Auto-recover on mount: restore data + resume pending operations
+  useEffect(() => {
+    try {
+      // 1. Restore summary data for instant display
+      const savedData = sessionStorage.getItem(STORAGE_KEY_DATA);
+      if (savedData && !hasValidDataRef.current) {
+        const parsed = JSON.parse(savedData);
+        if (parsed?.id === summaryId) {
+          setSummary(parsed);
+          hasValidDataRef.current = true;
+          setLoading(false);
+        }
+      }
+
+      // 2. Check for pending AI operations and try to recover results from DB
+      const savedOp = sessionStorage.getItem(STORAGE_KEY_OP);
+      if (!savedOp) return;
+      const { operation, timestamp, previousContent } = JSON.parse(savedOp);
+      // Only recover if operation was started within the last 5 minutes
+      if (Date.now() - timestamp > 300000) {
+        sessionStorage.removeItem(STORAGE_KEY_OP);
+        return;
+      }
+      console.log('[SummaryView] Found pending operation:', operation, '— attempting recovery');
+
+      if (operation === 'refine') {
+        setRefining(true);
+        recoverSummaryFromDB(summaryId, previousContent, 5).then(recovered => {
+          if (recovered) {
+            setSummary(recovered);
+            hasValidDataRef.current = true;
+            toast.success('تم استرداد نتيجة التنقيح بنجاح!');
+          } else {
+            toast.info('لم يتم العثور على نتيجة سابقة للتنقيح');
+          }
+          setRefining(false);
+          sessionStorage.removeItem(STORAGE_KEY_OP);
+        });
+      } else if (operation === 'regenerate') {
+        setRegenerating(true);
+        recoverSummaryFromDB(summaryId, previousContent, 5).then(recovered => {
+          if (recovered) {
+            setSummary(recovered);
+            hasValidDataRef.current = true;
+            toast.success('تم استرداد نتيجة إعادة التلخيص بنجاح!');
+          } else {
+            toast.info('لم يتم العثور على نتيجة سابقة');
+          }
+          setRegenerating(false);
+          sessionStorage.removeItem(STORAGE_KEY_OP);
+        });
+      } else if (operation === 'quiz') {
+        setGeneratingQuiz(true);
+        recoverQuizFromDB(summaryId, 5).then(recovered => {
+          if (recovered) {
+            setRelatedQuiz(recovered);
+            toast.success('تم استرداد الاختبار بنجاح!');
+          }
+          setGeneratingQuiz(false);
+          sessionStorage.removeItem(STORAGE_KEY_OP);
+        });
+      }
+    } catch { /* sessionStorage unavailable */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryId]); // Only run once on mount
+
+  // -------------------------------------------------------
   // Re-generate summary
   // -------------------------------------------------------
   const handleRegenerateSummary = async () => {
     setRegenerating(true);
+    markOpPending('regenerate');
     const previousContent = summary?.summary_content || '';
 
     try {
@@ -728,6 +847,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         summaryProgress.completeProgress();
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
+        markOpComplete();
         toast.success('تم إعادة توليد الملخص بنجاح');
         return; // ✅ Success — exit loading
       }
@@ -744,11 +864,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       summaryProgress.completeProgress();
       setSummary(recovered);
       hasValidDataRef.current = true;
+      markOpComplete();
       toast.success('تم إعادة توليد الملخص بنجاح');
       return; // ✅ Recovered — exit loading
     }
 
     // Truly failed — all recovery attempts exhausted
+    markOpComplete();
     toast.error('حدث خطأ أثناء إعادة التلخيص. يرجى المحاولة مرة أخرى');
     setRegenerating(false);
   };
@@ -784,6 +906,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   const handleGenerateQuiz = async () => {
     setGeneratingQuiz(true);
+    markOpPending('quiz');
 
     try {
       const content = summary?.summary_content || summary?.original_content || '';
@@ -899,6 +1022,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const handleRefineText = async () => {
     if (!summary) return;
     setRefining(true);
+    markOpPending('refine');
     const previousContent = summary?.summary_content || '';
 
     try {
@@ -913,6 +1037,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         refineProgress.completeProgress();
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
+        markOpComplete();
         toast.success('تم تنقيح وتنسيق النص بنجاح');
         return; // ✅ Success — exit loading
       }
@@ -928,11 +1053,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       refineProgress.completeProgress();
       setSummary(recovered);
       hasValidDataRef.current = true;
+      markOpComplete();
       toast.success('تم تنقيح وتنسيق النص بنجاح');
       return; // ✅ Recovered — exit loading
     }
 
     // Truly failed — all recovery attempts exhausted
+    markOpComplete();
     toast.error('حدث خطأ أثناء تنقيح النص. يرجى المحاولة مرة أخرى');
     setRefining(false);
   };
@@ -1243,17 +1370,19 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             {/* Markdown content with RTL typography */}
             {regenerating ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <CircularProgress
+                <StepProgress
                   percent={summaryProgress.progress.percent}
                   phase={summaryProgress.progress.phase}
+                  steps={AI_PHASES_SUMMARY}
                   color="sky"
                 />
               </div>
             ) : refining ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <CircularProgress
+                <StepProgress
                   percent={refineProgress.progress.percent}
                   phase={refineProgress.progress.phase}
+                  steps={AI_PHASES_REFINE}
                   color="teal"
                 />
               </div>
@@ -1343,11 +1472,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
               </div>
             ) : generatingQuiz ? (
               <div className="flex flex-col items-center justify-center py-8">
-                <CircularProgress
+                <StepProgress
                   percent={quizProgress.progress.percent}
                   phase={quizProgress.progress.phase}
+                  steps={AI_PHASES_QUIZ}
                   color="teal"
-                  size={120}
                 />
               </div>
             ) : showQuizConfig ? (
@@ -1712,6 +1841,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           </div>
         )}
       </motion.div>
+
+      {/* Scroll to Top Button */}
+      <ScrollToTopButton />
     </motion.div>
   );
 }
