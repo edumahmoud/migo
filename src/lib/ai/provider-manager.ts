@@ -511,7 +511,7 @@ export async function explainWrongAnswer(
   return chatWithFallback(
     EXPLAIN_SYSTEM(name),
     EXPLAIN_USER(questionType, question, correctAnswer, studentAnswer, name),
-    { temperature: 0.5, maxTokens: 1024, timeoutMs: 45000, retries: 1, operation: 'explain' },
+    { temperature: 0.5, maxTokens: 2048, timeoutMs: 45000, retries: 1, operation: 'explain' },
   );
 }
 

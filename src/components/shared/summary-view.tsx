@@ -854,6 +854,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         hasValidDataRef.current = true;
         markOpComplete();
         toast.success('تم إعادة توليد الملخص بنجاح');
+        setRegenerating(false);
         return; // ✅ Success — exit loading
       }
       // Server returned an error — try recovery before giving up
@@ -871,6 +872,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       hasValidDataRef.current = true;
       markOpComplete();
       toast.success('تم إعادة توليد الملخص بنجاح');
+      setRegenerating(false);
       return; // ✅ Recovered — exit loading
     }
 
@@ -931,6 +933,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           setRelatedQuiz({ ...recoveredQuiz, shuffle_questions: quizShuffleQuestions } as Quiz);
           toast.success('تم إنشاء الاختبار بنجاح');
           setShowQuizConfig(false);
+          setGeneratingQuiz(false);
           return; // ✅ Recovered
         }
         toast.error(quizData.error || 'فشل إنشاء الاختبار');
@@ -964,6 +967,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         setRelatedQuiz(savedQuiz);
         toast.success('تم إنشاء الاختبار بنجاح');
         setShowQuizConfig(false);
+        setGeneratingQuiz(false);
       } else {
         const saveErrData = await saveRes.json().catch(() => ({}));
         console.error('[SummaryView] Quiz save failed:', saveRes.status, saveErrData);
@@ -977,6 +981,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         setRelatedQuiz({ ...recoveredQuiz, shuffle_questions: quizShuffleQuestions } as Quiz);
         toast.success('تم إنشاء الاختبار بنجاح');
         setShowQuizConfig(false);
+        setGeneratingQuiz(false);
         return; // ✅ Recovered
       }
       toast.error('حدث خطأ أثناء إنشاء الاختبار');
@@ -1002,7 +1007,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const data = await res.json();
       if (res.ok && data.success) {
         setRelatedQuiz(data.data as Quiz);
+        quizProgress.completeProgress();
         toast.success('تم إعادة إنشاء الاختبار بنجاح');
+        setRegeneratingQuiz(false);
         return; // ✅ Success
       }
     } catch {
@@ -1013,7 +1020,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     const recoveredQuiz = await recoverQuizFromDB(summaryId);
     if (recoveredQuiz) {
       setRelatedQuiz(recoveredQuiz);
+      quizProgress.completeProgress();
       toast.success('تم إعادة إنشاء الاختبار بنجاح');
+      setRegeneratingQuiz(false);
       return; // ✅ Recovered
     }
 
@@ -1044,6 +1053,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         hasValidDataRef.current = true;
         markOpComplete();
         toast.success('تم تنقيح وتنسيق النص بنجاح');
+        setRefining(false);
         return; // ✅ Success — exit loading
       }
       // Server returned an error — try recovery before giving up
@@ -1060,6 +1070,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       hasValidDataRef.current = true;
       markOpComplete();
       toast.success('تم تنقيح وتنسيق النص بنجاح');
+      setRefining(false);
       return; // ✅ Recovered — exit loading
     }
 
@@ -1199,18 +1210,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   }
 
   // -------------------------------------------------------
-  // Loading state
+  // Error / not-found state — only when loading is done
   // -------------------------------------------------------
-  if (loading) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4" dir="rtl">
-        <Loader2 className="h-10 w-10 animate-spin text-sky-700" />
-        <p className="text-muted-foreground text-sm">جاري تحميل الملخص...</p>
-      </div>
-    );
-  }
-
-  if (!summary) {
+  if (!loading && !summary) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir="rtl">
         <p className="text-lg font-semibold text-foreground">لم يتم العثور على الملخص</p>
@@ -1242,11 +1244,20 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           <ChevronLeft className="h-5 w-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold text-foreground leading-relaxed">{summary.title}</h1>
-          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-            <BookOpen className="h-3 w-3" />
-            ملخص دراسي
-          </p>
+          {loading ? (
+            <>
+              <div className="h-6 w-48 animate-pulse rounded bg-sky-100" />
+              <div className="mt-2 h-3 w-20 animate-pulse rounded bg-sky-50" />
+            </>
+          ) : (
+            <>
+              <h1 className="text-xl font-bold text-foreground leading-relaxed">{summary?.title}</h1>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                <BookOpen className="h-3 w-3" />
+                ملخص دراسي
+              </p>
+            </>
+          )}
         </div>
         <div className="flex shrink-0 gap-1.5">
           {/* Delete button — always visible on mobile */}
@@ -1391,9 +1402,18 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   color="teal"
                 />
               </div>
+            ) : loading ? (
+              <div className="space-y-3 py-4">
+                <div className="h-4 w-full animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-5/6 animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-4/6 animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-full animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-3/4 animate-pulse rounded bg-sky-50" />
+                <div className="h-4 w-5/6 animate-pulse rounded bg-sky-50" />
+              </div>
             ) : (
               <div className="prose-summary">
-                <ReactMarkdown>{summary.summary_content}</ReactMarkdown>
+                <ReactMarkdown>{summary?.summary_content || ''}</ReactMarkdown>
               </div>
             )}
           </CardContent>
@@ -1816,7 +1836,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
               </div>
               <div>
                 <p className="text-sm font-bold text-rose-700">تأكيد الحذف</p>
-                <p className="text-xs text-rose-600/70">هل أنت متأكد من حذف ملخص "{summary.title}"؟ لا يمكن التراجع عن هذا الإجراء.</p>
+                <p className="text-xs text-rose-600/70">هل أنت متأكد من حذف ملخص "{summary?.title}"؟ لا يمكن التراجع عن هذا الإجراء.</p>
               </div>
             </div>
             <div className="flex items-center gap-2 ms-12">
