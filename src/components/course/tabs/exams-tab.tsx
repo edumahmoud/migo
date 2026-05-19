@@ -900,16 +900,17 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             dir="rtl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
-              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                {editingQuiz ? 'تعديل الاختبار' : 'إنشاء اختبار جديد'}
+            <div className="flex items-center justify-between border-b p-4 sm:p-5 sticky top-0 bg-background z-10">
+              <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2 min-w-0 truncate">
+                <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300 shrink-0" />
+                <span className="truncate">{editingQuiz ? 'تعديل الاختبار' : 'إنشاء اختبار جديد'}</span>
               </h3>
               <button
                 onClick={() => { if (!savingQuiz) { setQuizModalOpen(false); resetQuizForm(); } }}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 touch-manipulation"
+                aria-label="إغلاق"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 

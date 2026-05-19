@@ -559,7 +559,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
 
       const res = await fetch('/api/gemini/explain', {
         method: 'POST',

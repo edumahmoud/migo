@@ -1257,17 +1257,31 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                               const { data: { session } } = await supabase.auth.getSession();
                               const token = session?.access_token || '';
                               const answerStr = currentQuestion.type === 'matching' ? JSON.stringify(matchedPairs) : (currentQuestion.type === 'completion' ? completionInput : selectedOption || '');
+
+                              const controller = new AbortController();
+                              const timeoutId = setTimeout(() => controller.abort(), 45000);
+
                               const res = await fetch('/api/gemini/explain', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
                                 body: JSON.stringify({ question: currentQuestion.question, correctAnswer: currentQuestion.correctAnswer || '', studentAnswer: answerStr, questionType: currentQuestion.type }),
+                                signal: controller.signal,
                               });
+                              clearTimeout(timeoutId);
+
                               const data = await res.json();
-                              if (data.success) {
+                              if (data.success && data.data?.explanation) {
                                 setExplanations(prev => ({ ...prev, [currentIdx]: data.data.explanation }));
+                              } else {
+                                toast.error(data.error || 'فشل الحصول على الشرح');
                               }
-                            } catch { toast.error('حدث خطأ'); }
-                            finally { setExplainingIdx(null); }
+                            } catch (err) {
+                              if (err instanceof DOMException && err.name === 'AbortError') {
+                                toast.error('انتهت مهلة الشرح. يرجى المحاولة مرة أخرى');
+                              } else {
+                                toast.error('حدث خطأ أثناء الحصول على الشرح');
+                              }
+                            } finally { setExplainingIdx(null); }
                           }}
                           className="mt-2 flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:underline"
                         >
@@ -1284,8 +1298,8 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                   </>
                 )}
 
-                {/* Previous / Next / Finish buttons */}
-                <div className="flex items-center gap-3">
+                {/* Navigation buttons */}
+                <div className="flex flex-wrap items-center gap-2">
                   {/* Previous button — RTL: ChevronRight points to the start */}
                   {currentIdx > 0 && (
                     <Button
@@ -1293,10 +1307,11 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                         setCurrentIdx(prev => prev - 1);
                       }}
                       variant="outline"
-                      className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
+                      className="gap-1.5 border-sky-300 text-sky-800 hover:bg-sky-50 text-xs sm:text-sm"
                     >
                       <ChevronRight className="h-4 w-4" />
-                      السؤال السابق
+                      <span className="hidden sm:inline">السؤال السابق</span>
+                      <span className="sm:hidden">السابق</span>
                     </Button>
                   )}
 
@@ -1305,10 +1320,11 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     <Button
                       onClick={handleChangeAnswer}
                       variant="outline"
-                      className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+                      className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 text-xs sm:text-sm"
                     >
                       <PenLine className="h-4 w-4" />
-                      تغيير الإجابة
+                      <span className="hidden sm:inline">تغيير الإجابة</span>
+                      <span className="sm:hidden">تعديل</span>
                     </Button>
                   )}
 
@@ -1317,14 +1333,16 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
+                      className="mr-auto"
                     >
                       <Button
                         onClick={handleNext}
-                        className="gap-2 bg-sky-700 text-white hover:bg-sky-800"
+                        className="gap-1.5 bg-sky-700 text-white hover:bg-sky-800 text-xs sm:text-sm"
                       >
                         {currentIdx < totalQuestions - 1 ? (
                           <>
-                            السؤال التالي
+                            <span className="hidden sm:inline">السؤال التالي</span>
+                            <span className="sm:hidden">التالي</span>
                             <ArrowRight className="h-4 w-4" />
                           </>
                         ) : (
@@ -2050,6 +2068,10 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                     const answerStr = question.type === 'matching'
                       ? JSON.stringify(userAnswer.answer)
                       : String(userAnswer.answer || '');
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 45000);
+
                     const res = await fetch('/api/gemini/explain', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
@@ -2059,13 +2081,22 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                         studentAnswer: answerStr,
                         questionType: question.type,
                       }),
+                      signal: controller.signal,
                     });
+                    clearTimeout(timeoutId);
+
                     const data = await res.json();
-                    if (data.success) {
+                    if (data.success && data.data?.explanation) {
                       setExplanation(data.data.explanation);
+                    } else {
+                      toast.error(data.error || 'فشل الحصول على الشرح');
                     }
-                  } catch {
-                    toast.error('حدث خطأ');
+                  } catch (err) {
+                    if (err instanceof DOMException && err.name === 'AbortError') {
+                      toast.error('انتهت مهلة الشرح. يرجى المحاولة مرة أخرى');
+                    } else {
+                      toast.error('حدث خطأ أثناء الحصول على الشرح');
+                    }
                   } finally {
                     setExplaining(false);
                   }
