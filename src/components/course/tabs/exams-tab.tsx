@@ -209,16 +209,27 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         studentsPromise,
       ]);
 
-      // Process quizzes
+      // Process quizzes — defensively ensure questions is always an array
       const { data, error } = quizzesResult;
       if (error) {
         console.error('Error fetching quizzes:', error);
       } else {
-        setQuizzes((data as Quiz[]) || []);
+        const rawQuizzes = (data as Quiz[]) || [];
+        // Ensure each quiz has a valid questions array (JSONB may come back as string or null)
+        const safeQuizzes = rawQuizzes.map(q => ({
+          ...q,
+          questions: Array.isArray(q.questions) ? q.questions : [],
+        }));
+        setQuizzes(safeQuizzes);
       }
 
-      // Process scores
-      setScores((scoresResult.data as Score[]) || []);
+      // Process scores — defensively handle null/undefined
+      const rawScores = (scoresResult.data as Score[]) || [];
+      const safeScores = rawScores.map(s => ({
+        ...s,
+        user_answers: Array.isArray(s.user_answers) ? s.user_answers : [],
+      }));
+      setScores(safeScores);
 
       // Process subject students for teacher
       if (role === 'teacher' && studentsResult.data && studentsResult.data.length > 0) {
@@ -873,6 +884,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             منتهي
           </Badge>
         );
+      default:
+        return null;
     }
   };
 
