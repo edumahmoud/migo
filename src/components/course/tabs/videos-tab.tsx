@@ -19,9 +19,13 @@ import {
   HardDrive,
   Calendar,
   ChevronLeft,
+  Pause,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { useVideoUploadStore } from '@/stores/video-upload-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -146,9 +150,12 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Global upload store ───
+  const { tasks: uploadTasks, addTask, startUpload, cancelTask, removeTask, clearCompleted } = useVideoUploadStore();
+  const activeUploads = uploadTasks.filter((t) => t.subjectId === subjectId && (t.status === 'uploading' || t.status === 'saving'));
+  const hasActiveUploads = activeUploads.length > 0;
 
   // ─── Edit state ───
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -387,64 +394,26 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   };
 
   // -------------------------------------------------------
-  // Upload video (teacher only)
+  // Upload video (teacher only) — background via global store
   // -------------------------------------------------------
   const handleUpload = async () => {
     if (!videoFile || !title.trim()) return;
-    setUploading(true);
-    setUploadProgress(0);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
-      if (!userId) return;
 
-      // Upload to Supabase Storage
-      const fileExt = videoFile.name.split('.').pop();
-      const filePath = `videos/${subjectId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from('user-files')
-        .upload(filePath, videoFile, { cacheControl: '3600', upsert: false });
+    // Add task to global store
+    const taskId = addTask({
+      id: '', // will be assigned by addTask
+      subjectId,
+      file: videoFile,
+      title: title.trim(),
+      description: description.trim(),
+    });
 
-      if (uploadError) {
-        toast.error('فشل رفع الفيديو');
-        return;
-      }
+    // Close modal immediately — upload continues in background
+    setUploadModalOpen(false);
+    resetUploadForm();
 
-      setUploadProgress(70);
-
-      const { data: urlData } = supabase.storage.from('user-files').getPublicUrl(filePath);
-      const videoUrl = urlData.publicUrl;
-
-      // Save record to subject_videos
-      const { error: insertError } = await supabase.from('subject_videos').insert({
-        subject_id: subjectId,
-        uploaded_by: userId,
-        title: title.trim(),
-        description: description.trim() || null,
-        video_url: videoUrl,
-        video_type: videoFile.type,
-        video_size: videoFile.size,
-        comments_enabled: true,
-      });
-
-      if (insertError) {
-        toast.error('فشل حفظ بيانات الفيديو');
-        return;
-      }
-
-      setUploadProgress(100);
-      toast.success('تم رفع الفيديو بنجاح');
-      setUploadModalOpen(false);
-      resetUploadForm();
-      fetchVideos();
-    } catch {
-      toast.error('حدث خطأ أثناء رفع الفيديو');
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
-    }
+    // Start the actual upload (non-blocking)
+    startUpload(taskId);
   };
 
   // -------------------------------------------------------
@@ -454,7 +423,6 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
     setVideoFile(null);
     setTitle('');
     setDescription('');
-    setUploadProgress(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -998,10 +966,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
             onClick={() => {
-              if (!uploading) {
-                setUploadModalOpen(false);
-                resetUploadForm();
-              }
+              setUploadModalOpen(false);
+              resetUploadForm();
             }}
           >
             <motion.div
@@ -1021,10 +987,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 </h3>
                 <button
                   onClick={() => {
-                    if (!uploading) {
-                      setUploadModalOpen(false);
-                      resetUploadForm();
-                    }
+                    setUploadModalOpen(false);
+                    resetUploadForm();
                   }}
                   className="flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors p-1"
                 >
@@ -1045,7 +1009,6 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="أدخل عنوان الفيديو"
                     className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                    disabled={uploading}
                   />
                 </div>
 
@@ -1058,7 +1021,6 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                     placeholder="أدخل وصف الفيديو (اختياري)"
                     rows={3}
                     className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40 resize-none"
-                    disabled={uploading}
                   />
                 </div>
 
@@ -1074,7 +1036,6 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                       accept="video/*"
                       onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
                       className="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-3 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-sky-700 file:text-white file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-sky-800 file:cursor-pointer file:transition-colors"
-                      disabled={uploading}
                     />
                   </div>
                   {videoFile && (
@@ -1088,39 +1049,22 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                   )}
                 </div>
 
-                {/* Upload progress */}
-                {uploading && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">جاري الرفع...</span>
-                      <span className="font-medium text-sky-700 dark:text-sky-300">{uploadProgress}%</span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-sky-700 dark:bg-sky-500 transition-all duration-300"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
+                {/* Info note about background upload */}
+                {videoFile && (
+                  <div className="flex items-start gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-2.5">
+                    <Upload className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-sky-700 dark:text-sky-300">سيستمر الرفع في الخلفية ويمكنك التنقل في التطبيق أثناء ذلك</p>
                   </div>
                 )}
 
                 {/* Submit */}
                 <Button
                   onClick={handleUpload}
-                  disabled={!videoFile || !title.trim() || uploading}
+                  disabled={!videoFile || !title.trim()}
                   className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 text-white"
                 >
-                  {uploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      جاري الرفع...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4" />
-                      رفع الفيديو
-                    </>
-                  )}
+                  <Upload className="h-4 w-4" />
+                  رفع الفيديو
                 </Button>
               </div>
             </motion.div>
@@ -1310,6 +1254,103 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ─── Background Upload Progress Panel ─── */}
+      {uploadTasks.filter((t) => t.subjectId === subjectId && t.status !== 'cancelled').length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          className="rounded-xl border bg-card shadow-lg overflow-hidden"
+          dir="rtl"
+        >
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Upload className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <span className="text-sm font-medium text-foreground">
+                رفع في الخلفية
+                {hasActiveUploads && (
+                  <span className="mr-1.5 inline-flex items-center">
+                    <Loader2 className="h-3 w-3 animate-spin text-sky-600" />
+                  </span>
+                )}
+              </span>
+            </div>
+            {uploadTasks.some((t) => t.subjectId === subjectId && (t.status === 'done' || t.status === 'error')) && (
+              <button
+                onClick={clearCompleted}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                مسح المكتمل
+              </button>
+            )}
+          </div>
+          <div className="divide-y max-h-48 overflow-y-auto custom-scrollbar">
+            {uploadTasks
+              .filter((t) => t.subjectId === subjectId && t.status !== 'cancelled')
+              .map((task) => (
+                <div key={task.id} className="px-4 py-2.5 flex items-center gap-3">
+                  {/* Status icon */}
+                  {task.status === 'uploading' || task.status === 'saving' ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-sky-600 shrink-0" />
+                  ) : task.status === 'done' ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                  )}
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-medium text-foreground truncate">{task.title}</p>
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                        {task.status === 'uploading' ? `${task.progress}%` :
+                         task.status === 'saving' ? 'حفظ...' :
+                         task.status === 'done' ? 'تم' :
+                         task.status === 'error' ? 'فشل' : ''}
+                      </span>
+                    </div>
+                    {(task.status === 'uploading' || task.status === 'saving') && (
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            task.status === 'saving'
+                              ? 'bg-amber-500 dark:bg-amber-400'
+                              : 'bg-sky-700 dark:bg-sky-500'
+                          }`}
+                          style={{ width: `${task.progress}%` }}
+                        />
+                      </div>
+                    )}
+                    {task.status === 'error' && task.error && (
+                      <p className="text-[11px] text-rose-500 mt-0.5 truncate">{task.error}</p>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  {(task.status === 'uploading' || task.status === 'saving') && (
+                    <button
+                      onClick={() => cancelTask(task.id)}
+                      className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                      title="إلغاء الرفع"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {task.status === 'error' && (
+                    <button
+                      onClick={() => removeTask(task.id)}
+                      className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      title="إزالة"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+          </div>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

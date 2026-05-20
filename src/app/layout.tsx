@@ -7,6 +7,7 @@ import InstitutionHead from "@/components/shared/institution-head";
 import ServiceWorkerRegistration from "@/components/shared/sw-registration";
 import InstallPrompt from "@/components/shared/install-prompt";
 import SocketErrorBoundary from "@/components/shared/socket-error-boundary";
+import VideoUploadIndicator from "@/components/shared/video-upload-indicator";
 
 import { SocketProvider } from "@/lib/socket";
 
@@ -143,6 +144,7 @@ export default function RootLayout({
         <Toaster />
         <ServiceWorkerRegistration />
         <InstallPrompt />
+        <VideoUploadIndicator />
       </body>
     </html>
   );
