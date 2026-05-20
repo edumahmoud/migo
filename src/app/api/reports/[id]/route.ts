@@ -341,6 +341,30 @@ export async function PATCH(
         );
       }
 
+      // Build detailed warning message
+      const reasonLabel: Record<string, string> = {
+        inappropriate: 'محتوى غير مناسب',
+        harassment: 'تحرش أو تنمر',
+        spam: 'رسائل مزعجة',
+        misinformation: 'معلومات مضللة',
+        cheating: 'غش أكاديمي',
+        other: 'سبب آخر',
+      };
+      const targetTypeLabel: Record<string, string> = {
+        comment: 'تعليق',
+        message: 'رسالة',
+        user: 'مستخدم',
+        other: 'أخرى',
+      };
+      const warnReason = reasonLabel[report.reason] || report.reason;
+      const warnTargetType = targetTypeLabel[report.target_type] || report.target_type;
+      const warnDate = new Date(report.created_at).toLocaleDateString('ar-SA', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+      const warnMessage = `تم تحذيرك بخصوص: ${warnReason} — ${warnTargetType} — تاريخ البلاغ: ${warnDate}`;
+
       // Send warning notification to the reported user
       await supabaseServer
         .from('notifications')
@@ -348,7 +372,7 @@ export async function PATCH(
           user_id: warnUserId,
           type: 'report',
           title: 'تحذير',
-          message: content || 'تم تحذيرك بخصوص محتوى مخالف. يرجى الالتزام بسياسات المنصة.',
+          message: content || warnMessage,
           link: `/reports/${id}`,
           read: false,
         });

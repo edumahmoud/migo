@@ -25,6 +25,9 @@ import {
   Users,
   Eye,
   FileText,
+  Inbox,
+  Calendar,
+  Clock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -108,7 +111,7 @@ interface ReportsSectionProps {
 // Main Component
 // -------------------------------------------------------
 export default function ReportsSection({ profile, role }: ReportsSectionProps) {
-  const { setReportsUnreadCount } = useAppStore();
+  const { setReportsUnreadCount, openProfile } = useAppStore();
 
   // State
   const [reports, setReports] = useState<Report[]>([]);
@@ -117,7 +120,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [responses, setResponses] = useState<ReportResponse[]>([]);
   const [messages, setMessages] = useState<ReportMessage[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<ReportStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<ReportStatus | 'all' | 'forwarded'>('all');
   const [viewMode, setViewMode] = useState<'assigned' | 'submitted' | 'all'>(role === 'admin' || role === 'superadmin' ? 'all' : 'submitted');
   const [replyText, setReplyText] = useState('');
   const [forwardToId, setForwardToId] = useState('');
@@ -130,6 +133,13 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [messageToReported, setMessageToReported] = useState('');
   const [showMessageReporter, setShowMessageReporter] = useState(false);
   const [showMessageReported, setShowMessageReported] = useState(false);
+  const [activeTab, setActiveTab] = useState<'reports' | 'inbox'>('reports');
+  const [inboxMessages, setInboxMessages] = useState<any[]>([]);
+  const [loadingInbox, setLoadingInbox] = useState(false);
+  const [banModalOpen, setBanModalOpen] = useState(false);
+  const [banDuration, setBanDuration] = useState<'permanent' | '1day' | '1week' | '1month' | 'custom'>('permanent');
+  const [banCustomDate, setBanCustomDate] = useState('');
+  const [banReason, setBanReason] = useState('');
 
   // -------------------------------------------------------
   // Fetch reports
@@ -141,7 +151,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       if (!session) return;
 
       const params = new URLSearchParams();
-      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (statusFilter === 'forwarded') {
+        params.set('status', 'in_progress');
+      } else if (statusFilter !== 'all') {
+        params.set('status', statusFilter);
+      }
       if (role === 'admin' || role === 'superadmin') params.set('view', viewMode);
 
       const res = await fetch(`/api/reports?${params.toString()}`, {
@@ -267,12 +281,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'report_responses' }, () => {
         if (selectedReport) {
-          fetchReportDetail(selectedReport.id);
+          fetchReportDetail(selectedReport.id, false);
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'report_messages' }, () => {
         if (selectedReport) {
-          fetchReportDetail(selectedReport.id);
+          fetchReportDetail(selectedReport.id, false);
         }
       })
       .subscribe();
@@ -285,8 +299,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   // -------------------------------------------------------
   // Fetch report detail
   // -------------------------------------------------------
-  const fetchReportDetail = async (reportId: string) => {
-    setLoadingDetail(true);
+  const fetchReportDetail = async (reportId: string, showLoading = true) => {
+    if (showLoading) setLoadingDetail(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -303,9 +317,43 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     } catch {
       toast.error('فشل تحميل تفاصيل الإبلاغ');
     } finally {
-      setLoadingDetail(false);
+      if (showLoading) setLoadingDetail(false);
     }
   };
+
+  // -------------------------------------------------------
+  // Fetch inbox messages (messages where current user is recipient)
+  // -------------------------------------------------------
+  const fetchInboxMessages = useCallback(async () => {
+    setLoadingInbox(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data, error } = await supabase
+        .from('report_messages')
+        .select(`
+          *,
+          sender:users!report_messages_sender_id_fkey(id, name, email, avatar_url, role, gender, title_id)
+        `)
+        .eq('recipient_id', profile.id)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setInboxMessages(data);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setLoadingInbox(false);
+    }
+  }, [profile.id]);
+
+  useEffect(() => {
+    if (activeTab === 'inbox') {
+      fetchInboxMessages();
+    }
+  }, [activeTab, fetchInboxMessages]);
 
   // -------------------------------------------------------
   // Clear completed reports (resolved/dismissed)
@@ -431,9 +479,14 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         setMessageToReported('');
         setShowMessageReporter(false);
         setShowMessageReported(false);
-        fetchReportDetail(selectedReport.id);
-        fetchReports();
-        fetchReportsCount();
+        // For message actions, update detail silently without spinner
+        const isMessageAction = action === 'message_reporter' || action === 'message_reported';
+        fetchReportDetail(selectedReport.id, !isMessageAction);
+        // Only refresh list/count for non-message actions (messages don't change list or count)
+        if (!isMessageAction) {
+          fetchReports();
+          fetchReportsCount();
+        }
       } else {
         toast.error(result.error || 'فشل تنفيذ الإجراء');
       }
@@ -502,6 +555,18 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       default: return 'text-muted-foreground';
     }
   };
+
+  // -------------------------------------------------------
+  // UserLink helper — clickable user name that opens profile
+  // -------------------------------------------------------
+  const UserLink = ({ userId, name }: { userId: string; name: string }) => (
+    <button
+      onClick={(e) => { e.stopPropagation(); openProfile(userId); }}
+      className="text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline"
+    >
+      {name}
+    </button>
+  );
 
   // -------------------------------------------------------
   // Render: Report list
@@ -588,6 +653,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             { id: 'all' as const, label: 'الكل' },
             { id: 'pending' as const, label: 'قيد الانتظار' },
             { id: 'in_progress' as const, label: 'جاري المعالجة' },
+            { id: 'forwarded' as const, label: 'محوّلة' },
             { id: 'resolved' as const, label: 'تم الحل' },
             { id: 'dismissed' as const, label: 'مرفوض' },
           ].map((s) => (
@@ -634,7 +700,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   <div className="flex items-center gap-2 mb-1.5">
                     <StatusBadge status={report.status} />
                     <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type)}</span>
-                    {(report as any).reporter_count > 1 && (
+                    {(report as any).reporter_count > 1 && role !== 'student' && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
                         <Users className="h-3 w-3" />
                         {(report as any).reporter_count} مُبلِغ
@@ -646,9 +712,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{report.description}</p>
                   )}
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                    <span>من: {report.reporter?.name || 'غير معروف'}</span>
+                    <span>من: {report.reporter ? <UserLink userId={report.reporter.id} name={report.reporter.name || 'غير معروف'} /> : 'غير معروف'}</span>
                     {(report as any).target_user && (
-                      <span>المُبلَّغ عنه: {(report as any).target_user.name}</span>
+                      <span>المُبلَّغ عنه: <UserLink userId={(report as any).target_user.id} name={(report as any).target_user.name} /></span>
                     )}
                     {report.assigned_user && (
                       <span>إلى: {report.assigned_user.name}</span>
@@ -685,7 +751,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <UserAvatar name={tu.name} avatarUrl={tu.avatar_url} size="md" />
           <div>
             <p className="text-sm font-semibold text-foreground">
-              {formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender)}
+              <UserLink userId={tu.id} name={formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender)} />
             </p>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
               <Mail className="h-3 w-3" />
@@ -693,29 +759,41 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-lg bg-background/80 p-2 text-center">
-            <div className="flex items-center justify-center gap-1 text-rose-600 dark:text-rose-400">
-              <BarChart3 className="h-3.5 w-3.5" />
-              <span className="text-lg font-bold">{tu.report_count ?? 0}</span>
+        {role !== 'student' ? (
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-lg bg-background/80 p-2 text-center">
+              <div className="flex items-center justify-center gap-1 text-rose-600 dark:text-rose-400">
+                <BarChart3 className="h-3.5 w-3.5" />
+                <span className="text-lg font-bold">{tu.report_count ?? 0}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">إجمالي البلاغات</p>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">إجمالي البلاغات</p>
-          </div>
-          <div className="rounded-lg bg-background/80 p-2 text-center">
-            <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-400">
-              <Users className="h-3.5 w-3.5" />
-              <span className="text-lg font-bold">{reporterCount}</span>
+            <div className="rounded-lg bg-background/80 p-2 text-center">
+              <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-400">
+                <Users className="h-3.5 w-3.5" />
+                <span className="text-lg font-bold">{reporterCount}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">عدد المُبلِغين</p>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">عدد المُبلِغين</p>
-          </div>
-          <div className="rounded-lg bg-background/80 p-2 text-center">
-            <div className="flex items-center justify-center gap-1 text-muted-foreground">
-              <User className="h-3.5 w-3.5" />
-              <span className="text-sm font-medium">{tu.role === 'student' ? 'طالب' : tu.role === 'teacher' ? 'معلم' : tu.role === 'admin' ? 'مشرف' : 'مدير'}</span>
+            <div className="rounded-lg bg-background/80 p-2 text-center">
+              <div className="flex items-center justify-center gap-1 text-muted-foreground">
+                <User className="h-3.5 w-3.5" />
+                <span className="text-sm font-medium">{tu.role === 'student' ? 'طالب' : tu.role === 'teacher' ? 'معلم' : tu.role === 'admin' ? 'مشرف' : 'مدير'}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">الدور</p>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">الدور</p>
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-2">
+            <div className="rounded-lg bg-background/80 p-2 text-center">
+              <div className="flex items-center justify-center gap-1 text-muted-foreground">
+                <User className="h-3.5 w-3.5" />
+                <span className="text-sm font-medium">{tu.role === 'student' ? 'طالب' : tu.role === 'teacher' ? 'معلم' : tu.role === 'admin' ? 'مشرف' : 'مدير'}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">الدور</p>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -763,7 +841,16 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    if (allActions.length === 0) return null;
+    // Filter actions for students: only show forward, block, warn, and messages
+    const filteredActions = role === 'student'
+      ? allActions.filter(item => {
+          if (item.type === 'message') return true;
+          const resp = item.data as ReportResponse;
+          return ['forward', 'block', 'warn'].includes(resp.action);
+        })
+      : allActions;
+
+    if (filteredActions.length === 0) return null;
 
     return (
       <div className="rounded-xl border border-border bg-card p-4">
@@ -774,7 +861,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <div className="flex items-center gap-2">
             <Eye className="h-4 w-4 text-muted-foreground" />
             <h4 className="text-sm font-semibold text-foreground">الإجراءات والخطوات المتخذة</h4>
-            <span className="text-xs text-muted-foreground">({allActions.length})</span>
+            <span className="text-xs text-muted-foreground">({filteredActions.length})</span>
           </div>
           {showActionsLog ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -793,9 +880,16 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               className="overflow-hidden"
             >
               <div className="space-y-3 mt-4">
-                {allActions.map((item, idx) => {
+                {filteredActions.map((item, idx) => {
                   if (item.type === 'response') {
                     const resp = item.data as ReportResponse;
+                    // Student-facing labels for specific actions
+                    const studentActionLabel = role === 'student'
+                      ? (resp.action === 'forward' ? 'تم التحويل للمشرف/المدير'
+                        : resp.action === 'block' ? 'تم حظر المستخدم'
+                        : resp.action === 'warn' ? 'تم تحذير المستخدم'
+                        : getActionLabel(resp.action))
+                      : getActionLabel(resp.action);
                     return (
                       <div
                         key={resp.id}
@@ -805,11 +899,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <div className="flex items-center gap-2">
                             {resp.responder && <UserAvatar name={resp.responder.name} avatarUrl={resp.responder.avatar_url} size="sm" />}
                             <span className="text-sm font-medium">
-                              {resp.responder ? formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender) : 'مستخدم'}
+                              {resp.responder ? <UserLink userId={resp.responder.id} name={formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender)} /> : 'مستخدم'}
                             </span>
                             <span className={`inline-flex items-center gap-1 text-xs font-medium ${getActionColor(resp.action)}`}>
                               {getActionIcon(resp.action)}
-                              {getActionLabel(resp.action)}
+                              {studentActionLabel}
                             </span>
                           </div>
                           <span className="text-xs text-muted-foreground">{formatDate(resp.created_at)}</span>
@@ -836,7 +930,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <div className="flex items-center gap-2">
                             {msg.sender && <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />}
                             <span className="text-sm font-medium">
-                              {msg.sender ? formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender) : 'مستخدم'}
+                              {msg.sender ? <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender)} /> : 'مستخدم'}
                             </span>
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400">
                               <Mail className="h-3.5 w-3.5" />
@@ -886,59 +980,56 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           العودة للقائمة
         </button>
 
-        {/* Report header */}
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <StatusBadge status={selectedReport.status} />
-                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                  {getTargetTypeLabel(selectedReport.target_type)}
-                </span>
-                {(selectedReport as any).reporter_count > 1 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
-                    <Users className="h-3 w-3" />
-                    {(selectedReport as any).reporter_count} مُبلِغ
-                  </span>
+        {/* Report header — compact design */}
+        <div className="rounded-xl border border-border bg-card p-3">
+          {/* Row 1: Status + Type + Reason + Reporter count */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <StatusBadge status={selectedReport.status} />
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+              {getTargetTypeLabel(selectedReport.target_type)}
+            </span>
+            <span className="text-sm font-bold text-foreground">{getReasonLabel(selectedReport.reason)}</span>
+            {role !== 'student' && (selectedReport as any).reporter_count > 1 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
+                <Users className="h-3 w-3" />
+                {(selectedReport as any).reporter_count} مُبلِغ
+              </span>
+            )}
+          </div>
+          {/* Row 2: Reporter email + Assigned + Date - all inline */}
+          <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+            {selectedReport.reporter ? (
+              <div className="flex items-center gap-1.5">
+                <UserAvatar name={selectedReport.reporter.name} avatarUrl={selectedReport.reporter.avatar_url} size="sm" />
+                <UserLink userId={selectedReport.reporter.id} name={formatNameWithTitle(selectedReport.reporter.name, selectedReport.reporter.role, selectedReport.reporter.title_id, selectedReport.reporter.gender)} />
+                {selectedReport.reporter?.email && (
+                  <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <Mail className="h-2.5 w-2.5" />
+                    <span>{selectedReport.reporter.email}</span>
+                  </div>
                 )}
               </div>
-              <h3 className="text-lg font-bold text-foreground">{getReasonLabel(selectedReport.reason)}</h3>
-            </div>
+            ) : (
+              <span>المُبلِغ: غير معروف</span>
+            )}
+            <span className="text-border">|</span>
+            {selectedReport.assigned_user ? (
+              <div className="flex items-center gap-1.5">
+                <UserAvatar name={selectedReport.assigned_user.name} avatarUrl={selectedReport.assigned_user.avatar_url} size="sm" />
+                <UserLink userId={selectedReport.assigned_user.id} name={formatNameWithTitle(selectedReport.assigned_user.name, selectedReport.assigned_user.role, selectedReport.assigned_user.title_id, selectedReport.assigned_user.gender)} />
+              </div>
+            ) : (
+              <span>غير معين</span>
+            )}
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {formatDate(selectedReport.created_at)}
+            </span>
           </div>
-
           {selectedReport.description && (
-            <p className="text-sm text-muted-foreground mb-4 whitespace-pre-wrap">{selectedReport.description}</p>
+            <p className="text-xs text-muted-foreground mt-2 line-clamp-2 whitespace-pre-wrap">{selectedReport.description}</p>
           )}
-
-          {/* Reporter & Assigned info */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">المُبلِغ:</span>
-              {selectedReport.reporter ? (
-                <div className="flex items-center gap-2">
-                  <UserAvatar name={selectedReport.reporter.name} avatarUrl={selectedReport.reporter.avatar_url} size="sm" />
-                  <span className="text-sm font-medium">{formatNameWithTitle(selectedReport.reporter.name, selectedReport.reporter.role, selectedReport.reporter.title_id, selectedReport.reporter.gender)}</span>
-                </div>
-              ) : (
-                <span className="text-sm">غير معروف</span>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">المعين:</span>
-              {selectedReport.assigned_user ? (
-                <div className="flex items-center gap-2">
-                  <UserAvatar name={selectedReport.assigned_user.name} avatarUrl={selectedReport.assigned_user.avatar_url} size="sm" />
-                  <span className="text-sm font-medium">{formatNameWithTitle(selectedReport.assigned_user.name, selectedReport.assigned_user.role, selectedReport.assigned_user.title_id, selectedReport.assigned_user.gender)}</span>
-                </div>
-              ) : (
-                <span className="text-sm text-muted-foreground">غير معين</span>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-3 text-xs text-muted-foreground">
-            تاريخ الإبلاغ: {formatDate(selectedReport.created_at)}
-          </div>
         </div>
 
         {/* Target User Info */}
@@ -1002,10 +1093,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   </button>
                 )}
 
-                {/* Block button — visible for admin, superadmin only */}
+                {/* Block button — visible for admin, superadmin only — opens ban modal */}
                 {isAdmin && (
                   <button
-                    onClick={() => handleAction('block')}
+                    onClick={() => setBanModalOpen(true)}
                     disabled={submitting}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-700 text-white text-sm font-medium hover:bg-red-800 disabled:opacity-50 transition-colors"
                   >
@@ -1166,10 +1257,212 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   };
 
   // -------------------------------------------------------
+  // Handle ban confirm
+  // -------------------------------------------------------
+  const handleBanConfirm = async () => {
+    if (!selectedReport) return;
+    const targetUser = (selectedReport as any).target_user;
+    if (!targetUser) {
+      toast.error('لم يتم العثور على المستخدم المُبلَّغ عنه');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      // Calculate ban_until date
+      let banUntil: string | null = null;
+      if (banDuration === '1day') {
+        banUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      } else if (banDuration === '1week') {
+        banUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      } else if (banDuration === '1month') {
+        banUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      } else if (banDuration === 'custom' && banCustomDate) {
+        banUntil = new Date(banCustomDate).toISOString();
+      }
+      // permanent = null banUntil
+
+      // Call ban-user API
+      const banRes = await fetch('/api/admin/ban-user', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: targetUser.id,
+          reason: banReason || 'حظر بسبب إبلاغ',
+          banUntil,
+          bannedBy: profile.id,
+        }),
+      });
+      const banResult = await banRes.json();
+
+      if (banResult.success) {
+        // Also record the block action in the report
+        await handleAction('block');
+        setBanModalOpen(false);
+        setBanDuration('permanent');
+        setBanCustomDate('');
+        setBanReason('');
+      } else {
+        toast.error(banResult.error || 'فشل حظر المستخدم');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع أثناء الحظر');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Render: Inbox tab
+  // -------------------------------------------------------
+  const renderInbox = () => (
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
+      <motion.div variants={itemVariants}>
+        <h2 className="text-2xl font-bold text-foreground">الرسائل الواردة</h2>
+        <p className="text-muted-foreground mt-1">الرسائل المتعلقة بالبلاغات المرسلة إليك</p>
+      </motion.div>
+
+      {loadingInbox ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+        </div>
+      ) : inboxMessages.length === 0 ? (
+        <motion.div variants={itemVariants} className="text-center py-16">
+          <Inbox className="h-16 w-16 mx-auto text-muted-foreground/30" />
+          <p className="mt-4 text-muted-foreground">لا توجد رسائل واردة</p>
+        </motion.div>
+      ) : (
+        <div className="space-y-3">
+          {inboxMessages.map((msg: any) => (
+            <motion.div
+              key={msg.id}
+              variants={itemVariants}
+              className="rounded-xl border border-border bg-card p-4"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                {msg.sender && <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      {msg.sender ? (
+                        <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender)} />
+                      ) : 'مستخدم'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {msg.recipient_type === 'reporter' ? '• بخصوص بلاغك' : '• بخصوص بلاغ ضدك'}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{formatDate(msg.created_at)}</span>
+                </div>
+              </div>
+              <p className="text-sm text-foreground whitespace-pre-wrap mt-1">{msg.content}</p>
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+
+  // -------------------------------------------------------
+  // Render: Ban Modal
+  // -------------------------------------------------------
+  const renderBanModal = () => {
+    if (!banModalOpen) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setBanModalOpen(false)}>
+        <div className="bg-card rounded-2xl border border-border p-6 w-full max-w-md mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-3 mb-4">
+            <Ban className="h-6 w-6 text-red-600" />
+            <h3 className="text-lg font-bold text-foreground">حظر المستخدم</h3>
+          </div>
+
+          {/* Duration selector */}
+          <div className="space-y-3 mb-4">
+            <label className="text-sm font-medium text-foreground">مدة الحظر</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'permanent' as const, label: 'دائم' },
+                { id: '1day' as const, label: 'يوم واحد' },
+                { id: '1week' as const, label: 'أسبوع' },
+                { id: '1month' as const, label: 'شهر' },
+              ].map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setBanDuration(d.id)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    banDuration === d.id
+                      ? 'border-red-300 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                      : 'border-border text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            {banDuration === 'custom' && (
+              <input
+                type="datetime-local"
+                value={banCustomDate}
+                onChange={(e) => setBanCustomDate(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            )}
+            <button
+              onClick={() => setBanDuration('custom')}
+              className={`text-xs font-medium hover:underline ${banDuration === 'custom' ? 'text-red-600' : 'text-muted-foreground'}`}
+            >
+              تاريخ مخصص
+            </button>
+          </div>
+
+          {/* Reason */}
+          <div className="space-y-2 mb-6">
+            <label className="text-sm font-medium text-foreground">سبب الحظر</label>
+            <textarea
+              value={banReason}
+              onChange={(e) => setBanReason(e.target.value)}
+              placeholder="أدخل سبب الحظر (اختياري)..."
+              rows={2}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 justify-end">
+            <button
+              onClick={() => { setBanModalOpen(false); setBanDuration('permanent'); setBanCustomDate(''); setBanReason(''); }}
+              className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
+            >
+              إلغاء
+            </button>
+            <button
+              onClick={handleBanConfirm}
+              disabled={submitting}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-700 text-white text-sm font-medium hover:bg-red-800 disabled:opacity-50 transition-colors"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+              تأكيد الحظر
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // -------------------------------------------------------
   // Main render
   // -------------------------------------------------------
   return (
     <div className="min-h-[50vh]">
+      {/* Ban Modal */}
+      {renderBanModal()}
+
       <AnimatePresence mode="wait">
         {selectedReport ? (
           <motion.div key="detail" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -1183,7 +1476,33 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           </motion.div>
         ) : (
           <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            {renderReportList()}
+            {/* Tab bar */}
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1 mb-4">
+              <button
+                onClick={() => setActiveTab('reports')}
+                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'reports'
+                    ? 'bg-sky-700 text-white'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <ShieldAlert className="h-4 w-4 inline-block ml-1.5" />
+                الإبلاغات
+              </button>
+              <button
+                onClick={() => setActiveTab('inbox')}
+                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'inbox'
+                    ? 'bg-sky-700 text-white'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Inbox className="h-4 w-4 inline-block ml-1.5" />
+                الرسائل الواردة
+              </button>
+            </div>
+
+            {activeTab === 'reports' ? renderReportList() : renderInbox()}
           </motion.div>
         )}
       </AnimatePresence>

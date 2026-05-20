@@ -1760,6 +1760,13 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   </div>
                 </div>
               )}
+
+              {/* Hover report button for other users' messages */}
+              {!isOwn && !isDeleted && (
+                <div className="absolute -top-1 start-full opacity-0 group-hover:opacity-100 transition-opacity ms-1">
+                  <ReportButton targetType="message" targetId={msg.id} compact />
+                </div>
+              )}
             </div>
           )}
 
@@ -1772,10 +1779,6 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               <span className="text-[10px] text-sky-600/60 font-medium">
                 {msg.edited_at ? `(معدّلة ${relativeTime(msg.edited_at)})` : '(معدّلة)'}
               </span>
-            )}
-            {/* Report button for other users' messages */}
-            {!isOwn && !isDeleted && (
-              <ReportButton targetType="message" targetId={msg.id} compact />
             )}
           </div>
         </div>
