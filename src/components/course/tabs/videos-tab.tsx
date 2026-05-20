@@ -8,7 +8,6 @@ import {
   X,
   Loader2,
   Trash2,
-  ArrowRight,
   Upload,
   MessageSquare,
   MessageSquareOff,
@@ -19,9 +18,7 @@ import {
   HardDrive,
   Calendar,
   ChevronLeft,
-  Pause,
   CheckCircle2,
-  AlertCircle,
   Eye,
   Image as ImageIcon,
 } from 'lucide-react';
@@ -169,9 +166,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   const [savingComment, setSavingComment] = useState(false);
 
   // ─── Global upload store ───
-  const { tasks: uploadTasks, addTask, startUpload, cancelTask, pauseTask, resumeTask, pauseAll, cancelAll, removeTask, clearCompleted } = useVideoUploadStore();
-  const activeUploads = uploadTasks.filter((t) => t.subjectId === subjectId && (t.status === 'uploading' || t.status === 'saving' || t.status === 'paused'));
-  const hasActiveUploads = activeUploads.length > 0;
+  const { tasks: uploadTasks, addTask, startUpload } = useVideoUploadStore();
 
   // ─── Edit state ───
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -252,7 +247,11 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           };
         });
 
-        setVideos(videosWithUploaders);
+        // Preserve optimistic entries (uploads still in progress) while replacing DB entries
+        setVideos((prev) => {
+          const optimisticEntries = prev.filter((v) => v.id.startsWith('optimistic-'));
+          return [...optimisticEntries, ...videosWithUploaders];
+        });
 
         // Update selectedVideo if it's in the list
         const currentSelected = selectedVideoRef.current;
@@ -263,7 +262,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           }
         }
       } else {
-        setVideos([]);
+        // Preserve optimistic entries even when DB is empty
+        setVideos((prev) => prev.filter((v) => v.id.startsWith('optimistic-')));
       }
     } catch (err) {
       console.error('Fetch videos error:', err);
@@ -288,31 +288,106 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   }, [selectedVideo, playbackSpeed]);
 
   // -------------------------------------------------------
-  // Real-time subscription for videos
+  // Real-time subscription for videos — surgical updates
   // -------------------------------------------------------
   useEffect(() => {
+    const fetchSingleVideo = async (videoId: string): Promise<SubjectVideoWithUploader | null> => {
+      try {
+        const { data, error } = await supabase
+          .from('subject_videos')
+          .select('*')
+          .eq('id', videoId)
+          .single();
+        if (error || !data) return null;
+
+        const video = data as SubjectVideo;
+        const { data: uploader } = await supabase
+          .from('users')
+          .select('id, name, title_id, gender, role')
+          .eq('id', video.uploaded_by)
+          .single();
+
+        const { count } = await supabase
+          .from('video_comments')
+          .select('*', { count: 'exact', head: true })
+          .eq('video_id', video.id);
+
+        return {
+          ...video,
+          uploader_name: uploader
+            ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender)
+            : 'مستخدم',
+          comment_count: count || 0,
+        };
+      } catch {
+        return null;
+      }
+    };
+
     const channel = supabase
       .channel(`subject-videos-${subjectId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'subject_videos', filter: `subject_id=eq.${subjectId}` },
-        () => fetchVideos(false)
+        async (payload) => {
+          const newVideo = payload.new as SubjectVideo;
+          // Skip if already exists (avoid duplicate from optimistic + realtime)
+          setVideos((prev) => {
+            if (prev.some((v) => v.id === newVideo.id)) return prev;
+            // Remove optimistic entry with matching title if present
+            const withoutOptimistic = prev.filter(
+              (v) => !(v.id.startsWith('optimistic-') && v.title === newVideo.title && v.video_size === newVideo.video_size)
+            );
+            // Add placeholder immediately, then enrich async
+            return [newVideo as unknown as SubjectVideoWithUploader, ...withoutOptimistic];
+          });
+          // Enrich with uploader name and comment count
+          const enriched = await fetchSingleVideo(newVideo.id);
+          if (enriched) {
+            setVideos((prev) => prev.map((v) => (v.id === newVideo.id ? enriched : v)));
+          }
+        }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'subject_videos', filter: `subject_id=eq.${subjectId}` },
-        () => fetchVideos(false)
+        (payload) => {
+          const deletedId = (payload.old as { id: string }).id;
+          setVideos((prev) => prev.filter((v) => v.id !== deletedId));
+          // Clear selectedVideo if it was deleted
+          if (selectedVideoRef.current?.id === deletedId) {
+            setSelectedVideo(null);
+            setComments([]);
+          }
+        }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'subject_videos', filter: `subject_id=eq.${subjectId}` },
-        () => fetchVideos(false)
+        async (payload) => {
+          const updatedVideo = payload.new as SubjectVideo;
+          // Enrich the updated video
+          const enriched = await fetchSingleVideo(updatedVideo.id);
+          if (enriched) {
+            setVideos((prev) => prev.map((v) => (v.id === updatedVideo.id ? enriched : v)));
+            // Update selectedVideo if it's the one that changed
+            if (selectedVideoRef.current?.id === updatedVideo.id) {
+              setSelectedVideo(enriched);
+            }
+          }
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[Realtime] subject-videos-${subjectId} subscribed`);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error(`[Realtime] subject-videos-${subjectId} error`);
+        }
+      });
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [subjectId, fetchVideos]);
+  }, [subjectId]);
 
   // -------------------------------------------------------
   // Fetch comments for a video
@@ -1183,7 +1258,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto"
             onClick={() => {
               setUploadModalOpen(false);
               resetUploadForm();
@@ -1195,11 +1270,11 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
+              className="w-full max-w-md max-h-[90vh] rounded-2xl border bg-background shadow-xl my-4 sm:my-0 flex flex-col"
               dir="rtl"
             >
               {/* Header */}
-              <div className="flex items-center justify-between border-b p-5">
+              <div className="flex items-center justify-between border-b p-5 shrink-0">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <Upload className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                   رفع فيديو
@@ -1215,8 +1290,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 </button>
               </div>
 
-              {/* Body */}
-              <div className="p-5 space-y-4">
+              {/* Body — scrollable */}
+              <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                 {/* Title */}
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">
@@ -1238,7 +1313,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="أدخل وصف الفيديو (اختياري)"
-                    rows={3}
+                    rows={2}
                     className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40 resize-none"
                   />
                 </div>
@@ -1328,8 +1403,10 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                     <p className="text-xs text-sky-700 dark:text-sky-300">سيستمر الرفع في الخلفية ويمكنك التنقل في التطبيق أثناء ذلك</p>
                   </div>
                 )}
+              </div>
 
-                {/* Submit */}
+              {/* Submit — sticky footer */}
+              <div className="border-t p-5 pt-4 shrink-0">
                 <Button
                   onClick={handleUpload}
                   disabled={!videoFiles.length || !title.trim()}
@@ -1527,147 +1604,6 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ─── Background Upload Progress Panel ─── */}
-      {uploadTasks.filter((t) => t.subjectId === subjectId && t.status !== 'cancelled').length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
-          className="rounded-xl border bg-card shadow-lg overflow-hidden"
-          dir="rtl"
-        >
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Upload className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <span className="text-sm font-medium text-foreground">
-                رفع في الخلفية
-                {hasActiveUploads && (
-                  <span className="mr-1.5 inline-flex items-center">
-                    <Loader2 className="h-3 w-3 animate-spin text-sky-600" />
-                  </span>
-                )}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {hasActiveUploads && (
-                <>
-                  <button
-                    onClick={pauseAll}
-                    className="text-[11px] text-amber-600 hover:text-amber-700 transition-colors flex items-center gap-1"
-                    title="إيقاف الكل مؤقتاً"
-                  >
-                    <Pause className="h-3 w-3" />
-                    إيقاف الكل
-                  </button>
-                  <button
-                    onClick={cancelAll}
-                    className="text-[11px] text-rose-600 hover:text-rose-700 transition-colors flex items-center gap-1"
-                    title="إلغاء الكل"
-                  >
-                    <X className="h-3 w-3" />
-                    إلغاء الكل
-                  </button>
-                </>
-              )}
-              {uploadTasks.some((t) => t.subjectId === subjectId && (t.status === 'done' || t.status === 'error')) && (
-                <button
-                  onClick={clearCompleted}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  مسح المكتمل
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="divide-y max-h-48 overflow-y-auto custom-scrollbar">
-            {uploadTasks
-              .filter((t) => t.subjectId === subjectId && t.status !== 'cancelled')
-              .map((task) => (
-                <div key={task.id} className="px-4 py-2.5 flex items-center gap-3">
-                  {/* Status icon */}
-                  {task.status === 'uploading' || task.status === 'saving' ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-sky-600 shrink-0" />
-                  ) : task.status === 'done' ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
-                  )}
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-medium text-foreground truncate">{task.title}</p>
-                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                        {task.status === 'uploading' ? `${task.progress}%` :
-                         task.status === 'paused' ? `متوقف ${task.progress}%` :
-                         task.status === 'saving' ? 'حفظ...' :
-                         task.status === 'done' ? 'تم' :
-                         task.status === 'error' ? 'فشل' : ''}
-                      </span>
-                    </div>
-                    {(task.status === 'uploading' || task.status === 'saving' || task.status === 'paused') && (
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={`h-full rounded-full transition-all duration-300 ${
-                            task.status === 'paused'
-                              ? 'bg-amber-500 dark:bg-amber-400'
-                              : task.status === 'saving'
-                              ? 'bg-amber-500 dark:bg-amber-400'
-                              : 'bg-sky-700 dark:bg-sky-500'
-                          }`}
-                          style={{ width: `${task.progress}%` }}
-                        />
-                      </div>
-                    )}
-                    {task.status === 'error' && task.error && (
-                      <p className="text-[11px] text-rose-500 mt-0.5 truncate">{task.error}</p>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {task.status === 'uploading' && (
-                      <button
-                        onClick={() => pauseTask(task.id)}
-                        className="rounded-md p-1 text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
-                        title="إيقاف مؤقت"
-                      >
-                        <Pause className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    {task.status === 'paused' && (
-                      <button
-                        onClick={() => resumeTask(task.id)}
-                        className="rounded-md p-1 text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
-                        title="استئناف"
-                      >
-                        <Play className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    {(task.status === 'uploading' || task.status === 'saving' || task.status === 'paused') && (
-                      <button
-                        onClick={() => cancelTask(task.id)}
-                        className="rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                        title="إلغاء الرفع"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    {task.status === 'error' && (
-                      <button
-                        onClick={() => removeTask(task.id)}
-                        className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                        title="إزالة"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-          </div>
-        </motion.div>
-      )}
     </motion.div>
   );
 }
