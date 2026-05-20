@@ -15,6 +15,7 @@ import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import NotificationBell from '@/components/shared/notification-bell';
 import UserAvatar from '@/components/shared/user-avatar';
 import ThemeToggle from '@/components/shared/theme-toggle';
+import { supabase } from '@/lib/supabase';
 
 // -------------------------------------------------------
 // Props
@@ -61,7 +62,7 @@ export default function AppHeader({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const { openProfile } = useAppStore();
+  const { openProfile, setReportsUnreadCount } = useAppStore();
   const { myStatus, init: initStatusStore } = useStatusStore();
 
   // Initialize status store with userId (critical for Supabase Presence)
@@ -70,6 +71,27 @@ export default function AppHeader({
       initStatusStore(userId);
     }
   }, [initStatusStore, userId]);
+
+  // Pre-fetch reports count for sidebar badge (avoids badge appearing late)
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || cancelled) return;
+        const res = await fetch('/api/reports/count', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const result = await res.json();
+        if (result.success && result.data && !cancelled) {
+          setReportsUnreadCount(result.data.count);
+        }
+      } catch { /* non-critical */ }
+    };
+    fetchCount();
+    return () => { cancelled = true; };
+  }, [userId, setReportsUnreadCount]);
 
   // Gender-aware role label
   const isFemale = userGender === 'female';

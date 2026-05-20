@@ -549,6 +549,16 @@ export interface Report {
     gender?: string | null;
     title_id?: string | null;
   } | null;
+  target_user?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: string;
+    gender?: string | null;
+    title_id?: string | null;
+    report_count?: number;
+  } | null;
   responses?: ReportResponse[];
 }
 

@@ -81,6 +81,39 @@ const seenNotificationIds = new Set<string>();
  */
 const contentHashTimestamps = new Map<string, number>();
 
+/**
+ * Set of notification IDs currently pending deletion from the DB.
+ * Used to prevent polling from re-adding notifications that were optimistically
+ * removed from the store but whose DB DELETE hasn't completed yet.
+ * Entries are automatically removed after 10 seconds (safety net).
+ */
+const pendingDeletionIds = new Map<string, number>(); // id → timestamp
+
+/** Mark a notification ID as pending deletion */
+function markPendingDeletion(id: string): void {
+  pendingDeletionIds.set(id, Date.now());
+}
+
+/** Check if a notification ID is pending deletion */
+function isPendingDeletion(id: string): boolean {
+  const ts = pendingDeletionIds.get(id);
+  if (!ts) return false;
+  // Auto-expire after 10 seconds
+  if (Date.now() - ts > 10000) {
+    pendingDeletionIds.delete(id);
+    return false;
+  }
+  return true;
+}
+
+/** Prune expired pending deletion entries */
+function prunePendingDeletions(): void {
+  const now = Date.now();
+  for (const [id, ts] of pendingDeletionIds) {
+    if (now - ts > 10000) pendingDeletionIds.delete(id);
+  }
+}
+
 /** Generate a content hash from title+message+type */
 function contentHash(title: string, message: string, type: string): string {
   return `${title}::${message}::${type}`;
@@ -165,8 +198,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       const dbNotifications = (data || []).map(dbToNotification);
 
-      // Prune expired content hashes periodically
+      // Prune expired content hashes and pending deletions periodically
       pruneContentHashes();
+      prunePendingDeletions();
 
       // Mark all DB notification IDs as seen (so Realtime duplicates are caught)
       for (const n of dbNotifications) {
@@ -174,9 +208,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         markContentHashSeen(contentHash(n.title, n.message, n.type));
       }
 
+      // Filter out notifications that are pending deletion
+      // (optimistically removed from store but DB DELETE not yet completed)
+      const filteredDbNotifications = dbNotifications.filter(
+        (n) => !isPendingDeletion(n.id)
+      );
+
       // Merge intelligently — DB data is the source of truth
       set((state) => {
-        const dbIdSet = new Set(dbNotifications.map((n) => n.id));
+        const dbIdSet = new Set(filteredDbNotifications.map((n) => n.id));
 
         // Keep local-only notifications that don't have a DB counterpart yet
         // (These were added optimistically before the DB insert propagated)
@@ -189,7 +229,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         const survivingLocal = localOnly.filter((n) => {
           const hash = contentHash(n.title, n.message, n.type);
           // Check if any DB notification has the same content hash
-          return !dbNotifications.some(
+          return !filteredDbNotifications.some(
             (dbN) => contentHash(dbN.title, dbN.message, dbN.type) === hash
           );
         });
@@ -198,7 +238,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         // (shouldn't happen normally, but defensive)
         const uniqueDbNotifications: Notification[] = [];
         const seenInBatch = new Set<string>();
-        for (const n of dbNotifications) {
+        for (const n of filteredDbNotifications) {
           if (!seenInBatch.has(n.id)) {
             seenInBatch.add(n.id);
             uniqueDbNotifications.push(n);
@@ -230,11 +270,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     try {
     // Early RLS recursion check — try a lightweight query first
     try {
-      const { error: probeError } = await supabase
+      const { error } = await supabase
         .from('notifications')
         .select('id')
         .limit(1);
-      if (isRLSRecursionError(probeError)) {
+      if (isRLSRecursionError(error)) {
         console.warn('Notification store: RLS recursion detected, skipping real-time setup');
         set({ initialized: true, initializing: false, currentUserId: userId });
         return;
@@ -635,6 +675,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     const state = get();
     const notif = state.notifications.find((n) => n.id === id);
 
+    // Mark as pending deletion to prevent polling from re-adding it
+    markPendingDeletion(id);
+
     // Remove from seen IDs
     seenNotificationIds.delete(id);
 
@@ -651,16 +694,26 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .delete()
         .eq('id', id)
         .then(({ error }) => {
+          // Always remove from pending deletion set after DB operation completes
+          pendingDeletionIds.delete(id);
           if (error) {
             if (isRLSRecursionError(error)) console.warn('Notification store: RLS recursion on clearNotification');
             else console.error('Failed to delete notification from DB:', error);
           }
         });
+    } else {
+      // Local-only notification, just remove from pending set
+      pendingDeletionIds.delete(id);
     }
   },
 
   clearAll: () => {
     const state = get();
+
+    // Mark all current notification IDs as pending deletion
+    for (const n of state.notifications) {
+      markPendingDeletion(n.id);
+    }
 
     // Clear global dedup structures
     resetDedupStructures();
@@ -675,11 +728,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .delete()
         .eq('user_id', state.currentUserId)
         .then(({ error }) => {
+          // Clear pending deletion set after DB operation completes
+          pendingDeletionIds.clear();
           if (error) {
             if (isRLSRecursionError(error)) console.warn('Notification store: RLS recursion on clearAll');
             else console.error('Failed to clear all notifications from DB:', error);
           }
         });
+    } else {
+      pendingDeletionIds.clear();
     }
   },
 
@@ -705,6 +762,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     if (fullReset) {
       // Reset global dedup structures
       resetDedupStructures();
+      pendingDeletionIds.clear();
 
       set({
         notifications: [],

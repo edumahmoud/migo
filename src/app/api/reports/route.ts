@@ -94,23 +94,18 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', status);
     }
 
-    // Role-based filtering
+    // Role-based filtering — Admin sees ALL reports by default (not just assigned)
     if (role === 'admin' || role === 'superadmin') {
-      // Admins/superadmins can see reports assigned to them or all reports
-      const viewMode = url.searchParams.get('view') || 'assigned';
-      if (viewMode === 'all') {
-        // No additional filter — see everything
-      } else if (viewMode === 'submitted') {
+      const viewMode = url.searchParams.get('view') || 'all';
+      if (viewMode === 'submitted') {
         query = query.eq('reporter_id', userId);
-      } else {
-        // Default: assigned to this admin
+      } else if (viewMode === 'assigned') {
         query = query.eq('assigned_to', userId);
       }
+      // 'all' — no additional filter, admin sees everything
     } else if (role === 'teacher') {
-      // Teachers see reports assigned to them (from students) and their own submitted reports
       query = query.or(`assigned_to.eq.${userId},reporter_id.eq.${userId}`);
     } else {
-      // Students only see their own reports
       query = query.eq('reporter_id', userId);
     }
 
@@ -122,6 +117,57 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'فشل جلب الإبلاغات' },
         { status: 500 }
       );
+    }
+
+    // ─── Enrich reports with target_user info ───
+    // For reports where target_type is 'user', target_id is the reported user.
+    // For 'comment'/'message', we try to resolve the user from the content.
+    if (reports && reports.length > 0) {
+      const targetUserIds = new Set<string>();
+      for (const r of reports) {
+        if (r.target_type === 'user' && r.target_id) {
+          targetUserIds.add(r.target_id);
+        }
+      }
+
+      // Batch-fetch target user profiles + report counts
+      let targetUserMap: Record<string, { id: string; name: string; email: string; avatar_url: string | null; role: string | null; gender: string | null; title_id: string | null; report_count: number }> = {};
+      if (targetUserIds.size > 0) {
+        const ids = Array.from(targetUserIds);
+        const { data: targetUsers } = await supabaseServer
+          .from('users')
+          .select('id, name, email, avatar_url, role, gender, title_id')
+          .in('id', ids);
+
+        // Batch-fetch report counts per target user
+        const { data: reportCounts } = await supabaseServer
+          .from('reports')
+          .select('target_id')
+          .eq('target_type', 'user')
+          .in('target_id', ids);
+
+        const countMap: Record<string, number> = {};
+        if (reportCounts) {
+          for (const rc of reportCounts) {
+            if (rc.target_id) {
+              countMap[rc.target_id] = (countMap[rc.target_id] || 0) + 1;
+            }
+          }
+        }
+
+        if (targetUsers) {
+          for (const u of targetUsers) {
+            targetUserMap[u.id] = { ...u, report_count: countMap[u.id] || 0 };
+          }
+        }
+      }
+
+      // Attach target_user to reports
+      for (const r of reports) {
+        if (r.target_type === 'user' && r.target_id && targetUserMap[r.target_id]) {
+          (r as any).target_user = targetUserMap[r.target_id];
+        }
+      }
     }
 
     return NextResponse.json({

@@ -19,12 +19,11 @@ export async function GET(request: NextRequest) {
     let countQuery;
 
     if (role === 'admin' || role === 'superadmin') {
-      // Admins/superadmins see count of reports assigned to them that are pending/in_progress
+      // Admins/superadmins see count of ALL pending/in_progress reports on the platform
       countQuery = supabaseServer
         .from('reports')
         .select('id', { count: 'exact', head: true })
-        .in('status', ['pending', 'in_progress'])
-        .eq('assigned_to', userId);
+        .in('status', ['pending', 'in_progress']);
     } else if (role === 'teacher') {
       // Teachers see count of reports assigned to them (from students) that are pending/in_progress
       countQuery = supabaseServer

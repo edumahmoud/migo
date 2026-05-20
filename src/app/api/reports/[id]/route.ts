@@ -58,6 +58,26 @@ export async function GET(
       .eq('report_id', id)
       .order('created_at', { ascending: true });
 
+    // ─── Enrich with target_user info ───
+    if (report.target_type === 'user' && report.target_id) {
+      const { data: targetUser } = await supabaseServer
+        .from('users')
+        .select('id, name, email, avatar_url, role, gender, title_id')
+        .eq('id', report.target_id)
+        .single();
+
+      if (targetUser) {
+        // Get report count for this target user
+        const { count } = await supabaseServer
+          .from('reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('target_type', 'user')
+          .eq('target_id', report.target_id);
+
+        (report as any).target_user = { ...targetUser, report_count: count || 0 };
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: { ...report, responses: responses || [] },
@@ -122,7 +142,7 @@ export async function PATCH(
       );
     }
 
-    // Validate action permissions
+    // Validate action permissions — teachers can also forward if they are assigned
     if (action === 'forward' && !isAdmin && !isAssigned) {
       return NextResponse.json(
         { success: false, error: 'فقط المعين أو المشرف يمكنه تحويل الإبلاغ' },

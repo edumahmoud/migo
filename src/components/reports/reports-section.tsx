@@ -14,6 +14,9 @@ import {
   MessageSquare,
   AlertTriangle,
   Flag,
+  Mail,
+  User,
+  BarChart3,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -51,7 +54,7 @@ const REPORT_REASONS: { value: string; label: string }[] = [
 function StatusBadge({ status }: { status: ReportStatus }) {
   const config: Record<ReportStatus, { label: string; className: string }> = {
     pending: { label: 'قيد الانتظار', className: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
-    in_progress: { label: 'قيد المعالجة', className: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800' },
+    in_progress: { label: 'جاري المعالجة', className: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800' },
     resolved: { label: 'تم الحل', className: 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800' },
     dismissed: { label: 'مرفوض', className: 'bg-gray-100 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' },
   };
@@ -101,7 +104,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [responses, setResponses] = useState<ReportResponse[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ReportStatus | 'all'>('all');
-  const [viewMode, setViewMode] = useState<'assigned' | 'submitted' | 'all'>(role === 'admin' || role === 'superadmin' ? 'assigned' : 'submitted');
+  // Admin default view is 'all' to see every report on the platform
+  const [viewMode, setViewMode] = useState<'assigned' | 'submitted' | 'all'>(role === 'admin' || role === 'superadmin' ? 'all' : 'submitted');
   const [replyText, setReplyText] = useState('');
   const [forwardToId, setForwardToId] = useState('');
   const [availableForwardUsers, setAvailableForwardUsers] = useState<UserProfile[]>([]);
@@ -162,8 +166,29 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // Teachers can forward to admins; Admins can forward to superadmins; Students cannot forward
+      // Teachers can forward to admins (supervisors); Admins can forward to superadmins; Students cannot forward
       if (role === 'teacher') {
+        // First, try to get linked supervisors from teacher_supervisor_links
+        const { data: links } = await supabase
+          .from('teacher_supervisor_links')
+          .select('supervisor_id')
+          .eq('teacher_id', profile.id);
+
+        const supervisorIds = (links || []).map((l: any) => l.supervisor_id);
+
+        if (supervisorIds.length > 0) {
+          // Fetch supervisor profiles
+          const { data: supervisors } = await supabase
+            .from('users')
+            .select('*')
+            .in('id', supervisorIds);
+          if (supervisors) {
+            setAvailableForwardUsers(supervisors.filter((u: any) => u.role === 'admin' || u.role === 'superadmin'));
+            return;
+          }
+        }
+
+        // Fallback: fetch all admins
         const res = await fetch('/api/admin/users?role=admin', {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
@@ -184,7 +209,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     } catch {
       // Silently fail
     }
-  }, [role]);
+  }, [role, profile.id]);
 
   useEffect(() => {
     fetchReports();
@@ -368,9 +393,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         {(role === 'admin' || role === 'superadmin') && (
           <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
             {[
+              { id: 'all' as const, label: 'جميع الإبلاغات' },
               { id: 'assigned' as const, label: 'المعينة لي' },
               { id: 'submitted' as const, label: 'المقدمة مني' },
-              { id: 'all' as const, label: 'الكل' },
             ].map((mode) => (
               <button
                 key={mode.id}
@@ -392,7 +417,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           {[
             { id: 'all' as const, label: 'الكل' },
             { id: 'pending' as const, label: 'قيد الانتظار' },
-            { id: 'in_progress' as const, label: 'قيد المعالجة' },
+            { id: 'in_progress' as const, label: 'جاري المعالجة' },
             { id: 'resolved' as const, label: 'تم الحل' },
             { id: 'dismissed' as const, label: 'مرفوض' },
           ].map((s) => (
@@ -446,6 +471,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   )}
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                     <span>من: {report.reporter?.name || 'غير معروف'}</span>
+                    {report.target_user && (
+                      <span>المُبلَّغ عنه: {report.target_user.name}</span>
+                    )}
                     {report.assigned_user && (
                       <span>إلى: {report.assigned_user.name}</span>
                     )}
@@ -460,6 +488,52 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       )}
     </motion.div>
   );
+
+  // -------------------------------------------------------
+  // Render: Target User Info Card
+  // -------------------------------------------------------
+  const renderTargetUserInfo = () => {
+    const report = selectedReport;
+    if (!report || !report.target_user) return null;
+
+    const tu = report.target_user;
+    return (
+      <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/20 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Flag className="h-4 w-4 text-rose-500" />
+          <h4 className="text-sm font-semibold text-foreground">المستخدم المُبلَّغ عنه</h4>
+        </div>
+        <div className="flex items-center gap-3 mb-3">
+          <UserAvatar name={tu.name} avatarUrl={tu.avatar_url} size="md" />
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender)}
+            </p>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+              <Mail className="h-3 w-3" />
+              <span>{tu.email}</span>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg bg-background/80 p-2 text-center">
+            <div className="flex items-center justify-center gap-1 text-rose-600 dark:text-rose-400">
+              <BarChart3 className="h-3.5 w-3.5" />
+              <span className="text-lg font-bold">{tu.report_count ?? 0}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5">إجمالي البلاغات</p>
+          </div>
+          <div className="rounded-lg bg-background/80 p-2 text-center">
+            <div className="flex items-center justify-center gap-1 text-muted-foreground">
+              <User className="h-3.5 w-3.5" />
+              <span className="text-sm font-medium">{tu.role === 'student' ? 'طالب' : tu.role === 'teacher' ? 'معلم' : tu.role === 'admin' ? 'مشرف' : 'مدير'}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5">الدور</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // -------------------------------------------------------
   // Render: Report detail
@@ -535,6 +609,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             تاريخ الإبلاغ: {formatDate(selectedReport.created_at)}
           </div>
         </div>
+
+        {/* Target User Info */}
+        {renderTargetUserInfo()}
 
         {/* Responses thread */}
         {responses.length > 0 && (
@@ -617,7 +694,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             {/* Forward */}
             {availableForwardUsers.length > 0 && (
               <div className="space-y-2 pt-2 border-t border-border">
-                <label className="text-xs font-medium text-muted-foreground">تحويل الإبلاغ</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  تحويل الإبلاغ {role === 'teacher' ? 'للمشرف' : role === 'admin' ? 'لمدير المنصة' : ''}
+                </label>
                 <div className="flex items-center gap-2">
                   <select
                     value={forwardToId}
