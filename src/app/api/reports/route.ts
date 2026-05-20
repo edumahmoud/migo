@@ -149,16 +149,18 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Step 2: Resolve comment owners → user IDs
+      // Step 2: Resolve comment owners → user IDs + fetch content
+      const commentContentMap: Record<string, string> = {};
       if (commentIds.size > 0) {
         try {
           const { data: comments } = await supabaseServer
             .from('video_comments')
-            .select('id, user_id')
+            .select('id, user_id, content')
             .in('id', Array.from(commentIds));
           if (comments) {
             for (const c of comments) {
               if (c.user_id) directUserIds.add(c.user_id);
+              if (c.content) commentContentMap[c.id] = c.content;
             }
             // Store mapping for later attachment
             (reports as any)._commentOwnerMap = Object.fromEntries(
@@ -168,16 +170,18 @@ export async function GET(request: NextRequest) {
         } catch { /* video_comments table may not exist */ }
       }
 
-      // Step 3: Resolve message senders → user IDs
+      // Step 3: Resolve message senders → user IDs + fetch content
+      const messageContentMap: Record<string, string> = {};
       if (messageIds.size > 0) {
         try {
           const { data: messages } = await supabaseServer
             .from('chat_messages')
-            .select('id, sender_id')
+            .select('id, sender_id, content')
             .in('id', Array.from(messageIds));
           if (messages) {
             for (const m of messages) {
               if (m.sender_id) directUserIds.add(m.sender_id);
+              if ((m as any).content) messageContentMap[m.id] = (m as any).content;
             }
             (reports as any)._messageOwnerMap = Object.fromEntries(
               messages.map((m: any) => [m.id, m.sender_id])
@@ -224,8 +228,18 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Step 5: Attach target_user to each report
+      // Step 5: Attach target_user and target_content to each report
       for (const r of reports) {
+        // Attach target_content
+        if (!r.target_content) {
+          if (r.target_type === 'comment' && r.target_id && commentContentMap[r.target_id]) {
+            (r as any).target_content = commentContentMap[r.target_id];
+          } else if (r.target_type === 'message' && r.target_id && messageContentMap[r.target_id]) {
+            (r as any).target_content = messageContentMap[r.target_id];
+          }
+        }
+
+        // Attach target_user
         if (r.target_type === 'user' && r.target_id && targetUserMap[r.target_id]) {
           (r as any).target_user = targetUserMap[r.target_id];
         } else if (r.target_type === 'comment' && r.target_id) {

@@ -18,12 +18,19 @@ import {
   User,
   BarChart3,
   Trash2,
+  Ban,
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  Users,
+  Eye,
+  FileText,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
-import type { Report, ReportResponse, ReportStatus, ReportTargetType, UserProfile } from '@/lib/types';
+import type { Report, ReportResponse, ReportMessage, ReportStatus, ReportTargetType, ReportResponseAction, UserProfile } from '@/lib/types';
 
 // -------------------------------------------------------
 // Animation variants
@@ -108,9 +115,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [responses, setResponses] = useState<ReportResponse[]>([]);
+  const [messages, setMessages] = useState<ReportMessage[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ReportStatus | 'all'>('all');
-  // Admin default view is 'all' to see every report on the platform
   const [viewMode, setViewMode] = useState<'assigned' | 'submitted' | 'all'>(role === 'admin' || role === 'superadmin' ? 'all' : 'submitted');
   const [replyText, setReplyText] = useState('');
   const [forwardToId, setForwardToId] = useState('');
@@ -118,6 +125,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [submitting, setSubmitting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showActionsLog, setShowActionsLog] = useState(true);
+  const [messageToReporter, setMessageToReporter] = useState('');
+  const [messageToReported, setMessageToReported] = useState('');
+  const [showMessageReporter, setShowMessageReporter] = useState(false);
+  const [showMessageReported, setShowMessageReported] = useState(false);
 
   // -------------------------------------------------------
   // Fetch reports
@@ -174,7 +186,6 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // Teachers can forward to admins (supervisors); Admins can forward to superadmins; Students cannot forward
       if (role === 'teacher') {
         // Strategy 1: Try the dedicated API endpoint first
         try {
@@ -223,7 +234,6 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           return;
         }
       } else if (role === 'admin') {
-        // Admin can forward to superadmins
         const { data: superadmins } = await supabase
           .from('users')
           .select('id, name, email, avatar_url, role, gender, title_id, created_at, updated_at')
@@ -234,7 +244,6 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           return;
         }
       }
-      // Students: no forward targets
     } catch {
       // Silently fail
     }
@@ -257,6 +266,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         fetchReportsCount();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'report_responses' }, () => {
+        if (selectedReport) {
+          fetchReportDetail(selectedReport.id);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'report_messages' }, () => {
         if (selectedReport) {
           fetchReportDetail(selectedReport.id);
         }
@@ -284,6 +298,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       if (result.success && result.data) {
         setSelectedReport(result.data);
         setResponses(result.data.responses || []);
+        setMessages(result.data.messages || []);
       }
     } catch {
       toast.error('فشل تحميل تفاصيل الإبلاغ');
@@ -339,6 +354,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         toast.success('تم حذف الإبلاغ');
         setSelectedReport(null);
         setResponses([]);
+        setMessages([]);
         fetchReports();
         fetchReportsCount();
       } else {
@@ -352,9 +368,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   };
 
   // -------------------------------------------------------
-  // Handle action (reply, forward, resolve, dismiss, reopen)
+  // Handle action (reply, forward, resolve, dismiss, reopen, block, warn, message_reporter, message_reported)
   // -------------------------------------------------------
-  const handleAction = async (action: 'reply' | 'forward' | 'resolve' | 'dismiss' | 'reopen') => {
+  const handleAction = async (action: ReportResponseAction) => {
     if (!selectedReport) return;
     if (action === 'reply' && !replyText.trim()) {
       toast.error('يرجى كتابة رد');
@@ -362,6 +378,14 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     }
     if (action === 'forward' && !forwardToId) {
       toast.error('يرجى اختيار المستخدم للتحويل');
+      return;
+    }
+    if (action === 'message_reporter' && !messageToReporter.trim()) {
+      toast.error('يرجى كتابة رسالة للمُبلِغ');
+      return;
+    }
+    if (action === 'message_reported' && !messageToReported.trim()) {
+      toast.error('يرجى كتابة رسالة للمُبلَّغ عنه');
       return;
     }
 
@@ -373,6 +397,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       const body: Record<string, unknown> = { action };
       if (action === 'reply') body.content = replyText.trim();
       if (action === 'forward') body.forwarded_to = forwardToId;
+      if (action === 'warn') body.content = 'تحذير';
+      if (action === 'block') body.content = 'حظر المستخدم';
+      if (action === 'message_reporter') body.message_content = messageToReporter.trim();
+      if (action === 'message_reported') body.message_content = messageToReported.trim();
 
       const res = await fetch(`/api/reports/${selectedReport.id}`, {
         method: 'PATCH',
@@ -385,15 +413,24 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
       const result = await res.json();
       if (result.success) {
-        toast.success(
-          action === 'reply' ? 'تم إرسال الرد' :
-          action === 'forward' ? 'تم تحويل الإبلاغ' :
-          action === 'resolve' ? 'تم حل الإبلاغ' :
-          action === 'dismiss' ? 'تم رفض الإبلاغ' :
-          'تم إعادة فتح الإبلاغ'
-        );
+        const actionLabels: Record<string, string> = {
+          reply: 'تم إرسال الرد',
+          forward: 'تم تحويل الإبلاغ',
+          resolve: 'تم حل الإبلاغ',
+          dismiss: 'تم رفض الإبلاغ',
+          reopen: 'تم إعادة فتح الإبلاغ',
+          block: 'تم حظر المستخدم',
+          warn: 'تم تحذير المستخدم',
+          message_reporter: 'تم إرسال الرسالة للمُبلِغ',
+          message_reported: 'تم إرسال الرسالة للمُبلَّغ عنه',
+        };
+        toast.success(actionLabels[action] || 'تم تنفيذ الإجراء');
         setReplyText('');
         setForwardToId('');
+        setMessageToReporter('');
+        setMessageToReported('');
+        setShowMessageReporter(false);
+        setShowMessageReported(false);
         fetchReportDetail(selectedReport.id);
         fetchReports();
         fetchReportsCount();
@@ -434,6 +471,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       case 'resolve': return <CheckCircle2 className="h-3.5 w-3.5" />;
       case 'dismiss': return <XCircle className="h-3.5 w-3.5" />;
       case 'reopen': return <RotateCcw className="h-3.5 w-3.5" />;
+      case 'block': return <Ban className="h-3.5 w-3.5" />;
+      case 'warn': return <AlertTriangle className="h-3.5 w-3.5" />;
       default: return null;
     }
   };
@@ -445,6 +484,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       case 'resolve': return 'حل';
       case 'dismiss': return 'رفض';
       case 'reopen': return 'إعادة فتح';
+      case 'block': return 'حظر';
+      case 'warn': return 'تحذير';
       default: return action;
     }
   };
@@ -456,6 +497,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       case 'resolve': return 'text-teal-600 dark:text-teal-400';
       case 'dismiss': return 'text-gray-600 dark:text-gray-400';
       case 'reopen': return 'text-rose-600 dark:text-rose-400';
+      case 'block': return 'text-red-600 dark:text-red-400';
+      case 'warn': return 'text-orange-600 dark:text-orange-400';
       default: return 'text-muted-foreground';
     }
   };
@@ -591,6 +634,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   <div className="flex items-center gap-2 mb-1.5">
                     <StatusBadge status={report.status} />
                     <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type)}</span>
+                    {(report as any).reporter_count > 1 && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
+                        <Users className="h-3 w-3" />
+                        {(report as any).reporter_count} مُبلِغ
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm font-medium text-foreground truncate">{getReasonLabel(report.reason)}</p>
                   {report.description && (
@@ -598,8 +647,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   )}
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                     <span>من: {report.reporter?.name || 'غير معروف'}</span>
-                    {report.target_user && (
-                      <span>المُبلَّغ عنه: {report.target_user.name}</span>
+                    {(report as any).target_user && (
+                      <span>المُبلَّغ عنه: {(report as any).target_user.name}</span>
                     )}
                     {report.assigned_user && (
                       <span>إلى: {report.assigned_user.name}</span>
@@ -621,9 +670,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   // -------------------------------------------------------
   const renderTargetUserInfo = () => {
     const report = selectedReport;
-    if (!report || !report.target_user) return null;
+    if (!report || !(report as any).target_user) return null;
 
-    const tu = report.target_user;
+    const tu = (report as any).target_user;
+    const reporterCount = (report as any).reporter_count || 1;
+
     return (
       <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/20 p-4">
         <div className="flex items-center gap-2 mb-3">
@@ -642,13 +693,20 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <div className="rounded-lg bg-background/80 p-2 text-center">
             <div className="flex items-center justify-center gap-1 text-rose-600 dark:text-rose-400">
               <BarChart3 className="h-3.5 w-3.5" />
               <span className="text-lg font-bold">{tu.report_count ?? 0}</span>
             </div>
             <p className="text-[10px] text-muted-foreground mt-0.5">إجمالي البلاغات</p>
+          </div>
+          <div className="rounded-lg bg-background/80 p-2 text-center">
+            <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-400">
+              <Users className="h-3.5 w-3.5" />
+              <span className="text-lg font-bold">{reporterCount}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-0.5">عدد المُبلِغين</p>
           </div>
           <div className="rounded-lg bg-background/80 p-2 text-center">
             <div className="flex items-center justify-center gap-1 text-muted-foreground">
@@ -663,6 +721,144 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   };
 
   // -------------------------------------------------------
+  // Render: Target Content (reported comment/message)
+  // -------------------------------------------------------
+  const renderTargetContent = () => {
+    const report = selectedReport;
+    if (!report || !report.target_content) return null;
+
+    return (
+      <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20 p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <FileText className="h-4 w-4 text-amber-500" />
+          <h4 className="text-sm font-semibold text-foreground">
+            المحتوى المُبلَّغ عنه ({getTargetTypeLabel(report.target_type)})
+          </h4>
+        </div>
+        <p className="text-sm text-foreground whitespace-pre-wrap bg-background/60 dark:bg-background/40 rounded-lg p-3 border border-border">
+          {report.target_content}
+        </p>
+      </div>
+    );
+  };
+
+  // -------------------------------------------------------
+  // Render: Actions log (collapsible)
+  // -------------------------------------------------------
+  const renderActionsLog = () => {
+    const report = selectedReport;
+    if (!report) return null;
+
+    // Combine responses and messages into a unified timeline
+    const allActions = [
+      ...responses.map(r => ({
+        type: 'response' as const,
+        date: r.created_at,
+        data: r,
+      })),
+      ...messages.map(m => ({
+        type: 'message' as const,
+        date: m.created_at,
+        data: m,
+      })),
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    if (allActions.length === 0) return null;
+
+    return (
+      <div className="rounded-xl border border-border bg-card p-4">
+        <button
+          onClick={() => setShowActionsLog(!showActionsLog)}
+          className="flex items-center justify-between w-full text-start"
+        >
+          <div className="flex items-center gap-2">
+            <Eye className="h-4 w-4 text-muted-foreground" />
+            <h4 className="text-sm font-semibold text-foreground">الإجراءات والخطوات المتخذة</h4>
+            <span className="text-xs text-muted-foreground">({allActions.length})</span>
+          </div>
+          {showActionsLog ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+
+        <AnimatePresence>
+          {showActionsLog && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="space-y-3 mt-4">
+                {allActions.map((item, idx) => {
+                  if (item.type === 'response') {
+                    const resp = item.data as ReportResponse;
+                    return (
+                      <div
+                        key={resp.id}
+                        className="rounded-lg border border-border bg-background p-4"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            {resp.responder && <UserAvatar name={resp.responder.name} avatarUrl={resp.responder.avatar_url} size="sm" />}
+                            <span className="text-sm font-medium">
+                              {resp.responder ? formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender) : 'مستخدم'}
+                            </span>
+                            <span className={`inline-flex items-center gap-1 text-xs font-medium ${getActionColor(resp.action)}`}>
+                              {getActionIcon(resp.action)}
+                              {getActionLabel(resp.action)}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{formatDate(resp.created_at)}</span>
+                        </div>
+                        {resp.content && (
+                          <p className="text-sm text-foreground whitespace-pre-wrap mt-1 ms-10">{resp.content}</p>
+                        )}
+                        {resp.forwarded_to_user && (
+                          <div className="flex items-center gap-2 mt-2 ms-10 text-xs text-amber-600 dark:text-amber-400">
+                            <ArrowRightLeft className="h-3.5 w-3.5" />
+                            <span>حوّل إلى: {formatNameWithTitle(resp.forwarded_to_user.name, resp.forwarded_to_user.role, resp.forwarded_to_user.title_id, resp.forwarded_to_user.gender)}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  } else {
+                    const msg = item.data as ReportMessage;
+                    return (
+                      <div
+                        key={msg.id}
+                        className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-900/10 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            {msg.sender && <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />}
+                            <span className="text-sm font-medium">
+                              {msg.sender ? formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender) : 'مستخدم'}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400">
+                              <Mail className="h-3.5 w-3.5" />
+                              {msg.recipient_type === 'reporter' ? 'رسالة للمُبلِغ' : 'رسالة للمُبلَّغ عنه'}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{formatDate(msg.created_at)}</span>
+                        </div>
+                        <p className="text-sm text-foreground whitespace-pre-wrap mt-1 ms-10">{msg.content}</p>
+                      </div>
+                    );
+                  }
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
+  // -------------------------------------------------------
   // Render: Report detail
   // -------------------------------------------------------
   const renderReportDetail = () => {
@@ -671,6 +867,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     const isAssignedToMe = selectedReport.assigned_to === profile.id;
     const isReporter = selectedReport.reporter_id === profile.id;
     const isAdmin = role === 'admin' || role === 'superadmin';
+    const isTeacherOrAbove = role === 'teacher' || role === 'admin' || role === 'superadmin';
+    const canTakeAction = isActive && (isAssignedToMe || isAdmin);
 
     return (
       <motion.div
@@ -681,7 +879,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       >
         {/* Back button */}
         <button
-          onClick={() => { setSelectedReport(null); setResponses([]); }}
+          onClick={() => { setSelectedReport(null); setResponses([]); setMessages([]); }}
           className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronLeft className="h-4 w-4 rotate-180" />
@@ -697,6 +895,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                   {getTargetTypeLabel(selectedReport.target_type)}
                 </span>
+                {(selectedReport as any).reporter_count > 1 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
+                    <Users className="h-3 w-3" />
+                    {(selectedReport as any).reporter_count} مُبلِغ
+                  </span>
+                )}
               </div>
               <h3 className="text-lg font-bold text-foreground">{getReasonLabel(selectedReport.reason)}</h3>
             </div>
@@ -740,44 +944,14 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         {/* Target User Info */}
         {renderTargetUserInfo()}
 
-        {/* Responses thread */}
-        {responses.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-foreground">الردود والإجراءات</h4>
-            {responses.map((resp) => (
-              <div
-                key={resp.id}
-                className="rounded-lg border border-border bg-card p-4"
-              >
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2">
-                    {resp.responder && <UserAvatar name={resp.responder.name} avatarUrl={resp.responder.avatar_url} size="sm" />}
-                    <span className="text-sm font-medium">
-                      {resp.responder ? formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender) : 'مستخدم'}
-                    </span>
-                    <span className={`inline-flex items-center gap-1 text-xs font-medium ${getActionColor(resp.action)}`}>
-                      {getActionIcon(resp.action)}
-                      {getActionLabel(resp.action)}
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">{formatDate(resp.created_at)}</span>
-                </div>
-                {resp.content && (
-                  <p className="text-sm text-foreground whitespace-pre-wrap mt-1 ms-10">{resp.content}</p>
-                )}
-                {resp.forwarded_to_user && (
-                  <div className="flex items-center gap-2 mt-2 ms-10 text-xs text-amber-600 dark:text-amber-400">
-                    <ArrowRightLeft className="h-3.5 w-3.5" />
-                    <span>حوّل إلى: {formatNameWithTitle(resp.forwarded_to_user.name, resp.forwarded_to_user.role, resp.forwarded_to_user.title_id, resp.forwarded_to_user.gender)}</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Target Content (reported comment/message) */}
+        {renderTargetContent()}
 
-        {/* Action bar (only for active reports) */}
-        {isActive && (isAssignedToMe || isAdmin) && (
+        {/* Actions Log (collapsible) */}
+        {renderActionsLog()}
+
+        {/* ─── Action Buttons ─── */}
+        {canTakeAction && (
           <div className="rounded-xl border border-border bg-card p-4 space-y-4">
             <h4 className="text-sm font-semibold text-foreground">إجراء</h4>
 
@@ -815,6 +989,30 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   <XCircle className="h-4 w-4" />
                   رفض
                 </button>
+
+                {/* Warn button — visible for teacher, admin, superadmin */}
+                {isTeacherOrAbove && (
+                  <button
+                    onClick={() => handleAction('warn')}
+                    disabled={submitting}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                  >
+                    <AlertTriangle className="h-4 w-4" />
+                    تحذير
+                  </button>
+                )}
+
+                {/* Block button — visible for admin, superadmin only */}
+                {isAdmin && (
+                  <button
+                    onClick={() => handleAction('block')}
+                    disabled={submitting}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-700 text-white text-sm font-medium hover:bg-red-800 disabled:opacity-50 transition-colors"
+                  >
+                    <Ban className="h-4 w-4" />
+                    حظر المستخدم
+                  </button>
+                )}
               </div>
             </div>
 
@@ -846,6 +1044,95 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 </div>
               </div>
             )}
+
+            {/* Send message to reporter */}
+            <div className="space-y-2 pt-2 border-t border-border">
+              <button
+                onClick={() => { setShowMessageReporter(!showMessageReporter); setShowMessageReported(false); }}
+                className="flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline"
+              >
+                <Mail className="h-4 w-4" />
+                إرسال رسالة للمُبلِغ
+              </button>
+              <AnimatePresence>
+                {showMessageReporter && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-2 pt-2">
+                      <textarea
+                        value={messageToReporter}
+                        onChange={(e) => setMessageToReporter(e.target.value)}
+                        placeholder="اكتب رسالتك للمُبلِغ هنا..."
+                        rows={3}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      />
+                      <button
+                        onClick={() => handleAction('message_reporter')}
+                        disabled={submitting || !messageToReporter.trim()}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-700 text-white text-sm font-medium hover:bg-sky-800 disabled:opacity-50 transition-colors"
+                      >
+                        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        إرسال للمُبلِغ
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Send message to reported user */}
+            <div className="space-y-2 pt-2 border-t border-border">
+              <button
+                onClick={() => { setShowMessageReported(!showMessageReported); setShowMessageReporter(false); }}
+                className="flex items-center gap-2 text-sm font-medium text-rose-700 dark:text-rose-300 hover:underline"
+              >
+                <Bell className="h-4 w-4" />
+                إرسال رسالة للمُبلَّغ عنه
+              </button>
+              <AnimatePresence>
+                {showMessageReported && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-2 pt-2">
+                      {/* Auto-generated context info */}
+                      <div className="rounded-lg bg-muted/50 border border-border p-3 text-xs text-muted-foreground space-y-1">
+                        <p>سيتم إرسال الرسالة مع بيانات البلاغ التالية:</p>
+                        <p>• نوع البلاغ: {getReasonLabel(selectedReport.reason)}</p>
+                        <p>• نوع المحتوى: {getTargetTypeLabel(selectedReport.target_type)}</p>
+                        {selectedReport.target_content && (
+                          <p>• المحتوى المُبلَّغ عنه: {selectedReport.target_content.substring(0, 80)}...</p>
+                        )}
+                        <p>• تاريخ البلاغ: {formatDate(selectedReport.created_at)}</p>
+                        <p>• الإجراءات المتخذة: {responses.filter(r => ['block', 'warn', 'resolve'].includes(r.action)).map(r => getActionLabel(r.action)).join('، ') || 'لا يوجد'}</p>
+                      </div>
+                      <textarea
+                        value={messageToReported}
+                        onChange={(e) => setMessageToReported(e.target.value)}
+                        placeholder="اكتب رسالتك للمُبلَّغ عنه هنا..."
+                        rows={3}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      />
+                      <button
+                        onClick={() => handleAction('message_reported')}
+                        disabled={submitting || !messageToReported.trim()}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-700 text-white text-sm font-medium hover:bg-rose-800 disabled:opacity-50 transition-colors"
+                      >
+                        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        إرسال للمُبلَّغ عنه
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         )}
 

@@ -517,7 +517,7 @@ export interface ChatMessage {
 
 export type ReportTargetType = 'comment' | 'message' | 'user' | 'other';
 export type ReportStatus = 'pending' | 'in_progress' | 'resolved' | 'dismissed';
-export type ReportResponseAction = 'reply' | 'forward' | 'resolve' | 'dismiss' | 'reopen';
+export type ReportResponseAction = 'reply' | 'forward' | 'resolve' | 'dismiss' | 'reopen' | 'block' | 'warn' | 'message_reporter' | 'message_reported';
 
 export interface Report {
   id: string;
@@ -530,6 +530,8 @@ export interface Report {
   assigned_to?: string | null;
   created_at: string;
   updated_at: string;
+  target_content?: string | null;
+  reporter_count?: number;
   // Joined data
   reporter?: {
     id: string;
@@ -560,6 +562,7 @@ export interface Report {
     report_count?: number;
   } | null;
   responses?: ReportResponse[];
+  messages?: ReportMessage[];
 }
 
 export interface ReportResponse {
@@ -581,6 +584,26 @@ export interface ReportResponse {
     title_id?: string | null;
   } | null;
   forwarded_to_user?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: string;
+    gender?: string | null;
+    title_id?: string | null;
+  } | null;
+}
+
+export interface ReportMessage {
+  id: string;
+  report_id: string;
+  sender_id: string;
+  recipient_type: 'reporter' | 'reported';
+  recipient_id: string;
+  content: string;
+  created_at: string;
+  // Joined data
+  sender?: {
     id: string;
     name: string;
     email: string;
