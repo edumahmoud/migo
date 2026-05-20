@@ -517,7 +517,7 @@ export interface ChatMessage {
 
 export type ReportTargetType = 'comment' | 'message' | 'user' | 'other';
 export type ReportStatus = 'pending' | 'in_progress' | 'resolved' | 'dismissed';
-export type ReportResponseAction = 'reply' | 'forward' | 'resolve' | 'dismiss' | 'reopen' | 'block' | 'warn' | 'message_reporter' | 'message_reported';
+export type ReportResponseAction = 'reply' | 'forward' | 'resolve' | 'dismiss' | 'reopen' | 'block' | 'warn' | 'message_reporter' | 'message_reported' | 'return';
 
 export interface Report {
   id: string;

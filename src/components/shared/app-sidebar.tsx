@@ -137,8 +137,8 @@ function NavItems({
                     {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
                   </span>
                 )}
-                {/* Badge on reports icon */}
-                {item.id === 'reports' && reportsUnreadCount > 0 && (
+                {/* Badge on reports/complaints icon */}
+                {(item.id === 'reports' || item.id === 'complaints') && reportsUnreadCount > 0 && (
                   <span
                     className={`absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-rose-500 text-white font-bold ${
                       collapsed ? 'h-4 min-w-4 text-[8px] px-0.5' : 'h-5 min-w-5 text-[10px] px-1.5'

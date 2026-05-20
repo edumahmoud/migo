@@ -151,9 +151,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       if (!session) return;
 
       const params = new URLSearchParams();
-      if (statusFilter === 'forwarded') {
-        params.set('status', 'in_progress');
-      } else if (statusFilter !== 'all') {
+      if (statusFilter !== 'all') {
         params.set('status', statusFilter);
       }
       if (role === 'admin' || role === 'superadmin') params.set('view', viewMode);
@@ -300,7 +298,16 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   // Fetch report detail
   // -------------------------------------------------------
   const fetchReportDetail = async (reportId: string, showLoading = true) => {
-    if (showLoading) setLoadingDetail(true);
+    if (showLoading) {
+      // Instantly show report from cached list data while loading full detail
+      const cachedReport = reports.find(r => r.id === reportId);
+      if (cachedReport) {
+        setSelectedReport(cachedReport);
+        setResponses([]);
+        setMessages([]);
+      }
+      setLoadingDetail(true);
+    }
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -447,6 +454,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       if (action === 'forward') body.forwarded_to = forwardToId;
       if (action === 'warn') body.content = 'تحذير';
       if (action === 'block') body.content = 'حظر المستخدم';
+      if (action === 'return') body.content = 'إرجاع الإبلاغ للمعلم';
       if (action === 'message_reporter') body.message_content = messageToReporter.trim();
       if (action === 'message_reported') body.message_content = messageToReported.trim();
 
@@ -471,6 +479,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           warn: 'تم تحذير المستخدم',
           message_reporter: 'تم إرسال الرسالة للمُبلِغ',
           message_reported: 'تم إرسال الرسالة للمُبلَّغ عنه',
+          return: 'تم إرجاع الإبلاغ للمعلم',
         };
         toast.success(actionLabels[action] || 'تم تنفيذ الإجراء');
         setReplyText('');
@@ -482,11 +491,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         // For message actions, update detail silently without spinner
         const isMessageAction = action === 'message_reporter' || action === 'message_reported';
         fetchReportDetail(selectedReport.id, !isMessageAction);
-        // Only refresh list/count for non-message actions (messages don't change list or count)
-        if (!isMessageAction) {
-          fetchReports();
-          fetchReportsCount();
-        }
+        // Refresh list and count for all actions
+        fetchReports();
+        fetchReportsCount();
       } else {
         toast.error(result.error || 'فشل تنفيذ الإجراء');
       }
@@ -526,6 +533,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       case 'reopen': return <RotateCcw className="h-3.5 w-3.5" />;
       case 'block': return <Ban className="h-3.5 w-3.5" />;
       case 'warn': return <AlertTriangle className="h-3.5 w-3.5" />;
+      case 'return': return <RotateCcw className="h-3.5 w-3.5" />;
       default: return null;
     }
   };
@@ -539,6 +547,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       case 'reopen': return 'إعادة فتح';
       case 'block': return 'حظر';
       case 'warn': return 'تحذير';
+      case 'return': return 'إرجاع';
       default: return action;
     }
   };
@@ -552,6 +561,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       case 'reopen': return 'text-rose-600 dark:text-rose-400';
       case 'block': return 'text-red-600 dark:text-red-400';
       case 'warn': return 'text-orange-600 dark:text-orange-400';
+      case 'return': return 'text-indigo-600 dark:text-indigo-400';
       default: return 'text-muted-foreground';
     }
   };
@@ -963,6 +973,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     const isAdmin = role === 'admin' || role === 'superadmin';
     const isTeacherOrAbove = role === 'teacher' || role === 'admin' || role === 'superadmin';
     const canTakeAction = isActive && (isAssignedToMe || isAdmin);
+    // Check if report was already forwarded (has a forward response)
+    const hasBeenForwarded = responses.some(r => r.action === 'forward');
 
     return (
       <motion.div
@@ -1107,8 +1119,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               </div>
             </div>
 
-            {/* Forward */}
-            {availableForwardUsers.length > 0 && (
+            {/* Forward — only show if not already forwarded */}
+            {!hasBeenForwarded && availableForwardUsers.length > 0 && (
               <div className="space-y-2 pt-2 border-t border-border">
                 <label className="text-xs font-medium text-muted-foreground">
                   تحويل الإبلاغ {role === 'teacher' ? 'للمشرف' : role === 'admin' ? 'لمدير المنصة' : ''}
@@ -1224,6 +1236,20 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 )}
               </AnimatePresence>
             </div>
+
+            {/* Return to teacher — only for admin/supervisor, only if forwarded */}
+            {isAdmin && hasBeenForwarded && (
+              <div className="pt-2 border-t border-border">
+                <button
+                  onClick={() => handleAction('return')}
+                  disabled={submitting}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  إرجاع للمعلم
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1263,11 +1289,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     if (!selectedReport) return;
     const targetUser = (selectedReport as any).target_user;
     if (!targetUser) {
-      toast.error('لم يتم العثور على المستخدم المُبلَّغ عنه');
+      toast.error('لم يتم العثور على المستخدم المُبلَّغ عنه — يرجى إعادة تحميل التفاصيل');
       return;
     }
 
     setSubmitting(true);
+    setBanModalOpen(false); // Close modal immediately to prevent page refresh
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -1303,11 +1330,22 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
       if (banResult.success) {
         // Also record the block action in the report
-        await handleAction('block');
-        setBanModalOpen(false);
+        const blockBody: Record<string, unknown> = { action: 'block', content: 'حظر المستخدم' };
+        await fetch(`/api/reports/${selectedReport.id}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(blockBody),
+        });
+        toast.success('تم حظر المستخدم بنجاح');
         setBanDuration('permanent');
         setBanCustomDate('');
         setBanReason('');
+        fetchReportDetail(selectedReport.id, false);
+        fetchReports();
+        fetchReportsCount();
       } else {
         toast.error(banResult.error || 'فشل حظر المستخدم');
       }

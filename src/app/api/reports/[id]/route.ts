@@ -109,19 +109,21 @@ export async function GET(
         .single();
 
       if (targetUser) {
-        // Get report count for this target user
+        // Get report count for this target user (exclude resolved/dismissed)
         const { count } = await supabaseServer
           .from('reports')
           .select('id', { count: 'exact', head: true })
           .eq('target_type', 'user')
-          .eq('target_id', resolvedUserId);
+          .eq('target_id', resolvedUserId)
+          .in('status', ['pending', 'in_progress']);
 
-        // Get reporter count — how many distinct users reported this target
+        // Get reporter count — how many distinct users reported this target (exclude resolved/dismissed)
         const { data: distinctReporters } = await supabaseServer
           .from('reports')
           .select('reporter_id')
           .eq('target_type', report.target_type)
-          .eq('target_id', report.target_id);
+          .eq('target_id', report.target_id)
+          .in('status', ['pending', 'in_progress']);
 
         const reporterCount = new Set((distinctReporters || []).map((r: any) => r.reporter_id)).size;
 
@@ -175,7 +177,7 @@ export async function PATCH(
     const body = await request.json();
     const { action, content, forwarded_to, message_to, message_content } = body;
 
-    const validActions = ['reply', 'forward', 'resolve', 'dismiss', 'reopen', 'block', 'warn', 'message_reporter', 'message_reported'];
+    const validActions = ['reply', 'forward', 'resolve', 'dismiss', 'reopen', 'block', 'warn', 'message_reporter', 'message_reported', 'return'];
     if (!action || !validActions.includes(action)) {
       return NextResponse.json(
         { success: false, error: 'إجراء غير صالح' },
@@ -203,6 +205,30 @@ export async function PATCH(
         { success: false, error: 'فقط المعين أو المشرف يمكنه تحويل الإبلاغ' },
         { status: 403 }
       );
+    }
+
+    // Return (send back to teacher): only admin/superadmin
+    if (action === 'return' && !isAdmin) {
+      return NextResponse.json(
+        { success: false, error: 'فقط المشرف أو المدير يمكنه إرجاع الإبلاغ' },
+        { status: 403 }
+      );
+    }
+
+    // Prevent double-forwarding: check if already forwarded
+    if (action === 'forward') {
+      const { data: existingForward } = await supabaseServer
+        .from('report_responses')
+        .select('id')
+        .eq('report_id', id)
+        .eq('action', 'forward')
+        .limit(1);
+      if (existingForward && existingForward.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'تم تحويل هذا الإبلاغ مسبقاً' },
+          { status: 400 }
+        );
+      }
     }
 
     // Resolve/dismiss: only assigned or admin
@@ -245,66 +271,12 @@ export async function PATCH(
     }
 
     // ─── Handle block action ───
+    // Block is now handled via the ban modal which calls /api/admin/ban-user directly.
+    // When the ban modal confirms, it also calls handleAction('block') to record the action
+    // in report_responses. We just record the action here — no direct ban creation.
     if (action === 'block') {
-      // Resolve the target user to block
-      let blockUserId: string | null = null;
-
-      if (report.target_type === 'user' && report.target_id) {
-        blockUserId = report.target_id;
-      } else if (report.target_type === 'comment' && report.target_id) {
-        try {
-          const { data: comment } = await supabaseServer
-            .from('video_comments')
-            .select('user_id')
-            .eq('id', report.target_id)
-            .single();
-          if (comment?.user_id) blockUserId = comment.user_id;
-        } catch {}
-      } else if (report.target_type === 'message' && report.target_id) {
-        try {
-          const { data: message } = await supabaseServer
-            .from('chat_messages')
-            .select('sender_id')
-            .eq('id', report.target_id)
-            .single();
-          if (message?.sender_id) blockUserId = message.sender_id;
-        } catch {}
-      }
-
-      if (!blockUserId) {
-        return NextResponse.json(
-          { success: false, error: 'لم يتم العثور على المستخدم المبلغ عنه' },
-          { status: 400 }
-        );
-      }
-
-      // Check if already banned
-      const { data: existingBan } = await supabaseServer
-        .from('banned_users')
-        .select('id')
-        .eq('user_id', blockUserId)
-        .eq('is_active', true)
-        .single();
-
-      if (!existingBan) {
-        // Create ban record
-        const { error: banError } = await supabaseServer
-          .from('banned_users')
-          .insert({
-            user_id: blockUserId,
-            banned_by: userId,
-            is_active: true,
-            // No ban_until = permanent ban
-          });
-
-        if (banError) {
-          console.error('[Reports] Block user error:', banError.message);
-          return NextResponse.json(
-            { success: false, error: 'فشل حظر المستخدم' },
-            { status: 500 }
-          );
-        }
-      }
+      // The actual ban is handled by the ban-user API called from the modal.
+      // This just records the block action in the report.
     }
 
     // ─── Handle warn action ───
@@ -459,6 +431,7 @@ export async function PATCH(
     else if (action === 'reopen') newStatus = 'pending';
     else if (action === 'block' || action === 'warn') newStatus = 'resolved'; // Auto-resolve on block/warn
     else if (action === 'reply' || action === 'forward') newStatus = 'in_progress';
+    else if (action === 'return') newStatus = 'in_progress'; // Return to teacher
 
     // Update report
     const updateData: Record<string, unknown> = {
@@ -469,6 +442,13 @@ export async function PATCH(
     if (action === 'forward' && forwarded_to) {
       updateData.assigned_to = forwarded_to;
       updateData.status = 'pending';
+    }
+
+    // ─── Handle return action (admin returns report to original teacher) ───
+    if (action === 'return') {
+      // Return to the original reporter (who is likely a teacher)
+      updateData.assigned_to = report.reporter_id;
+      updateData.status = 'in_progress';
     }
 
     const { error: updateError } = await supabaseServer

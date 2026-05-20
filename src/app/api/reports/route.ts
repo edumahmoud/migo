@@ -99,7 +99,21 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
 
     // Filter by status if provided
-    if (status && ['pending', 'in_progress', 'resolved', 'dismissed'].includes(status)) {
+    // 'forwarded' is a virtual status: reports that have a forward response
+    if (status === 'forwarded') {
+      // Get report IDs that have a 'forward' response
+      const { data: forwardedResponses } = await supabaseServer
+        .from('report_responses')
+        .select('report_id')
+        .eq('action', 'forward');
+      const forwardedIds = (forwardedResponses || []).map((r: any) => r.report_id);
+      if (forwardedIds.length > 0) {
+        query = query.in('id', forwardedIds);
+      } else {
+        // No forwarded reports exist
+        return NextResponse.json({ success: true, data: [], pagination: { page, limit, total: 0, totalPages: 0 } });
+      }
+    } else if (status && ['pending', 'in_progress', 'resolved', 'dismissed'].includes(status)) {
       query = query.eq('status', status);
     }
 
@@ -205,12 +219,13 @@ export async function GET(request: NextRequest) {
           .select('id, name, email, avatar_url, role, gender, title_id')
           .in('id', ids);
 
-        // Batch-fetch report counts per target user
+        // Batch-fetch report counts per target user (exclude resolved/dismissed)
         const { data: reportCounts } = await supabaseServer
           .from('reports')
           .select('target_id')
           .eq('target_type', 'user')
-          .in('target_id', ids);
+          .in('target_id', ids)
+          .in('status', ['pending', 'in_progress']);
 
         const countMap: Record<string, number> = {};
         if (reportCounts) {
