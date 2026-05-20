@@ -63,6 +63,7 @@ import CoursePage from '@/components/course/course-page';
 import TeacherSummariesSection from '@/components/teacher/teacher-summaries-section';
 import TeacherStudentTrackingSection from '@/components/teacher/teacher-student-tracking-section';
 import QuestionBankSection from '@/components/teacher/question-bank-section';
+import ReportsSection from '@/components/reports/reports-section';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
@@ -2134,6 +2135,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {activeSection === 'students' && renderStudents()}
                 {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
                 {activeSection === 'videos' && <AllVideosSection profile={profile} role="teacher" />}
+                {activeSection === 'reports' && <ReportsSection profile={profile} role="teacher" />}
                 {activeSection === 'analytics' && renderAnalytics()}
                 {activeSection === 'tracking' && <TeacherStudentTrackingSection profile={profile} students={students} scores={scores} quizzes={quizzes} teacherSubmissions={teacherSubmissions} teacherAssignments={teacherAssignments} teacherAttendanceSessions={teacherAttendanceSessions} teacherAttendanceRecords={teacherAttendanceRecords} subjects={teacherSubjects} />}
                 {activeSection === 'chat' && <ChatSection profile={profile} role="teacher" />}

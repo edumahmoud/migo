@@ -385,8 +385,8 @@ export type AppPage =
   | 'profile';
 
 export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos';
-export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos';
-export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments';
+export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports';
+export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints';
 
 // API response types
 export interface ApiResponse<T = unknown> {
@@ -508,6 +508,99 @@ export interface ChatMessage {
     title_id?: string | null;
     gender?: string | null;
     role?: string | null;
+  } | null;
+}
+
+// =====================================================
+// Reports & Complaints
+// =====================================================
+
+export type ReportTargetType = 'comment' | 'message' | 'user' | 'other';
+export type ReportStatus = 'pending' | 'in_progress' | 'resolved' | 'dismissed';
+export type ReportResponseAction = 'reply' | 'forward' | 'resolve' | 'dismiss' | 'reopen';
+
+export interface Report {
+  id: string;
+  reporter_id: string;
+  target_type: ReportTargetType;
+  target_id?: string | null;
+  reason: string;
+  description?: string | null;
+  status: ReportStatus;
+  assigned_to?: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  reporter?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: string;
+    gender?: string | null;
+    title_id?: string | null;
+  } | null;
+  assigned_user?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: string;
+    gender?: string | null;
+    title_id?: string | null;
+  } | null;
+  responses?: ReportResponse[];
+}
+
+export interface ReportResponse {
+  id: string;
+  report_id: string;
+  responder_id: string;
+  action: ReportResponseAction;
+  content?: string | null;
+  forwarded_to?: string | null;
+  created_at: string;
+  // Joined data
+  responder?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: string;
+    gender?: string | null;
+    title_id?: string | null;
+  } | null;
+  forwarded_to_user?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: string;
+    gender?: string | null;
+    title_id?: string | null;
+  } | null;
+}
+
+export interface TeacherSupervisorLink {
+  id: string;
+  teacher_id: string;
+  supervisor_id: string;
+  is_primary: boolean;
+  created_at: string;
+  // Joined data
+  teacher?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: string;
+  } | null;
+  supervisor?: {
+    id: string;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+    role?: string;
   } | null;
 }
 

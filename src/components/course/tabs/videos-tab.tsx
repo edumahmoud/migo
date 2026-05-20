@@ -27,6 +27,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useVideoUploadStore } from '@/stores/video-upload-store';
 import { useAppStore } from '@/stores/app-store';
+import ReportButton from '@/components/reports/report-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -1327,15 +1328,13 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                                   )}
                                 </button>
                               )}
-                              {/* Report button — only for comments that aren't yours and aren't already flagged */}
-                              {!canDelete && !comment.is_flagged && (
-                                <button
-                                  onClick={() => handleFlagComment(comment.id)}
-                                  className="flex items-center justify-center rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors p-1"
-                                  title="الإبلاغ عن التعليق"
-                                >
-                                  <Flag className="h-3.5 w-3.5" />
-                                </button>
+                              {/* Report button — only for comments that aren't yours */}
+                              {!canDelete && (
+                                <ReportButton
+                                  targetType="comment"
+                                  targetId={comment.id}
+                                  compact
+                                />
                               )}
                               {/* Flagged indicator */}
                               {comment.is_flagged && (

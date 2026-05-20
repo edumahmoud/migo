@@ -9,6 +9,7 @@ import {
   Menu,
   Users,
   Activity,
+  ShieldAlert,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
@@ -44,7 +45,7 @@ const studentNavItems: BottomNavItem[] = [
 const teacherNavItems: BottomNavItem[] = [
   { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
   { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
@@ -52,7 +53,7 @@ const teacherNavItems: BottomNavItem[] = [
 const adminNavItems: BottomNavItem[] = [
   { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'users', label: 'المستخدمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'complaints', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
   { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
@@ -67,7 +68,7 @@ export default function MobileBottomNav({
   onToggleSidebar,
 }: MobileBottomNavProps) {
   const isMobile = useIsMobile();
-  const { chatUnreadCount } = useAppStore();
+  const { chatUnreadCount, reportsUnreadCount } = useAppStore();
 
   // Don't render on desktop
   if (!isMobile) return null;
@@ -95,6 +96,7 @@ export default function MobileBottomNav({
               item={item}
               isActive={isActive}
               chatUnreadCount={chatUnreadCount}
+              reportsUnreadCount={reportsUnreadCount}
               onSectionChange={onSectionChange}
               onToggleSidebar={onToggleSidebar}
             />
@@ -112,12 +114,14 @@ function BottomNavItemButton({
   item,
   isActive,
   chatUnreadCount,
+  reportsUnreadCount,
   onSectionChange,
   onToggleSidebar,
 }: {
   item: BottomNavItem;
   isActive: boolean;
   chatUnreadCount: number;
+  reportsUnreadCount: number;
   onSectionChange: (id: string) => void;
   onToggleSidebar: () => void;
 }) {
@@ -168,6 +172,17 @@ function BottomNavItemButton({
             className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-amber-500 text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
           >
             {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+          </motion.span>
+        )}
+        {/* Reports unread badge */}
+        {(item.id === 'reports' || item.id === 'complaints') && reportsUnreadCount > 0 && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-rose-500 text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
+          >
+            {reportsUnreadCount > 99 ? '99+' : reportsUnreadCount}
           </motion.span>
         )}
       </span>

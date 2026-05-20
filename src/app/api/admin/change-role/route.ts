@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 8. If changing to teacher, make sure they have a teacher_code
+    // AND auto-link them to the admin who promoted them
     if (newRole === 'teacher') {
       const existing = data as Record<string, unknown>;
       if (!existing.teacher_code) {
@@ -131,6 +132,29 @@ export async function POST(request: NextRequest) {
           .from('users')
           .update({ teacher_code: teacherCode })
           .eq('id', userId);
+      }
+
+      // Auto-link teacher to the admin who promoted them (is_primary = true)
+      // Only if no primary link already exists
+      const { data: existingPrimaryLink } = await supabaseServer
+        .from('teacher_supervisor_links')
+        .select('id')
+        .eq('teacher_id', userId)
+        .eq('is_primary', true)
+        .maybeSingle();
+
+      if (!existingPrimaryLink && requesterProfile.role !== 'superadmin') {
+        // Link to the promoting admin (not superadmin — superadmin doesn't supervise directly)
+        await supabaseServer
+          .from('teacher_supervisor_links')
+          .upsert(
+            {
+              teacher_id: userId,
+              supervisor_id: authUser.id,
+              is_primary: true,
+            },
+            { onConflict: 'teacher_id,supervisor_id' }
+          );
       }
     }
 

@@ -17,6 +17,7 @@ import {
   Activity,
   Database,
   Video,
+  ShieldAlert,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -71,6 +72,7 @@ const teacherNavItems: NavItem[] = [
   { id: 'tracking', label: 'تتبع الطلاب', icon: <Activity className="h-5 w-5" /> },
   { id: 'videos', label: 'الفيديوهات', icon: <Video className="h-5 w-5" /> },
   { id: 'files', label: 'ملفاتي', icon: <FolderOpen className="h-5 w-5" /> },
+  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'analytics', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
   { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
   { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
@@ -92,7 +94,7 @@ function NavItems({
   collapsed: boolean;
   onNavClick?: () => void;
 }) {
-  const { chatUnreadCount } = useAppStore();
+  const { chatUnreadCount, reportsUnreadCount } = useAppStore();
 
   return (
     <ul className="space-y-1">
@@ -124,7 +126,7 @@ function NavItems({
                 }`}
               >
                 {item.icon}
-                {/* Notification badge on chat icon - always visible */}
+                {/* Notification badge on chat icon */}
                 {item.id === 'chat' && chatUnreadCount > 0 && (
                   <span
                     className={`absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-amber-500 text-white font-bold ${
@@ -132,6 +134,16 @@ function NavItems({
                     }`}
                   >
                     {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                  </span>
+                )}
+                {/* Badge on reports icon */}
+                {item.id === 'reports' && reportsUnreadCount > 0 && (
+                  <span
+                    className={`absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-rose-500 text-white font-bold ${
+                      collapsed ? 'h-4 min-w-4 text-[8px] px-0.5' : 'h-5 min-w-5 text-[10px] px-1.5'
+                    }`}
+                  >
+                    {reportsUnreadCount > 99 ? '99+' : reportsUnreadCount}
                   </span>
                 )}
               </span>

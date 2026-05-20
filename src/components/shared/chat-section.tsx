@@ -32,6 +32,7 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import type { UserProfile, Conversation, ChatMessage, UserStatus } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
+import ReportButton from '@/components/reports/report-button';
 import { useAppStore } from '@/stores/app-store';
 import { useStatusStore, getStatusColor, getStatusLabel, isVisible } from '@/stores/status-store';
 import {
@@ -1771,6 +1772,10 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               <span className="text-[10px] text-sky-600/60 font-medium">
                 {msg.edited_at ? `(معدّلة ${relativeTime(msg.edited_at)})` : '(معدّلة)'}
               </span>
+            )}
+            {/* Report button for other users' messages */}
+            {!isOwn && !isDeleted && (
+              <ReportButton targetType="message" targetId={msg.id} compact />
             )}
           </div>
         </div>

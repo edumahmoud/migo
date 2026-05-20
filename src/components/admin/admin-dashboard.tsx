@@ -46,6 +46,7 @@ import {
   Video,
   Flag,
   MessageSquare,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -70,6 +71,7 @@ import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SettingsSection from '@/components/shared/settings-section';
 import ChatSection from '@/components/shared/chat-section';
 import InstitutionSection from '@/components/admin/institution-section';
+import ReportsSection from '@/components/reports/reports-section';
 import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
@@ -118,6 +120,7 @@ const adminNavItems = [
   { id: 'announcements', label: 'الإعلانات', icon: <Megaphone className="h-5 w-5" /> },
   { id: 'banned', label: 'المحظورون', icon: <Ban className="h-5 w-5" /> },
   { id: 'comments', label: 'التعليقات', icon: <Flag className="h-5 w-5" /> },
+  { id: 'complaints', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'reports', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
   { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
@@ -241,6 +244,173 @@ interface UserWithMeta extends UserProfile {
   subjectCount?: number;
   studentCount?: number;
   teacherCount?: number;
+}
+
+// -------------------------------------------------------
+// Supervisor Links Manager (inline component for user detail modal)
+// -------------------------------------------------------
+function SupervisorLinksManager({ teacherId, teacherName }: { teacherId: string; teacherName: string }) {
+  const [links, setLinks] = useState<Array<{ id: string; supervisor_id: string; is_primary: boolean; supervisor?: { name: string; role: string } }>>([]);
+  const [admins, setAdmins] = useState<Array<{ id: string; name: string; role: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [selectedAdmin, setSelectedAdmin] = useState('');
+
+  const fetchLinks = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`/api/teacher-supervisor?teacher_id=${teacherId}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (result.success) setLinks(result.data || []);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  }, [teacherId]);
+
+  const fetchAdmins = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch('/api/admin/users', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (result.success) {
+        setAdmins((result.data || []).filter((u: UserProfile) => u.role === 'admin' || u.role === 'superadmin'));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { fetchLinks(); fetchAdmins(); }, [fetchLinks, fetchAdmins]);
+
+  const handleAddLink = async () => {
+    if (!selectedAdmin) return;
+    setAdding(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch('/api/teacher-supervisor', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teacher_id: teacherId, supervisor_id: selectedAdmin, is_primary: links.length === 0 }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success('تم ربط المعلم بالمشرف بنجاح');
+        setSelectedAdmin('');
+        fetchLinks();
+      } else {
+        toast.error(result.error || 'فشل إنشاء الرابط');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally { setAdding(false); }
+  };
+
+  const handleRemoveLink = async (linkId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch(`/api/teacher-supervisor?id=${linkId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success('تم إزالة الرابط');
+        fetchLinks();
+      } else {
+        toast.error(result.error || 'فشل حذف الرابط');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    }
+  };
+
+  const handleSetPrimary = async (linkId: string, supervisorId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      // Remove primary from all, then set new primary
+      await fetch('/api/teacher-supervisor', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teacher_id: teacherId, supervisor_id: supervisorId, is_primary: true }),
+      });
+      fetchLinks();
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <ShieldAlert className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+        <span className="text-sm font-semibold text-foreground">المشرفون المرتبطون</span>
+      </div>
+      <p className="text-xs text-muted-foreground mb-2">المشرفون المسؤولون عن معلم {teacherName}</p>
+
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : links.length === 0 ? (
+        <p className="text-xs text-muted-foreground">لا يوجد مشرفون مرتبطون. سيتم الربط تلقائياً عند ترقية الحساب.</p>
+      ) : (
+        <div className="space-y-2 mb-3">
+          {links.map((link) => (
+            <div key={link.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{link.supervisor?.name || 'غير معروف'}</span>
+                {link.is_primary && (
+                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">رئيسي</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {!link.is_primary && (
+                  <button
+                    onClick={() => handleSetPrimary(link.id, link.supervisor_id)}
+                    className="text-[10px] text-sky-600 hover:underline"
+                  >
+                    تعيين رئيسي
+                  </button>
+                )}
+                <button
+                  onClick={() => handleRemoveLink(link.id)}
+                  className="text-[10px] text-rose-600 hover:underline"
+                >
+                  إزالة
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add new supervisor */}
+      <div className="flex items-center gap-2">
+        <select
+          value={selectedAdmin}
+          onChange={(e) => setSelectedAdmin(e.target.value)}
+          className="flex-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+        >
+          <option value="">إضافة مشرف...</option>
+          {admins
+            .filter((a) => !links.some((l) => l.supervisor_id === a.id))
+            .map((a) => (
+              <option key={a.id} value={a.id}>{a.name} ({a.role === 'admin' ? 'مشرف' : 'مدير'})</option>
+            ))}
+        </select>
+        <button
+          onClick={handleAddLink}
+          disabled={adding || !selectedAdmin}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-700 text-white text-xs font-medium hover:bg-sky-800 disabled:opacity-50 transition-colors whitespace-nowrap"
+        >
+          {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+          ربط
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // -------------------------------------------------------
@@ -1625,15 +1795,19 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
                 {/* Stats for teacher */}
                 {selectedUser.role === 'teacher' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
-                      <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.subjectCount ?? 0}</p>
-                      <p className="text-xs text-teal-600 dark:text-teal-400">مقرر دراسي</p>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
+                        <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.subjectCount ?? 0}</p>
+                        <p className="text-xs text-teal-600 dark:text-teal-400">مقرر دراسي</p>
+                      </div>
+                      <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
+                        <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.studentCount ?? 0}</p>
+                        <p className="text-xs text-teal-600 dark:text-teal-400">طالب مسجل</p>
+                      </div>
                     </div>
-                    <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
-                      <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.studentCount ?? 0}</p>
-                      <p className="text-xs text-teal-600 dark:text-teal-400">طالب مسجل</p>
-                    </div>
+                    {/* Supervisor links management */}
+                    <SupervisorLinksManager teacherId={selectedUser.id} teacherName={selectedUser.name} />
                   </div>
                 )}
 
@@ -3702,6 +3876,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'comments' && (
                 <motion.div key="comments" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   {renderCommentModeration()}
+                </motion.div>
+              )}
+              {activeSection === 'complaints' && (
+                <motion.div key="complaints" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  <ReportsSection profile={profile} role={profile.role as 'admin' | 'superadmin'} />
                 </motion.div>
               )}
               {activeSection === 'reports' && (

@@ -57,6 +57,10 @@ interface AppState {
   chatUnreadCount: number;
   setChatUnreadCount: (count: number) => void;
   
+  // Reports unread count (global, used by sidebar badge)
+  reportsUnreadCount: number;
+  setReportsUnreadCount: (count: number) => void;
+  
   // Reset
   reset: () => void;
 }
@@ -76,6 +80,7 @@ const initialState = {
   selectedVideoId: null as string | null,
   sidebarOpen: false,
   chatUnreadCount: 0,
+  reportsUnreadCount: 0,
 };
 
 export const useAppStore = create<AppState>()(
@@ -123,6 +128,7 @@ export const useAppStore = create<AppState>()(
       setSelectedVideoId: (id) => set({ selectedVideoId: id }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setChatUnreadCount: (count) => set({ chatUnreadCount: count }),
+      setReportsUnreadCount: (count) => set({ reportsUnreadCount: count }),
       
       reset: () => set(initialState),
     }),

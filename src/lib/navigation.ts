@@ -18,6 +18,7 @@ import {
   Megaphone,
   Building2,
   Database,
+  ShieldAlert,
 } from 'lucide-react';
 import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 
@@ -55,6 +56,7 @@ export const teacherNavItems: NavItem<TeacherSection>[] = [
   { id: 'chat', label: 'المحادثات', icon: MessageCircle },
   { id: 'students', label: 'الطلاب', icon: Users },
   { id: 'files', label: 'ملفاتي', icon: FolderOpen },
+  { id: 'reports', label: 'الإبلاغات', icon: ShieldAlert },
   { id: 'analytics', label: 'التقارير', icon: TrendingUp },
   { id: 'notifications', label: 'الإشعارات', icon: Bell },
   { id: 'settings', label: 'الإعدادات', icon: Settings },
@@ -70,6 +72,7 @@ export const adminNavItems: NavItem<AdminSection>[] = [
   { id: 'subjects', label: 'المقررات', icon: BookOpen },
   { id: 'announcements', label: 'الإعلانات', icon: Megaphone },
   { id: 'banned', label: 'المحظورون', icon: Ban },
+  { id: 'complaints', label: 'الإبلاغات', icon: ShieldAlert },
   { id: 'reports', label: 'التقارير', icon: TrendingUp },
   { id: 'chat', label: 'المحادثات', icon: MessageCircle },
   { id: 'settings', label: 'الإعدادات', icon: Settings },
