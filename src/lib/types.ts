@@ -205,6 +205,7 @@ export interface SubjectVideo {
   video_size: number;
   thumbnail_url?: string;
   duration?: number;
+  view_count: number;
   comments_enabled: boolean;
   created_at: string;
   updated_at: string;

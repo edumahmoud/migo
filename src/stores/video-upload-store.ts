@@ -39,6 +39,8 @@ interface VideoUploadState {
   cancelTask: (id: string) => void;
   pauseTask: (id: string) => void;
   resumeTask: (id: string) => void;
+  pauseAll: () => void;
+  cancelAll: () => void;
   startUpload: (id: string) => Promise<void>;
   clearCompleted: () => void;
 }
@@ -138,6 +140,20 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
     resumeUploadLoop(id);
   },
 
+  pauseAll: () => {
+    const activeTasks = get().tasks.filter((t) => t.status === 'uploading');
+    for (const task of activeTasks) {
+      get().pauseTask(task.id);
+    }
+  },
+
+  cancelAll: () => {
+    const activeTasks = get().tasks.filter((t) => t.status === 'uploading' || t.status === 'paused');
+    for (const task of activeTasks) {
+      get().cancelTask(task.id);
+    }
+  },
+
   startUpload: async (id) => {
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return;
@@ -167,9 +183,10 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
       // ── Step 3: Create TUS resumable upload session ──
       // This sends a POST with Upload-Length header to get an upload URL.
       // The file is NOT sent here — only metadata.
+      // NOTE: Supabase TUS requires 'key' metadata with the full storage path.
       const metadataParts = [
-        `filename ${toBase64(file.name)}`,
         `bucketName ${toBase64('video-files')}`,
+        `key ${toBase64(storagePath)}`,
       ].join(',');
 
       let tusUrl: string;

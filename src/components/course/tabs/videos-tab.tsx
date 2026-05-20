@@ -22,6 +22,7 @@ import {
   Pause,
   CheckCircle2,
   AlertCircle,
+  Eye,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -147,13 +148,18 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
 
   // ─── Upload state ───
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ─── Edit comment state ───
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState('');
+  const [savingComment, setSavingComment] = useState(false);
+
   // ─── Global upload store ───
-  const { tasks: uploadTasks, addTask, startUpload, cancelTask, pauseTask, resumeTask, removeTask, clearCompleted } = useVideoUploadStore();
+  const { tasks: uploadTasks, addTask, startUpload, cancelTask, pauseTask, resumeTask, pauseAll, cancelAll, removeTask, clearCompleted } = useVideoUploadStore();
   const activeUploads = uploadTasks.filter((t) => t.subjectId === subjectId && (t.status === 'uploading' || t.status === 'saving' || t.status === 'paused'));
   const hasActiveUploads = activeUploads.length > 0;
 
@@ -397,30 +403,32 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   // Upload video (teacher only) — background via global store
   // -------------------------------------------------------
   const handleUpload = async () => {
-    if (!videoFile || !title.trim()) return;
+    if (!videoFiles.length || !title.trim()) return;
 
-    // Add task to global store
-    const taskId = addTask({
-      id: '', // will be assigned by addTask
-      subjectId,
-      file: videoFile,
-      title: title.trim(),
-      description: description.trim(),
-    });
+    // Add a task for each selected file
+    for (const file of videoFiles) {
+      const taskId = addTask({
+        id: '', // will be assigned by addTask
+        subjectId,
+        file,
+        title: videoFiles.length === 1 ? title.trim() : `${title.trim()} — ${file.name}`,
+        description: description.trim(),
+      });
 
-    // Close modal immediately — upload continues in background
+      // Start the actual upload (non-blocking)
+      startUpload(taskId);
+    }
+
+    // Close modal immediately — uploads continue in background
     setUploadModalOpen(false);
     resetUploadForm();
-
-    // Start the actual upload (non-blocking)
-    startUpload(taskId);
   };
 
   // -------------------------------------------------------
   // Reset upload form
   // -------------------------------------------------------
   const resetUploadForm = () => {
-    setVideoFile(null);
+    setVideoFiles([]);
     setTitle('');
     setDescription('');
     if (fileInputRef.current) {
@@ -572,6 +580,43 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   };
 
   // -------------------------------------------------------
+  // Edit a comment
+  // -------------------------------------------------------
+  const handleEditComment = (comment: VideoComment) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentContent(comment.content);
+  };
+
+  const handleSaveEditComment = async () => {
+    if (!editingCommentId || !editingCommentContent.trim() || !selectedVideo) return;
+    setSavingComment(true);
+    try {
+      const { error } = await supabase
+        .from('video_comments')
+        .update({ content: editingCommentContent.trim(), updated_at: new Date().toISOString() })
+        .eq('id', editingCommentId);
+
+      if (error) {
+        toast.error('فشل تعديل التعليق');
+      } else {
+        toast.success('تم تعديل التعليق');
+        setEditingCommentId(null);
+        setEditingCommentContent('');
+        fetchComments(selectedVideo.id);
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء تعديل التعليق');
+    } finally {
+      setSavingComment(false);
+    }
+  };
+
+  const handleCancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentContent('');
+  };
+
+  // -------------------------------------------------------
   // Delete a comment
   // -------------------------------------------------------
   const handleDeleteComment = async (commentId: string) => {
@@ -592,6 +637,24 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
     } finally {
       setDeletingCommentId(null);
       setConfirmDeleteCommentId(null);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Increment view count
+  // -------------------------------------------------------
+  const handleVideoPlay = async (videoId: string) => {
+    try {
+      await supabase.rpc('increment_video_view', { video_id: videoId });
+    } catch {
+      // Silently fail — view count is non-critical
+    }
+    // Optimistically update local state
+    setVideos((prev) =>
+      prev.map((v) => v.id === videoId ? { ...v, view_count: v.view_count + 1 } : v)
+    );
+    if (selectedVideo?.id === videoId) {
+      setSelectedVideo((prev) => prev ? { ...prev, view_count: prev.view_count + 1 } : prev);
     }
   };
 
@@ -730,6 +793,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             autoPlay
             className="w-full max-h-[70vh] aspect-video"
             poster={selectedVideo.thumbnail_url || undefined}
+            onPlay={() => handleVideoPlay(selectedVideo.id)}
           >
             <source src={selectedVideo.video_url} type={selectedVideo.video_type} />
             متصفحك لا يدعم تشغيل الفيديو.
@@ -754,6 +818,10 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             <span className="flex items-center gap-1.5">
               <HardDrive className="h-3.5 w-3.5" />
               {formatFileSize(selectedVideo.video_size)}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Eye className="h-3.5 w-3.5" />
+              {selectedVideo.view_count} مشاهدة
             </span>
             {selectedVideo.duration && (
               <span className="flex items-center gap-1.5">
@@ -867,6 +935,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                   {comments.map((comment) => {
                     const canDelete =
                       isTeacher || comment.user_id === profile.id;
+                    const canEdit = comment.user_id === profile.id;
+                    const isEditing = editingCommentId === comment.id;
 
                     return (
                       <motion.div
@@ -885,24 +955,73 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                               <span className="text-[11px] text-muted-foreground">
                                 {formatTimeAgo(comment.created_at)}
                               </span>
-                            </div>
-                            <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">
-                              {comment.content}
-                            </p>
-                          </div>
-                          {canDelete && (
-                            <button
-                              onClick={() => setConfirmDeleteCommentId(comment.id)}
-                              disabled={deletingCommentId === comment.id}
-                              className="shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors p-1 disabled:opacity-60"
-                              title="حذف التعليق"
-                            >
-                              {deletingCommentId === comment.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3.5 w-3.5" />
+                              {comment.updated_at !== comment.created_at && (
+                                <span className="text-[10px] text-muted-foreground/60">
+                                  (معدّل)
+                                </span>
                               )}
-                            </button>
+                            </div>
+                            {isEditing ? (
+                              <div className="flex items-center gap-2 mt-1">
+                                <input
+                                  type="text"
+                                  value={editingCommentContent}
+                                  onChange={(e) => setEditingCommentContent(e.target.value)}
+                                  className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) handleSaveEditComment();
+                                    if (e.key === 'Escape') handleCancelEditComment();
+                                  }}
+                                />
+                                <button
+                                  onClick={handleSaveEditComment}
+                                  disabled={savingComment || !editingCommentContent.trim()}
+                                  className="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-60 transition-colors"
+                                  title="حفظ"
+                                >
+                                  {savingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                </button>
+                                <button
+                                  onClick={handleCancelEditComment}
+                                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+                                  title="إلغاء"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">
+                                {comment.content}
+                              </p>
+                            )}
+                          </div>
+                          {!isEditing && (
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              {canEdit && (
+                                <button
+                                  onClick={() => handleEditComment(comment)}
+                                  className="flex items-center justify-center rounded-md text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors p-1"
+                                  title="تعديل التعليق"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  onClick={() => setConfirmDeleteCommentId(comment.id)}
+                                  disabled={deletingCommentId === comment.id}
+                                  className="flex items-center justify-center rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors p-1 disabled:opacity-60"
+                                  title="حذف التعليق"
+                                >
+                                  {deletingCommentId === comment.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       </motion.div>
@@ -1036,23 +1155,41 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                       ref={fileInputRef}
                       type="file"
                       accept="video/*"
-                      onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
+                      multiple
+                      onChange={(e) => {
+                        const files = e.target.files;
+                        if (files) setVideoFiles(Array.from(files));
+                      }}
                       className="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-3 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-sky-700 file:text-white file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-sky-800 file:cursor-pointer file:transition-colors"
                     />
                   </div>
-                  {videoFile && (
-                    <div className="mt-2 flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
-                      <FileVideo className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-foreground truncate">{videoFile.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{formatFileSize(videoFile.size)}</p>
-                      </div>
+                  {videoFiles.length > 0 && (
+                    <div className="mt-2 space-y-1.5">
+                      {videoFiles.map((f, i) => (
+                        <div key={i} className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
+                          <FileVideo className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
+                            <p className="text-[11px] text-muted-foreground">{formatFileSize(f.size)}</p>
+                          </div>
+                          <button
+                            onClick={() => setVideoFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                            className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                            title="إزالة"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {videoFiles.length > 1 && (
+                        <p className="text-[11px] text-muted-foreground">{videoFiles.length} ملفات سيتم رفعها</p>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {/* Info note about background upload */}
-                {videoFile && (
+                {videoFiles.length > 0 && (
                   <div className="flex items-start gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-2.5">
                     <Upload className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
                     <p className="text-xs text-sky-700 dark:text-sky-300">سيستمر الرفع في الخلفية ويمكنك التنقل في التطبيق أثناء ذلك</p>
@@ -1062,11 +1199,11 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 {/* Submit */}
                 <Button
                   onClick={handleUpload}
-                  disabled={!videoFile || !title.trim()}
+                  disabled={!videoFiles.length || !title.trim()}
                   className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 text-white"
                 >
                   <Upload className="h-4 w-4" />
-                  رفع الفيديو
+                  رفع {videoFiles.length > 1 ? `${videoFiles.length} فيديوهات` : 'الفيديو'}
                 </Button>
               </div>
             </motion.div>
@@ -1278,14 +1415,36 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 )}
               </span>
             </div>
-            {uploadTasks.some((t) => t.subjectId === subjectId && (t.status === 'done' || t.status === 'error')) && (
-              <button
-                onClick={clearCompleted}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                مسح المكتمل
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {hasActiveUploads && (
+                <>
+                  <button
+                    onClick={pauseAll}
+                    className="text-[11px] text-amber-600 hover:text-amber-700 transition-colors flex items-center gap-1"
+                    title="إيقاف الكل مؤقتاً"
+                  >
+                    <Pause className="h-3 w-3" />
+                    إيقاف الكل
+                  </button>
+                  <button
+                    onClick={cancelAll}
+                    className="text-[11px] text-rose-600 hover:text-rose-700 transition-colors flex items-center gap-1"
+                    title="إلغاء الكل"
+                  >
+                    <X className="h-3 w-3" />
+                    إلغاء الكل
+                  </button>
+                </>
+              )}
+              {uploadTasks.some((t) => t.subjectId === subjectId && (t.status === 'done' || t.status === 'error')) && (
+                <button
+                  onClick={clearCompleted}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  مسح المكتمل
+                </button>
+              )}
+            </div>
           </div>
           <div className="divide-y max-h-48 overflow-y-auto custom-scrollbar">
             {uploadTasks
