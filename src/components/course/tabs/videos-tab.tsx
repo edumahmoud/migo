@@ -21,10 +21,12 @@ import {
   CheckCircle2,
   Eye,
   Image as ImageIcon,
+  Flag,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useVideoUploadStore } from '@/stores/video-upload-store';
+import { useAppStore } from '@/stores/app-store';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -132,12 +134,18 @@ interface SubjectVideoWithUploader extends SubjectVideo {
 // Main Component
 // -------------------------------------------------------
 export default function VideosTab({ profile, role, subjectId }: VideosTabProps) {
+  // ─── App store for persisted video ID ───
+  const { selectedVideoId, setSelectedVideoId } = useAppStore();
+
   // ─── Video list state ───
   const [videos, setVideos] = useState<SubjectVideoWithUploader[]>([]);
   const [loading, setLoading] = useState(true);
 
   // ─── Video player state ───
   const [selectedVideo, setSelectedVideo] = useState<SubjectVideoWithUploader | null>(null);
+
+  // ─── Track if we've attempted to restore video from persisted ID ───
+  const [restoredFromStore, setRestoredFromStore] = useState(false);
   const [comments, setComments] = useState<VideoComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [newComment, setNewComment] = useState('');
@@ -261,6 +269,21 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             setSelectedVideo(updated);
           }
         }
+
+        // Restore selected video from persisted ID (after page refresh)
+        if (!restoredFromStore && selectedVideoId) {
+          const restored = videosWithUploaders.find((v) => v.id === selectedVideoId);
+          if (restored) {
+            setSelectedVideo(restored);
+            fetchComments(restored.id);
+          } else {
+            // Video no longer exists — clear persisted ID
+            setSelectedVideoId(null);
+          }
+          setRestoredFromStore(true);
+        } else if (!restoredFromStore) {
+          setRestoredFromStore(true);
+        }
       } else {
         // Preserve optimistic entries even when DB is empty
         setVideos((prev) => prev.filter((v) => v.id.startsWith('optimistic-')));
@@ -357,6 +380,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           // Clear selectedVideo if it was deleted
           if (selectedVideoRef.current?.id === deletedId) {
             setSelectedVideo(null);
+            setSelectedVideoId(null);
             setComments([]);
           }
         }
@@ -453,35 +477,104 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   }, []);
 
   // -------------------------------------------------------
-  // Real-time subscription for comments on selected video
+  // Real-time subscription for comments on selected video — surgical updates
   // -------------------------------------------------------
   useEffect(() => {
     if (!selectedVideo) return;
+
+    const fetchSingleComment = async (commentId: string): Promise<VideoComment | null> => {
+      try {
+        const { data, error } = await supabase
+          .from('video_comments')
+          .select('*')
+          .eq('id', commentId)
+          .single();
+        if (error || !data) return null;
+
+        const comment = data as VideoComment;
+        const { data: user } = await supabase
+          .from('users')
+          .select('id, name, title_id, gender, role')
+          .eq('id', comment.user_id)
+          .single();
+
+        return {
+          ...comment,
+          user_name: user
+            ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender)
+            : 'مستخدم',
+          user_role: user?.role ?? undefined,
+          user_title_id: user?.title_id ?? undefined,
+          user_gender: user?.gender ?? undefined,
+        };
+      } catch {
+        return null;
+      }
+    };
 
     const channel = supabase
       .channel(`video-comments-${selectedVideo.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'video_comments', filter: `video_id=eq.${selectedVideo.id}` },
-        () => fetchComments(selectedVideo.id)
+        async (payload) => {
+          const newComment = payload.new as VideoComment;
+          // Skip if already exists
+          setComments((prev) => {
+            if (prev.some((c) => c.id === newComment.id)) return prev;
+            // Add placeholder, then enrich async
+            return [...prev, { ...newComment, user_name: 'مستخدم' }];
+          });
+          // Enrich with user profile
+          const enriched = await fetchSingleComment(newComment.id);
+          if (enriched) {
+            setComments((prev) => prev.map((c) => (c.id === newComment.id ? enriched : c)));
+          }
+        }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'video_comments', filter: `video_id=eq.${selectedVideo.id}` },
-        () => fetchComments(selectedVideo.id)
+        (payload) => {
+          const deletedId = (payload.old as { id: string }).id;
+          setComments((prev) => prev.filter((c) => c.id !== deletedId));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'video_comments', filter: `video_id=eq.${selectedVideo.id}` },
+        async (payload) => {
+          const updatedComment = payload.new as VideoComment;
+          // Update the comment in place, preserving user profile data
+          setComments((prev) => prev.map((c) => {
+            if (c.id !== updatedComment.id) return c;
+            return {
+              ...c,
+              content: updatedComment.content,
+              updated_at: updatedComment.updated_at,
+              is_flagged: (updatedComment as any).is_flagged ?? c.is_flagged,
+            };
+          }));
+          // Re-enrich in case flagged_by changed
+          const enriched = await fetchSingleComment(updatedComment.id);
+          if (enriched) {
+            setComments((prev) => prev.map((c) => (c.id === updatedComment.id ? enriched : c)));
+          }
+        }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedVideo, fetchComments]);
+  }, [selectedVideo]);
 
   // -------------------------------------------------------
   // Select a video and open player view
   // -------------------------------------------------------
   const handleSelectVideo = (video: SubjectVideoWithUploader) => {
     setSelectedVideo(video);
+    setSelectedVideoId(video.id);
     setNewComment('');
     fetchComments(video.id);
   };
@@ -491,6 +584,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   // -------------------------------------------------------
   const handleBackToList = () => {
     setSelectedVideo(null);
+    setSelectedVideoId(null);
     setComments([]);
     setNewComment('');
   };
@@ -614,6 +708,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
     setVideos((prev) => prev.filter((v) => v.id !== videoId));
     if (selectedVideo?.id === videoId) {
       setSelectedVideo(null);
+      setSelectedVideoId(null);
       setComments([]);
     }
     setConfirmDeleteId(null);
@@ -780,20 +875,58 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   };
 
   // -------------------------------------------------------
-  // Increment view count
+  // Flag (report) a comment
+  // -------------------------------------------------------
+  const handleFlagComment = async (commentId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      const { error } = await supabase
+        .from('video_comments')
+        .update({ is_flagged: true, flagged_at: new Date().toISOString(), flagged_by: userId })
+        .eq('id', commentId);
+
+      if (error) {
+        toast.error('فشل الإبلاغ عن التعليق');
+      } else {
+        toast.success('تم الإبلاغ عن التعليق وسيتم مراجعته');
+        // Update local state to reflect flag
+        setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, is_flagged: true } : c));
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    }
+  };
+
+  // -------------------------------------------------------
+  // Record unique view count (first view per user only)
   // -------------------------------------------------------
   const handleVideoPlay = async (videoId: string) => {
     try {
-      await supabase.rpc('increment_video_view', { video_id: videoId });
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return;
+
+      const { data: isFirstView } = await supabase.rpc('record_video_view', {
+        p_video_id: videoId,
+        p_user_id: userId,
+      });
+
+      // Optimistically update local state only if this was a first view
+      if (isFirstView) {
+        setVideos((prev) =>
+          prev.map((v) => v.id === videoId ? { ...v, view_count: v.view_count + 1 } : v)
+        );
+        if (selectedVideo?.id === videoId) {
+          setSelectedVideo((prev) => prev ? { ...prev, view_count: prev.view_count + 1 } : prev);
+        }
+      }
     } catch {
       // Silently fail — view count is non-critical
-    }
-    // Optimistically update local state
-    setVideos((prev) =>
-      prev.map((v) => v.id === videoId ? { ...v, view_count: v.view_count + 1 } : v)
-    );
-    if (selectedVideo?.id === videoId) {
-      setSelectedVideo((prev) => prev ? { ...prev, view_count: prev.view_count + 1 } : prev);
     }
   };
 
@@ -1193,6 +1326,23 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                                     <Trash2 className="h-3.5 w-3.5" />
                                   )}
                                 </button>
+                              )}
+                              {/* Report button — only for comments that aren't yours and aren't already flagged */}
+                              {!canDelete && !comment.is_flagged && (
+                                <button
+                                  onClick={() => handleFlagComment(comment.id)}
+                                  className="flex items-center justify-center rounded-md text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors p-1"
+                                  title="الإبلاغ عن التعليق"
+                                >
+                                  <Flag className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                              {/* Flagged indicator */}
+                              {comment.is_flagged && (
+                                <span className="flex items-center gap-1 text-amber-500 text-[10px] font-medium">
+                                  <Flag className="h-3 w-3" />
+                                  مبلّغ
+                                </span>
                               )}
                             </div>
                           )}

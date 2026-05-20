@@ -45,6 +45,10 @@ interface AppState {
   selectedStudentId: string | null;
   setSelectedStudentId: (id: string | null) => void;
   
+  // Video player — persisted so refresh doesn't lose the open video
+  selectedVideoId: string | null;
+  setSelectedVideoId: (id: string | null) => void;
+
   // Sidebar
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
@@ -69,6 +73,7 @@ const initialState = {
   selectedSubjectId: null as string | null,
   courseTab: 'overview' as CourseTab,
   selectedStudentId: null as string | null,
+  selectedVideoId: null as string | null,
   sidebarOpen: false,
   chatUnreadCount: 0,
 };
@@ -115,6 +120,7 @@ export const useAppStore = create<AppState>()(
       setSelectedSubjectId: (id) => set({ selectedSubjectId: id }),
       setCourseTab: (tab) => set({ courseTab: tab }),
       setSelectedStudentId: (id) => set({ selectedStudentId: id }),
+      setSelectedVideoId: (id) => set({ selectedVideoId: id }),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setChatUnreadCount: (count) => set({ chatUnreadCount: count }),
       
@@ -129,6 +135,7 @@ export const useAppStore = create<AppState>()(
         currentPage: state.currentPage,
         selectedSubjectId: state.selectedSubjectId,
         courseTab: state.courseTab,
+        selectedVideoId: state.selectedVideoId,
         // Critical: persist viewingSummaryId so summaries survive page refresh
         // Without this, refreshing while viewing a summary loses the ID and the user
         // lands on an orphaned 'summary' currentPage with no summary to show.

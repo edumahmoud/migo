@@ -48,6 +48,7 @@ import SettingsSection from '@/components/shared/settings-section';
 import ChatSection from '@/components/shared/chat-section';
 import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import NotificationsSection from '@/components/shared/notifications-section';
+import AllVideosSection from '@/components/shared/all-videos-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
@@ -4244,6 +4245,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         return <AssignmentsSection profile={profile} role="student" />;
       case 'files':
         return <PersonalFilesSection profile={profile} role="student" />;
+      case 'videos':
+        return <AllVideosSection profile={profile} role="student" />;
       case 'teachers':
         return renderTeachers();
       case 'chat':

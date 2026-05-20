@@ -133,6 +133,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    if (type === 'all' || type === 'videos') {
+      const { count: videoCount, error: videoError } = await supabaseServer
+        .from('subject_videos')
+        .select('*', { count: 'exact', head: true });
+
+      if (videoError) {
+        console.error('Error fetching video count:', videoError);
+        errors.push(`videos: ${videoError.message}`);
+      } else {
+        results.videoCount = videoCount ?? 0;
+      }
+    }
+
     if (type === 'banned') {
       const { data: banned, error: bannedError } = await supabaseServer
         .from('banned_users')

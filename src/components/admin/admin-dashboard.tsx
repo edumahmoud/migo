@@ -43,6 +43,9 @@ import {
   Gavel,
   ArrowUpDown,
   Filter,
+  Video,
+  Flag,
+  MessageSquare,
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -114,6 +117,7 @@ const adminNavItems = [
   { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'announcements', label: 'الإعلانات', icon: <Megaphone className="h-5 w-5" /> },
   { id: 'banned', label: 'المحظورون', icon: <Ban className="h-5 w-5" /> },
+  { id: 'comments', label: 'التعليقات', icon: <Flag className="h-5 w-5" /> },
   { id: 'reports', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
   { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
   { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
@@ -263,6 +267,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const [allScores, setAllScores] = useState<Score[]>([]);
   const [totalQuizzes, setTotalQuizzes] = useState(0);
   const [totalSubmissions, setTotalSubmissions] = useState(0);
+  const [totalVideos, setTotalVideos] = useState(0);
+  const [flaggedComments, setFlaggedComments] = useState<any[]>([]);
+  const [flaggedLoading, setFlaggedLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
   // ─── Users section state ───
@@ -414,6 +421,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         if (result.data.subjects) setAllSubjects(result.data.subjects as Subject[]);
         if (result.data.scores) setAllScores(result.data.scores as Score[]);
         if (result.data.quizCount !== undefined) setTotalQuizzes(result.data.quizCount as number);
+        if (result.data.videoCount !== undefined) setTotalVideos(result.data.videoCount as number);
         
         // Log warnings if any
         if (result.warnings && result.warnings.length > 0) {
@@ -602,6 +610,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     if (section === 'banned' || section === 'users') fetchBannedUsers();
     if (section === 'announcements') fetchAnnouncements();
     if (section === 'reports') fetchUsageStats(usagePeriod);
+    if (section === 'comments') fetchFlaggedComments();
   };
 
   // -------------------------------------------------------
@@ -1148,7 +1157,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       </motion.div>
 
       {/* Stats row */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           icon={<Users className="h-5 w-5" />}
           label="إجمالي المستخدمين"
@@ -1166,6 +1175,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           label="الطلاب"
           value={studentCount}
           color="amber"
+        />
+        <StatCard
+          icon={<Video className="h-5 w-5" />}
+          label="الفيديوهات"
+          value={totalVideos}
+          color="violet"
         />
         <div onClick={() => setActiveSection('banned')} className="cursor-pointer">
           <StatCard
@@ -2293,6 +2308,210 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // -------------------------------------------------------
   // Render: Banned Users Section
   // -------------------------------------------------------
+  // -------------------------------------------------------
+  // Fetch flagged comments
+  // -------------------------------------------------------
+  const fetchFlaggedComments = useCallback(async () => {
+    setFlaggedLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('video_comments')
+        .select('*, video:subject_videos(id, title)')
+        .eq('is_flagged', true)
+        .order('flagged_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching flagged comments:', error);
+      } else {
+        // Enrich with user names
+        const comments = (data || []) as any[];
+        if (comments.length > 0) {
+          const userIds = [...new Set(comments.map((c: any) => c.user_id))];
+          const { data: users } = await supabase
+            .from('users')
+            .select('id, name, title_id, gender, role')
+            .in('id', userIds);
+
+          const userMap = new Map<string, any>();
+          if (users) {
+            for (const u of users as any[]) {
+              userMap.set(u.id, u);
+            }
+          }
+
+          const enriched = comments.map((c: any) => {
+            const user = userMap.get(c.user_id);
+            return {
+              ...c,
+              user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender) : 'مستخدم',
+            };
+          });
+          setFlaggedComments(enriched);
+        } else {
+          setFlaggedComments([]);
+        }
+      }
+    } catch (err) {
+      console.error('Fetch flagged comments error:', err);
+    } finally {
+      setFlaggedLoading(false);
+    }
+  }, []);
+
+  // -------------------------------------------------------
+  // Unflag a comment
+  // -------------------------------------------------------
+  const handleUnflagComment = async (commentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('video_comments')
+        .update({ is_flagged: false, flagged_at: null, flagged_by: null })
+        .eq('id', commentId);
+
+      if (error) {
+        toast.error('فشل إلغاء البلاغ');
+      } else {
+        toast.success('تم إلغاء البلاغ');
+        setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    }
+  };
+
+  // -------------------------------------------------------
+  // Delete a flagged comment (admin)
+  // -------------------------------------------------------
+  const handleDeleteFlaggedComment = async (commentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('video_comments')
+        .delete()
+        .eq('id', commentId);
+
+      if (error) {
+        toast.error('فشل حذف التعليق');
+      } else {
+        toast.success('تم حذف التعليق');
+        setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    }
+  };
+
+  // -------------------------------------------------------
+  // Render: Comment Moderation Section
+  // -------------------------------------------------------
+  const renderCommentModeration = () => (
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+      <motion.div variants={itemVariants} className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <Flag className="h-5 w-5 text-amber-600" />
+            رقابة التعليقات
+          </h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            التعليقات المبلّغة التي تحتاج مراجعة
+          </p>
+        </div>
+        <button
+          onClick={fetchFlaggedComments}
+          disabled={flaggedLoading}
+          className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60"
+        >
+          <Loader2 className={`h-3.5 w-3.5 ${flaggedLoading ? 'animate-spin' : 'hidden'}`} />
+          تحديث
+        </button>
+      </motion.div>
+
+      {/* Load flagged comments on first visit */}
+      {/* This effect runs when the section becomes active */}
+
+      {flaggedLoading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+        </div>
+      ) : flaggedComments.length === 0 ? (
+        <motion.div
+          variants={itemVariants}
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/30 py-16"
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 mb-4">
+            <MessageSquare className="h-8 w-8 text-amber-600 dark:text-amber-300" />
+          </div>
+          <p className="text-lg font-semibold text-foreground mb-1">لا توجد تعليقات مبلّغة</p>
+          <p className="text-sm text-muted-foreground">جميع التعليقات متوافقة مع السياسة</p>
+        </motion.div>
+      ) : (
+        <motion.div variants={containerVariants} className="space-y-4">
+          <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-4 py-3">
+            <Flag className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+              {flaggedComments.length} تعليق مبلّغ يحتاج مراجعة
+            </p>
+          </div>
+
+          {flaggedComments.map((comment: any) => (
+            <motion.div
+              key={comment.id}
+              variants={itemVariants}
+              className="rounded-xl border bg-card shadow-sm overflow-hidden"
+            >
+              <div className="p-4 space-y-3">
+                {/* Comment header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground">{comment.user_name || 'مستخدم'}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {new Date(comment.created_at).toLocaleDateString('ar-SA')}
+                      </span>
+                      <span className="rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[10px] font-medium flex items-center gap-1">
+                        <Flag className="h-2.5 w-2.5" />
+                        مبلّغ
+                      </span>
+                    </div>
+                    {/* Video reference */}
+                    {comment.video && (
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                        <Video className="h-3 w-3" />
+                        {comment.video.title}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Comment content */}
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-sm text-foreground whitespace-pre-wrap break-words">{comment.content}</p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={() => handleUnflagComment(comment.id)}
+                    className="flex items-center gap-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 transition-colors"
+                  >
+                    <Unlock className="h-3.5 w-3.5" />
+                    إلغاء البلاغ
+                  </button>
+                  <button
+                    onClick={() => handleDeleteFlaggedComment(comment.id)}
+                    className="flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800 px-3 py-1.5 text-sm font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-colors"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    حذف التعليق
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
+    </motion.div>
+  );
+
   const renderBannedUsers = () => {
     // Helper: determine if a ban is expired
     const isBanExpired = (ban: BannedUser) => {
@@ -3478,6 +3697,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'banned' && (
                 <motion.div key="banned" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   {renderBannedUsers()}
+                </motion.div>
+              )}
+              {activeSection === 'comments' && (
+                <motion.div key="comments" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  {renderCommentModeration()}
                 </motion.div>
               )}
               {activeSection === 'reports' && (
