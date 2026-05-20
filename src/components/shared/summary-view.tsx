@@ -487,6 +487,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const refineProgress = useAiProgress(refining, AI_PHASES_REFINE, 60000);
   const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, AI_PHASES_QUIZ, 60000);
 
+  // ─── Tab state ───
+  const [summaryTab, setSummaryTab] = useState<'summary' | 'quiz'>('summary');
+
+  // ─── Delete quiz confirmation ───
+  const [deleteQuizConfirmOpen, setDeleteQuizConfirmOpen] = useState(false);
+  const [deletingQuiz, setDeletingQuiz] = useState(false);
+
   // ─── Quiz config states ───
   const [quizConfigTypes, setQuizConfigTypes] = useState({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
   const [quizAnswerMode, setQuizAnswerMode] = useState<'during' | 'after'>('after');
@@ -909,6 +916,28 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   };
 
   // -------------------------------------------------------
+  // Delete related quiz
+  // -------------------------------------------------------
+  const handleDeleteQuiz = async () => {
+    if (!relatedQuiz) return;
+    setDeletingQuiz(true);
+    try {
+      const { error } = await supabase.from('quizzes').delete().eq('id', relatedQuiz.id);
+      if (error) {
+        toast.error('حدث خطأ أثناء حذف الاختبار');
+      } else {
+        toast.success('تم حذف الاختبار بنجاح');
+        setRelatedQuiz(null);
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء حذف الاختبار');
+    } finally {
+      setDeletingQuiz(false);
+      setDeleteQuizConfirmOpen(false);
+    }
+  };
+
+  // -------------------------------------------------------
   // Generate quiz from summary (with config)
   // -------------------------------------------------------
   const handleGenerateQuiz = async () => {
@@ -1300,7 +1329,34 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         </div>
       </motion.div>
 
+      {/* Tab Switcher — Summary / Quiz */}
+      <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-0.5 print:hidden">
+        <button
+          onClick={() => setSummaryTab('summary')}
+          className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-all ${
+            summaryTab === 'summary'
+              ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <BookOpen className="h-4 w-4" />
+          الملخص
+        </button>
+        <button
+          onClick={() => setSummaryTab('quiz')}
+          className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-all ${
+            summaryTab === 'quiz'
+              ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-200 shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <ClipboardList className="h-4 w-4" />
+          الاختبار
+        </button>
+      </div>
+
       {/* Summary content card */}
+      {summaryTab === 'summary' && (
       <motion.div variants={fadeInUp}>
         <Card className={`${isTranscribed ? 'border-teal-200' : 'border-sky-200'} bg-white shadow-sm print:shadow-none print:border-none`}>
           <CardContent className="p-6 sm:p-8">
@@ -1416,8 +1472,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           </CardContent>
         </Card>
       </motion.div>
+      )}
 
       {/* Quiz Section */}
+      {summaryTab === 'quiz' && (
       <motion.div variants={fadeInUp}>
         <Card className="border-teal-200 bg-white shadow-sm print:hidden">
           <CardContent className="p-6">
@@ -1648,9 +1706,53 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 </Button>
               </div>
             )}
+
+            {/* Delete quiz button */}
+            {relatedQuiz && (
+              <div className="mt-4 pt-4 border-t border-teal-100">
+                {!deleteQuizConfirmOpen ? (
+                  <div className="flex items-center justify-between rounded-lg border border-rose-100 bg-rose-50/30 p-3">
+                    <div className="flex items-center gap-2">
+                      <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                      <span className="text-xs text-rose-600">حذف الاختبار</span>
+                    </div>
+                    <button
+                      onClick={() => setDeleteQuizConfirmOpen(true)}
+                      disabled={deletingQuiz}
+                      className="flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
+                    >
+                      {deletingQuiz ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      حذف
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 space-y-2">
+                    <p className="text-xs font-medium text-rose-700">هل أنت متأكد من حذف هذا الاختبار؟ لا يمكن التراجع عن هذا الإجراء.</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleDeleteQuiz}
+                        disabled={deletingQuiz}
+                        className="flex items-center gap-1 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 transition-colors disabled:opacity-50"
+                      >
+                        {deletingQuiz ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                        نعم، حذف
+                      </button>
+                      <button
+                        onClick={() => setDeleteQuizConfirmOpen(false)}
+                        disabled={deletingQuiz}
+                        className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
+      )}
 
       {/* Completed Quizzes Section — shows all taken quizzes for this summary */}
       {completedQuizzes.length > 0 && (

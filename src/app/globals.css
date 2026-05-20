@@ -555,3 +555,34 @@
     padding-bottom: 5rem;
   }
 }
+
+/* ─── Anti-Screenshot & Screen Recording Protection for Quiz Pages ─── */
+/* When the quiz-protected class is active (page hidden/blur), blur all content */
+body.quiz-protected > * {
+  filter: blur(20px) !important;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+/* Overlay message when screen capture is detected */
+body.quiz-capture-detected::after {
+  content: "🚫 تم اكتشاف تسجيل الشاشة";
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(220, 38, 38, 0.97);
+  direction: rtl;
+}
+
+/* Prevent text selection on quiz pages for copy protection */
+body.quiz-protected,
+body.quiz-capture-detected {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}

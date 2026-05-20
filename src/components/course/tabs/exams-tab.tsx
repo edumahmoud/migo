@@ -514,31 +514,47 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         quizData.subject_id = subjectId;
         quizData.is_finished = false; // Explicitly set to ensure it appears in active tab
 
-        const { error } = await supabase.from('quizzes').insert(quizData);
+        // Optimistic: add to local state immediately for instant appearance
+        const tempId = `temp-${Date.now()}`;
+        const optimisticQuiz = {
+          ...quizData,
+          id: tempId,
+          created_at: new Date().toISOString(),
+        } as Quiz;
+        setQuizzes(prev => [optimisticQuiz, ...prev]);
+        setQuizModalOpen(false);
+        resetQuizForm();
+        toast.success('تم إنشاء الاختبار بنجاح');
 
-        if (error) {
-          console.error('Error creating quiz:', error);
-          // Check if is_finished column is missing
-          if (error.message?.includes('is_finished') || error.code === '42703') {
-            // Try again without is_finished
-            const { is_finished, ...dataWithoutFinished } = quizData as Record<string, unknown> & { is_finished?: unknown };
-            const { error: retryError } = await supabase.from('quizzes').insert(dataWithoutFinished);
-            
-            if (retryError) {
-              toast.error(`حدث خطأ أثناء إنشاء الاختبار: ${retryError.message}`);
+        // Save to server in background
+        try {
+          const { error } = await supabase.from('quizzes').insert(quizData).select();
+          if (error) {
+            // Check if is_finished column is missing
+            if (error.message?.includes('is_finished') || error.code === '42703') {
+              const { is_finished, ...dataWithoutFinished } = quizData as Record<string, unknown> & { is_finished?: unknown };
+              const { error: retryError } = await supabase.from('quizzes').insert(dataWithoutFinished).select();
+              if (retryError) {
+                toast.error(`حدث خطأ أثناء حفظ الاختبار: ${retryError.message}`);
+                // Revert: remove the optimistic entry and refetch
+                setQuizzes(prev => prev.filter(q => q.id !== tempId));
+                fetchData();
+              } else {
+                // Replace temp with real data
+                fetchData();
+              }
             } else {
-              toast.success('تم إنشاء الاختبار بنجاح');
-              setQuizModalOpen(false);
-              resetQuizForm();
+              toast.error(`حدث خطأ أثناء حفظ الاختبار: ${error.message}`);
+              setQuizzes(prev => prev.filter(q => q.id !== tempId));
               fetchData();
             }
           } else {
-            toast.error(`حدث خطأ أثناء إنشاء الاختبار: ${error.message}`);
+            // Replace temp with real data from server
+            fetchData();
           }
-        } else {
-          toast.success('تم إنشاء الاختبار بنجاح');
-          setQuizModalOpen(false);
-          resetQuizForm();
+        } catch {
+          // Revert on unexpected error
+          setQuizzes(prev => prev.filter(q => q.id !== tempId));
           fetchData();
         }
       }
@@ -797,13 +813,21 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   // Delete quiz
   // -------------------------------------------------------
   const handleDelete = async (quizId: string) => {
+    // Optimistic: remove from local state immediately
+    const previousQuizzes = quizzes;
+    setQuizzes(prev => prev.filter(q => q.id !== quizId));
     setDeletingId(quizId);
     try {
       const { error } = await supabase.from('quizzes').delete().eq('id', quizId);
-      if (error) toast.error('حدث خطأ أثناء حذف الاختبار');
-      else { toast.success('تم حذف الاختبار'); fetchData(); }
+      if (error) {
+        toast.error('حدث خطأ أثناء حذف الاختبار');
+        setQuizzes(previousQuizzes); // Revert on failure
+      } else {
+        toast.success('تم حذف الاختبار');
+      }
     } catch {
       toast.error('حدث خطأ غير متوقع');
+      setQuizzes(previousQuizzes); // Revert on failure
     } finally {
       setDeletingId(null);
     }

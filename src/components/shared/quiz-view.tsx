@@ -288,6 +288,95 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     return () => clearTimeout(timer);
   }, [loading]);
 
+  // ─── Anti-screenshot & screen recording protection ───
+  useEffect(() => {
+    // Blur page content when window loses focus (switching apps, opening control center)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        document.body.classList.add('quiz-protected');
+      } else {
+        document.body.classList.remove('quiz-protected');
+      }
+    };
+
+    // Detect screen capture via MediaDevices API
+    let captureStream: MediaStream | null = null;
+    const detectScreenCapture = async () => {
+      try {
+        captureStream = await navigator.mediaDevices.getDisplayMedia({ video: true } as MediaStreamConstraints);
+        // If we get here, user started screen sharing — blur the quiz
+        document.body.classList.add('quiz-capture-detected');
+        captureStream.getTracks().forEach(t => t.stop());
+        captureStream = null;
+        toast.warning('تم اكتشاف تسجيل الشاشة. يرجى إيقافه للمتابعة.');
+      } catch {
+        // User denied screen share — no action needed
+      }
+    };
+
+    // Block common screenshot shortcuts (PrintScreen, Ctrl+Shift+S, etc.)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // PrintScreen key
+      if (e.key === 'PrintScreen') {
+        e.preventDefault();
+        // Copy a warning message to clipboard to overwrite screenshot data
+        navigator.clipboard?.writeText('').catch(() => {});
+        toast.warning('تم تعطيل لقطة الشاشة أثناء الاختبار');
+        return;
+      }
+      // Windows: Win+Shift+S
+      if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        toast.warning('تم تعطيل لقطة الشاشة أثناء الاختبار');
+        return;
+      }
+      // Mac: Cmd+Shift+3 or Cmd+Shift+4 or Cmd+Shift+5
+      if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
+        e.preventDefault();
+        toast.warning('تم تعطيل لقطة الشاشة أثناء الاختبار');
+        return;
+      }
+      // Ctrl+P (print)
+      if (e.ctrlKey && e.key === 'p') {
+        e.preventDefault();
+        return;
+      }
+    };
+
+    // Prevent right-click context menu
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    // Detect window blur (user switched to another app)
+    const handleBlur = () => {
+      if (!document.hidden) {
+        document.body.classList.add('quiz-protected');
+        setTimeout(() => document.body.classList.remove('quiz-protected'), 500);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener('blur', handleBlur);
+
+    // Periodically check for screen capture every 3 seconds
+    const captureCheckInterval = setInterval(detectScreenCapture, 3000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      window.removeEventListener('blur', handleBlur);
+      clearInterval(captureCheckInterval);
+      document.body.classList.remove('quiz-protected', 'quiz-capture-detected');
+      if (captureStream) {
+        captureStream.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
+
   useEffect(() => {
     fetchQuiz();
   }, [fetchQuiz]);

@@ -379,13 +379,21 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
   // Delete note
   // -------------------------------------------------------
   const handleDeleteNote = async (noteId: string) => {
+    // Optimistic: remove from local state immediately
+    const previousNotes = allNotes;
+    setAllNotes(prev => prev.filter(n => n.id !== noteId));
     setDeletingNoteId(noteId);
     try {
       const { error } = await supabase.from('lecture_notes').delete().eq('id', noteId);
-      if (error) toast.error('حدث خطأ أثناء حذف الملاحظة');
-      else { toast.success('تم حذف الملاحظة'); fetchAllNotes(); }
+      if (error) {
+        toast.error('حدث خطأ أثناء حذف الملاحظة');
+        setAllNotes(previousNotes); // Revert on failure
+      } else {
+        toast.success('تم حذف الملاحظة');
+      }
     } catch {
       toast.error('حدث خطأ غير متوقع');
+      setAllNotes(previousNotes); // Revert on failure
     } finally {
       setDeletingNoteId(null);
     }
