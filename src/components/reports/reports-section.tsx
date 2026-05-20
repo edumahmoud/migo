@@ -876,14 +876,20 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // Filter actions for students: only show forward, block, warn, and messages
-    const filteredActions = role === 'student'
-      ? allActions.filter(item => {
-          if (item.type === 'message') return true;
-          const resp = item.data as ReportResponse;
-          return ['forward', 'block', 'warn'].includes(resp.action);
-        })
-      : allActions;
+    // Filter actions: messages only visible to the sender; students see limited actions
+    const filteredActions = allActions.filter(item => {
+      if (item.type === 'message') {
+        // Messages in actions log are only visible to the sender
+        const msg = item.data as ReportMessage;
+        return msg.sender_id === profile.id;
+      }
+      // For students: only show forward, block, warn actions
+      if (role === 'student') {
+        const resp = item.data as ReportResponse;
+        return ['forward', 'block', 'warn'].includes(resp.action);
+      }
+      return true;
+    });
 
     if (filteredActions.length === 0) return null;
 

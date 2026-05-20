@@ -16,44 +16,75 @@ export async function GET(request: NextRequest) {
     const userId = authResult.user.id;
     const role = await getUserRole(userId);
 
-    let countQuery;
-
     if (role === 'admin' || role === 'superadmin') {
       // Admins/superadmins see count of ALL pending/in_progress reports on the platform
-      countQuery = supabaseServer
+      const { count, error } = await supabaseServer
         .from('reports')
         .select('id', { count: 'exact', head: true })
         .in('status', ['pending', 'in_progress']);
+
+      if (error) {
+        console.error('[Reports] Count error:', error.message);
+        return NextResponse.json(
+          { success: false, error: 'فشل جلب عدد الإبلاغات' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: { count: count || 0 },
+      });
     } else if (role === 'teacher') {
-      // Teachers see count of reports assigned to them (from students) that are pending/in_progress
-      countQuery = supabaseServer
-        .from('reports')
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['pending', 'in_progress'])
-        .eq('assigned_to', userId);
+      // Teachers see count of reports assigned to them + reports against them
+      const [assignedResult, againstResult] = await Promise.all([
+        supabaseServer
+          .from('reports')
+          .select('id', { count: 'exact', head: true })
+          .in('status', ['pending', 'in_progress'])
+          .eq('assigned_to', userId),
+        supabaseServer
+          .from('reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('target_type', 'user')
+          .eq('target_id', userId)
+          .in('status', ['pending', 'in_progress']),
+      ]);
+      
+      const assignedCount = assignedResult.count || 0;
+      const againstCount = againstResult.count || 0;
+      
+      return NextResponse.json({
+        success: true,
+        data: { count: assignedCount + againstCount },
+      });
     } else {
-      // Students see count of their reports that have new responses (status changed from their last view)
-      countQuery = supabaseServer
-        .from('reports')
-        .select('id', { count: 'exact', head: true })
-        .eq('reporter_id', userId)
-        .in('status', ['in_progress', 'resolved']);
+      // Students/users see count of:
+      // 1. Their submitted reports that have responses (in_progress/resolved)
+      // 2. Reports against them that are active (pending/in_progress)
+      // We use two queries and sum the counts
+      const [submittedResult, againstResult] = await Promise.all([
+        supabaseServer
+          .from('reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('reporter_id', userId)
+          .in('status', ['in_progress', 'resolved']),
+        supabaseServer
+          .from('reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('target_type', 'user')
+          .eq('target_id', userId)
+          .in('status', ['pending', 'in_progress']),
+      ]);
+      
+      const submittedCount = submittedResult.count || 0;
+      const againstCount = againstResult.count || 0;
+      
+      return NextResponse.json({
+        success: true,
+        data: { count: submittedCount + againstCount },
+      });
     }
-
-    const { count, error } = await countQuery;
-
-    if (error) {
-      console.error('[Reports] Count error:', error.message);
-      return NextResponse.json(
-        { success: false, error: 'فشل جلب عدد الإبلاغات' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: { count: count || 0 },
-    });
   } catch (error) {
     console.error('[Reports] Count error:', error);
     return NextResponse.json(

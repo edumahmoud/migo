@@ -469,7 +469,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
             <Video className="h-5 w-5 text-sky-700 dark:text-sky-300" />
             كل الفيديوهات
           </h3>
-          <p className="text-muted-foreground text-sm mt-1">
+          <p className="text-muted-foreground text-sm mt-1 mb-3">
             {filteredVideos.length} فيديو من {subjects.length} مقرر
           </p>
         </div>
@@ -561,7 +561,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
           </p>
         </motion.div>
       ) : (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
           {filteredVideos.map((video) => (
             <motion.div key={video.id} variants={itemVariants}>
               <Card

@@ -688,6 +688,78 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     initAuthCacheListener();
   }, []);
 
+  // ─── Anti-screenshot & screen recording protection ───
+  useEffect(() => {
+    // Blur page content when window loses focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        document.body.classList.add('quiz-protected');
+      } else {
+        document.body.classList.remove('quiz-protected');
+      }
+    };
+
+    // Detect screen capture via MediaDevices API
+    let captureStream: MediaStream | null = null;
+    const detectScreenCapture = async () => {
+      try {
+        captureStream = await navigator.mediaDevices.getDisplayMedia({ video: true } as MediaStreamConstraints);
+        document.body.classList.add('quiz-capture-detected');
+        captureStream.getTracks().forEach(t => t.stop());
+        captureStream = null;
+        toast.warning('تم اكتشاف تسجيل الشاشة. يرجى إيقافه للمتابعة.');
+      } catch {
+        // User denied screen share
+      }
+    };
+
+    // Block common screenshot shortcuts
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'PrintScreen') {
+        e.preventDefault();
+        navigator.clipboard?.writeText('').catch(() => {});
+        toast.warning('تم تعطيل لقطة الشاشة');
+        return;
+      }
+      if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        toast.warning('تم تعطيل لقطة الشاشة');
+        return;
+      }
+      if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
+        e.preventDefault();
+        toast.warning('تم تعطيل لقطة الشاشة');
+        return;
+      }
+      if (e.ctrlKey && e.key === 'p') {
+        e.preventDefault();
+        return;
+      }
+    };
+
+    // Prevent right-click context menu
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('contextmenu', handleContextMenu);
+
+    const captureCheckInterval = setInterval(detectScreenCapture, 3000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      clearInterval(captureCheckInterval);
+      document.body.classList.remove('quiz-protected', 'quiz-capture-detected');
+      if (captureStream) {
+        captureStream.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
+
   // -------------------------------------------------------
   // Progress Persistence — Save/restore via sessionStorage
   // Prevents data loss when the page is refreshed during an

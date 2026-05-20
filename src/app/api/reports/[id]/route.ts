@@ -38,9 +38,33 @@ export async function GET(
       );
     }
 
-    // Check access: reporter, assigned user, or admin/superadmin
+    // Check access: reporter, assigned user, target (reported person), or admin/superadmin
     const isAdmin = role === 'admin' || role === 'superadmin';
-    if (report.reporter_id !== userId && report.assigned_to !== userId && !isAdmin) {
+    // Check if user is the target (reported person) of this report
+    let isTargetUser = false;
+    if (report.target_type === 'user' && report.target_id === userId) {
+      isTargetUser = true;
+    } else if (report.target_type === 'comment' && report.target_id) {
+      try {
+        const { data: comment } = await supabaseServer
+          .from('video_comments')
+          .select('user_id')
+          .eq('id', report.target_id)
+          .single();
+        if (comment?.user_id === userId) isTargetUser = true;
+      } catch {}
+    } else if (report.target_type === 'message' && report.target_id) {
+      try {
+        const { data: message } = await supabaseServer
+          .from('chat_messages')
+          .select('sender_id')
+          .eq('id', report.target_id)
+          .single();
+        if (message?.sender_id === userId) isTargetUser = true;
+      } catch {}
+    }
+
+    if (report.reporter_id !== userId && report.assigned_to !== userId && !isAdmin && !isTargetUser) {
       return NextResponse.json(
         { success: false, error: 'غير مصرح بالوصول' },
         { status: 403 }
@@ -369,6 +393,18 @@ export async function PATCH(
           { status: 500 }
         );
       }
+
+      // Notify the reporter about the new message
+      await supabaseServer
+        .from('notifications')
+        .insert({
+          user_id: report.reporter_id,
+          type: 'report',
+          title: 'رسالة بخصوص بلاغ قدمته',
+          message: message_content.substring(0, 100),
+          link: `/reports/${id}`,
+          read: false,
+        });
     }
 
     // ─── Handle message_reported action ───
@@ -422,6 +458,18 @@ export async function PATCH(
           { status: 500 }
         );
       }
+
+      // Notify the reported user about the new message
+      await supabaseServer
+        .from('notifications')
+        .insert({
+          user_id: reportedUserId,
+          type: 'report',
+          title: 'رسالة بخصوص بلاغ مقدم ضدك',
+          message: message_content.substring(0, 100),
+          link: `/reports/${id}`,
+          read: false,
+        });
     }
 
     // ─── Determine new status ───
@@ -446,8 +494,22 @@ export async function PATCH(
 
     // ─── Handle return action (admin returns report to original teacher) ───
     if (action === 'return') {
-      // Return to the original reporter (who is likely a teacher)
-      updateData.assigned_to = report.reporter_id;
+      // Return to the person who forwarded this report (the previous assignee)
+      // Find the most recent forward response to get the original forwarder
+      const { data: forwardResponse } = await supabaseServer
+        .from('report_responses')
+        .select('responder_id')
+        .eq('report_id', id)
+        .eq('action', 'forward')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (forwardResponse && forwardResponse.length > 0) {
+        updateData.assigned_to = forwardResponse[0].responder_id;
+      } else {
+        // Fallback: return to reporter if no forward response found
+        updateData.assigned_to = report.reporter_id;
+      }
       updateData.status = 'in_progress';
     }
 

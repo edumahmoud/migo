@@ -101,11 +101,21 @@ export async function GET(request: NextRequest) {
     // Filter by status if provided
     // 'forwarded' is a virtual status: reports that have a forward response
     if (status === 'forwarded') {
-      // Get report IDs that have a 'forward' response
-      const { data: forwardedResponses } = await supabaseServer
+      // Get report IDs that have a 'forward' response, scoped to the current user's context
+      let forwardedQuery = supabaseServer
         .from('report_responses')
         .select('report_id')
         .eq('action', 'forward');
+      
+      // For teachers: show reports they forwarded
+      // For admins: show reports forwarded TO them
+      if (role === 'teacher') {
+        forwardedQuery = forwardedQuery.eq('responder_id', userId);
+      } else if (role === 'admin' || role === 'superadmin') {
+        forwardedQuery = forwardedQuery.eq('forwarded_to', userId);
+      }
+      
+      const { data: forwardedResponses } = await forwardedQuery;
       const forwardedIds = (forwardedResponses || []).map((r: any) => r.report_id);
       if (forwardedIds.length > 0) {
         query = query.in('id', forwardedIds);
@@ -127,9 +137,10 @@ export async function GET(request: NextRequest) {
       }
       // 'all' — no additional filter, admin sees everything
     } else if (role === 'teacher') {
-      query = query.or(`assigned_to.eq.${userId},reporter_id.eq.${userId}`);
+      query = query.or(`assigned_to.eq.${userId},reporter_id.eq.${userId},and(target_type.eq.user,target_id.eq.${userId})`);
     } else {
-      query = query.eq('reporter_id', userId);
+      // Students see their own submitted reports + reports against them (where they are the target user)
+      query = query.or(`reporter_id.eq.${userId},and(target_type.eq.user,target_id.eq.${userId})`);
     }
 
     const { data: reports, error, count } = await query;
@@ -269,6 +280,65 @@ export async function GET(request: NextRequest) {
           }
         }
       }
+    }
+
+    // ─── Also include comment/message reports where the current user is the reported person ───
+    // The DB query above only catches target_type='user' reports against the current user.
+    // For comment/message reports, we need to resolve the owner and add those reports too.
+    if (reports && reports.length > 0) {
+      const alreadyIncludedIds = new Set(reports.map((r: any) => r.id));
+      
+      // Find comments by this user that have reports
+      try {
+        const { data: userComments } = await supabaseServer
+          .from('video_comments')
+          .select('id')
+          .eq('user_id', userId);
+        
+        if (userComments && userComments.length > 0) {
+          const commentIds = userComments.map((c: any) => c.id);
+          const { data: commentReports } = await supabaseServer
+            .from('reports')
+            .select(`
+              *,
+              reporter:users!reports_reporter_id_fkey(id, name, email, avatar_url, role, gender, title_id),
+              assigned_user:users!reports_assigned_to_fkey(id, name, email, avatar_url, role, gender, title_id)
+            `)
+            .in('target_id', commentIds)
+            .eq('target_type', 'comment')
+            .not('id', 'in', `(${Array.from(alreadyIncludedIds).join(',') || '00000000-0000-0000-0000-000000000000'})`);
+          
+          if (commentReports) {
+            reports.push(...commentReports);
+          }
+        }
+      } catch { /* video_comments table may not exist */ }
+
+      // Find chat messages by this user that have reports
+      try {
+        const { data: userMessages } = await supabaseServer
+          .from('chat_messages')
+          .select('id')
+          .eq('sender_id', userId);
+        
+        if (userMessages && userMessages.length > 0) {
+          const messageIds = userMessages.map((m: any) => m.id);
+          const { data: messageReports } = await supabaseServer
+            .from('reports')
+            .select(`
+              *,
+              reporter:users!reports_reporter_id_fkey(id, name, email, avatar_url, role, gender, title_id),
+              assigned_user:users!reports_assigned_to_fkey(id, name, email, avatar_url, role, gender, title_id)
+            `)
+            .in('target_id', messageIds)
+            .eq('target_type', 'message')
+            .not('id', 'in', `(${Array.from(alreadyIncludedIds).join(',') || '00000000-0000-0000-0000-000000000000'})`);
+          
+          if (messageReports) {
+            reports.push(...messageReports);
+          }
+        }
+      } catch { /* chat_messages table may not exist */ }
     }
 
     return NextResponse.json({
