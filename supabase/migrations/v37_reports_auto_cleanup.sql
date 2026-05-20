@@ -57,7 +57,7 @@ BEGIN
     PERFORM cron.schedule(
       'cleanup-old-reports',
       '0 3 * * *',
-      $$ SELECT public.cleanup_old_reports(); $$
+      $cmd$ SELECT public.cleanup_old_reports(); $cmd$
     );
     RAISE NOTICE 'pg_cron scheduled for daily report cleanup';
   ELSE

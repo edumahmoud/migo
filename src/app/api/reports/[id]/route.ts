@@ -59,11 +59,38 @@ export async function GET(
       .order('created_at', { ascending: true });
 
     // ─── Enrich with target_user info ───
+    // Resolve the actual reported user from target_type + target_id
+    let resolvedUserId: string | null = null;
+
     if (report.target_type === 'user' && report.target_id) {
+      resolvedUserId = report.target_id;
+    } else if (report.target_type === 'comment' && report.target_id) {
+      // Resolve comment owner
+      try {
+        const { data: comment } = await supabaseServer
+          .from('video_comments')
+          .select('user_id')
+          .eq('id', report.target_id)
+          .single();
+        if (comment?.user_id) resolvedUserId = comment.user_id;
+      } catch { /* table may not exist */ }
+    } else if (report.target_type === 'message' && report.target_id) {
+      // Resolve message sender
+      try {
+        const { data: message } = await supabaseServer
+          .from('chat_messages')
+          .select('sender_id')
+          .eq('id', report.target_id)
+          .single();
+        if (message?.sender_id) resolvedUserId = message.sender_id;
+      } catch { /* table may not exist */ }
+    }
+
+    if (resolvedUserId) {
       const { data: targetUser } = await supabaseServer
         .from('users')
         .select('id, name, email, avatar_url, role, gender, title_id')
-        .eq('id', report.target_id)
+        .eq('id', resolvedUserId)
         .single();
 
       if (targetUser) {
@@ -72,7 +99,7 @@ export async function GET(
           .from('reports')
           .select('id', { count: 'exact', head: true })
           .eq('target_type', 'user')
-          .eq('target_id', report.target_id);
+          .eq('target_id', resolvedUserId);
 
         (report as any).target_user = { ...targetUser, report_count: count || 0 };
       }

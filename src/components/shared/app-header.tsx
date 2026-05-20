@@ -72,10 +72,11 @@ export default function AppHeader({
     }
   }, [initStatusStore, userId]);
 
-  // Pre-fetch reports count for sidebar badge (avoids badge appearing late)
+  // Pre-fetch reports count for sidebar badge + Realtime subscription for live updates
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
+
     const fetchCount = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -89,8 +90,22 @@ export default function AppHeader({
         }
       } catch { /* non-critical */ }
     };
+
+    // Initial fetch
     fetchCount();
-    return () => { cancelled = true; };
+
+    // Subscribe to reports table changes for live badge updates
+    const channel = supabase
+      .channel('reports-count-badge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
+        if (!cancelled) fetchCount();
+      })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
   }, [userId, setReportsUnreadCount]);
 
   // Gender-aware role label

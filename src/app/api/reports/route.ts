@@ -129,20 +129,73 @@ export async function GET(request: NextRequest) {
     }
 
     // ─── Enrich reports with target_user info ───
-    // For reports where target_type is 'user', target_id is the reported user.
-    // For 'comment'/'message', we try to resolve the user from the content.
+    // For 'user' reports: target_id is the reported user directly.
+    // For 'comment' reports: resolve the user_id from video_comments.
+    // For 'message' reports: resolve the sender_id from chat_messages.
     if (reports && reports.length > 0) {
-      const targetUserIds = new Set<string>();
+      // Step 1: Collect target user IDs — direct (type=user) and indirect (comment/message owners)
+      const directUserIds = new Set<string>();
+      const commentIds = new Set<string>();
+      const messageIds = new Set<string>();
+
       for (const r of reports) {
-        if (r.target_type === 'user' && r.target_id) {
-          targetUserIds.add(r.target_id);
+        if (!r.target_id) continue;
+        if (r.target_type === 'user') {
+          directUserIds.add(r.target_id);
+        } else if (r.target_type === 'comment') {
+          commentIds.add(r.target_id);
+        } else if (r.target_type === 'message') {
+          messageIds.add(r.target_id);
         }
       }
 
-      // Batch-fetch target user profiles + report counts
+      // Step 2: Resolve comment owners → user IDs
+      if (commentIds.size > 0) {
+        try {
+          const { data: comments } = await supabaseServer
+            .from('video_comments')
+            .select('id, user_id')
+            .in('id', Array.from(commentIds));
+          if (comments) {
+            for (const c of comments) {
+              if (c.user_id) directUserIds.add(c.user_id);
+            }
+            // Store mapping for later attachment
+            (reports as any)._commentOwnerMap = Object.fromEntries(
+              comments.map((c: any) => [c.id, c.user_id])
+            );
+          }
+        } catch { /* video_comments table may not exist */ }
+      }
+
+      // Step 3: Resolve message senders → user IDs
+      if (messageIds.size > 0) {
+        try {
+          const { data: messages } = await supabaseServer
+            .from('chat_messages')
+            .select('id, sender_id')
+            .in('id', Array.from(messageIds));
+          if (messages) {
+            for (const m of messages) {
+              if (m.sender_id) directUserIds.add(m.sender_id);
+            }
+            (reports as any)._messageOwnerMap = Object.fromEntries(
+              messages.map((m: any) => [m.id, m.sender_id])
+            );
+          }
+        } catch { /* chat_messages table may not exist */ }
+      }
+
+      // Step 4: Batch-fetch target user profiles + report counts
+      const commentOwnerMap: Record<string, string> = (reports as any)._commentOwnerMap || {};
+      const messageOwnerMap: Record<string, string> = (reports as any)._messageOwnerMap || {};
+      delete (reports as any)._commentOwnerMap;
+      delete (reports as any)._messageOwnerMap;
+
       let targetUserMap: Record<string, { id: string; name: string; email: string; avatar_url: string | null; role: string | null; gender: string | null; title_id: string | null; report_count: number }> = {};
-      if (targetUserIds.size > 0) {
-        const ids = Array.from(targetUserIds);
+
+      if (directUserIds.size > 0) {
+        const ids = Array.from(directUserIds);
         const { data: targetUsers } = await supabaseServer
           .from('users')
           .select('id, name, email, avatar_url, role, gender, title_id')
@@ -171,10 +224,20 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Attach target_user to reports
+      // Step 5: Attach target_user to each report
       for (const r of reports) {
         if (r.target_type === 'user' && r.target_id && targetUserMap[r.target_id]) {
           (r as any).target_user = targetUserMap[r.target_id];
+        } else if (r.target_type === 'comment' && r.target_id) {
+          const ownerId = commentOwnerMap[r.target_id];
+          if (ownerId && targetUserMap[ownerId]) {
+            (r as any).target_user = targetUserMap[ownerId];
+          }
+        } else if (r.target_type === 'message' && r.target_id) {
+          const ownerId = messageOwnerMap[r.target_id];
+          if (ownerId && targetUserMap[ownerId]) {
+            (r as any).target_user = targetUserMap[ownerId];
+          }
         }
       }
     }

@@ -49,6 +49,11 @@ const REPORT_REASONS: { value: string; label: string }[] = [
   { value: 'other', label: 'سبب آخر' },
 ];
 
+/** Map an English reason value to its Arabic label */
+function getReasonLabel(value: string): string {
+  return REPORT_REASONS.find((r) => r.value === value)?.label || value;
+}
+
 // -------------------------------------------------------
 // Status badge
 // -------------------------------------------------------
@@ -171,7 +176,24 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
       // Teachers can forward to admins (supervisors); Admins can forward to superadmins; Students cannot forward
       if (role === 'teacher') {
-        // First, try to get linked supervisors from teacher_supervisor_links
+        // Strategy 1: Try the dedicated API endpoint first
+        try {
+          const res = await fetch(`/api/teacher-supervisor?teacher_id=${profile.id}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          const result = await res.json();
+          if (result.success && result.data && result.data.length > 0) {
+            const supervisors = result.data
+              .map((link: any) => link.supervisor)
+              .filter((u: any) => u && (u.role === 'admin' || u.role === 'superadmin'));
+            if (supervisors.length > 0) {
+              setAvailableForwardUsers(supervisors);
+              return;
+            }
+          }
+        } catch { /* API may fail, try direct query */ }
+
+        // Strategy 2: Direct Supabase query for linked supervisors
         const { data: links } = await supabase
           .from('teacher_supervisor_links')
           .select('supervisor_id')
@@ -180,32 +202,36 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         const supervisorIds = (links || []).map((l: any) => l.supervisor_id);
 
         if (supervisorIds.length > 0) {
-          // Fetch supervisor profiles
           const { data: supervisors } = await supabase
             .from('users')
-            .select('*')
+            .select('id, name, email, avatar_url, role, gender, title_id')
             .in('id', supervisorIds);
-          if (supervisors) {
+          if (supervisors && supervisors.length > 0) {
             setAvailableForwardUsers(supervisors.filter((u: any) => u.role === 'admin' || u.role === 'superadmin'));
             return;
           }
         }
 
-        // Fallback: fetch all admins
-        const res = await fetch('/api/admin/users?role=admin', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        const result = await res.json();
-        if (result.success && result.data) {
-          setAvailableForwardUsers(result.data.filter((u: UserProfile) => u.role === 'admin' || u.role === 'superadmin'));
+        // Strategy 3: Fallback — fetch all admins directly from users table
+        const { data: admins } = await supabase
+          .from('users')
+          .select('id, name, email, avatar_url, role, gender, title_id')
+          .in('role', ['admin', 'superadmin'])
+          .limit(20);
+        if (admins && admins.length > 0) {
+          setAvailableForwardUsers(admins);
+          return;
         }
       } else if (role === 'admin') {
-        const res = await fetch('/api/admin/users?role=superadmin', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        const result = await res.json();
-        if (result.success && result.data) {
-          setAvailableForwardUsers(result.data.filter((u: UserProfile) => u.role === 'superadmin'));
+        // Admin can forward to superadmins
+        const { data: superadmins } = await supabase
+          .from('users')
+          .select('id, name, email, avatar_url, role, gender, title_id')
+          .eq('role', 'superadmin')
+          .limit(10);
+        if (superadmins && superadmins.length > 0) {
+          setAvailableForwardUsers(superadmins);
+          return;
         }
       }
       // Students: no forward targets
@@ -566,7 +592,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     <StatusBadge status={report.status} />
                     <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type)}</span>
                   </div>
-                  <p className="text-sm font-medium text-foreground truncate">{report.reason}</p>
+                  <p className="text-sm font-medium text-foreground truncate">{getReasonLabel(report.reason)}</p>
                   {report.description && (
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{report.description}</p>
                   )}
@@ -672,7 +698,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   {getTargetTypeLabel(selectedReport.target_type)}
                 </span>
               </div>
-              <h3 className="text-lg font-bold text-foreground">{selectedReport.reason}</h3>
+              <h3 className="text-lg font-bold text-foreground">{getReasonLabel(selectedReport.reason)}</h3>
             </div>
           </div>
 
