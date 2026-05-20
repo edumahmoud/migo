@@ -294,7 +294,7 @@ export interface AttendanceRecord {
 // Notifications
 // =====================================================
 
-export type NotificationType = 'assignment' | 'grade' | 'enrollment' | 'file' | 'file_request' | 'system' | 'attendance' | 'link_request' | 'lecture' | 'chat';
+export type NotificationType = 'assignment' | 'grade' | 'enrollment' | 'file' | 'file_request' | 'system' | 'attendance' | 'link_request' | 'lecture' | 'chat' | 'report';
 
 export interface DBNotification {
   id: string;
@@ -384,7 +384,7 @@ export type AppPage =
   | 'summary'
   | 'profile';
 
-export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos';
+export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports';
 export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports';
 export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints';
 

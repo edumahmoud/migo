@@ -85,7 +85,7 @@ function getTargetTypeLabel(type: ReportTargetType): string {
 // -------------------------------------------------------
 interface ReportsSectionProps {
   profile: UserProfile;
-  role: 'teacher' | 'admin' | 'superadmin';
+  role: 'student' | 'teacher' | 'admin' | 'superadmin';
 }
 
 // -------------------------------------------------------
@@ -101,7 +101,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [responses, setResponses] = useState<ReportResponse[]>([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ReportStatus | 'all'>('all');
-  const [viewMode, setViewMode] = useState<'assigned' | 'submitted' | 'all'>(role === 'admin' || role === 'superadmin' ? 'assigned' : 'assigned');
+  const [viewMode, setViewMode] = useState<'assigned' | 'submitted' | 'all'>(role === 'admin' || role === 'superadmin' ? 'assigned' : 'submitted');
   const [replyText, setReplyText] = useState('');
   const [forwardToId, setForwardToId] = useState('');
   const [availableForwardUsers, setAvailableForwardUsers] = useState<UserProfile[]>([]);
@@ -162,7 +162,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      // Teachers can forward to admins; Admins can forward to superadmins
+      // Teachers can forward to admins; Admins can forward to superadmins; Students cannot forward
       if (role === 'teacher') {
         const res = await fetch('/api/admin/users?role=admin', {
           headers: { Authorization: `Bearer ${session.access_token}` },
@@ -180,6 +180,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           setAvailableForwardUsers(result.data.filter((u: UserProfile) => u.role === 'superadmin'));
         }
       }
+      // Students: no forward targets
     } catch {
       // Silently fail
     }
@@ -356,7 +357,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         <div>
           <h2 className="text-2xl font-bold text-foreground">الإبلاغات</h2>
           <p className="text-muted-foreground mt-1">
-            {role === 'admin' || role === 'superadmin' ? 'إدارة البلاغات والشكاوى' : 'البلاغات الموجهة إليك والمقدمة منك'}
+            {role === 'student' ? 'إبلاغاتك المقدمة وحالتها' : role === 'admin' || role === 'superadmin' ? 'إدارة البلاغات والشكاوى' : 'البلاغات الموجهة إليك والمقدمة منك'}
           </p>
         </div>
       </motion.div>

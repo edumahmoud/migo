@@ -48,6 +48,7 @@ import SettingsSection from '@/components/shared/settings-section';
 import ChatSection from '@/components/shared/chat-section';
 import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import NotificationsSection from '@/components/shared/notifications-section';
+import ReportsSection from '@/components/reports/reports-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
@@ -4255,6 +4256,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         return <SettingsSection profile={profile} onUpdateProfile={handleUpdateProfile} onDeleteAccount={handleDeleteAccount} />;
       case 'notifications':
         return <NotificationsSection />;
+      case 'reports':
+        return <ReportsSection profile={profile} role="student" />;
       case 'tracking':
         return (
           <StudentTrackingSection

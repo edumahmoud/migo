@@ -355,8 +355,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         { event: 'INSERT', schema: 'public', table: 'subject_videos', filter: `subject_id=eq.${subjectId}` },
         async (payload) => {
           const newVideo = payload.new as SubjectVideo;
-          // Skip if already exists (avoid duplicate from optimistic + realtime)
           setVideos((prev) => {
+            // Skip if already exists (avoid duplicate from optimistic + realtime)
             if (prev.some((v) => v.id === newVideo.id)) return prev;
             // Remove optimistic entry with matching title if present
             const withoutOptimistic = prev.filter(
@@ -366,9 +366,13 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             return [newVideo as unknown as SubjectVideoWithUploader, ...withoutOptimistic];
           });
           // Enrich with uploader name and comment count
-          const enriched = await fetchSingleVideo(newVideo.id);
-          if (enriched) {
-            setVideos((prev) => prev.map((v) => (v.id === newVideo.id ? enriched : v)));
+          try {
+            const enriched = await fetchSingleVideo(newVideo.id);
+            if (enriched) {
+              setVideos((prev) => prev.map((v) => (v.id === newVideo.id ? enriched : v)));
+            }
+          } catch {
+            // Keep the placeholder — don't lose the video
           }
         }
       )
@@ -424,7 +428,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         .from('video_comments')
         .select('*')
         .eq('video_id', videoId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching comments:', error);
@@ -546,7 +550,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         { event: 'UPDATE', schema: 'public', table: 'video_comments', filter: `video_id=eq.${selectedVideo.id}` },
         async (payload) => {
           const updatedComment = payload.new as VideoComment;
-          // Update the comment in place, preserving user profile data
+          // Update the comment in place immediately with all available data from Realtime payload
           setComments((prev) => prev.map((c) => {
             if (c.id !== updatedComment.id) return c;
             return {
@@ -554,12 +558,18 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               content: updatedComment.content,
               updated_at: updatedComment.updated_at,
               is_flagged: (updatedComment as any).is_flagged ?? c.is_flagged,
+              flagged_at: (updatedComment as any).flagged_at ?? c.flagged_at,
+              flagged_by: (updatedComment as any).flagged_by ?? c.flagged_by,
             };
           }));
-          // Re-enrich in case flagged_by changed
-          const enriched = await fetchSingleComment(updatedComment.id);
-          if (enriched) {
-            setComments((prev) => prev.map((c) => (c.id === updatedComment.id ? enriched : c)));
+          // Re-enrich in case flagged_by changed (async, non-blocking)
+          try {
+            const enriched = await fetchSingleComment(updatedComment.id);
+            if (enriched) {
+              setComments((prev) => prev.map((c) => (c.id === updatedComment.id ? enriched : c)));
+            }
+          } catch {
+            // Keep the optimistic update — don't lose the comment
           }
         }
       )
@@ -970,7 +980,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           <p className="text-sm text-muted-foreground">لم يتم رفع فيديوهات بعد</p>
         </motion.div>
       ) : (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
           {videos.map((video) => (
             <motion.div key={video.id} variants={itemVariants}>
               <Card
@@ -1075,7 +1085,6 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             ref={videoRef}
             key={selectedVideo.video_url}
             controls
-            autoPlay
             className="w-full max-h-[70vh] aspect-video"
             poster={selectedVideo.thumbnail_url || undefined}
             onPlay={() => handleVideoPlay(selectedVideo.id)}

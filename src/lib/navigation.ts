@@ -41,6 +41,7 @@ export const studentNavItems: NavItem<StudentSection>[] = [
   { id: 'summaries', label: 'الملخصات', icon: FileText },
   { id: 'assignments', label: 'المهام', icon: FileSpreadsheet },
   { id: 'files', label: 'ملفاتي', icon: FolderOpen },
+  { id: 'reports', label: 'الإبلاغات', icon: ShieldAlert },
   { id: 'notifications', label: 'الإشعارات', icon: Bell },
   { id: 'settings', label: 'الإعدادات', icon: Settings },
 ];
