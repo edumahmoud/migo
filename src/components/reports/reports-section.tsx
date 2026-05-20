@@ -204,10 +204,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         if (supervisorIds.length > 0) {
           const { data: supervisors } = await supabase
             .from('users')
-            .select('id, name, email, avatar_url, role, gender, title_id')
+            .select('id, name, email, avatar_url, role, gender, title_id, created_at, updated_at')
             .in('id', supervisorIds);
           if (supervisors && supervisors.length > 0) {
-            setAvailableForwardUsers(supervisors.filter((u: any) => u.role === 'admin' || u.role === 'superadmin'));
+            setAvailableForwardUsers(supervisors.filter((u: any) => u.role === 'admin' || u.role === 'superadmin') as unknown as UserProfile[]);
             return;
           }
         }
@@ -215,22 +215,22 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         // Strategy 3: Fallback — fetch all admins directly from users table
         const { data: admins } = await supabase
           .from('users')
-          .select('id, name, email, avatar_url, role, gender, title_id')
+          .select('id, name, email, avatar_url, role, gender, title_id, created_at, updated_at')
           .in('role', ['admin', 'superadmin'])
           .limit(20);
         if (admins && admins.length > 0) {
-          setAvailableForwardUsers(admins);
+          setAvailableForwardUsers(admins as unknown as UserProfile[]);
           return;
         }
       } else if (role === 'admin') {
         // Admin can forward to superadmins
         const { data: superadmins } = await supabase
           .from('users')
-          .select('id, name, email, avatar_url, role, gender, title_id')
+          .select('id, name, email, avatar_url, role, gender, title_id, created_at, updated_at')
           .eq('role', 'superadmin')
           .limit(10);
         if (superadmins && superadmins.length > 0) {
-          setAvailableForwardUsers(superadmins);
+          setAvailableForwardUsers(superadmins as unknown as UserProfile[]);
           return;
         }
       }
