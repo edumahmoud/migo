@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Eye,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -152,6 +153,15 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const thumbInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Playback speed state ───
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // ─── Selected video ref (for fetchVideos without dep) ───
+  const selectedVideoRef = useRef<SubjectVideoWithUploader | null>(null);
 
   // ─── Edit comment state ───
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -245,8 +255,9 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         setVideos(videosWithUploaders);
 
         // Update selectedVideo if it's in the list
-        if (selectedVideo) {
-          const updated = videosWithUploaders.find((v) => v.id === selectedVideo.id);
+        const currentSelected = selectedVideoRef.current;
+        if (currentSelected) {
+          const updated = videosWithUploaders.find((v) => v.id === currentSelected.id);
           if (updated) {
             setSelectedVideo(updated);
           }
@@ -259,12 +270,22 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
     } finally {
       setLoading(false);
     }
-  }, [subjectId, selectedVideo]);
+  }, [subjectId]);
 
   useEffect(() => {
     fetchVideos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectId]);
+
+  // Sync selectedVideo to ref
+  useEffect(() => { selectedVideoRef.current = selectedVideo; }, [selectedVideo]);
+
+  // Sync playback speed to video element when it changes or video changes
+  useEffect(() => {
+    if (videoRef.current && playbackSpeed !== 1) {
+      videoRef.current.playbackRate = playbackSpeed;
+    }
+  }, [selectedVideo, playbackSpeed]);
 
   // -------------------------------------------------------
   // Real-time subscription for videos
@@ -405,19 +426,47 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   const handleUpload = async () => {
     if (!videoFiles.length || !title.trim()) return;
 
+    const optimisticVideos: SubjectVideoWithUploader[] = [];
+
     // Add a task for each selected file
     for (const file of videoFiles) {
+      const videoTitle = videoFiles.length === 1 ? title.trim() : `${title.trim()} — ${file.name}`;
       const taskId = addTask({
         id: '', // will be assigned by addTask
         subjectId,
         file,
-        title: videoFiles.length === 1 ? title.trim() : `${title.trim()} — ${file.name}`,
+        title: videoTitle,
         description: description.trim(),
+        thumbnailFile: thumbnailFile || undefined,
       });
+
+      // Optimistically add video to list
+      const optimisticVideo = {
+        id: `optimistic-${taskId}`,
+        subject_id: subjectId,
+        uploaded_by: profile.id,
+        title: videoTitle,
+        description: description.trim() || null,
+        video_url: '',
+        video_type: file.type || 'video/mp4',
+        video_size: file.size,
+        thumbnail_url: thumbnailFile ? URL.createObjectURL(thumbnailFile) : null,
+        duration: null,
+        view_count: 0,
+        comments_enabled: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        uploader_name: formatNameWithTitle(profile.name, profile.role, profile.title_id, profile.gender),
+        comment_count: 0,
+      } as unknown as SubjectVideoWithUploader;
+      optimisticVideos.push(optimisticVideo);
 
       // Start the actual upload (non-blocking)
       startUpload(taskId);
     }
+
+    // Add optimistic videos to the beginning of the list
+    setVideos((prev) => [...optimisticVideos, ...prev]);
 
     // Close modal immediately — uploads continue in background
     setUploadModalOpen(false);
@@ -431,8 +480,12 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
     setVideoFiles([]);
     setTitle('');
     setDescription('');
+    setThumbnailFile(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    if (thumbInputRef.current) {
+      thumbInputRef.current.value = '';
     }
   };
 
@@ -481,9 +534,18 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   // Delete video (teacher only)
   // -------------------------------------------------------
   const handleDeleteVideo = async (videoId: string) => {
+    // Optimistically remove from local state
+    const videoToRemove = videos.find((v) => v.id === videoId);
+    setVideos((prev) => prev.filter((v) => v.id !== videoId));
+    if (selectedVideo?.id === videoId) {
+      setSelectedVideo(null);
+      setComments([]);
+    }
+    setConfirmDeleteId(null);
+
     setDeletingId(videoId);
     try {
-      const video = videos.find((v) => v.id === videoId);
+      const video = videoToRemove;
       if (video) {
         // Delete from storage (video-files bucket for new uploads, fallback to user-files for legacy)
         const videoBucket = video.video_url.includes('/video-files/') ? 'video-files' : 'user-files';
@@ -509,19 +571,21 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
 
       if (error) {
         toast.error('حدث خطأ أثناء حذف الفيديو');
+        // Rollback optimistic delete
+        if (videoToRemove) {
+          setVideos((prev) => [videoToRemove, ...prev]);
+        }
       } else {
         toast.success('تم حذف الفيديو');
-        if (selectedVideo?.id === videoId) {
-          setSelectedVideo(null);
-          setComments([]);
-        }
-        fetchVideos();
       }
     } catch {
       toast.error('حدث خطأ غير متوقع');
+      // Rollback optimistic delete
+      if (videoToRemove) {
+        setVideos((prev) => [videoToRemove, ...prev]);
+      }
     } finally {
       setDeletingId(null);
-      setConfirmDeleteId(null);
     }
   };
 
@@ -701,8 +765,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           {videos.map((video) => (
             <motion.div key={video.id} variants={itemVariants}>
               <Card
-                className="group cursor-pointer overflow-hidden hover:shadow-lg transition-all border-border/60"
-                onClick={() => handleSelectVideo(video)}
+                className={`group overflow-hidden transition-all border-border/60 ${video.id.startsWith('optimistic-') ? 'opacity-70 cursor-wait' : 'cursor-pointer hover:shadow-lg'}`}
+                onClick={() => { if (!video.id.startsWith('optimistic-')) handleSelectVideo(video); }}
               >
                 <CardContent className="p-0">
                   {/* Thumbnail area */}
@@ -718,12 +782,23 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                         <FileVideo className="h-12 w-12 text-sky-500 dark:text-sky-400 opacity-60" />
                       </div>
                     )}
-                    {/* Play overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Play className="h-6 w-6 text-white fill-white" />
+                    {/* Processing overlay for optimistic videos */}
+                    {video.id.startsWith('optimistic-') && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                        <div className="flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5">
+                          <Loader2 className="h-4 w-4 animate-spin text-white" />
+                          <span className="text-xs font-medium text-white">جاري الرفع...</span>
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    {/* Play overlay */}
+                    {!video.id.startsWith('optimistic-') && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/20 transition-colors">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Play className="h-6 w-6 text-white fill-white" />
+                        </div>
+                      </div>
+                    )}
                     {/* Duration badge */}
                     {video.duration && (
                       <div className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white">
@@ -788,6 +863,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         {/* Video player */}
         <div className="overflow-hidden rounded-xl border bg-black">
           <video
+            ref={videoRef}
             key={selectedVideo.video_url}
             controls
             autoPlay
@@ -798,6 +874,28 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             <source src={selectedVideo.video_url} type={selectedVideo.video_type} />
             متصفحك لا يدعم تشغيل الفيديو.
           </video>
+        </div>
+
+        {/* Playback speed selector */}
+        <div className="flex items-center gap-1.5 justify-center">
+          {[0.5, 0.75, 1, 1.25, 1.5, 2].map((speed) => (
+            <button
+              key={speed}
+              onClick={() => {
+                setPlaybackSpeed(speed);
+                if (videoRef.current) {
+                  videoRef.current.playbackRate = speed;
+                }
+              }}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                playbackSpeed === speed
+                  ? 'bg-sky-700 text-white dark:bg-sky-600'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+              }`}
+            >
+              {speed}x
+            </button>
+          ))}
         </div>
 
         {/* Video info */}
@@ -1184,6 +1282,41 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                       {videoFiles.length > 1 && (
                         <p className="text-[11px] text-muted-foreground">{videoFiles.length} ملفات سيتم رفعها</p>
                       )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Thumbnail picker */}
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">
+                    صورة مصغّرة (اختياري)
+                  </label>
+                  <div className="relative">
+                    <input
+                      ref={thumbInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        setThumbnailFile(file || null);
+                      }}
+                      className="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-3 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-sky-700 file:text-white file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-sky-800 file:cursor-pointer file:transition-colors"
+                    />
+                  </div>
+                  {thumbnailFile && (
+                    <div className="mt-2 flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
+                      <ImageIcon className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-foreground truncate">{thumbnailFile.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{formatFileSize(thumbnailFile.size)}</p>
+                      </div>
+                      <button
+                        onClick={() => { setThumbnailFile(null); if (thumbInputRef.current) thumbInputRef.current.value = ''; }}
+                        className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                        title="إزالة"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   )}
                 </div>

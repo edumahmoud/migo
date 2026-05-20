@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
       storagePath,
       videoType,
       videoSize,
+      thumbnailUrl,
     } = body;
 
     // Validate required fields
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
         video_url: videoUrl,
         video_type: rawType || 'video/mp4',
         video_size: size,
+        thumbnail_url: thumbnailUrl || null,
         comments_enabled: true,
       })
       .select()

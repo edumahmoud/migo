@@ -22,6 +22,8 @@ export interface VideoUploadTask {
   file: File;
   title: string;
   description: string;
+  thumbnailFile?: File;
+  thumbnailUrl?: string;
   status: UploadStatus;
   progress: number;      // 0–100 (storage upload progress)
   error?: string;
@@ -267,6 +269,22 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
 
       get().updateTask(id, { videoUrl, status: 'saving', progress: 92 });
 
+      // ── Step 5.5: Upload thumbnail if provided ──
+      let thumbnailUrl: string | undefined;
+      if (task.thumbnailFile) {
+        try {
+          const thumbExt = task.thumbnailFile.name.split('.').pop() || 'jpg';
+          const thumbPath = `${userId}/videos/${subjectId}/thumb-${Date.now()}.${thumbExt}`;
+          const { error: thumbError } = await supabase.storage
+            .from('video-files')
+            .upload(thumbPath, task.thumbnailFile, { contentType: task.thumbnailFile.type || 'image/jpeg', upsert: false });
+          if (!thumbError) {
+            const { data: thumbUrlData } = supabase.storage.from('video-files').getPublicUrl(thumbPath);
+            thumbnailUrl = thumbUrlData.publicUrl;
+          }
+        } catch { /* non-critical */ }
+      }
+
       // ── Step 6: Create DB record via API ──
       const headers = await getCachedAuthHeaders();
       const response = await fetch('/api/videos/upload', {
@@ -281,6 +299,7 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
           storagePath,
           videoType: file.type,
           videoSize: file.size,
+          thumbnailUrl,
         }),
       });
 
@@ -478,6 +497,22 @@ async function resumeUploadLoop(taskId: string) {
 
     useVideoUploadStore.getState().updateTask(taskId, { videoUrl, status: 'saving', progress: 92 });
 
+    // Upload thumbnail if provided
+    let resumeThumbnailUrl: string | undefined;
+    if (updatedTask.thumbnailFile) {
+      try {
+        const thumbExt = updatedTask.thumbnailFile.name.split('.').pop() || 'jpg';
+        const thumbPath = `${session.user.id}/videos/${updatedTask.subjectId}/thumb-${Date.now()}.${thumbExt}`;
+        const { error: thumbError } = await supabase.storage
+          .from('video-files')
+          .upload(thumbPath, updatedTask.thumbnailFile, { contentType: updatedTask.thumbnailFile.type || 'image/jpeg', upsert: false });
+        if (!thumbError) {
+          const { data: thumbUrlData } = supabase.storage.from('video-files').getPublicUrl(thumbPath);
+          resumeThumbnailUrl = thumbUrlData.publicUrl;
+        }
+      } catch { /* non-critical */ }
+    }
+
     // Create DB record
     const headers = await getCachedAuthHeaders();
     const response = await fetch('/api/videos/upload', {
@@ -492,6 +527,7 @@ async function resumeUploadLoop(taskId: string) {
         storagePath: updatedTask.storagePath,
         videoType: updatedTask.file.type,
         videoSize: updatedTask.file.size,
+        thumbnailUrl: resumeThumbnailUrl,
       }),
     });
 
@@ -581,6 +617,22 @@ async function directUpload(
 
   useVideoUploadStore.getState().updateTask(taskId, { videoUrl, status: 'saving', progress: 92 });
 
+  // Upload thumbnail if provided
+  let directThumbnailUrl: string | undefined;
+  if (task.thumbnailFile) {
+    try {
+      const thumbExt = task.thumbnailFile.name.split('.').pop() || 'jpg';
+      const thumbPath = `${userId}/videos/${subjectId}/thumb-${Date.now()}.${thumbExt}`;
+      const { error: thumbError } = await supabase.storage
+        .from('video-files')
+        .upload(thumbPath, task.thumbnailFile, { contentType: task.thumbnailFile.type || 'image/jpeg', upsert: false });
+      if (!thumbError) {
+        const { data: thumbUrlData } = supabase.storage.from('video-files').getPublicUrl(thumbPath);
+        directThumbnailUrl = thumbUrlData.publicUrl;
+      }
+    } catch { /* non-critical */ }
+  }
+
   // Create DB record
   const headers = await getCachedAuthHeaders();
   const response = await fetch('/api/videos/upload', {
@@ -595,6 +647,7 @@ async function directUpload(
       storagePath,
       videoType: file.type,
       videoSize: file.size,
+      thumbnailUrl: directThumbnailUrl,
     }),
   });
 
