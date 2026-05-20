@@ -63,6 +63,7 @@ export default function AppHeader({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { openProfile, setReportsUnreadCount } = useAppStore();
+  const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
   const { myStatus, init: initStatusStore } = useStatusStore();
 
   // Initialize status store with userId (critical for Supabase Presence)
@@ -73,8 +74,9 @@ export default function AppHeader({
   }, [initStatusStore, userId]);
 
   // Pre-fetch reports count for sidebar badge + Realtime subscription for live updates
+  // Skip for admin/superadmin — no badge needed on admin interface
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || isAdminRole) return;
     let cancelled = false;
 
     const fetchCount = async () => {
@@ -106,7 +108,7 @@ export default function AppHeader({
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [userId, setReportsUnreadCount]);
+  }, [userId, isAdminRole, setReportsUnreadCount]);
 
   // Gender-aware role label
   const isFemale = userGender === 'female';

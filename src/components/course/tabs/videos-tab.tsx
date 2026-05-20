@@ -1085,6 +1085,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             ref={videoRef}
             key={selectedVideo.video_url}
             controls
+            preload="metadata"
+            playsInline
             className="w-full max-h-[70vh] aspect-video"
             poster={selectedVideo.thumbnail_url || undefined}
             onPlay={() => handleVideoPlay(selectedVideo.id)}
@@ -1394,7 +1396,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-6"
+      className="space-y-6 mt-6"
       dir="rtl"
     >
       {selectedVideo ? (

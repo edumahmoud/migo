@@ -17,6 +17,22 @@ export async function GET(request: NextRequest) {
 
     const userId = authResult.user.id;
 
+    // First check if report_messages table exists by attempting a count
+    const { count, error: countError } = await supabaseServer
+      .from('report_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_id', userId);
+
+    if (countError) {
+      console.error('[Reports Inbox] Table check error:', countError.message);
+      // Table might not exist — return empty instead of failing
+      return NextResponse.json({
+        success: true,
+        data: [],
+        warning: 'report_messages table may not exist yet. Please run v38 migration.',
+      });
+    }
+
     const { data, error } = await supabaseServer
       .from('report_messages')
       .select(`
@@ -33,6 +49,8 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    console.log('[Reports Inbox] Found', (data || []).length, 'messages for user', userId);
 
     return NextResponse.json({
       success: true,

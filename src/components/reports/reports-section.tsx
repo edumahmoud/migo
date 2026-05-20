@@ -166,9 +166,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       const result = await res.json();
       if (result.success) {
         setReports(result.data || []);
+      } else {
+        console.error('[Reports] API error:', result.error);
+        toast.error(result.error || 'فشل جلب البلاغات');
       }
-    } catch {
-      // Silently fail
+    } catch (err) {
+      console.error('[Reports] Fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -268,9 +271,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
   useEffect(() => {
     fetchReports();
-    fetchReportsCount();
+    // Skip count fetch for admin/superadmin — no badge needed
+    if (!isAdmin) fetchReportsCount();
     if (isStaff) fetchForwardTargets();
-  }, [fetchReports, fetchReportsCount, fetchForwardTargets, isStaff]);
+  }, [fetchReports, fetchReportsCount, fetchForwardTargets, isStaff, isAdmin]);
 
   // -------------------------------------------------------
   // Realtime subscription for reports
@@ -749,12 +753,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{report.description}</p>
                   )}
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                    <span>من: {report.reporter ? <UserLink userId={report.reporter.id} name={report.reporter.name || 'غير معروف'} /> : 'غير معروف'}</span>
+                    <span>مُبلِغ: {report.reporter ? <UserLink userId={report.reporter.id} name={report.reporter.name || 'غير معروف'} /> : 'غير معروف'}</span>
                     {report.target_user && (
-                      <span>المُبلَّغ عنه: <UserLink userId={report.target_user.id} name={report.target_user.name} /></span>
+                      <span className="flex items-center gap-1"><span className="font-bold text-rose-600 dark:text-rose-400">ضد</span> <UserLink userId={report.target_user.id} name={report.target_user.name} /></span>
                     )}
                     {report.assigned_user && isStaff && (
-                      <span>إلى: {report.assigned_user.name}</span>
+                      <span>المعين: {report.assigned_user.name}</span>
                     )}
                     <span>{formatDate(report.created_at)}</span>
                   </div>
@@ -782,7 +786,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/20 p-4">
         <div className="flex items-center gap-2 mb-3">
           <Flag className="h-4 w-4 text-rose-500" />
-          <h4 className="text-sm font-semibold text-foreground">المستخدم المُبلَّغ عنه</h4>
+          <h4 className="text-sm font-semibold text-foreground">ضد المستخدم</h4>
         </div>
         <div className="flex items-center gap-3 mb-3">
           <UserAvatar name={tu.name} avatarUrl={tu.avatar_url} size="md" />
@@ -1038,21 +1042,27 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
             {selectedReport.reporter ? (
               <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground">مُبلِغ:</span>
                 <UserAvatar name={selectedReport.reporter.name} avatarUrl={selectedReport.reporter.avatar_url} size="sm" />
                 <UserLink userId={selectedReport.reporter.id} name={formatNameWithTitle(selectedReport.reporter.name, selectedReport.reporter.role, selectedReport.reporter.title_id, selectedReport.reporter.gender)} />
-                {selectedReport.reporter.email && (
-                  <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Mail className="h-2.5 w-2.5" />
-                    <span>{selectedReport.reporter.email}</span>
-                  </div>
-                )}
               </div>
             ) : (
-              <span>المُبلِغ: غير معروف</span>
+              <span>مُبلِغ: غير معروف</span>
+            )}
+            {selectedReport.target_user && (
+              <>
+                <span className="text-border">|</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-rose-600 dark:text-rose-400">ضد</span>
+                  <UserAvatar name={selectedReport.target_user.name} avatarUrl={selectedReport.target_user.avatar_url} size="sm" />
+                  <UserLink userId={selectedReport.target_user.id} name={formatNameWithTitle(selectedReport.target_user.name, selectedReport.target_user.role, selectedReport.target_user.title_id, selectedReport.target_user.gender)} />
+                </div>
+              </>
             )}
             <span className="text-border">|</span>
             {selectedReport.assigned_user ? (
               <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground">المعين:</span>
                 <UserAvatar name={selectedReport.assigned_user.name} avatarUrl={selectedReport.assigned_user.avatar_url} size="sm" />
                 <UserLink userId={selectedReport.assigned_user.id} name={formatNameWithTitle(selectedReport.assigned_user.name, selectedReport.assigned_user.role, selectedReport.assigned_user.title_id, selectedReport.assigned_user.gender)} />
               </div>

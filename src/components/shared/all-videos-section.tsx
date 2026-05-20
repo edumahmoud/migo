@@ -354,7 +354,8 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
           <video
             key={selectedVideo.video_url}
             controls
-            autoPlay
+            playsInline
+            preload="metadata"
             className="w-full max-h-[70vh] aspect-video"
             poster={selectedVideo.thumbnail_url || undefined}
             onPlay={() => handleVideoPlay(selectedVideo.id)}
