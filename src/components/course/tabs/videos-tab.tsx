@@ -965,13 +965,13 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
 
       {/* Video cards */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
+        <div className="flex items-center justify-center py-16 mt-6">
           <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
         </div>
       ) : videos.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16 mt-6"
         >
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <FileVideo className="h-8 w-8 text-sky-700 dark:text-sky-300" />
@@ -980,7 +980,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           <p className="text-sm text-muted-foreground">لم يتم رفع فيديوهات بعد</p>
         </motion.div>
       ) : (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
           {videos.map((video) => (
             <motion.div key={video.id} variants={itemVariants}>
               <Card

@@ -689,6 +689,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   }, []);
 
   // ─── Anti-screenshot & screen recording protection ───
+  // NOTE: We do NOT use navigator.mediaDevices.getDisplayMedia() for detection
+  // because it triggers a browser permission popup every time — very disruptive.
+  // Instead, we rely on keyboard shortcut blocking, visibility change detection,
+  // and CSS blur on focus loss.
   useEffect(() => {
     // Blur page content when window loses focus
     const handleVisibilityChange = () => {
@@ -699,18 +703,12 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       }
     };
 
-    // Detect screen capture via MediaDevices API
-    let captureStream: MediaStream | null = null;
-    const detectScreenCapture = async () => {
-      try {
-        captureStream = await navigator.mediaDevices.getDisplayMedia({ video: true } as MediaStreamConstraints);
-        document.body.classList.add('quiz-capture-detected');
-        captureStream.getTracks().forEach(t => t.stop());
-        captureStream = null;
-        toast.warning('تم اكتشاف تسجيل الشاشة. يرجى إيقافه للمتابعة.');
-      } catch {
-        // User denied screen share
-      }
+    // Detect window blur (user switched to another app / screenshot tool)
+    const handleBlur = () => {
+      document.body.classList.add('quiz-protected');
+    };
+    const handleFocus = () => {
+      document.body.classList.remove('quiz-protected');
     };
 
     // Block common screenshot shortcuts
@@ -745,18 +743,16 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('contextmenu', handleContextMenu);
-
-    const captureCheckInterval = setInterval(detectScreenCapture, 3000);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('contextmenu', handleContextMenu);
-      clearInterval(captureCheckInterval);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
       document.body.classList.remove('quiz-protected', 'quiz-capture-detected');
-      if (captureStream) {
-        captureStream.getTracks().forEach(t => t.stop());
-      }
     };
   }, []);
 

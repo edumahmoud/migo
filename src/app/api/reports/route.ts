@@ -128,7 +128,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Role-based filtering — Admin sees ALL reports by default (not just assigned)
-    if (role === 'admin' || role === 'superadmin') {
+    // IMPORTANT: When status='forwarded', the report's assigned_to may have changed
+    // to the supervisor, so we must NOT apply the teacher's usual filter (which only
+    // shows reports where assigned_to=teacher). The forwarded IDs already scope results.
+    if (status === 'forwarded') {
+      // The forwarded IDs already scope results correctly — no additional role filter needed
+      // Admins: already see everything, teachers: already filtered by responder_id in forward query
+    } else if (role === 'admin' || role === 'superadmin') {
       const viewMode = url.searchParams.get('view') || 'all';
       if (viewMode === 'submitted') {
         query = query.eq('reporter_id', userId);
@@ -285,19 +291,36 @@ export async function GET(request: NextRequest) {
     // ─── Also include comment/message reports where the current user is the reported person ───
     // The DB query above only catches target_type='user' reports against the current user.
     // For comment/message reports, we need to resolve the owner and add those reports too.
-    if (reports && reports.length > 0) {
+    // IMPORTANT: This block must run even when reports.length === 0, because a user might
+    // only have comment/message reports against them without any type='user' reports.
+    if (reports) {
       const alreadyIncludedIds = new Set(reports.map((r: any) => r.id));
+      
+      // Fetch the current user's profile for target_user enrichment
+      const { data: currentUserProfile } = await supabaseServer
+        .from('users')
+        .select('id, name, email, avatar_url, role, gender, title_id')
+        .eq('id', userId)
+        .single();
+      const currentUserTargetUser = currentUserProfile
+        ? { ...currentUserProfile, report_count: 0 }
+        : { id: userId, name: '', email: '', avatar_url: null, role: null, gender: null, title_id: null, report_count: 0 };
       
       // Find comments by this user that have reports
       try {
         const { data: userComments } = await supabaseServer
           .from('video_comments')
-          .select('id')
+          .select('id, content')
           .eq('user_id', userId);
         
         if (userComments && userComments.length > 0) {
           const commentIds = userComments.map((c: any) => c.id);
-          const { data: commentReports } = await supabaseServer
+          const commentContentMap: Record<string, string> = {};
+          for (const c of userComments) {
+            if ((c as any).content) commentContentMap[c.id] = (c as any).content;
+          }
+          
+          let commentQuery = supabaseServer
             .from('reports')
             .select(`
               *,
@@ -305,10 +328,32 @@ export async function GET(request: NextRequest) {
               assigned_user:users!reports_assigned_to_fkey(id, name, email, avatar_url, role, gender, title_id)
             `)
             .in('target_id', commentIds)
-            .eq('target_type', 'comment')
-            .not('id', 'in', `(${Array.from(alreadyIncludedIds).join(',') || '00000000-0000-0000-0000-000000000000'})`);
+            .eq('target_type', 'comment');
+          
+          // Apply the same status filter as the main query
+          if (status === 'forwarded') {
+            // For forwarded filter, we need to check if these reports have forward responses
+            // Skip for now — forwarded reports are handled in the main query
+            commentQuery = commentQuery.in('status', ['pending', 'in_progress']);
+          } else if (status && ['pending', 'in_progress', 'resolved', 'dismissed'].includes(status)) {
+            commentQuery = commentQuery.eq('status', status);
+          }
+          
+          if (alreadyIncludedIds.size > 0) {
+            commentQuery = commentQuery.not('id', 'in', `(${Array.from(alreadyIncludedIds).join(',')})`);
+          }
+          
+          const { data: commentReports } = await commentQuery;
           
           if (commentReports) {
+            // Attach target_content and target_user for each comment report
+            for (const cr of commentReports) {
+              alreadyIncludedIds.add(cr.id);
+              if (!cr.target_content && commentContentMap[cr.target_id]) {
+                (cr as any).target_content = commentContentMap[cr.target_id];
+              }
+              (cr as any).target_user = currentUserTargetUser;
+            }
             reports.push(...commentReports);
           }
         }
@@ -318,12 +363,17 @@ export async function GET(request: NextRequest) {
       try {
         const { data: userMessages } = await supabaseServer
           .from('chat_messages')
-          .select('id')
+          .select('id, content')
           .eq('sender_id', userId);
         
         if (userMessages && userMessages.length > 0) {
           const messageIds = userMessages.map((m: any) => m.id);
-          const { data: messageReports } = await supabaseServer
+          const messageContentMap: Record<string, string> = {};
+          for (const m of userMessages) {
+            if ((m as any).content) messageContentMap[m.id] = (m as any).content;
+          }
+          
+          let messageQuery = supabaseServer
             .from('reports')
             .select(`
               *,
@@ -331,14 +381,57 @@ export async function GET(request: NextRequest) {
               assigned_user:users!reports_assigned_to_fkey(id, name, email, avatar_url, role, gender, title_id)
             `)
             .in('target_id', messageIds)
-            .eq('target_type', 'message')
-            .not('id', 'in', `(${Array.from(alreadyIncludedIds).join(',') || '00000000-0000-0000-0000-000000000000'})`);
+            .eq('target_type', 'message');
+          
+          // Apply the same status filter as the main query
+          if (status === 'forwarded') {
+            messageQuery = messageQuery.in('status', ['pending', 'in_progress']);
+          } else if (status && ['pending', 'in_progress', 'resolved', 'dismissed'].includes(status)) {
+            messageQuery = messageQuery.eq('status', status);
+          }
+          
+          if (alreadyIncludedIds.size > 0) {
+            messageQuery = messageQuery.not('id', 'in', `(${Array.from(alreadyIncludedIds).join(',')})`);
+          }
+          
+          const { data: messageReports } = await messageQuery;
           
           if (messageReports) {
+            // Attach target_content and target_user for each message report
+            for (const mr of messageReports) {
+              if (!mr.target_content && messageContentMap[mr.target_id]) {
+                (mr as any).target_content = messageContentMap[mr.target_id];
+              }
+              (mr as any).target_user = currentUserTargetUser;
+            }
             reports.push(...messageReports);
           }
         }
       } catch { /* chat_messages table may not exist */ }
+      
+      // ─── Enrich target_user for the newly added reports ───
+      // For reports against the current user (from the enrichment block above),
+      // we need to fill in the target_user with proper user data
+      if (reports.length > 0) {
+        const needsTargetUser = reports.filter((r: any) => !r.target_user && r.target_type === 'user' && r.target_id);
+        if (needsTargetUser.length > 0) {
+          const targetIds = [...new Set(needsTargetUser.map((r: any) => r.target_id))];
+          const { data: targetUsers } = await supabaseServer
+            .from('users')
+            .select('id, name, email, avatar_url, role, gender, title_id')
+            .in('id', targetIds);
+          
+          if (targetUsers) {
+            const targetUserMap = new Map(targetUsers.map((u: any) => [u.id, u]));
+            for (const r of needsTargetUser) {
+              const tu = targetUserMap.get(r.target_id);
+              if (tu) {
+                (r as any).target_user = tu;
+              }
+            }
+          }
+        }
+      }
     }
 
     return NextResponse.json({

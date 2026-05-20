@@ -289,6 +289,10 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   }, [loading]);
 
   // ─── Anti-screenshot & screen recording protection ───
+  // NOTE: We do NOT use navigator.mediaDevices.getDisplayMedia() for detection
+  // because it triggers a browser permission popup every time — very disruptive.
+  // Instead, we rely on keyboard shortcut blocking, visibility change detection,
+  // and CSS blur on focus loss.
   useEffect(() => {
     // Blur page content when window loses focus (switching apps, opening control center)
     const handleVisibilityChange = () => {
@@ -296,21 +300,6 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         document.body.classList.add('quiz-protected');
       } else {
         document.body.classList.remove('quiz-protected');
-      }
-    };
-
-    // Detect screen capture via MediaDevices API
-    let captureStream: MediaStream | null = null;
-    const detectScreenCapture = async () => {
-      try {
-        captureStream = await navigator.mediaDevices.getDisplayMedia({ video: true } as MediaStreamConstraints);
-        // If we get here, user started screen sharing — blur the quiz
-        document.body.classList.add('quiz-capture-detected');
-        captureStream.getTracks().forEach(t => t.stop());
-        captureStream = null;
-        toast.warning('تم اكتشاف تسجيل الشاشة. يرجى إيقافه للمتابعة.');
-      } catch {
-        // User denied screen share — no action needed
       }
     };
 
@@ -348,32 +337,27 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       e.preventDefault();
     };
 
-    // Detect window blur (user switched to another app)
+    // Detect window blur (user switched to another app / screenshot tool)
     const handleBlur = () => {
-      if (!document.hidden) {
-        document.body.classList.add('quiz-protected');
-        setTimeout(() => document.body.classList.remove('quiz-protected'), 500);
-      }
+      document.body.classList.add('quiz-protected');
+    };
+    const handleFocus = () => {
+      document.body.classList.remove('quiz-protected');
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('contextmenu', handleContextMenu);
     window.addEventListener('blur', handleBlur);
-
-    // Periodically check for screen capture every 3 seconds
-    const captureCheckInterval = setInterval(detectScreenCapture, 3000);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('contextmenu', handleContextMenu);
       window.removeEventListener('blur', handleBlur);
-      clearInterval(captureCheckInterval);
+      window.removeEventListener('focus', handleFocus);
       document.body.classList.remove('quiz-protected', 'quiz-capture-detected');
-      if (captureStream) {
-        captureStream.getTracks().forEach(t => t.stop());
-      }
     };
   }, []);
 

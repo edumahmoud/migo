@@ -338,6 +338,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
   // -------------------------------------------------------
   // Fetch inbox messages (messages where current user is recipient)
+  // Uses the API endpoint (server-side, bypasses RLS) instead of
+  // direct client-side Supabase query which may fail due to RLS.
   // -------------------------------------------------------
   const fetchInboxMessages = useCallback(async () => {
     setLoadingInbox(true);
@@ -345,24 +347,21 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const { data, error } = await supabase
-        .from('report_messages')
-        .select(`
-          *,
-          sender:users!report_messages_sender_id_fkey(id, name, email, avatar_url, role, gender, title_id)
-        `)
-        .eq('recipient_id', profile.id)
-        .order('created_at', { ascending: false });
-
-      if (!error && data) {
-        setInboxMessages(data);
+      const res = await fetch('/api/reports/inbox', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (result.success && result.data) {
+        setInboxMessages(result.data);
+      } else if (result.error) {
+        console.error('[Reports Inbox] API error:', result.error);
       }
-    } catch {
-      // Silently fail
+    } catch (err) {
+      console.error('[Reports Inbox] Fetch error:', err);
     } finally {
       setLoadingInbox(false);
     }
-  }, [profile.id]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'inbox') {
