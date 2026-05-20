@@ -153,8 +153,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Global upload store ───
-  const { tasks: uploadTasks, addTask, startUpload, cancelTask, removeTask, clearCompleted } = useVideoUploadStore();
-  const activeUploads = uploadTasks.filter((t) => t.subjectId === subjectId && (t.status === 'uploading' || t.status === 'saving'));
+  const { tasks: uploadTasks, addTask, startUpload, cancelTask, pauseTask, resumeTask, removeTask, clearCompleted } = useVideoUploadStore();
+  const activeUploads = uploadTasks.filter((t) => t.subjectId === subjectId && (t.status === 'uploading' || t.status === 'saving' || t.status === 'paused'));
   const hasActiveUploads = activeUploads.length > 0;
 
   // ─── Edit state ───
@@ -477,16 +477,18 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
     try {
       const video = videos.find((v) => v.id === videoId);
       if (video) {
-        // Delete from storage
-        const storagePath = video.video_url.split('/user-files/')[1];
+        // Delete from storage (video-files bucket for new uploads, fallback to user-files for legacy)
+        const videoBucket = video.video_url.includes('/video-files/') ? 'video-files' : 'user-files';
+        const storagePath = video.video_url.split(`/${videoBucket}/`)[1];
         if (storagePath) {
-          await supabase.storage.from('user-files').remove([storagePath]);
+          await supabase.storage.from(videoBucket).remove([storagePath]);
         }
         // Delete thumbnail if exists
         if (video.thumbnail_url) {
-          const thumbPath = video.thumbnail_url.split('/user-files/')[1];
+          const thumbBucket = video.thumbnail_url.includes('/video-files/') ? 'video-files' : 'user-files';
+          const thumbPath = video.thumbnail_url.split(`/${thumbBucket}/`)[1];
           if (thumbPath) {
-            await supabase.storage.from('user-files').remove([thumbPath]);
+            await supabase.storage.from(thumbBucket).remove([thumbPath]);
           }
         }
       }
@@ -1305,16 +1307,19 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                       <p className="text-xs font-medium text-foreground truncate">{task.title}</p>
                       <span className="text-[11px] text-muted-foreground whitespace-nowrap">
                         {task.status === 'uploading' ? `${task.progress}%` :
+                         task.status === 'paused' ? `متوقف ${task.progress}%` :
                          task.status === 'saving' ? 'حفظ...' :
                          task.status === 'done' ? 'تم' :
                          task.status === 'error' ? 'فشل' : ''}
                       </span>
                     </div>
-                    {(task.status === 'uploading' || task.status === 'saving') && (
+                    {(task.status === 'uploading' || task.status === 'saving' || task.status === 'paused') && (
                       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${
-                            task.status === 'saving'
+                            task.status === 'paused'
+                              ? 'bg-amber-500 dark:bg-amber-400'
+                              : task.status === 'saving'
                               ? 'bg-amber-500 dark:bg-amber-400'
                               : 'bg-sky-700 dark:bg-sky-500'
                           }`}
@@ -1328,24 +1333,44 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                   </div>
 
                   {/* Actions */}
-                  {(task.status === 'uploading' || task.status === 'saving') && (
-                    <button
-                      onClick={() => cancelTask(task.id)}
-                      className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                      title="إلغاء الرفع"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {task.status === 'error' && (
-                    <button
-                      onClick={() => removeTask(task.id)}
-                      className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      title="إزالة"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {task.status === 'uploading' && (
+                      <button
+                        onClick={() => pauseTask(task.id)}
+                        className="rounded-md p-1 text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                        title="إيقاف مؤقت"
+                      >
+                        <Pause className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {task.status === 'paused' && (
+                      <button
+                        onClick={() => resumeTask(task.id)}
+                        className="rounded-md p-1 text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
+                        title="استئناف"
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {(task.status === 'uploading' || task.status === 'saving' || task.status === 'paused') && (
+                      <button
+                        onClick={() => cancelTask(task.id)}
+                        className="rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                        title="إلغاء الرفع"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {task.status === 'error' && (
+                      <button
+                        onClick={() => removeTask(task.id)}
+                        className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        title="إزالة"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
           </div>

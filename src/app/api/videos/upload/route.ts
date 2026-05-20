@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (size > MAX_VIDEO_SIZE) {
       // Clean up the uploaded file since validation failed
       if (storagePath) {
-        await supabaseServer.storage.from('user-files').remove([storagePath]);
+        await supabaseServer.storage.from('video-files').remove([storagePath]);
       }
       return NextResponse.json(
         { success: false, error: 'حجم الفيديو يتجاوز الحد الأقصى (500 ميجابايت)' },
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         : '';
       if (!ALLOWED_VIDEO_EXTENSIONS.includes(ext)) {
         if (storagePath) {
-          await supabaseServer.storage.from('user-files').remove([storagePath]);
+          await supabaseServer.storage.from('video-files').remove([storagePath]);
         }
         return NextResponse.json(
           { success: false, error: `نوع الفيديو غير مدعوم: ${rawType}${ext ? ` (${ext})` : ''}` },
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       console.error('[Video Upload] DB insert error:', insertError);
       // Clean up storage file since DB record failed
       if (storagePath) {
-        await supabaseServer.storage.from('user-files').remove([storagePath]);
+        await supabaseServer.storage.from('video-files').remove([storagePath]);
       }
       return NextResponse.json(
         { success: false, error: 'حدث خطأ أثناء حفظ بيانات الفيديو' },

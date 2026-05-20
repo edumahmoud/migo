@@ -111,6 +111,12 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
+# Dedicated bucket for video files (500MB limit)
+[storage.buckets.video-files]
+public = true
+file_size_limit = "500MiB"
+allowed_mime_types = ["video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo", "video/x-matroska", "application/octet-stream"]
+
 # Uncomment to configure local storage buckets
 # [storage.buckets.images]
 # public = false

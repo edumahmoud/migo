@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Loader2, CheckCircle2, AlertCircle, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Pause, Play, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useVideoUploadStore } from '@/stores/video-upload-store';
 import { useState } from 'react';
 
@@ -9,25 +9,37 @@ import { useState } from 'react';
  * Global floating upload indicator.
  * Shows at the bottom of the screen whenever there are active video uploads,
  * regardless of which page the user is on.
- * Can be expanded to show details of each upload.
+ * Supports pause/resume/cancel for each upload.
  */
 export default function VideoUploadIndicator() {
-  const { tasks } = useVideoUploadStore();
+  const { tasks, pauseTask, resumeTask, cancelTask, clearCompleted } = useVideoUploadStore();
   const [expanded, setExpanded] = useState(false);
 
   const activeTasks = tasks.filter((t) => t.status === 'uploading' || t.status === 'saving');
+  const pausedTasks = tasks.filter((t) => t.status === 'paused');
   const completedTasks = tasks.filter((t) => t.status === 'done' || t.status === 'error');
   const allTasks = tasks.filter((t) => t.status !== 'cancelled');
 
   // Don't render if no tasks at all
   if (allTasks.length === 0) return null;
 
-  // Calculate overall progress of active tasks
-  const overallProgress = activeTasks.length > 0
-    ? Math.round(activeTasks.reduce((sum, t) => sum + t.progress, 0) / activeTasks.length)
-    : 100;
+  // Calculate overall progress of active + paused tasks
+  const progressTasks = [...activeTasks, ...pausedTasks];
+  const overallProgress = progressTasks.length > 0
+    ? Math.round(progressTasks.reduce((sum, t) => sum + t.progress, 0) / progressTasks.length)
+    : completedTasks.length > 0 ? 100 : 0;
 
   const hasActive = activeTasks.length > 0;
+  const hasPaused = pausedTasks.length > 0;
+
+  // Determine header status
+  const statusText = hasActive
+    ? `رفع ${activeTasks.length} فيديو${hasPaused ? ` (${pausedTasks.length} متوقف)` : ''}...`
+    : hasPaused
+    ? `${pausedTasks.length} فيديو متوقف مؤقتاً`
+    : completedTasks.every((t) => t.status === 'done')
+    ? 'تم رفع جميع الفيديوهات'
+    : 'بعض الرفع فشل';
 
   return (
     <AnimatePresence>
@@ -48,6 +60,8 @@ export default function VideoUploadIndicator() {
             <div className="relative">
               {hasActive ? (
                 <Loader2 className="h-5 w-5 animate-spin text-sky-600" />
+              ) : hasPaused ? (
+                <Pause className="h-5 w-5 text-amber-500" />
               ) : completedTasks.every((t) => t.status === 'done') ? (
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               ) : (
@@ -58,31 +72,35 @@ export default function VideoUploadIndicator() {
             {/* Summary */}
             <div className="flex-1 min-w-0 text-right">
               <p className="text-sm font-medium text-foreground">
-                {hasActive
-                  ? `رفع ${activeTasks.length} فيديو...`
-                  : completedTasks.every((t) => t.status === 'done')
-                  ? 'تم رفع جميع الفيديوهات'
-                  : 'بعض الرفع فشل'}
+                {statusText}
               </p>
-              {hasActive && (
+              {(hasActive || hasPaused) && (
                 <p className="text-[11px] text-muted-foreground">{overallProgress}% إجمالي التقدم</p>
               )}
             </div>
 
             {/* Progress ring or expand icon */}
-            {hasActive ? (
+            {(hasActive || hasPaused) ? (
               <div className="relative h-7 w-7 shrink-0">
                 <svg className="h-7 w-7 -rotate-90" viewBox="0 0 28 28">
                   <circle cx="14" cy="14" r="12" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-muted/30" />
                   <circle
                     cx="14" cy="14" r="12" fill="none" stroke="currentColor" strokeWidth="2.5"
-                    className="text-sky-600"
+                    className={hasPaused ? 'text-amber-500' : 'text-sky-600'}
                     strokeDasharray={`${2 * Math.PI * 12}`}
                     strokeDashoffset={`${2 * Math.PI * 12 * (1 - overallProgress / 100)}`}
                     strokeLinecap="round"
                   />
                 </svg>
               </div>
+            ) : completedTasks.length > 0 ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); clearCompleted(); }}
+                className="shrink-0 p-1 hover:bg-muted rounded-md transition-colors"
+                title="مسح المكتمل"
+              >
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
             ) : (
               <div className="shrink-0">
                 {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
@@ -100,22 +118,28 @@ export default function VideoUploadIndicator() {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="border-t divide-y max-h-52 overflow-y-auto custom-scrollbar">
+                <div className="border-t divide-y max-h-64 overflow-y-auto custom-scrollbar">
                   {allTasks.map((task) => (
-                    <div key={task.id} className="px-4 py-2.5 flex items-center gap-2.5">
+                    <div key={task.id} className="px-3 py-2.5 flex items-center gap-2">
+                      {/* Status icon */}
                       {task.status === 'uploading' || task.status === 'saving' ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-600 shrink-0" />
+                      ) : task.status === 'paused' ? (
+                        <Pause className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                       ) : task.status === 'done' ? (
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                       ) : (
                         <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
                       )}
+
+                      {/* Title + progress */}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">{task.title}</p>
-                        {(task.status === 'uploading' || task.status === 'saving') && (
+                        {(task.status === 'uploading' || task.status === 'saving' || task.status === 'paused') && (
                           <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
                             <div
                               className={`h-full rounded-full transition-all duration-300 ${
+                                task.status === 'paused' ? 'bg-amber-500' :
                                 task.status === 'saving' ? 'bg-amber-500' : 'bg-sky-600'
                               }`}
                               style={{ width: `${task.progress}%` }}
@@ -126,11 +150,54 @@ export default function VideoUploadIndicator() {
                           <p className="text-[10px] text-rose-500 truncate">{task.error}</p>
                         )}
                       </div>
-                      <span className="text-[10px] text-muted-foreground shrink-0">
+
+                      {/* Status text */}
+                      <span className="text-[10px] text-muted-foreground shrink-0 min-w-[32px] text-center">
                         {task.status === 'uploading' ? `${task.progress}%` :
+                         task.status === 'paused' ? `${task.progress}%` :
                          task.status === 'saving' ? 'حفظ...' :
                          task.status === 'done' ? 'تم' : 'فشل'}
                       </span>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {task.status === 'uploading' && (
+                          <button
+                            onClick={() => pauseTask(task.id)}
+                            className="p-1 hover:bg-muted rounded transition-colors"
+                            title="إيقاف مؤقت"
+                          >
+                            <Pause className="h-3 w-3 text-amber-600" />
+                          </button>
+                        )}
+                        {task.status === 'paused' && (
+                          <button
+                            onClick={() => resumeTask(task.id)}
+                            className="p-1 hover:bg-muted rounded transition-colors"
+                            title="استئناف"
+                          >
+                            <Play className="h-3 w-3 text-sky-600" />
+                          </button>
+                        )}
+                        {(task.status === 'uploading' || task.status === 'paused') && (
+                          <button
+                            onClick={() => cancelTask(task.id)}
+                            className="p-1 hover:bg-muted rounded transition-colors"
+                            title="إلغاء"
+                          >
+                            <X className="h-3 w-3 text-rose-500" />
+                          </button>
+                        )}
+                        {(task.status === 'done' || task.status === 'error') && (
+                          <button
+                            onClick={() => useVideoUploadStore.getState().removeTask(task.id)}
+                            className="p-1 hover:bg-muted rounded transition-colors"
+                            title="إزالة"
+                          >
+                            <X className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
