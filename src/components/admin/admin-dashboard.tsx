@@ -2826,7 +2826,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Award className="h-5 w-5 text-rose-600 dark:text-rose-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">الاختبارات المؤدّاة ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-xs text-muted-foreground">الاختبارات المكتملة ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-rose-600 dark:text-rose-400 inline" /> : (usageStats?.quizzesTaken ?? 0)}
@@ -3278,7 +3278,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100">
                             <Award className="h-3.5 w-3.5 text-sky-700" />
                           </div>
-                          <span className="text-sm font-medium text-foreground">الاختبارات المؤدّاة</span>
+                          <span className="text-sm font-medium text-foreground">الاختبارات المكتملة</span>
                         </div>
                       </td>
                       <td className="p-3 text-center">

@@ -26,6 +26,16 @@ import {
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -173,6 +183,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
   const [togglingVisibilityId, setTogglingVisibilityId] = useState<string | null>(null);
 
   // ─── Multi-select state ───
+  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
@@ -560,24 +571,42 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
         })}
       </motion.div>
 
-      {/* Select all + count (teacher only) */}
+      {/* Select / Select all + count (teacher only) */}
       {role === 'teacher' && !loading && filteredFiles.length > 0 && (
         <motion.div variants={itemVariants} className="flex items-center gap-3">
-          <button
-            onClick={toggleSelectAll}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
-              <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-            ) : (
-              <Square className="h-4 w-4" />
-            )}
-            تحديد الكل
-          </button>
-          {selectedFileIds.size > 0 && (
-            <span className="text-xs text-sky-700 dark:text-sky-300 font-medium">
-              تم تحديد {selectedFileIds.size} ملف
-            </span>
+          {!selectionMode ? (
+            <button
+              onClick={() => setSelectionMode(true)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <CheckSquare className="h-4 w-4" />
+              تحديد
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={toggleSelectAll}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
+                  <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                ) : (
+                  <Square className="h-4 w-4" />
+                )}
+                تحديد الكل
+              </button>
+              {selectedFileIds.size > 0 && (
+                <span className="text-xs text-sky-700 dark:text-sky-300 font-medium">
+                  تم تحديد {selectedFileIds.size} ملف
+                </span>
+              )}
+              <button
+                onClick={() => { setSelectionMode(false); setSelectedFileIds(new Set()); }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                إلغاء
+              </button>
+            </>
           )}
         </motion.div>
       )}
@@ -605,8 +634,8 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
           {filteredFiles.map((file) => (
             <motion.div key={file.id} variants={itemVariants}>
               <div className="group relative flex items-center gap-3 rounded-xl border bg-card p-4 shadow-sm hover:shadow-md transition-all">
-                {/* Checkbox for multi-select (teacher only) */}
-                {role === 'teacher' && (
+                {/* Checkbox for multi-select (teacher only, selection mode) */}
+                {role === 'teacher' && selectionMode && (
                   <button
                     onClick={() => toggleFileSelection(file.id)}
                     className={`touch-target shrink-0 flex items-center justify-center rounded-md transition-colors ${
@@ -685,31 +714,14 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   </button>
                   {/* Delete button (teacher only) */}
                   {role === 'teacher' && (
-                    confirmDeleteId === file.id ? (
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleDelete(file.id)}
-                          disabled={deletingId === file.id}
-                          className="flex h-8 items rounded-md bg-rose-600 px-2 text-[10px] font-medium text-white hover:bg-rose-700 disabled:opacity-60"
-                        >
-                          {deletingId === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تأكيد'}
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeleteId(null)}
-                          className="flex h-8 items rounded-md bg-muted px-2 text-[10px] font-medium text-muted-foreground hover:bg-muted/80"
-                        >
-                          إلغاء
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setConfirmDeleteId(file.id)}
-                        className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                        title="حذف"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )
+                    <button
+                      onClick={() => setConfirmDeleteId(file.id)}
+                      disabled={deletingId === file.id}
+                      className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors disabled:opacity-60"
+                      title="حذف"
+                    >
+                      {deletingId === file.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </button>
                   )}
                 </div>
               </div>
@@ -726,31 +738,14 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20, pointerEvents: 'none' as const }}
-              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
+              className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
               dir="rtl"
             >
               <span className="text-sm font-medium text-foreground whitespace-nowrap">
                 تم تحديد {selectedFileIds.size} ملف
               </span>
               <div className="h-6 w-px bg-border" />
-              {confirmBulkDelete ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">حذف الملفات المحددة؟</span>
-                  <button
-                    onClick={handleBulkDelete}
-                    disabled={bulkActionLoading}
-                    className="flex items-center gap-1 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 disabled:opacity-60"
-                  >
-                    {bulkActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تأكيد'}
-                  </button>
-                  <button
-                    onClick={() => setConfirmBulkDelete(false)}
-                    className="rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              ) : (
+              {confirmBulkDelete ? null : (
                 <>
                   <DropdownMenu dir="rtl">
                     <DropdownMenuTrigger asChild>
@@ -808,7 +803,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <button
-                    onClick={() => setSelectedFileIds(new Set())}
+                    onClick={() => { setSelectedFileIds(new Set()); setSelectionMode(false); }}
                     className="flex items-center gap-1 rounded-md bg-muted text-muted-foreground px-3 py-1.5 text-xs font-medium hover:bg-muted/80 transition-colors"
                   >
                     <X className="h-3 w-3" />
@@ -820,6 +815,55 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
           )}
         </AnimatePresence>
       )}
+
+      {/* Delete Single File Confirmation Dialog */}
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف الملف</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف هذا الملف؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmDeleteId) handleDelete(confirmDeleteId);
+              }}
+              disabled={!!deletingId}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deletingId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Files Confirmation Dialog */}
+      <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف الملفات المحددة</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف {selectedFileIds.size} ملف محدد؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleBulkDelete(); }}
+              disabled={bulkActionLoading}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {bulkActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Assign to Other Courses Modal */}
       <AnimatePresence>

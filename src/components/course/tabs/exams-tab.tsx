@@ -40,6 +40,16 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile, QuestionBank, BankQuestion } from '@/lib/types';
@@ -242,6 +252,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
   // ─── Delete quiz ───
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteQuizConfirmId, setDeleteQuizConfirmId] = useState<string | null>(null);
 
   // ─── Quiz toggles ───
   const [togglingQuizId, setTogglingQuizId] = useState<string | null>(null);
@@ -1775,7 +1786,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             </button>
             {/* Delete */}
             <button
-              onClick={() => handleDelete(quiz.id)}
+              onClick={() => setDeleteQuizConfirmId(quiz.id)}
               disabled={deletingId === quiz.id}
               className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
               title="حذف"
@@ -2125,6 +2136,33 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           }}
         />
       )}
+
+      {/* Delete Quiz Confirmation Dialog */}
+      <AlertDialog open={!!deleteQuizConfirmId} onOpenChange={(open) => { if (!open) setDeleteQuizConfirmId(null); }}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف الاختبار</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف هذا الاختبار؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteQuizConfirmId) handleDelete(deleteQuizConfirmId);
+                setDeleteQuizConfirmId(null);
+              }}
+              disabled={!!deletingId}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deletingId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </motion.div>
   );

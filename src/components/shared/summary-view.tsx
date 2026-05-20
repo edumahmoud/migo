@@ -22,17 +22,22 @@ import {
   Type,
   Link2,
   Wand2,
-  Award,
-  Lightbulb,
-  ChevronDown,
-  ChevronUp,
-  Trophy,
   ArrowUp,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
 
@@ -504,15 +509,6 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // ─── Related quiz ───
   const [relatedQuiz, setRelatedQuiz] = useState<Quiz | null>(null);
 
-  // ─── Completed quizzes (scores) for this summary ───
-  const [completedQuizzes, setCompletedQuizzes] = useState<Array<{
-    quiz: Quiz;
-    score: Score;
-  }>>([]);
-  const [expandedQuizId, setExpandedQuizId] = useState<string | null>(null);
-  const [explainingIdx, setExplainingIdx] = useState<string | null>(null); // 'quizId-questionIndex'
-  const [explanations, setExplanations] = useState<Record<string, string>>({}); // key: 'quizId-questionIndex'
-
   // -------------------------------------------------------
   // Fetch summary — with robust retry for mobile/PWA
   // -------------------------------------------------------
@@ -634,54 +630,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     }
   }, [summaryId]);
 
-  // -------------------------------------------------------
-  // Fetch completed quizzes (scores) for this summary
-  // Chain: summary.id → quizzes.summary_id → scores.quiz_id
-  // -------------------------------------------------------
-  const fetchCompletedQuizzes = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session?.user?.id;
-      if (!userId) return;
-
-      // 1. Get all quizzes linked to this summary
-      const { data: quizzesData, error: qErr } = await supabase
-        .from('quizzes')
-        .select('*')
-        .eq('summary_id', summaryId);
-      if (qErr || !quizzesData?.length) return;
-
-      const quizzesMap = new Map<string, Quiz>();
-      (quizzesData as Quiz[]).forEach(q => quizzesMap.set(q.id, q));
-
-      // 2. Get all scores for this student on these quizzes
-      const quizIds = quizzesData.map(q => q.id);
-      const { data: scoresData, error: sErr } = await supabase
-        .from('scores')
-        .select('*')
-        .eq('student_id', userId)
-        .in('quiz_id', quizIds);
-      if (sErr || !scoresData?.length) return;
-
-      // 3. Pair each score with its quiz
-      const pairs: Array<{ quiz: Quiz; score: Score }> = [];
-      for (const s of scoresData as Score[]) {
-        const q = quizzesMap.get(s.quiz_id);
-        if (q) pairs.push({ quiz: q, score: s });
-      }
-      // Sort by completion date (newest first)
-      pairs.sort((a, b) => new Date(b.score.completed_at).getTime() - new Date(a.score.completed_at).getTime());
-      setCompletedQuizzes(pairs);
-    } catch {
-      // Non-critical
-    }
-  }, [summaryId]);
-
   useEffect(() => {
     fetchSummary();
     fetchRelatedQuiz();
-    fetchCompletedQuizzes();
-  }, [fetchSummary, fetchRelatedQuiz, fetchCompletedQuizzes]);
+  }, [fetchSummary, fetchRelatedQuiz]);
 
   // ─── Loading timeout for mobile ───
   // IMPORTANT: Removed the aggressive 30s timeout that was killing the page
@@ -1136,62 +1088,6 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         toast.error('فشل نسخ المحتوى');
       }
       document.body.removeChild(textArea);
-    }
-  };
-
-  // -------------------------------------------------------
-  // Explain wrong answer (لماذا خطأ)
-  // -------------------------------------------------------
-  const handleExplainWrong = async (
-    quizId: string,
-    questionIdx: number,
-    question: QuizQuestion,
-    studentAnswer: string | Record<string, string>,
-  ) => {
-    const key = `${quizId}-${questionIdx}`;
-    if (explainingIdx === key) return; // Already explaining this one
-    if (explanations[key]) return; // Already explained
-
-    setExplainingIdx(key);
-    try {
-      // Build correctAnswer and studentAnswer strings
-      let correctAnswer = question.correctAnswer || '';
-      let studentAns = '';
-      if (question.type === 'matching' && question.pairs) {
-        correctAnswer = question.pairs.map(p => `${p.key} → ${p.value}`).join('، ');
-        if (typeof studentAnswer === 'object') {
-          studentAns = Object.entries(studentAnswer).map(([k, v]) => `${k} → ${v}`).join('، ');
-        }
-      } else {
-        studentAns = typeof studentAnswer === 'string' ? studentAnswer : JSON.stringify(studentAnswer);
-      }
-
-      // Use getCachedAuthHeaders for reliable mobile auth + fetchWithRetry
-      const headers = await getCachedAuthHeaders();
-      const res = await fetchWithRetry('/api/gemini/explain', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          question: question.question,
-          correctAnswer,
-          studentAnswer: studentAns,
-          questionType: question.type,
-        }),
-        timeoutMs: 300000,
-      }, 2);
-
-      const data = await res.json();
-      if (data.success && data.data?.explanation) {
-        setExplanations(prev => ({ ...prev, [key]: data.data.explanation }));
-      } else if (res.status === 429) {
-        toast.error('طلبات كثيرة جداً. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى');
-      } else {
-        toast.error(data.error || 'فشل الحصول على الشرح');
-      }
-    } catch {
-      toast.error('حدث خطأ أثناء الحصول على الشرح');
-    } finally {
-      setExplainingIdx(null);
     }
   };
 
@@ -1710,43 +1606,20 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             {/* Delete quiz button */}
             {relatedQuiz && (
               <div className="mt-4 pt-4 border-t border-teal-100">
-                {!deleteQuizConfirmOpen ? (
-                  <div className="flex items-center justify-between rounded-lg border border-rose-100 bg-rose-50/30 p-3">
-                    <div className="flex items-center gap-2">
-                      <Trash2 className="h-3.5 w-3.5 text-rose-500" />
-                      <span className="text-xs text-rose-600">حذف الاختبار</span>
-                    </div>
-                    <button
-                      onClick={() => setDeleteQuizConfirmOpen(true)}
-                      disabled={deletingQuiz}
-                      className="flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
-                    >
-                      {deletingQuiz ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                      حذف
-                    </button>
+                <div className="flex items-center justify-between rounded-lg border border-rose-100 bg-rose-50/30 p-3">
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                    <span className="text-xs text-rose-600">حذف الاختبار</span>
                   </div>
-                ) : (
-                  <div className="rounded-lg border border-rose-300 bg-rose-50 p-3 space-y-2">
-                    <p className="text-xs font-medium text-rose-700">هل أنت متأكد من حذف هذا الاختبار؟ لا يمكن التراجع عن هذا الإجراء.</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleDeleteQuiz}
-                        disabled={deletingQuiz}
-                        className="flex items-center gap-1 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 transition-colors disabled:opacity-50"
-                      >
-                        {deletingQuiz ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                        نعم، حذف
-                      </button>
-                      <button
-                        onClick={() => setDeleteQuizConfirmOpen(false)}
-                        disabled={deletingQuiz}
-                        className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
-                      >
-                        إلغاء
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  <button
+                    onClick={() => setDeleteQuizConfirmOpen(true)}
+                    disabled={deletingQuiz}
+                    className="flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
+                  >
+                    {deletingQuiz ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                    حذف
+                  </button>
+                </div>
               </div>
             )}
           </CardContent>
@@ -1754,217 +1627,75 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       </motion.div>
       )}
 
-      {/* Completed Quizzes Section — shows all taken quizzes for this summary */}
-      {completedQuizzes.length > 0 && (
-        <motion.div variants={fadeInUp}>
-          <Card className="border-violet-200 bg-white shadow-sm print:hidden">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100">
-                  <Trophy className="h-5 w-5 text-violet-600" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-violet-700">الاختبارات المؤدّاة</h2>
-                  <p className="text-xs text-violet-600/70">{completedQuizzes.length} اختبار مكتمل</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {completedQuizzes.map(({ quiz: qz, score: sc }) => {
-                  const pct = sc.total > 0 ? Math.round((sc.score / sc.total) * 100) : 0;
-                  const isExpanded = expandedQuizId === sc.id;
-                  const colorClass = pct >= 80
-                    ? 'text-emerald-700 bg-emerald-100'
-                    : pct >= 60
-                      ? 'text-amber-700 bg-amber-100'
-                      : 'text-rose-700 bg-rose-100';
-                  const ringClass = pct >= 80
-                    ? 'ring-emerald-200'
-                    : pct >= 60
-                      ? 'ring-amber-200'
-                      : 'ring-rose-200';
-
-                  return (
-                    <div key={sc.id} className="rounded-xl border border-violet-100 overflow-hidden">
-                      {/* Quiz header — clickable to expand */}
-                      <button
-                        onClick={() => setExpandedQuizId(isExpanded ? null : sc.id)}
-                        className="w-full flex items-center justify-between gap-3 p-4 text-right hover:bg-violet-50/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${colorClass} ring-4 ${ringClass}`}>
-                            <span className="text-sm font-bold">{pct}%</span>
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">{qz.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {sc.score} / {sc.total} صحيح — {new Date(sc.completed_at).toLocaleDateString('ar-EG')}
-                            </p>
-                          </div>
-                        </div>
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                        )}
-                      </button>
-
-                      {/* Expanded: answer review with لماذا خطأ */}
-                      {isExpanded && qz.questions && (
-                        <div className="border-t border-violet-100 p-4 space-y-3 bg-violet-50/20">
-                          {qz.questions.map((qq, idx) => {
-                            const ans = sc.user_answers?.find(a => a.questionIndex === idx);
-                            const isWrong = ans && !ans.isCorrect;
-                            const isUnanswered = !ans || (typeof ans.answer === 'string' && ans.answer.trim() === '');
-                            const explainKey = `${qz.id}-${idx}`;
-                            const explanation = explanations[explainKey];
-                            const isExplaining = explainingIdx === explainKey;
-
-                            return (
-                              <div key={idx} className={`rounded-lg border p-3 text-sm ${
-                                isWrong || isUnanswered
-                                  ? 'border-rose-200 bg-rose-50/40'
-                                  : 'border-emerald-200 bg-emerald-50/40'
-                              }`}>
-                                {/* Question text */}
-                                <div className="flex items-start gap-2">
-                                  <span className={`shrink-0 mt-0.5 ${isWrong || isUnanswered ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                    {isWrong || isUnanswered ? <XCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                                  </span>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-medium text-foreground leading-relaxed">{qq.question}</p>
-
-                                    {/* Student answer */}
-                                    {ans && !isUnanswered ? (
-                                      <p className="mt-1 text-xs text-muted-foreground">
-                                        <span className="font-medium">إجابتك:</span>{' '}
-                                        {qq.type === 'matching' && typeof ans.answer === 'object'
-                                          ? Object.entries(ans.answer as Record<string, string>).map(([k, v]) => `${k} → ${v}`).join(' | ')
-                                          : String(ans.answer)}
-                                      </p>
-                                    ) : (
-                                      <p className="mt-1 text-xs text-muted-foreground">لم تُجب على هذا السؤال</p>
-                                    )}
-
-                                    {/* Correct answer (shown for wrong answers) */}
-                                    {(isWrong || isUnanswered) && qq.correctAnswer && (
-                                      <p className="mt-1 text-xs text-emerald-700">
-                                        <span className="font-medium">الإجابة الصحيحة:</span> {qq.correctAnswer}
-                                      </p>
-                                    )}
-
-                                    {/* Matching: show all correct pairs */}
-                                    {(isWrong || isUnanswered) && qq.type === 'matching' && qq.pairs && (
-                                      <p className="mt-1 text-xs text-emerald-700">
-                                        <span className="font-medium">الإجابة الصحيحة:</span>{' '}
-                                        {qq.pairs.map(p => `${p.key} → ${p.value}`).join(' | ')}
-                                      </p>
-                                    )}
-
-                                    {/* لماذا خطأ button */}
-                                    {(isWrong || isUnanswered) && !isUnanswered && (
-                                      <div className="mt-2">
-                                        {explanation ? (
-                                          <div className="rounded-lg bg-violet-50 border border-violet-200 p-3 text-xs text-violet-800 leading-relaxed">
-                                            <div className="flex items-center gap-1.5 mb-1.5 font-bold">
-                                              <Lightbulb className="h-3.5 w-3.5" />
-                                              لماذا خطأ
-                                            </div>
-                                            <ReactMarkdown>{explanation}</ReactMarkdown>
-                                          </div>
-                                        ) : (
-                                          <button
-                                            onClick={() => handleExplainWrong(qz.id, idx, qq, ans?.answer || '')}
-                                            disabled={isExplaining}
-                                            className="inline-flex items-center gap-1.5 rounded-md bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700 hover:bg-violet-200 transition-colors disabled:opacity-50"
-                                          >
-                                            {isExplaining ? (
-                                              <Loader2 className="h-3 w-3 animate-spin" />
-                                            ) : (
-                                              <Lightbulb className="h-3 w-3" />
-                                            )}
-                                            {isExplaining ? 'جاري الشرح...' : 'لماذا خطأ؟'}
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
       {/* Delete Section */}
       <motion.div variants={fadeInUp} className="print:hidden">
-        {!deleteConfirmOpen ? (
-          <div className="flex items-center justify-between rounded-xl border border-rose-100 bg-rose-50/30 p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100">
-                <Trash2 className="h-4 w-4 text-rose-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-rose-700">حذف الملخص</p>
-                <p className="text-xs text-rose-600/70">سيتم حذف الملخص والاختبار المرتبط به نهائياً</p>
-              </div>
+        <div className="flex items-center justify-between rounded-xl border border-rose-100 bg-rose-50/30 p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100">
+              <Trash2 className="h-4 w-4 text-rose-600" />
             </div>
-            <Button
-              onClick={() => setDeleteConfirmOpen(true)}
-              variant="outline"
-              size="sm"
-              className="gap-1.5 border-rose-300 text-rose-600 hover:bg-rose-50"
-            >
-              <Trash2 className="h-4 w-4" />
-              حذف
-            </Button>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-rose-300 bg-rose-50 p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100">
-                <AlertTriangle className="h-4 w-4 text-rose-600" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-rose-700">تأكيد الحذف</p>
-                <p className="text-xs text-rose-600/70">هل أنت متأكد من حذف ملخص "{summary?.title}"؟ لا يمكن التراجع عن هذا الإجراء.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 ms-12">
-              <Button
-                onClick={handleDeleteSummary}
-                disabled={deleting}
-                size="sm"
-                className="gap-1.5 bg-rose-600 hover:bg-rose-700 text-white"
-              >
-                {deleting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="h-4 w-4" />
-                )}
-                {deleting ? 'جاري الحذف...' : 'نعم، احذف'}
-              </Button>
-              <Button
-                onClick={() => setDeleteConfirmOpen(false)}
-                variant="outline"
-                size="sm"
-                className="border-rose-200 text-rose-600 hover:bg-rose-50"
-                disabled={deleting}
-              >
-                إلغاء
-              </Button>
+            <div>
+              <p className="text-sm font-medium text-rose-700">حذف الملخص</p>
+              <p className="text-xs text-rose-600/70">سيتم حذف الملخص والاختبار المرتبط به نهائياً</p>
             </div>
           </div>
-        )}
+          <Button
+            onClick={() => setDeleteConfirmOpen(true)}
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-rose-300 text-rose-600 hover:bg-rose-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            حذف
+          </Button>
+        </div>
       </motion.div>
+
+      {/* Delete Quiz Confirmation Dialog */}
+      <AlertDialog open={deleteQuizConfirmOpen} onOpenChange={setDeleteQuizConfirmOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف الاختبار</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف هذا الاختبار؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteQuiz(); }}
+              disabled={deletingQuiz}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deletingQuiz ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Summary Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent dir="rtl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف ملخص "{summary?.title}"؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeleteSummary(); }}
+              disabled={deleting}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Scroll to Top Button */}
       <ScrollToTopButton />

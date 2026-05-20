@@ -191,6 +191,41 @@ export interface SubjectFile {
 }
 
 // =====================================================
+// Videos & Video Comments
+// =====================================================
+
+export interface SubjectVideo {
+  id: string;
+  subject_id: string;
+  uploaded_by: string;
+  title: string;
+  description?: string;
+  video_url: string;
+  video_type: string;
+  video_size: number;
+  thumbnail_url?: string;
+  duration?: number;
+  comments_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  uploader_name?: string;
+}
+
+export interface VideoComment {
+  id: string;
+  video_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  user_name?: string;
+  user_avatar?: string;
+  user_role?: string;
+  user_title_id?: string | null;
+  user_gender?: string | null;
+}
+
+// =====================================================
 // Assignments & Submissions
 // =====================================================
 
@@ -403,7 +438,7 @@ export interface BankQuestion {
 // =====================================================
 
 // Course page tab types
-export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'exams' | 'assignments' | 'chat' | 'students' | 'teams';
+export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'videos' | 'exams' | 'assignments' | 'chat' | 'students' | 'teams';
 
 // Extended lecture type with attendance info
 export interface LectureWithAttendance extends Lecture {

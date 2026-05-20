@@ -9,6 +9,7 @@ import {
   PenLine,
   Folder,
   FileCheck,
+  Video,
   ListChecks,
   MessageCircle,
   Users,
@@ -41,6 +42,7 @@ const OverviewTab = lazy(() => import('@/components/course/tabs/overview-tab'));
 const LecturesTab = lazy(() => import('@/components/course/tabs/lectures-tab'));
 const NotesTab = lazy(() => import('@/components/course/tabs/notes-tab'));
 const FilesTab = lazy(() => import('@/components/course/tabs/files-tab'));
+const VideosTab = lazy(() => import('@/components/course/tabs/videos-tab'));
 const ExamsTab = lazy(() => import('@/components/course/tabs/exams-tab'));
 const AssignmentsTab = lazy(() => import('@/components/course/tabs/assignments-tab'));
 const ChatTab = lazy(() => import('@/components/course/tabs/chat-tab'));
@@ -79,6 +81,7 @@ const TABS: TabConfig[] = [
   { id: 'lectures', label: 'المحاضرات', icon: <BookOpen className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'notes', label: 'الملاحظات', icon: <PenLine className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'files', label: 'الملفات', icon: <Folder className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'videos', label: 'الفيديوهات', icon: <Video className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'exams', label: 'الاختبارات', icon: <FileCheck className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'assignments', label: 'المهام', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'chat', label: 'المحادثة', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
@@ -469,6 +472,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         {courseTab === 'lectures' && <LecturesTab {...commonProps} />}
         {courseTab === 'notes' && <NotesTab {...commonProps} />}
         {courseTab === 'files' && <FilesTab {...commonProps} />}
+        {courseTab === 'videos' && <VideosTab {...commonProps} />}
         {courseTab === 'exams' && (
           <SectionErrorBoundary name="الاختبارات">
             <ExamsTab {...commonProps} />
