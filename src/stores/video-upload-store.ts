@@ -183,10 +183,14 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
       // ── Step 3: Create TUS resumable upload session ──
       // This sends a POST with Upload-Length header to get an upload URL.
       // The file is NOT sent here — only metadata.
-      // NOTE: Supabase TUS requires 'key' metadata with the full storage path.
+      // NOTE: Supabase TUS requires 'objectName' (not 'key'), 'contentType',
+      //       and 'cacheControl' in Upload-Metadata per official docs:
+      //       https://supabase.com/docs/guides/storage/uploads/resumable-uploads
       const metadataParts = [
         `bucketName ${toBase64('video-files')}`,
-        `key ${toBase64(storagePath)}`,
+        `objectName ${toBase64(storagePath)}`,
+        `contentType ${toBase64(file.type || 'video/mp4')}`,
+        `cacheControl ${toBase64('public, max-age=31536000')}`,
       ].join(',');
 
       let tusUrl: string;
@@ -196,6 +200,8 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/offset+octet-stream',
+            'Content-Length': '0',
             'Upload-Length': String(file.size),
             'Upload-Metadata': metadataParts,
             'Tus-Resumable': '1.0.0',
@@ -211,9 +217,18 @@ export const useVideoUploadStore = create<VideoUploadState>()((set, get) => ({
             errMsg = errJson.error || errJson.message || errMsg;
           } catch { /* use default */ }
 
+          console.error('[Video Upload] TUS creation failed:', createResponse.status, errText);
+
           // If TUS endpoint is unavailable, fallback to direct upload
           if (createResponse.status === 404 || createResponse.status === 501) {
             console.warn('[Video Upload] TUS endpoint not available, falling back to direct upload');
+            await directUpload(id, task, authToken, supabaseUrl, storagePath, userId);
+            return;
+          }
+
+          // If TUS returns 400, also try direct upload as fallback
+          if (createResponse.status === 400) {
+            console.warn('[Video Upload] TUS returned 400, falling back to direct upload. Error:', errText);
             await directUpload(id, task, authToken, supabaseUrl, storagePath, userId);
             return;
           }
