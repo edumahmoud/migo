@@ -73,6 +73,15 @@ export async function GET(request: NextRequest) {
     const userId = authResult.user.id;
     const role = await getUserRole(userId);
 
+    // ─── Lazy auto-cleanup: delete resolved/dismissed reports older than 10 days ───
+    // This runs on every list fetch to ensure old completed reports are purged
+    // even if pg_cron is not available on the Supabase plan.
+    try {
+      await supabaseServer.rpc('cleanup_old_reports');
+    } catch {
+      // Non-critical: function may not exist yet (migration not applied)
+    }
+
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
     const page = parseInt(url.searchParams.get('page') || '1');
@@ -182,6 +191,111 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Reports] GET error:', error);
+    return NextResponse.json(
+      { success: false, error: 'حدث خطأ غير متوقع' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/reports — Clear resolved/dismissed reports for current user
+// Supports two modes:
+//   ?mode=all       — delete ALL resolved/dismissed reports visible to the user
+//   ?id=<uuid>      — delete a single resolved/dismissed report by ID
+export async function DELETE(request: NextRequest) {
+  try {
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) {
+      return NextResponse.json({ success: false, error: authResult.error }, { status: authResult.status });
+    }
+
+    const userId = authResult.user.id;
+    const role = await getUserRole(userId);
+    const url = new URL(request.url);
+    const mode = url.searchParams.get('mode') || 'all';
+    const reportId = url.searchParams.get('id');
+
+    if (reportId) {
+      // ─── Delete a single report ───
+      // First verify it exists and is completed
+      const { data: report, error: fetchError } = await supabaseServer
+        .from('reports')
+        .select('id, status, reporter_id, assigned_to')
+        .eq('id', reportId)
+        .single();
+
+      if (fetchError || !report) {
+        return NextResponse.json(
+          { success: false, error: 'الإبلاغ غير موجود' },
+          { status: 404 }
+        );
+      }
+
+      if (!['resolved', 'dismissed'].includes(report.status)) {
+        return NextResponse.json(
+          { success: false, error: 'لا يمكن حذف إبلاغ قيد المعالجة' },
+          { status: 400 }
+        );
+      }
+
+      // Access check
+      const isAdmin = role === 'admin' || role === 'superadmin';
+      const isReporter = report.reporter_id === userId;
+      const isAssigned = report.assigned_to === userId;
+      if (!isAdmin && !isReporter && !isAssigned) {
+        return NextResponse.json(
+          { success: false, error: 'غير مصرح بحذف هذا الإبلاغ' },
+          { status: 403 }
+        );
+      }
+
+      const { error: deleteError } = await supabaseServer
+        .from('reports')
+        .delete()
+        .eq('id', reportId);
+
+      if (deleteError) {
+        console.error('[Reports] Delete single error:', deleteError.message);
+        return NextResponse.json(
+          { success: false, error: 'فشل حذف الإبلاغ' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ success: true, data: { deleted: 1 } });
+    }
+
+    // ─── Bulk delete all resolved/dismissed reports ───
+    let deleteQuery = supabaseServer
+      .from('reports')
+      .delete()
+      .in('status', ['resolved', 'dismissed']);
+
+    // Role-based scope
+    if (role === 'admin' || role === 'superadmin') {
+      // Admin: delete ALL resolved/dismissed on the platform
+      // No additional filter needed — RLS allows admin to delete any completed report
+    } else if (role === 'teacher') {
+      // Teacher: delete their own submitted + assigned to them
+      deleteQuery = deleteQuery.or(`reporter_id.eq.${userId},assigned_to.eq.${userId}`);
+    } else {
+      // Student: delete only their own submitted reports
+      deleteQuery = deleteQuery.eq('reporter_id', userId);
+    }
+
+    const { error: deleteError } = await deleteQuery;
+
+    if (deleteError) {
+      console.error('[Reports] Bulk delete error:', deleteError.message);
+      return NextResponse.json(
+        { success: false, error: 'فشل حذف الإبلاغات' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, data: { cleared: true } });
+  } catch (error) {
+    console.error('[Reports] DELETE error:', error);
     return NextResponse.json(
       { success: false, error: 'حدث خطأ غير متوقع' },
       { status: 500 }

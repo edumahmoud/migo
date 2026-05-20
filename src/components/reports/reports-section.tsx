@@ -17,6 +17,7 @@ import {
   Mail,
   User,
   BarChart3,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -110,6 +111,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [forwardToId, setForwardToId] = useState('');
   const [availableForwardUsers, setAvailableForwardUsers] = useState<UserProfile[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // -------------------------------------------------------
   // Fetch reports
@@ -264,6 +267,65 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   };
 
   // -------------------------------------------------------
+  // Clear completed reports (resolved/dismissed)
+  // -------------------------------------------------------
+  const handleClearCompleted = async () => {
+    setClearing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch('/api/reports?mode=all', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success('تم مسح الإبلاغات المكتملة');
+        setShowClearConfirm(false);
+        fetchReports();
+        fetchReportsCount();
+      } else {
+        toast.error(result.error || 'فشل مسح الإبلاغات');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Delete a single completed report
+  // -------------------------------------------------------
+  const handleDeleteReport = async (reportId: string) => {
+    setSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`/api/reports?id=${reportId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success('تم حذف الإبلاغ');
+        setSelectedReport(null);
+        setResponses([]);
+        fetchReports();
+        fetchReportsCount();
+      } else {
+        toast.error(result.error || 'فشل حذف الإبلاغ');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // -------------------------------------------------------
   // Handle action (reply, forward, resolve, dismiss, reopen)
   // -------------------------------------------------------
   const handleAction = async (action: 'reply' | 'forward' | 'resolve' | 'dismiss' | 'reopen') => {
@@ -386,6 +448,45 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           </p>
         </div>
       </motion.div>
+
+      {/* Clear completed button + info */}
+      {reports.some(r => r.status === 'resolved' || r.status === 'dismissed') && (
+        <motion.div variants={itemVariants} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
+          <p className="text-xs text-muted-foreground">
+            يتم حذف الإبلاغات المكتملة تلقائياً بعد 10 أيام
+          </p>
+          <div className="flex items-center gap-2">
+            {!showClearConfirm ? (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                مسح المكتملة
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">حذف كل الإبلاغات المكتملة؟</span>
+                <button
+                  onClick={handleClearCompleted}
+                  disabled={clearing}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-medium hover:bg-rose-700 disabled:opacity-50 transition-colors"
+                >
+                  {clearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  تأكيد
+                </button>
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  disabled={clearing}
+                  className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Filters */}
       <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-3">
@@ -732,6 +833,20 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             <RotateCcw className="h-4 w-4" />
             إعادة فتح الإبلاغ
           </button>
+        )}
+
+        {/* Delete button for completed reports (resolved/dismissed) */}
+        {(selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && (isReporter || isAssignedToMe || isAdmin) && (
+          <div className="pt-2 border-t border-border">
+            <button
+              onClick={() => handleDeleteReport(selectedReport.id)}
+              disabled={submitting}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-rose-600 border border-rose-200 dark:border-rose-800 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-50 transition-colors"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              حذف الإبلاغ
+            </button>
+          </div>
         )}
       </motion.div>
     );
