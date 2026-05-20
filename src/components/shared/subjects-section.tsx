@@ -180,6 +180,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [newSubjectLevel, setNewSubjectLevel] = useState('');
   const [newSubjectSubLevel, setNewSubjectSubLevel] = useState('');
   const [creatingSubject, setCreatingSubject] = useState(false);
+  const [newSubjectThumb, setNewSubjectThumb] = useState<File | null>(null);
+  const newSubjectThumbRef = useRef<HTMLInputElement>(null);
 
   // ─── Join by code modal (student only) ───
   const [joinCodeOpen, setJoinCodeOpen] = useState(false);
@@ -607,6 +609,23 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
     try {
       const joinCode = generateJoinCode();
 
+      // Upload thumbnail first (if provided)
+      let thumbnailUrl: string | null = null;
+      if (newSubjectThumb) {
+        const ext = newSubjectThumb.name.split('.').pop() || 'jpg';
+        const thumbPath = `${profile.id}/thumbnails/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: thumbError } = await supabase.storage
+          .from('video-files')
+          .upload(thumbPath, newSubjectThumb, { cacheControl: '3600', upsert: false });
+        if (thumbError) {
+          console.error('Thumbnail upload error:', thumbError);
+          // Non-fatal — continue without thumbnail
+        } else {
+          const { data: urlData } = supabase.storage.from('video-files').getPublicUrl(thumbPath);
+          thumbnailUrl = urlData.publicUrl;
+        }
+      }
+
       let { data, error } = await supabase
         .from('subjects')
         .insert({
@@ -617,6 +636,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           join_code: joinCode,
           level: newSubjectLevel || null,
           sub_level: newSubjectSubLevel || null,
+          thumbnail_url: thumbnailUrl,
         })
         .select()
         .single();
@@ -636,6 +656,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               join_code: joinCode,
               level: newSubjectLevel || null,
               sub_level: newSubjectSubLevel || null,
+              thumbnail_url: thumbnailUrl,
             })
             .select()
             .single();
@@ -661,6 +682,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         setNewSubjectColor(SUBJECT_COLORS[0]);
         setNewSubjectLevel('');
         setNewSubjectSubLevel('');
+        setNewSubjectThumb(null);
+        if (newSubjectThumbRef.current) newSubjectThumbRef.current.value = '';
 
         // Optimistic update — real-time subscription will sync if needed
         if (data) {
@@ -1086,12 +1109,22 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                         <div className="relative p-5 pt-6">
                           {/* Subject icon + name */}
                           <div className="flex items-start gap-3.5 mb-3">
-                            <div
-                              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white font-bold text-lg shadow-sm"
-                              style={{ backgroundColor: color }}
-                            >
-                              {subject.name.charAt(0)}
-                            </div>
+                            {subject.thumbnail_url ? (
+                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl shadow-sm">
+                                <img
+                                  src={subject.thumbnail_url}
+                                  alt={subject.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white font-bold text-lg shadow-sm"
+                                style={{ backgroundColor: color }}
+                              >
+                                {subject.name.charAt(0)}
+                              </div>
+                            )}
                             <div className="min-w-0 flex-1 pt-0.5">
                               <h3 className="font-bold text-foreground text-base leading-tight truncate">
                                 {subject.name}
@@ -1358,7 +1391,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       <AnimatePresence>
         {createSubjectOpen && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto"
             variants={modalOverlayVariants}
             initial="hidden"
             animate="visible"
@@ -1376,11 +1409,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden"
+              className="relative w-full max-w-md max-h-[90vh] rounded-2xl border bg-background shadow-2xl overflow-hidden my-4 sm:my-0 flex flex-col"
             >
               {/* Modal gradient header */}
               <div
-                className="px-6 pt-6 pb-4"
+                className="px-6 pt-6 pb-4 shrink-0"
                 style={{
                   background: `linear-gradient(135deg, ${hexToRgba(newSubjectColor, 0.12)} 0%, transparent 100%)`,
                 }}
@@ -1407,7 +1440,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 </div>
               </div>
 
-              <div className="px-6 pb-6 space-y-5">
+              <div className="px-6 pb-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                 {/* Subject name */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">
@@ -1436,11 +1469,56 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     value={newSubjectDesc}
                     onChange={(e) => setNewSubjectDesc(e.target.value)}
                     placeholder="وصف اختياري للمقرر..."
-                    rows={3}
+                    rows={2}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none"
                     dir="rtl"
                     disabled={creatingSubject}
                   />
+                </div>
+
+                {/* Thumbnail picker */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-foreground">
+                    صورة المقرر (اختياري)
+                  </label>
+                  <input
+                    ref={newSubjectThumbRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      setNewSubjectThumb(file || null);
+                    }}
+                    className="w-full rounded-xl border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2.5 text-sm text-foreground file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-medium file:cursor-pointer file:transition-colors"
+                    style={{
+                      // @ts-expect-error — file button color style
+                      '--file-bg': newSubjectColor,
+                    }}
+                    disabled={creatingSubject}
+                  />
+                  {newSubjectThumb && (
+                    <div className="flex items-center gap-3 rounded-xl border bg-muted/30 p-2.5">
+                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted">
+                        <img
+                          src={URL.createObjectURL(newSubjectThumb)}
+                          alt="صورة المقرر"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-foreground truncate">{newSubjectThumb.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{(newSubjectThumb.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                      <button
+                        onClick={() => { setNewSubjectThumb(null); if (newSubjectThumbRef.current) newSubjectThumbRef.current.value = ''; }}
+                        className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                        title="إزالة"
+                        disabled={creatingSubject}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* الفرقة (السنة الدراسية) & المستوى الدراسي */}

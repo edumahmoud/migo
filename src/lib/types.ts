@@ -100,6 +100,7 @@ export interface Subject {
   join_code?: string;
   level?: string;      // الفرقة / السنة الدراسية (الفرقة الأولى، الفرقة الثانية...)
   sub_level?: string;  // المستوى الدراسي (المستوى الأول، المستوى الثاني)
+  thumbnail_url?: string | null;
   created_at: string;
   updated_at: string;
   // Joined data

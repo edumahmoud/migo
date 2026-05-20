@@ -1239,17 +1239,15 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       className="space-y-6"
       dir="rtl"
     >
-      <AnimatePresence mode="wait">
-        {selectedVideo ? (
-          <motion.div key="player" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            {renderVideoPlayer()}
-          </motion.div>
-        ) : (
-          <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            {renderVideoGrid()}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {selectedVideo ? (
+        <div key="player">
+          {renderVideoPlayer()}
+        </div>
+      ) : (
+        <div key="list">
+          {renderVideoGrid()}
+        </div>
+      )}
 
       {/* ─── Upload Modal ─── */}
       <AnimatePresence>
