@@ -343,7 +343,7 @@ export async function PATCH(
         .insert({
           user_id: warnUserId,
           type: 'report',
-          title: 'تحذير',
+          title: 'بخصوص بلاغ مقدم ضدك',
           message: content || warnMessage,
           link: `/reports/${id}`,
           read: false,

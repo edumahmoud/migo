@@ -67,6 +67,7 @@ const notifTypeToTab: Record<string, CourseTab> = {
   chat: 'overview',
   note: 'notes',
   public_note_created: 'notes',
+  report: 'overview',
 };
 
 function timeAgo(dateStr: string): string {
@@ -98,6 +99,7 @@ function getNotifIcon(type: string, title?: string) {
     case 'attendance': return <UserCheck className="h-4 w-4 text-violet-600" />;
     case 'lecture': return <BookOpen className="h-4 w-4 text-teal-600" />;
     case 'chat': return <Bell className="h-4 w-4 text-sky-600" />;
+    case 'report': return <FileText className="h-4 w-4 text-rose-600" />;
     default: return <Info className="h-4 w-4 text-sky-700" />;
   }
 }
@@ -106,7 +108,6 @@ export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const [linkRequestModal, setLinkRequestModal] = useState<{teacherId: string; notificationId: string; teacher: any | null; loading: boolean} | null>(null);
   const [processingAction, setProcessingAction] = useState(false);
   const { 
@@ -121,7 +122,7 @@ export default function NotificationBell() {
     clearAll 
   } = useNotificationStore();
   const { user } = useAuthStore();
-  const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore();
+  const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore();
 
   // ─── Filter out chat notifications from the bell ───
   // Chat notifications should only appear in the chat section icon,
@@ -143,29 +144,7 @@ export default function NotificationBell() {
     }
   }, [user?.id, initialized, initializeNotifications]);
 
-  // Calculate dropdown position when opened
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      const gap = 8; // mt-2
-      const isMobile = window.innerWidth < 640;
-      const maxW = isMobile ? window.innerWidth - 16 : Math.min(360, window.innerWidth - 32);
 
-      // In RTL: align right edge of dropdown with right edge of button
-      // On mobile, center the dropdown
-      const right = isMobile ? 8 : Math.max(0, window.innerWidth - rect.right);
-      const top = rect.bottom + gap;
-
-      setDropdownStyle({
-        position: 'fixed',
-        top: `${top}px`,
-        right: `${right}px`,
-        width: `${maxW}px`,
-        zIndex: 50, // Match other dropdowns (z-50) instead of 9999 to avoid ghost overlay blocking taps
-        maxHeight: isMobile ? 'calc(100vh - 80px)' : undefined,
-      });
-    }
-  }, [isOpen]);
 
   // Close on outside click
   useEffect(() => {
@@ -248,10 +227,11 @@ export default function NotificationBell() {
 
   /** Parse notification link and navigate using app store */
   const navigateToLink = (link: string) => {
-    // Link format examples: "assignments", "subjects", "quizzes", "attendance"
+    // Link format examples: "assignments", "subjects", "quizzes", "attendance", "reports"
     // Or with detail: "assignments?id=xxx"
     // Or tab-based: "subjects?tab=lectures&id=SUBJECT_ID"
-    const [section, queryString] = link.split('?');
+    // Or path-style: "/reports/ID"
+    const [section, queryString] = link.startsWith('/') ? link.slice(1).split('?') : link.split('?');
     const role = user?.role;
 
     // Parse query params
@@ -259,8 +239,11 @@ export default function NotificationBell() {
     const tab = params.get('tab');
     const subjectId = params.get('id');
 
+    // Handle path-style links like "/reports/ID" — extract the base section
+    const baseSection = section.includes('/') ? section.split('/')[0] : section;
+
     // Handle tab-based navigation for subjects (e.g., "subjects?tab=lectures&id=SUBJECT_ID")
-    if (section === 'subjects' && subjectId) {
+    if (baseSection === 'subjects' && subjectId) {
       const { setSelectedSubjectId, setCourseTab } = useAppStore.getState();
       setSelectedSubjectId(subjectId);
       if (tab) {
@@ -269,24 +252,33 @@ export default function NotificationBell() {
       if (role === 'student') {
         setStudentSection('subjects');
         setCurrentPage('student-dashboard');
-      } else if (role === 'teacher' || role === 'admin' || role === 'superadmin') {
+      } else if (role === 'teacher') {
         setTeacherSection('subjects');
         setCurrentPage('teacher-dashboard');
+      } else if (role === 'admin' || role === 'superadmin') {
+        setAdminSection('subjects');
+        setCurrentPage('admin-dashboard');
       }
       return;
     }
 
     if (role === 'student') {
-      const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'chat', 'settings', 'notifications'];
-      if (validSections.includes(section)) {
-        setStudentSection(section as 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications');
+      const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'chat', 'settings', 'notifications', 'reports'];
+      if (validSections.includes(baseSection)) {
+        setStudentSection(baseSection as 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'reports');
         setCurrentPage('student-dashboard');
       }
     } else if (role === 'teacher') {
-      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications'];
-      if (validSections.includes(section)) {
-        setTeacherSection(section as 'dashboard' | 'subjects' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications');
+      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications', 'reports'];
+      if (validSections.includes(baseSection)) {
+        setTeacherSection(baseSection as 'dashboard' | 'subjects' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'reports');
         setCurrentPage('teacher-dashboard');
+      }
+    } else if (role === 'admin' || role === 'superadmin') {
+      const validSections = ['dashboard', 'users', 'subjects', 'reports', 'announcements', 'banned', 'institution', 'chat', 'settings', 'comments', 'complaints'];
+      if (validSections.includes(baseSection)) {
+        setAdminSection(baseSection as 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints');
+        setCurrentPage('admin-dashboard');
       }
     }
   };
@@ -303,6 +295,23 @@ export default function NotificationBell() {
       if (teacherId) {
         setLinkRequestModal({ teacherId, notificationId: notif.id, teacher: null, loading: true });
         fetchTeacherForModal(teacherId);
+      }
+      return;
+    }
+
+    // Handle report notifications — navigate to the reports section
+    if (notif.type === 'report' || notif.link?.startsWith('/reports')) {
+      setIsOpen(false);
+      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
+      if (user?.role === 'student') {
+        setStudentSection('reports');
+        setCurrentPage('student-dashboard');
+      } else if (user?.role === 'teacher') {
+        setTeacherSection('reports');
+        setCurrentPage('teacher-dashboard');
+      } else if (user?.role === 'admin' || user?.role === 'superadmin') {
+        setAdminSection('reports');
+        setCurrentPage('admin-dashboard');
       }
       return;
     }
@@ -515,44 +524,44 @@ export default function NotificationBell() {
 
   return (
     <>
-      <button
-        ref={buttonRef}
-        onClick={() => {
-          setIsOpen(!isOpen);
-          // Refresh notifications from DB when bell is opened
-          if (!isOpen) refetchNotifications();
-        }}
-        className="relative touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
-        aria-label="الإشعارات"
-      >
-        <Bell className="h-5 w-5" />
-        <AnimatePresence>
-          {bellUnreadCount > 0 && (
-            <motion.span
-              key="badge"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              className="absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white min-w-[18px] h-[18px]"
-            >
-              {bellUnreadCount > 9 ? '9+' : bellUnreadCount}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </button>
+      <div className="relative">
+        <button
+          ref={buttonRef}
+          onClick={() => {
+            setIsOpen(!isOpen);
+            // Refresh notifications from DB when bell is opened
+            if (!isOpen) refetchNotifications();
+          }}
+          className="relative touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
+          aria-label="الإشعارات"
+        >
+          <Bell className="h-5 w-5" />
+          <AnimatePresence>
+            {bellUnreadCount > 0 && (
+              <motion.span
+                key="badge"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                className="absolute -top-0.5 -right-0.5 flex items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white min-w-[18px] h-[18px]"
+              >
+                {bellUnreadCount > 9 ? '9+' : bellUnreadCount}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            ref={dropdownRef}
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, pointerEvents: 'none' as const }}
-            transition={{ duration: 0.1 }}
-            style={dropdownStyle}
-            className="rounded-xl border bg-background shadow-lg overflow-hidden"
-            dir="rtl"
-          >
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              ref={dropdownRef}
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, pointerEvents: 'none' as const }}
+              transition={{ duration: 0.1 }}
+              className="absolute top-full mt-2 start-0 sm:start-auto sm:end-0 w-[calc(100vw-2rem)] sm:w-[360px] z-50 rounded-xl border bg-background shadow-lg overflow-hidden"
+              dir="rtl"
+            >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-3">
               <h3 className="text-sm font-bold text-foreground">الإشعارات</h3>
@@ -649,6 +658,7 @@ export default function NotificationBell() {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
 
       {/* Link Request Modal */}
       <AnimatePresence>

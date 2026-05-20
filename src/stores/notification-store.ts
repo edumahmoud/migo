@@ -158,6 +158,59 @@ function resetDedupStructures(): void {
   contentHashTimestamps.clear();
 }
 
+// ─── localStorage-backed deletion tracking ───
+// When a user deletes notifications and the DB DELETE fails silently (e.g. RLS errors),
+// the notifications would reappear on page reload. This localStorage set tracks
+// deleted IDs across page reloads so they can be filtered out during fetch.
+const DELETED_IDS_STORAGE_KEY = 'attendo_deleted_notif_ids';
+const DELETED_IDS_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+
+interface DeletedIdEntry {
+  id: string;
+  deletedAt: number;
+}
+
+function getDeletedIdsFromStorage(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_IDS_STORAGE_KEY);
+    if (!raw) return new Set();
+    const entries: DeletedIdEntry[] = JSON.parse(raw);
+    const now = Date.now();
+    // Filter out expired entries and return as Set
+    const valid = entries.filter(e => now - e.deletedAt < DELETED_IDS_MAX_AGE);
+    // Save cleaned version back
+    localStorage.setItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(valid));
+    return new Set(valid.map(e => e.id));
+  } catch {
+    return new Set();
+  }
+}
+
+function addDeletedIdToStorage(id: string): void {
+  try {
+    const raw = localStorage.getItem(DELETED_IDS_STORAGE_KEY);
+    const entries: DeletedIdEntry[] = raw ? JSON.parse(raw) : [];
+    entries.push({ id, deletedAt: Date.now() });
+    // Keep only last 200 entries
+    if (entries.length > 200) entries.splice(0, entries.length - 200);
+    localStorage.setItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(entries));
+  } catch { /* localStorage may be unavailable */ }
+}
+
+function addDeletedIdsToStorage(ids: string[]): void {
+  try {
+    const raw = localStorage.getItem(DELETED_IDS_STORAGE_KEY);
+    const entries: DeletedIdEntry[] = raw ? JSON.parse(raw) : [];
+    const now = Date.now();
+    for (const id of ids) {
+      entries.push({ id, deletedAt: now });
+    }
+    // Keep only last 200 entries
+    if (entries.length > 200) entries.splice(0, entries.length - 200);
+    localStorage.setItem(DELETED_IDS_STORAGE_KEY, JSON.stringify(entries));
+  } catch { /* localStorage may be unavailable */ }
+}
+
 /** Check if a Supabase error is caused by RLS infinite recursion (42P17) */
 function isRLSRecursionError(error: { code?: string; message?: string } | null | undefined): boolean {
   if (!error) return false;
@@ -210,8 +263,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       // Filter out notifications that are pending deletion
       // (optimistically removed from store but DB DELETE not yet completed)
+      // Also filter out notifications whose IDs are in the localStorage deleted set
+      // (deleted in a previous session but DB DELETE failed silently)
+      const localStorageDeletedIds = getDeletedIdsFromStorage();
       const filteredDbNotifications = dbNotifications.filter(
-        (n) => !isPendingDeletion(n.id)
+        (n) => !isPendingDeletion(n.id) && !localStorageDeletedIds.has(n.id)
       );
 
       // Merge intelligently — DB data is the source of truth
@@ -322,7 +378,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       }
 
       // 2. Replace the store's notifications array with DB data
-      const notifications = (data || []).map(dbToNotification);
+      // Filter out notifications whose IDs are in the localStorage deleted set
+      const localStorageDeletedIds = getDeletedIdsFromStorage();
+      const notifications = (data || []).map(dbToNotification).filter(
+        (n) => !localStorageDeletedIds.has(n.id)
+      );
       const unreadCount = notifications.filter((n) => !n.read).length;
 
       // Populate global dedup structures with initial data
@@ -678,6 +738,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // Mark as pending deletion to prevent polling from re-adding it
     markPendingDeletion(id);
 
+    // Track in localStorage so if DB DELETE fails, the ID won't reappear on reload
+    addDeletedIdToStorage(id);
+
     // Remove from seen IDs
     seenNotificationIds.delete(id);
 
@@ -713,6 +776,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // Mark all current notification IDs as pending deletion
     for (const n of state.notifications) {
       markPendingDeletion(n.id);
+    }
+
+    // Track all IDs in localStorage so if DB DELETE fails, they won't reappear on reload
+    const allIds = state.notifications.map((n) => n.id);
+    if (allIds.length > 0) {
+      addDeletedIdsToStorage(allIds);
     }
 
     // Clear global dedup structures
