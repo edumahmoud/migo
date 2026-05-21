@@ -329,6 +329,8 @@ export async function PATCH(
     if (action === 'warn') {
       // Resolve the target user to warn
       let warnUserId: string | null = null;
+      let warnSubjectName: string | null = null;
+      let warnContentPreview: string | null = null;
 
       if (report.target_type === 'user' && report.target_id) {
         warnUserId = report.target_id;
@@ -336,19 +338,39 @@ export async function PATCH(
         try {
           const { data: comment } = await supabaseServer
             .from('video_comments')
-            .select('user_id')
+            .select('user_id, content, video_id')
             .eq('id', report.target_id)
             .single();
           if (comment?.user_id) warnUserId = comment.user_id;
+          if (comment?.content) warnContentPreview = comment.content.substring(0, 80);
+          // Get subject name for comment-type reports
+          if (comment?.video_id) {
+            try {
+              const { data: video } = await supabaseServer
+                .from('subject_videos')
+                .select('subject_id')
+                .eq('id', comment.video_id)
+                .single();
+              if (video?.subject_id) {
+                const { data: subject } = await supabaseServer
+                  .from('subjects')
+                  .select('name')
+                  .eq('id', video.subject_id)
+                  .single();
+                if (subject?.name) warnSubjectName = subject.name;
+              }
+            } catch {}
+          }
         } catch {}
       } else if (report.target_type === 'message' && report.target_id) {
         try {
           const { data: message } = await supabaseServer
             .from('chat_messages')
-            .select('sender_id')
+            .select('sender_id, content')
             .eq('id', report.target_id)
             .single();
           if (message?.sender_id) warnUserId = message.sender_id;
+          if (message?.content) warnContentPreview = message.content.substring(0, 80);
         } catch {}
       }
 
@@ -359,7 +381,7 @@ export async function PATCH(
         );
       }
 
-      // Build detailed warning message
+      // Build detailed warning message with full details
       const reasonLabel: Record<string, string> = {
         inappropriate: 'محتوى غير مناسب',
         harassment: 'تحرش أو تنمر',
@@ -382,19 +404,28 @@ export async function PATCH(
         day: 'numeric',
       });
       const reportNum = report.report_number || id;
-      const warnMessage = `تم تحذيرك بخصوص: ${warnReason} — ${warnTargetType} — تاريخ الشكوى: ${warnDate} — رقم الشكوى: ${reportNum}`;
 
-      // Send warning notification to the reported user (includes report number)
-      const warnReportNum = report.report_number || id;
+      // Build comprehensive warning message
+      let warnMessage = `⚠️ تحذير — السبب: ${warnReason} — النوع: ${warnTargetType} — تاريخ الشكوى: ${warnDate}`;
+      if (warnSubjectName) {
+        warnMessage += ` — المقرر: ${warnSubjectName}`;
+      }
+      if (warnContentPreview) {
+        warnMessage += ` — المحتوى: "${warnContentPreview}${warnContentPreview.length >= 80 ? '...' : ''}"`;
+      }
+      warnMessage += ` — رقم الشكوى: ${reportNum}`;
+
+      // Insert warning as report_messages row (appears in inbox with orange styling)
+      // Notification is handled by the DB trigger notify_report_message()
       await supabaseServer
-        .from('notifications')
+        .from('report_messages')
         .insert({
-          user_id: warnUserId,
-          type: 'report',
-          title: 'رسالة بخصوص شكوى مقدم ضدها',
-          message: `[${warnReportNum}] ${content || warnMessage}`,
-          link: `/reports/${id}`,
-          read: false,
+          report_id: id,
+          sender_id: userId,
+          recipient_type: 'reported',
+          recipient_id: warnUserId,
+          content: content || warnMessage,
+          message_type: 'warning',
         });
     }
 
@@ -418,17 +449,7 @@ export async function PATCH(
         );
       }
 
-      // Notify the reporter about the new message
-      await supabaseServer
-        .from('notifications')
-        .insert({
-          user_id: report.reporter_id,
-          type: 'report',
-          title: 'رسالة بخصوص شكوى قدمتها',
-          message: message_content.substring(0, 100),
-          link: `/reports/${id}`,
-          read: false,
-        });
+      // Notification is handled by the DB trigger notify_report_message()
     }
 
     // ─── Handle message_reported action ───
@@ -483,18 +504,7 @@ export async function PATCH(
         );
       }
 
-      // Notify the reported user about the new message (includes report number)
-      const msgReportNum = report.report_number || id;
-      await supabaseServer
-        .from('notifications')
-        .insert({
-          user_id: reportedUserId,
-          type: 'report',
-          title: 'رسالة بخصوص شكوى مقدم ضدها',
-          message: `[${msgReportNum}] ${message_content.substring(0, 100)}`,
-          link: `/reports/${id}`,
-          read: false,
-        });
+      // Notification is handled by the DB trigger notify_report_message()
     }
 
     // ─── Determine new status ───

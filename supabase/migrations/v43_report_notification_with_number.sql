@@ -1,6 +1,7 @@
 -- =====================================================
 -- v43: Update notify_report_message trigger to include
 --      report_number in notifications for المشكو ضده
+--      and handle warning message_type
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION public.notify_report_message()
@@ -20,12 +21,15 @@ BEGIN
   VALUES (
     NEW.recipient_id,
     'report',
-    CASE NEW.recipient_type
-      WHEN 'reporter' THEN 'رسالة بخصوص شكواك'
-      WHEN 'reported' THEN 'إشعار بخصوص شكوى مقدم ضدك'
+    CASE
+      WHEN NEW.message_type = 'warning' THEN 'تحذير بخصوص شكوى مقدم ضدها'
+      WHEN NEW.recipient_type = 'reporter' THEN 'رسالة بخصوص شكواك'
+      WHEN NEW.recipient_type = 'reported' THEN 'إشعار بخصوص شكوى مقدم ضدك'
     END,
-    CASE NEW.recipient_type
-      WHEN 'reported' THEN
+    CASE
+      WHEN NEW.message_type = 'warning' THEN
+        '[' || COALESCE(v_report_number, NEW.report_id::TEXT) || '] ' || LEFT(NEW.content, 100)
+      WHEN NEW.recipient_type = 'reported' THEN
         COALESCE(v_sender_name, 'مراجع') || ': ' || '[' || COALESCE(v_report_number, NEW.report_id::TEXT) || '] ' || LEFT(NEW.content, 100)
       ELSE
         COALESCE(v_sender_name, 'مراجع') || ': ' || LEFT(NEW.content, 100)

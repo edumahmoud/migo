@@ -1041,25 +1041,45 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     );
                   } else {
                     const msg = item.data as ReportMessage;
+                    const isWarning = msg.message_type === 'warning';
                     return (
                       <div
                         key={msg.id}
-                        className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-900/10 p-3"
+                        className={`rounded-lg border p-3 ${
+                          isWarning
+                            ? 'border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-900/20'
+                            : 'border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-900/10'
+                        }`}
                       >
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <div className="flex items-center gap-2">
-                            {msg.sender && <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />}
+                            {isWarning ? (
+                              <div className="h-6 w-6 rounded-full bg-orange-200 dark:bg-orange-800/60 flex items-center justify-center">
+                                <AlertTriangle className="h-3.5 w-3.5 text-orange-600 dark:text-orange-300" />
+                              </div>
+                            ) : msg.sender ? (
+                              <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />
+                            ) : null}
                             <span className="text-sm font-medium">
-                              {msg.sender ? <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender)} /> : 'مستخدم'}
+                              {isWarning ? 'تحذير رسمي' : msg.sender ? <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender)} /> : 'مستخدم'}
                             </span>
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400">
-                              <Mail className="h-3.5 w-3.5" />
-                              {msg.recipient_type === 'reporter' ? 'رسالة للشاكي' : 'رسالة للمشكو منه'}
+                            <span className={`inline-flex items-center gap-1 text-xs font-medium ${
+                              isWarning
+                                ? 'text-orange-600 dark:text-orange-400'
+                                : 'text-sky-600 dark:text-sky-400'
+                            }`}>
+                              {isWarning ? (
+                                <><AlertTriangle className="h-3.5 w-3.5" /> تحذير</>
+                              ) : (
+                                <><Mail className="h-3.5 w-3.5" /> {msg.recipient_type === 'reporter' ? 'رسالة للشاكي' : 'رسالة للمشكو منه'}</>
+                              )}
                             </span>
                           </div>
                           <span className="text-xs text-muted-foreground">{formatDate(msg.created_at)}</span>
                         </div>
-                        <p className="text-sm text-foreground whitespace-pre-wrap mt-1 ms-10">{msg.content}</p>
+                        <p className={`text-sm whitespace-pre-wrap mt-1 ms-10 ${
+                          isWarning ? 'text-orange-800 dark:text-orange-200' : 'text-foreground'
+                        }`}>{msg.content}</p>
                       </div>
                     );
                   }
@@ -1507,16 +1527,26 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         </motion.div>
       ) : (
         <div className="space-y-3 max-h-[70vh] overflow-y-auto">
-          {inboxMessages.map((msg: any) => (
+          {inboxMessages.map((msg: any) => {
+            const isWarning = msg.message_type === 'warning';
+            return (
             <motion.div
               key={msg.id}
               variants={itemVariants}
-              className="rounded-xl border border-border bg-card p-4 hover:shadow-sm transition-shadow"
+              className={`rounded-xl border p-4 hover:shadow-sm transition-shadow ${
+                isWarning
+                  ? 'border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-950/30'
+                  : 'border-border bg-card'
+              }`}
             >
               {/* Message header with sender info */}
               <div className="flex items-start gap-3">
                 <div className="shrink-0">
-                  {msg.sender ? (
+                  {isWarning ? (
+                    <div className="h-10 w-10 rounded-full bg-orange-200 dark:bg-orange-800/60 flex items-center justify-center">
+                      <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+                    </div>
+                  ) : msg.sender ? (
                     <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="md" />
                   ) : (
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
@@ -1527,16 +1557,22 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-foreground">
-                      {msg.sender ? (
+                      {isWarning ? (
+                        'تحذير رسمي'
+                      ) : msg.sender ? (
                         <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender)} />
                       ) : 'مستخدم'}
                     </span>
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                      msg.recipient_type === 'reporter'
-                        ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300'
-                        : 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
+                      isWarning
+                        ? 'bg-orange-200 dark:bg-orange-800/60 text-orange-700 dark:text-orange-300'
+                        : msg.recipient_type === 'reporter'
+                          ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300'
+                          : 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
                     }`}>
-                      {msg.recipient_type === 'reporter' ? (
+                      {isWarning ? (
+                        <><AlertTriangle className="h-3 w-3" /> تحذير</>
+                      ) : msg.recipient_type === 'reporter' ? (
                         <><Mail className="h-3 w-3" /> بخصوص شكواك</>
                       ) : (
                         <><Flag className="h-3 w-3" /> بخصوص شكوى ضدك</>
@@ -1552,7 +1588,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
               {/* Message body */}
               <div className="mt-3 ms-13">
-                <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-lg p-3 border border-border/50">
+                <p className={`text-sm whitespace-pre-wrap leading-relaxed rounded-lg p-3 border ${
+                  isWarning
+                    ? 'text-orange-800 dark:text-orange-200 bg-orange-100/60 dark:bg-orange-900/30 border-orange-300/50 dark:border-orange-700/50'
+                    : 'text-foreground bg-muted/30 border-border/50'
+                }`}>
                   {msg.content}
                 </p>
               </div>
@@ -1570,7 +1610,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 </div>
               )}
             </motion.div>
-          ))}
+            );
+          })}
         </div>
       )}
     </motion.div>

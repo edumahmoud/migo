@@ -602,6 +602,7 @@ export interface ReportMessage {
   recipient_type: 'reporter' | 'reported';
   recipient_id: string;
   content: string;
+  message_type: 'info' | 'warning';
   created_at: string;
   // Joined data
   sender?: {
