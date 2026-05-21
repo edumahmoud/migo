@@ -341,8 +341,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   // Fetch my files
   // -------------------------------------------------------
-  const fetchFiles = useCallback(async () => {
-    setLoadingFiles(true);
+  const fetchFiles = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoadingFiles(true);
     try {
       const { data, error } = await supabase
         .from('user_files')
@@ -478,6 +478,51 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     // Also fetch shared files on mount so the count badge appears immediately
     fetchSharedFiles();
   }, [fetchFiles, fetchSharedFiles]);
+
+  // -------------------------------------------------------
+  // Real-time subscription for user_files (personal files)
+  // -------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel(`user-files-${profile.id}`)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, (payload) => {
+        // Instant removal from state — no full refetch needed
+        const deletedId = payload.old?.id;
+        if (deletedId) {
+          setFiles(prev => prev.filter(f => f.id !== deletedId));
+          setSelectedFileIds(prev => { const next = new Set(prev); next.delete(deletedId); return next; });
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, (payload) => {
+        // Instant update in state
+        const updated = payload.new as UserFile;
+        if (updated) {
+          setFiles(prev => prev.map(f => f.id === updated.id ? { ...f, ...updated } : f));
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, () => {
+        // New file uploaded (possibly from another tab/device) — full refetch to get complete data
+        fetchFiles(false);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile.id, fetchFiles]);
+
+  // -------------------------------------------------------
+  // Real-time subscription for file_shares (shared with me updates)
+  // -------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel(`file-shares-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
+        fetchSharedFiles();
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
+        fetchSharedFiles();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile.id, fetchSharedFiles]);
 
   // Keep pendingUploads ref in sync for reliable reads in async handlers
   useEffect(() => {
@@ -1075,7 +1120,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         toast.error('حدث خطأ أثناء حذف الملف');
       } else {
         toast.success('تم حذف الملف بنجاح');
-        fetchFiles();
       }
     } catch {
       toast.error('حدث خطأ غير متوقع');
@@ -1104,7 +1148,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         toast.error('حدث خطأ أثناء إعادة التسمية');
       } else {
         toast.success('تم إعادة التسمية بنجاح');
-        fetchFiles();
       }
     } catch {
       toast.error('حدث خطأ غير متوقع');
@@ -1142,7 +1185,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         toast.error('حدث خطأ أثناء تغيير الخصوصية');
       } else {
         toast.success(newVisibility === 'public' ? 'تم جعل الملف عاماً' : 'تم جعل الملف خاصاً');
-        fetchFiles();
       }
     } catch {
       toast.error('حدث خطأ غير متوقع');
@@ -1746,7 +1788,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       toast.success(`تم حذف ${deleted} ملف`);
       setSelectedFileIds(new Set());
       setConfirmBulkDelete(false);
-      fetchFiles();
     } catch {
       toast.error('حدث خطأ غير متوقع');
     } finally {
@@ -1782,7 +1823,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
       toast.success(updated > 1 ? `تم تغيير خصوصية ${updated} ملف` : 'تم تغيير خصوصية الملف');
       setSelectedFileIds(new Set());
-      fetchFiles();
     } catch {
       toast.error('حدث خطأ غير متوقع');
     } finally {

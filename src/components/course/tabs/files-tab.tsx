@@ -253,17 +253,40 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
   }, [fetchFiles]);
 
   // -------------------------------------------------------
-  // Real-time subscription for files
+  // Real-time subscription for files — instant updates
   // -------------------------------------------------------
   useEffect(() => {
     const channel = supabase
       .channel(`subject-files-${subjectId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => fetchFiles(false))
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => fetchFiles(false))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => fetchFiles(false))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => {
+        // New file added — full refetch to get uploader info
+        fetchFiles(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, (payload) => {
+        // Instant removal — no full refetch needed
+        const deletedId = payload.old?.id;
+        if (deletedId) {
+          setFiles(prev => prev.filter(f => f.id !== deletedId));
+          setSelectedFileIds(prev => { const next = new Set(prev); next.delete(deletedId); return next; });
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, (payload) => {
+        // Instant update (e.g., visibility change)
+        const updated = payload.new as any;
+        if (updated) {
+          setFiles(prev => {
+            const newFiles = prev.map(f => f.id === updated.id ? { ...f, ...updated } : f);
+            // Re-apply student visibility filter
+            if (role === 'student') {
+              return newFiles.filter(f => (f.visibility ?? 'public') === 'public');
+            }
+            return newFiles;
+          });
+        }
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [subjectId, fetchFiles]);
+  }, [subjectId, fetchFiles, role]);
 
   // -------------------------------------------------------
   // Filter files by category only (no visibility filter for courses)
@@ -295,7 +318,6 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
         }
       } else {
         toast.success(newVisibility === 'public' ? 'تم إظهار الملف للطلاب' : 'تم إخفاء الملف عن الطلاب');
-        fetchFiles();
       }
     } catch {
       toast.error('حدث خطأ غير متوقع');
@@ -319,7 +341,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
       }
       const { error } = await supabase.from('subject_files').delete().eq('id', fileId);
       if (error) toast.error('حدث خطأ أثناء حذف الملف');
-      else { toast.success('تم حذف الملف'); fetchFiles(); }
+      else { toast.success('تم حذف الملف'); }
     } catch {
       toast.error('حدث خطأ غير متوقع');
     } finally {
@@ -404,7 +426,6 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
       toast.success(`تم حذف ${deleted} ملف`);
       setSelectedFileIds(new Set());
       setConfirmBulkDelete(false);
-      fetchFiles();
     } catch {
       toast.error('حدث خطأ غير متوقع');
     } finally {
@@ -429,7 +450,6 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
       }
       toast.success(updated > 1 ? `تم تغيير ظهور ${updated} ملف` : 'تم تغيير ظهور الملف');
       setSelectedFileIds(new Set());
-      fetchFiles();
     } catch {
       toast.error('حدث خطأ غير متوقع');
     } finally {
