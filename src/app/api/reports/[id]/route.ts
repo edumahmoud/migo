@@ -405,15 +405,15 @@ export async function PATCH(
       });
       const reportNum = report.report_number || id;
 
-      // Build comprehensive warning message
-      let warnMessage = `⚠️ تحذير — السبب: ${warnReason} — النوع: ${warnTargetType} — تاريخ الشكوى: ${warnDate}`;
+      // Build comprehensive warning message (each field on its own line)
+      let warnMessage = `⚠️ تحذير\nالسبب: ${warnReason}\nالنوع: ${warnTargetType}\nتاريخ الشكوى: ${warnDate}`;
       if (warnSubjectName) {
-        warnMessage += ` — المقرر: ${warnSubjectName}`;
+        warnMessage += `\nالمقرر: ${warnSubjectName}`;
       }
       if (warnContentPreview) {
-        warnMessage += ` — المحتوى: "${warnContentPreview}${warnContentPreview.length >= 80 ? '...' : ''}"`;
+        warnMessage += `\nالمحتوى: "${warnContentPreview}${warnContentPreview.length >= 80 ? '...' : ''}"`;
       }
-      warnMessage += ` — رقم الشكوى: ${reportNum}`;
+      warnMessage += `\nرقم الشكوى: ${reportNum}`;
 
       // Insert warning as report_messages row (appears in inbox with orange styling)
       // Notification is handled by the DB trigger notify_report_message()

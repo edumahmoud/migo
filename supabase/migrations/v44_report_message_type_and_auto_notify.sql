@@ -88,23 +88,23 @@ BEGIN
   -- Get report number
   v_report_num := COALESCE(NEW.report_number, NEW.id::TEXT);
 
-  -- Build message body
-  v_message_body := 'تم تقديم شكوى ضددك' ||
-    ' — السبب: ' || v_reason_label ||
-    ' — النوع: ' || v_target_type_label;
+  -- Build message body (each field on its own line)
+  v_message_body := 'تم تقديم شكوى ضددك' || E'\n' ||
+    'السبب: ' || v_reason_label || E'\n' ||
+    'النوع: ' || v_target_type_label;
 
   -- Add subject name if available (for comment-type)
   IF v_subject_name IS NOT NULL THEN
-    v_message_body := v_message_body || ' — المقرر: ' || v_subject_name;
+    v_message_body := v_message_body || E'\n' || 'المقرر: ' || v_subject_name;
   END IF;
 
   -- Add content preview if available
   IF v_content_preview IS NOT NULL THEN
-    v_message_body := v_message_body || ' — المحتوى: "' || v_content_preview || CASE WHEN LENGTH(v_content_preview) >= 80 THEN '...' ELSE '' END || '"';
+    v_message_body := v_message_body || E'\n' || 'المحتوى: "' || v_content_preview || CASE WHEN LENGTH(v_content_preview) >= 80 THEN '...' ELSE '' END || '"';
   END IF;
 
   -- Add report number
-  v_message_body := v_message_body || ' — رقم الشكوى: ' || v_report_num;
+  v_message_body := v_message_body || E'\n' || 'رقم الشكوى: ' || v_report_num;
 
   -- Insert info message into report_messages
   INSERT INTO public.report_messages (report_id, sender_id, recipient_type, recipient_id, content, message_type)
