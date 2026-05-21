@@ -12,7 +12,7 @@
  */
 
 /** Prompt version — bump this to invalidate all caches */
-export const PROMPT_VERSION = '6';
+export const PROMPT_VERSION = '7';
 
 // -------------------------------------------------------
 // Summary Prompts
@@ -113,7 +113,18 @@ export const QUIZ_USER = (content: string, totalCount: number) =>
 // Evaluation Prompts
 // -------------------------------------------------------
 
-export const EVALUATE_SYSTEM = `أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية. ترد بكلمة واحدة فقط: "true" أو "false".`;
+export const EVALUATE_SYSTEM = `أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية. ترد بكلمة واحدة فقط: "true" أو "false".
+
+قواعد المطابقة المرنة:
+- اعتبر الإجابات المتشابهة في المعنى صحيحة حتى لو اختلفت صيغتها
+- الأشكال المختلفة لنفس المصطلح تعتبر صحيحة (مثال: wireframe = wireframing = wire-framing)
+- المفرد والجمع من نفس المصطلح صحيحان (مثال: matrix = matrices, index = indices)
+- إضافة أو حذف واصلة (hyphen) لا يغير المعنى (مثال: e-mail = email, co-operate = cooperate)
+- صيغ الفعل المختلفة صحيحة إذا كانت الإجابة النموذجية اسماً أو مصدراً (مثال: compile = compilation, encrypt = encryption)
+- الترجمات العربية والمصطلحات الإنجليزية المكافئة صحيحة إذا كان السياق يقتضي ذلك
+- الأخطاء الإملائية البسيطة التي لا تغير المعنى يجب أن تُقبل (مثال: recieve = receive)
+- المرادفات العلمية الدقيقة صحيحة (مثال: HTTP = HyperText Transfer Protocol)
+- كن متساهلاً مع اختلافات الحروف الكبيرة والصغيرة والأشكال الصرفية، لكن صارماً مع الإجابات الخاطئة معنوياً`;
 
 export const EVALUATE_USER = (
   question: string,
@@ -121,7 +132,18 @@ export const EVALUATE_USER = (
   studentAnswer: string,
 ) => `السؤال: ${question}\nالإجابة النموذجية: ${correctAnswer}\nإجابة الطالب: ${studentAnswer}\n\nهل إجابة الطالب صحيحة معنوياً؟`;
 
-export const EVALUATE_DETAILED_SYSTEM = `أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية، وتقدم تبريراً موجزاً لإجابتك. يجب أن يكون ردك بتنسيق JSON فقط: {"isCorrect": true/false, "reasoning": "تبرير موجز باللغة العربية"}`;
+export const EVALUATE_DETAILED_SYSTEM = `أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية، وتقدم تبريراً موجزاً لإجابتك. يجب أن يكون ردك بتنسيق JSON فقط: {"isCorrect": true/false, "reasoning": "تبرير موجز باللغة العربية"}
+
+قواعد المطابقة المرنة:
+- اعتبر الإجابات المتشابهة في المعنى صحيحة حتى لو اختلفت صيغتها
+- الأشكال المختلفة لنفس المصطلح تعتبر صحيحة (مثال: wireframe = wireframing = wire-framing)
+- المفرد والجمع من نفس المصطلح صحيحان (مثال: matrix = matrices, index = indices)
+- إضافة أو حذف واصلة (hyphen) لا يغير المعنى (مثال: e-mail = email, co-operate = cooperate)
+- صيغ الفعل المختلفة صحيحة إذا كانت الإجابة النموذجية اسماً أو مصدراً (مثال: compile = compilation, encrypt = encryption)
+- الترجمات العربية والمصطلحات الإنجليزية المكافئة صحيحة إذا كان السياق يقتضي ذلك
+- الأخطاء الإملائية البسيطة التي لا تغير المعنى يجب أن تُقبل (مثال: recieve = receive)
+- المرادفات العلمية الدقيقة صحيحة (مثال: HTTP = HyperText Transfer Protocol)
+- كن متساهلاً مع اختلافات الحروف الكبيرة والصغيرة والأشكال الصرفية، لكن صارماً مع الإجابات الخاطئة معنوياً`;
 
 export const EVALUATE_DETAILED_USER = (
   question: string,

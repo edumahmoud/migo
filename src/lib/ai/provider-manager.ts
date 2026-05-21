@@ -469,6 +469,36 @@ export async function evaluateCompletionAnswer(
     return true;
   }
 
+  // ─── Flexible local matching ───
+  const normalize = (s: string) =>
+    s.toLowerCase()
+     .replace(/[-_\s]/g, '')
+     .replace(/ing$/, '')
+     .replace(/tion$/, '')
+     .replace(/ment$/, '')
+     .replace(/ness$/, '')
+     .replace(/able$/, '')
+     .replace(/ible$/, '');
+
+  const studentNorm = normalize(studentAnswer);
+  const correctNorm = normalize(correctAnswer);
+
+  if (studentNorm === correctNorm && studentNorm.length >= 3) {
+    return true;
+  }
+
+  // Check if one contains the other
+  if (
+    (studentNorm.length >= 4 && correctNorm.includes(studentNorm)) ||
+    (correctNorm.length >= 4 && studentNorm.includes(correctNorm))
+  ) {
+    const lenDiff = Math.abs(studentNorm.length - correctNorm.length);
+    const maxLen = Math.max(studentNorm.length, correctNorm.length);
+    if (maxLen > 0 && lenDiff / maxLen < 0.4) {
+      return true;
+    }
+  }
+
   const text = await chatWithFallback(
     EVALUATE_SYSTEM,
     EVALUATE_USER(question, correctAnswer, studentAnswer),

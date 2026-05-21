@@ -75,10 +75,41 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
+    const reportNumber = url.searchParams.get('report_number')?.trim();
     const page = parseInt(url.searchParams.get('page') || '1');
     const limit = parseInt(url.searchParams.get('limit') || '20');
     const offset = (page - 1) * limit;
     const validStatus = status && ['pending', 'in_progress', 'resolved', 'dismissed'].includes(status) ? status : null;
+
+    // ─── Search by report_number (fast path — bypasses complex visibility logic) ───
+    if (reportNumber) {
+      let numQuery = supabaseServer
+        .from('reports')
+        .select(`
+          *,
+          reporter:users!reports_reporter_id_fkey(id, name, email, avatar_url, role, gender, title_id),
+          assigned_user:users!reports_assigned_to_fkey(id, name, email, avatar_url, role, gender, title_id)
+        `)
+        .ilike('report_number', `%${reportNumber}%`)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      // Apply visibility filter
+      if (role === 'student') {
+        numQuery = numQuery.eq('reporter_id', userId);
+      } else if (role === 'teacher') {
+        numQuery = numQuery.or(`reporter_id.eq.${userId},assigned_to.eq.${userId}`);
+      }
+      // Admin/superadmin sees all
+
+      const { data: searchResults, error: searchError, count: searchCount } = await numQuery;
+
+      if (searchError) {
+        return NextResponse.json({ success: false, error: 'فشل البحث بالرقم' }, { status: 500 });
+      }
+
+      return await enrichAndReturn(searchResults || [], searchCount || 0, page, limit, userId, role);
+    }
 
     // ─── Handle "forwarded" virtual status separately ───
     if (status === 'forwarded') {

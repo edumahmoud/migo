@@ -638,11 +638,52 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       const studentAnswer = completionInput.trim();
       const correctAnswer = currentQuestion?.correctAnswer?.trim() || '';
 
-      if (studentAnswer.toLowerCase() === correctAnswer.toLowerCase()) {
+      const studentLower = studentAnswer.toLowerCase();
+      const correctLower = correctAnswer.toLowerCase();
+
+      if (studentLower === correctLower) {
         setIsCorrect(true);
         setAnswered(true);
         setEvaluatingCompletion(false);
         return;
+      }
+
+      // ─── Flexible local matching (before AI call) ───
+      // Normalize: remove hyphens, spaces, and common suffixes for comparison
+      const normalize = (s: string) =>
+        s.toLowerCase()
+         .replace(/[-_\s]/g, '')    // remove hyphens, underscores, spaces
+         .replace(/ing$/, '')        // strip -ing suffix (wireframing → wirefram)
+         .replace(/tion$/, '')       // strip -tion suffix (compilation → compila)
+         .replace(/ment$/, '')       // strip -ment suffix
+         .replace(/ness$/, '')       // strip -ness suffix
+         .replace(/able$/, '')       // strip -able suffix
+         .replace(/ible$/, '');      // strip -ible suffix
+
+      const studentNorm = normalize(studentAnswer);
+      const correctNorm = normalize(correctAnswer);
+
+      if (studentNorm === correctNorm && studentNorm.length >= 3) {
+        setIsCorrect(true);
+        setAnswered(true);
+        setEvaluatingCompletion(false);
+        return;
+      }
+
+      // Also check if one contains the other (e.g., "test" in "testing")
+      if (
+        (studentNorm.length >= 4 && correctNorm.includes(studentNorm)) ||
+        (correctNorm.length >= 4 && studentNorm.includes(correctNorm))
+      ) {
+        // Only accept if length difference is small (< 40%) to avoid false positives
+        const lenDiff = Math.abs(studentNorm.length - correctNorm.length);
+        const maxLen = Math.max(studentNorm.length, correctNorm.length);
+        if (maxLen > 0 && lenDiff / maxLen < 0.4) {
+          setIsCorrect(true);
+          setAnswered(true);
+          setEvaluatingCompletion(false);
+          return;
+        }
       }
 
       // Call API for semantic evaluation

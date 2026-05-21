@@ -28,6 +28,8 @@ import {
   Inbox,
   Calendar,
   Clock,
+  Search,
+  Hash,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -144,6 +146,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [banDuration, setBanDuration] = useState<'permanent' | '1day' | '1week' | '1month' | 'custom'>('permanent');
   const [banCustomDate, setBanCustomDate] = useState('');
   const [banReason, setBanReason] = useState('');
+  const [searchReportNumber, setSearchReportNumber] = useState('');
+  const [searching, setSearching] = useState(false);
 
   // -------------------------------------------------------
   // Fetch reports
@@ -374,6 +378,47 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   }, [activeTab, fetchInboxMessages]);
 
   // -------------------------------------------------------
+  // Search reports by report number
+  // -------------------------------------------------------
+  const handleSearchByNumber = useCallback(async () => {
+    const term = searchReportNumber.trim();
+    if (!term) {
+      fetchReports();
+      return;
+    }
+    setSearching(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const params = new URLSearchParams();
+      params.set('report_number', term);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (isAdmin) params.set('view', viewMode);
+
+      const res = await fetch(`/api/reports?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (result.success) {
+        setReports(result.data || []);
+      } else {
+        toast.error(result.error || 'فشل البحث');
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء البحث');
+    } finally {
+      setSearching(false);
+    }
+  }, [searchReportNumber, statusFilter, viewMode, isAdmin, fetchReports]);
+
+  // Clear search and reload
+  const clearSearch = useCallback(() => {
+    setSearchReportNumber('');
+    fetchReports();
+  }, [fetchReports]);
+
+  // -------------------------------------------------------
   // Clear completed reports (resolved/dismissed)
   // -------------------------------------------------------
   const handleClearCompleted = async () => {
@@ -447,11 +492,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       return;
     }
     if (action === 'message_reporter' && !messageToReporter.trim()) {
-      toast.error('يرجى كتابة رسالة للمُبلِغ');
+      toast.error('يرجى كتابة رسالة للشاكي');
       return;
     }
     if (action === 'message_reported' && !messageToReported.trim()) {
-      toast.error('يرجى كتابة رسالة للمُبلَّغ عنه');
+      toast.error('يرجى كتابة رسالة للمشكو منه');
       return;
     }
 
@@ -488,8 +533,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           reopen: 'تم إعادة فتح الإبلاغ',
           block: 'تم حظر المستخدم',
           warn: 'تم تحذير المستخدم',
-          message_reporter: 'تم إرسال الرسالة للمُبلِغ',
-          message_reported: 'تم إرسال الرسالة للمُبلَّغ عنه',
+          message_reporter: 'تم إرسال الرسالة للشاكي',
+          message_reported: 'تم إرسال الرسالة للمشكو منه',
           return: 'تم إرجاع الإبلاغ للمعلم',
         };
         toast.success(actionLabels[action] || 'تم تنفيذ الإجراء');
@@ -711,6 +756,34 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             </button>
           ))}
         </div>
+
+        {/* Search by report number */}
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-1.5 flex-1 min-w-[200px] max-w-xs">
+          <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <input
+            type="text"
+            value={searchReportNumber}
+            onChange={(e) => setSearchReportNumber(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSearchByNumber(); }}
+            placeholder="بحث برقم البلاغ..."
+            className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground min-w-0"
+          />
+          {searchReportNumber && (
+            <button
+              onClick={clearSearch}
+              className="text-muted-foreground hover:text-foreground text-xs shrink-0"
+            >
+              ✕
+            </button>
+          )}
+          <button
+            onClick={handleSearchByNumber}
+            disabled={searching}
+            className="shrink-0 px-2 py-1 rounded-md bg-sky-700 text-white text-xs font-medium hover:bg-sky-800 disabled:opacity-50 transition-colors"
+          >
+            {searching ? <Loader2 className="h-3 w-3 animate-spin" /> : 'بحث'}
+          </button>
+        </div>
       </motion.div>
 
       {/* Reports list */}
@@ -740,11 +813,15 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1.5">
                     <StatusBadge status={report.status} />
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+                      <Hash className="h-2.5 w-2.5" />
+                      {report.report_number}
+                    </span>
                     <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type)}</span>
                     {report.reporter_count && report.reporter_count > 1 && isStaff && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
                         <Users className="h-3 w-3" />
-                        {report.reporter_count} مُبلِغ
+                        {report.reporter_count} شاكي
                       </span>
                     )}
                   </div>
@@ -753,7 +830,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{report.description}</p>
                   )}
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                    <span>مُبلِغ: {report.reporter ? <UserLink userId={report.reporter.id} name={report.reporter.name || 'غير معروف'} /> : 'غير معروف'}</span>
+                    <span>الشاكي: {report.reporter ? <UserLink userId={report.reporter.id} name={report.reporter.name || 'غير معروف'} /> : 'غير معروف'}</span>
                     {report.target_user && (
                       <span className="flex items-center gap-1"><span className="font-bold text-rose-600 dark:text-rose-400">ضد</span> <UserLink userId={report.target_user.id} name={report.target_user.name} /></span>
                     )}
@@ -786,7 +863,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/20 p-4">
         <div className="flex items-center gap-2 mb-3">
           <Flag className="h-4 w-4 text-rose-500" />
-          <h4 className="text-sm font-semibold text-foreground">ضد المستخدم</h4>
+          <h4 className="text-sm font-semibold text-foreground">المشكو ضده</h4>
         </div>
         <div className="flex items-center gap-3 mb-3">
           <UserAvatar name={tu.name} avatarUrl={tu.avatar_url} size="md" />
@@ -814,7 +891,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <Users className="h-3.5 w-3.5" />
                 <span className="text-lg font-bold">{reporterCount}</span>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">عدد المُبلِغين</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">عدد الشاكين</p>
             </div>
             <div className="rounded-lg bg-background/80 p-2 text-center">
               <div className="flex items-center justify-center gap-1 text-muted-foreground">
@@ -848,7 +925,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         <div className="flex items-center gap-2 mb-2">
           <FileText className="h-4 w-4 text-amber-500" />
           <h4 className="text-sm font-semibold text-foreground">
-            المحتوى المُبلَّغ عنه ({getTargetTypeLabel(report.target_type)})
+            المحتوى المشكو منه ({getTargetTypeLabel(report.target_type)})
           </h4>
         </div>
         <p className="text-sm text-foreground whitespace-pre-wrap bg-background/60 dark:bg-background/40 rounded-lg p-3 border border-border">
@@ -977,7 +1054,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                             </span>
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400">
                               <Mail className="h-3.5 w-3.5" />
-                              {msg.recipient_type === 'reporter' ? 'رسالة للمُبلِغ' : 'رسالة للمُبلَّغ عنه'}
+                              {msg.recipient_type === 'reporter' ? 'رسالة للشاكي' : 'رسالة للمشكو منه'}
                             </span>
                           </div>
                           <span className="text-xs text-muted-foreground">{formatDate(msg.created_at)}</span>
@@ -1026,6 +1103,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         {/* ─── Report Header Card ─── */}
         <div className="rounded-xl border border-border bg-card p-4 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+              <Hash className="h-3 w-3" />
+              {selectedReport.report_number}
+            </span>
             <StatusBadge status={selectedReport.status} />
             <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
               {getTargetTypeLabel(selectedReport.target_type)}
@@ -1034,7 +1115,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             {isStaff && selectedReport.reporter_count && selectedReport.reporter_count > 1 && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
                 <Users className="h-3 w-3" />
-                {selectedReport.reporter_count} مُبلِغ
+                {selectedReport.reporter_count} شاكي
               </span>
             )}
           </div>
@@ -1042,12 +1123,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
             {selectedReport.reporter ? (
               <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground">مُبلِغ:</span>
+                <span className="text-muted-foreground">الشاكي:</span>
                 <UserAvatar name={selectedReport.reporter.name} avatarUrl={selectedReport.reporter.avatar_url} size="sm" />
                 <UserLink userId={selectedReport.reporter.id} name={formatNameWithTitle(selectedReport.reporter.name, selectedReport.reporter.role, selectedReport.reporter.title_id, selectedReport.reporter.gender)} />
               </div>
             ) : (
-              <span>مُبلِغ: غير معروف</span>
+              <span>الشاكي: غير معروف</span>
             )}
             {selectedReport.target_user && (
               <>
@@ -1208,7 +1289,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   className="flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline"
                 >
                   <Mail className="h-4 w-4" />
-                  إرسال رسالة للمُبلِغ
+                  إرسال رسالة للشاكي
                 </button>
                 <AnimatePresence>
                   {showMessageReporter && (
@@ -1222,7 +1303,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         <textarea
                           value={messageToReporter}
                           onChange={(e) => setMessageToReporter(e.target.value)}
-                          placeholder="اكتب رسالتك للمُبلِغ هنا..."
+                          placeholder="اكتب رسالتك للشاكي هنا..."
                           rows={3}
                           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sky-500"
                         />
@@ -1232,7 +1313,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-700 text-white text-sm font-medium hover:bg-sky-800 disabled:opacity-50 transition-colors"
                         >
                           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                          إرسال للمُبلِغ
+                          إرسال للشاكي
                         </button>
                       </div>
                     </motion.div>
@@ -1247,7 +1328,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   className="flex items-center gap-2 text-sm font-medium text-rose-700 dark:text-rose-300 hover:underline"
                 >
                   <Bell className="h-4 w-4" />
-                  إرسال رسالة للمُبلَّغ عنه
+                  إرسال رسالة للمشكو منه
                 </button>
                 <AnimatePresence>
                   {showMessageReported && (
@@ -1263,7 +1344,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <p>• نوع البلاغ: {getReasonLabel(selectedReport.reason)}</p>
                           <p>• نوع المحتوى: {getTargetTypeLabel(selectedReport.target_type)}</p>
                           {selectedReport.target_content && (
-                            <p>• المحتوى المُبلَّغ عنه: {selectedReport.target_content.substring(0, 80)}...</p>
+                            <p>• المحتوى المشكو منه: {selectedReport.target_content.substring(0, 80)}...</p>
                           )}
                           <p>• تاريخ البلاغ: {formatDate(selectedReport.created_at)}</p>
                           <p>• الإجراءات المتخذة: {responses.filter(r => ['block', 'warn', 'resolve'].includes(r.action)).map(r => getActionLabel(r.action)).join('، ') || 'لا يوجد'}</p>
@@ -1271,7 +1352,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         <textarea
                           value={messageToReported}
                           onChange={(e) => setMessageToReported(e.target.value)}
-                          placeholder="اكتب رسالتك للمُبلَّغ عنه هنا..."
+                          placeholder="اكتب رسالتك للمشكو منه هنا..."
                           rows={3}
                           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sky-500"
                         />
@@ -1281,7 +1362,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-700 text-white text-sm font-medium hover:bg-rose-800 disabled:opacity-50 transition-colors"
                         >
                           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                          إرسال للمُبلَّغ عنه
+                          إرسال للمشكو منه
                         </button>
                       </div>
                     </motion.div>
@@ -1342,7 +1423,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     if (!selectedReport) return;
     const targetUser = selectedReport.target_user;
     if (!targetUser) {
-      toast.error('لم يتم العثور على المستخدم المُبلَّغ عنه — يرجى إعادة تحميل التفاصيل');
+      toast.error('لم يتم العثور على المشكو منه — يرجى إعادة تحميل التفاصيل');
       return;
     }
 
@@ -1456,9 +1537,9 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         : 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
                     }`}>
                       {msg.recipient_type === 'reporter' ? (
-                        <><Mail className="h-3 w-3" /> بخصوص بلاغك</>
+                        <><Mail className="h-3 w-3" /> بخصوص شكواك</>
                       ) : (
-                        <><Flag className="h-3 w-3" /> بخصوص بلاغ ضدك</>
+                        <><Flag className="h-3 w-3" /> بخصوص شكوى ضدك</>
                       )}
                     </span>
                   </div>

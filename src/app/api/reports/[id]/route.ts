@@ -71,94 +71,116 @@ export async function GET(
       );
     }
 
-    // Fetch responses
-    const { data: responses } = await supabaseServer
-      .from('report_responses')
-      .select(`
-        *,
-        responder:users!report_responses_responder_id_fkey(id, name, email, avatar_url, role, gender, title_id),
-        forwarded_to_user:users!report_responses_forwarded_to_fkey(id, name, email, avatar_url, role, gender, title_id)
-      `)
-      .eq('report_id', id)
-      .order('created_at', { ascending: true });
+    // ─── Run responses, messages, and target enrichment queries IN PARALLEL ───
+    const [responsesResult, messagesResult, targetEnrichmentResult] = await Promise.all([
+      // Fetch responses
+      Promise.resolve(
+        supabaseServer
+          .from('report_responses')
+          .select(`
+            *,
+            responder:users!report_responses_responder_id_fkey(id, name, email, avatar_url, role, gender, title_id),
+            forwarded_to_user:users!report_responses_forwarded_to_fkey(id, name, email, avatar_url, role, gender, title_id)
+          `)
+          .eq('report_id', id)
+          .order('created_at', { ascending: true })
+      ),
+      // Fetch messages
+      Promise.resolve(
+        supabaseServer
+          .from('report_messages')
+          .select(`
+            *,
+            sender:users!report_messages_sender_id_fkey(id, name, email, avatar_url, role, gender, title_id)
+          `)
+          .eq('report_id', id)
+          .order('created_at', { ascending: true })
+      ),
+      // Target enrichment (comment/message/user content + owner)
+      (async () => {
+        let resolvedUserId: string | null = null;
+        let targetContent: string | null = report.target_content || null;
 
-    // Fetch messages
-    const { data: messages } = await supabaseServer
-      .from('report_messages')
-      .select(`
-        *,
-        sender:users!report_messages_sender_id_fkey(id, name, email, avatar_url, role, gender, title_id)
-      `)
-      .eq('report_id', id)
-      .order('created_at', { ascending: true });
-
-    // ─── Enrich with target_user info ───
-    let resolvedUserId: string | null = null;
-
-    if (report.target_type === 'user' && report.target_id) {
-      resolvedUserId = report.target_id;
-    } else if (report.target_type === 'comment' && report.target_id) {
-      try {
-        const { data: comment } = await supabaseServer
-          .from('video_comments')
-          .select('user_id, content')
-          .eq('id', report.target_id)
-          .single();
-        if (comment?.user_id) resolvedUserId = comment.user_id;
-        // Attach comment content as target_content if not already set
-        if (comment?.content && !report.target_content) {
-          (report as any).target_content = comment.content;
+        if (report.target_type === 'user' && report.target_id) {
+          resolvedUserId = report.target_id;
+        } else if (report.target_type === 'comment' && report.target_id) {
+          try {
+            const { data: comment } = await supabaseServer
+              .from('video_comments')
+              .select('user_id, content')
+              .eq('id', report.target_id)
+              .single();
+            if (comment?.user_id) resolvedUserId = comment.user_id;
+            if (comment?.content && !targetContent) targetContent = comment.content;
+          } catch {}
+        } else if (report.target_type === 'message' && report.target_id) {
+          try {
+            const { data: message } = await supabaseServer
+              .from('chat_messages')
+              .select('sender_id, content')
+              .eq('id', report.target_id)
+              .single();
+            if ((message as any)?.sender_id) resolvedUserId = (message as any).sender_id;
+            if ((message as any)?.content && !targetContent) targetContent = (message as any).content;
+          } catch {}
         }
-      } catch { /* table may not exist */ }
-    } else if (report.target_type === 'message' && report.target_id) {
-      try {
-        const { data: message } = await supabaseServer
-          .from('chat_messages')
-          .select('sender_id, content')
-          .eq('id', report.target_id)
-          .single();
-        if (message?.sender_id) resolvedUserId = message.sender_id;
-        // Attach message content as target_content if not already set
-        if ((message as any)?.content && !report.target_content) {
-          (report as any).target_content = (message as any).content;
+
+        // Fetch target user + counts in parallel
+        if (resolvedUserId) {
+          const [targetUserResult, countResult, reportersResult] = await Promise.all([
+            Promise.resolve(
+              supabaseServer
+                .from('users')
+                .select('id, name, email, avatar_url, role, gender, title_id')
+                .eq('id', resolvedUserId)
+                .single()
+            ),
+            Promise.resolve(
+              supabaseServer
+                .from('reports')
+                .select('id', { count: 'exact', head: true })
+                .eq('target_type', 'user')
+                .eq('target_id', resolvedUserId)
+                .in('status', ['pending', 'in_progress'])
+            ),
+            Promise.resolve(
+              supabaseServer
+                .from('reports')
+                .select('reporter_id')
+                .eq('target_type', report.target_type)
+                .eq('target_id', report.target_id)
+                .in('status', ['pending', 'in_progress'])
+            ),
+          ]);
+
+          const targetUser = targetUserResult?.data;
+          const reportCount = countResult?.count || 0;
+          const reporterCount = new Set((reportersResult?.data || []).map((r: any) => r.reporter_id)).size;
+
+          return { resolvedUserId, targetContent, targetUser: targetUser ? { ...targetUser, report_count: reportCount } : null, reporterCount };
         }
-      } catch { /* table may not exist */ }
+
+        return { resolvedUserId, targetContent, targetUser: null, reporterCount: report.reporter_count || 1 };
+      })(),
+    ]);
+
+    const responses = responsesResult?.data || [];
+    const messages = messagesResult?.data || [];
+
+    // Apply enrichment
+    if (targetEnrichmentResult.targetContent && !report.target_content) {
+      (report as any).target_content = targetEnrichmentResult.targetContent;
     }
-
-    if (resolvedUserId) {
-      const { data: targetUser } = await supabaseServer
-        .from('users')
-        .select('id, name, email, avatar_url, role, gender, title_id')
-        .eq('id', resolvedUserId)
-        .single();
-
-      if (targetUser) {
-        // Get report count for this target user (exclude resolved/dismissed)
-        const { count } = await supabaseServer
-          .from('reports')
-          .select('id', { count: 'exact', head: true })
-          .eq('target_type', 'user')
-          .eq('target_id', resolvedUserId)
-          .in('status', ['pending', 'in_progress']);
-
-        // Get reporter count — how many distinct users reported this target (exclude resolved/dismissed)
-        const { data: distinctReporters } = await supabaseServer
-          .from('reports')
-          .select('reporter_id')
-          .eq('target_type', report.target_type)
-          .eq('target_id', report.target_id)
-          .in('status', ['pending', 'in_progress']);
-
-        const reporterCount = new Set((distinctReporters || []).map((r: any) => r.reporter_id)).size;
-
-        (report as any).target_user = { ...targetUser, report_count: count || 0 };
-        (report as any).reporter_count = reporterCount;
-      }
+    if (targetEnrichmentResult.targetUser) {
+      (report as any).target_user = targetEnrichmentResult.targetUser;
+    }
+    if (targetEnrichmentResult.reporterCount) {
+      (report as any).reporter_count = targetEnrichmentResult.reporterCount;
     }
 
     return NextResponse.json({
       success: true,
-      data: { ...report, responses: responses || [], messages: messages || [] },
+      data: { ...report, responses, messages },
     });
   } catch (error) {
     console.error('[Reports] GET detail error:', error);
@@ -332,7 +354,7 @@ export async function PATCH(
 
       if (!warnUserId) {
         return NextResponse.json(
-          { success: false, error: 'لم يتم العثور على المستخدم المبلغ عنه' },
+          { success: false, error: 'لم يتم العثور على المشكو منه' },
           { status: 400 }
         );
       }
@@ -367,7 +389,7 @@ export async function PATCH(
         .insert({
           user_id: warnUserId,
           type: 'report',
-          title: 'بخصوص بلاغ مقدم ضدك',
+          title: 'رسالة بخصوص شكوى مقدم ضدها',
           message: content || warnMessage,
           link: `/reports/${id}`,
           read: false,
@@ -389,7 +411,7 @@ export async function PATCH(
       if (msgError) {
         console.error('[Reports] Message reporter error:', msgError.message);
         return NextResponse.json(
-          { success: false, error: 'فشل إرسال الرسالة للمُبلِغ' },
+          { success: false, error: 'فشل إرسال الرسالة للشاكي' },
           { status: 500 }
         );
       }
@@ -400,7 +422,7 @@ export async function PATCH(
         .insert({
           user_id: report.reporter_id,
           type: 'report',
-          title: 'رسالة بخصوص بلاغ قدمته',
+          title: 'رسالة بخصوص شكوى قدمتها',
           message: message_content.substring(0, 100),
           link: `/reports/${id}`,
           read: false,
@@ -436,7 +458,7 @@ export async function PATCH(
 
       if (!reportedUserId) {
         return NextResponse.json(
-          { success: false, error: 'لم يتم العثور على المستخدم المبلغ عنه' },
+          { success: false, error: 'لم يتم العثور على المشكو منه' },
           { status: 400 }
         );
       }
@@ -454,7 +476,7 @@ export async function PATCH(
       if (msgError) {
         console.error('[Reports] Message reported user error:', msgError.message);
         return NextResponse.json(
-          { success: false, error: 'فشل إرسال الرسالة للمُبلَّغ عنه' },
+          { success: false, error: 'فشل إرسال الرسالة للمشكو منه' },
           { status: 500 }
         );
       }
@@ -465,7 +487,7 @@ export async function PATCH(
         .insert({
           user_id: reportedUserId,
           type: 'report',
-          title: 'رسالة بخصوص بلاغ مقدم ضدك',
+          title: 'رسالة بخصوص شكوى مقدم ضدها',
           message: message_content.substring(0, 100),
           link: `/reports/${id}`,
           read: false,

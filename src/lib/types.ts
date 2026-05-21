@@ -521,6 +521,7 @@ export type ReportResponseAction = 'reply' | 'forward' | 'resolve' | 'dismiss' |
 
 export interface Report {
   id: string;
+  report_number: string;
   reporter_id: string;
   target_type: ReportTargetType;
   target_id?: string | null;

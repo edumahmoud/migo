@@ -57,7 +57,10 @@ export async function POST(request: NextRequest) {
     }
 
     // First check exact match (case-insensitive)
-    if (sanitizedStudentAnswer.toLowerCase().trim() === sanitizedCorrectAnswer.toLowerCase().trim()) {
+    const studentLower = sanitizedStudentAnswer.toLowerCase().trim();
+    const correctLower = sanitizedCorrectAnswer.toLowerCase().trim();
+
+    if (studentLower === correctLower) {
       return NextResponse.json(
         {
           success: true,
@@ -67,6 +70,52 @@ export async function POST(request: NextRequest) {
         },
         { headers: rateLimitHeaders }
       );
+    }
+
+    // ─── Flexible local matching (before AI call) ───
+    const normalize = (s: string) =>
+      s.toLowerCase()
+       .replace(/[-_\s]/g, '')
+       .replace(/ing$/, '')
+       .replace(/tion$/, '')
+       .replace(/ment$/, '')
+       .replace(/ness$/, '')
+       .replace(/able$/, '')
+       .replace(/ible$/, '');
+
+    const studentNorm = normalize(studentLower);
+    const correctNorm = normalize(correctLower);
+
+    if (studentNorm === correctNorm && studentNorm.length >= 3) {
+      return NextResponse.json(
+        {
+          success: true,
+          data: detailed
+            ? { isCorrect: true, reasoning: 'الإجابة مطابقة صرفياً للإجابة الصحيحة (اختلاف في الصيغة فقط)' }
+            : { isCorrect: true }
+        },
+        { headers: rateLimitHeaders }
+      );
+    }
+
+    // Check if one contains the other (e.g., "test" in "testing")
+    if (
+      (studentNorm.length >= 4 && correctNorm.includes(studentNorm)) ||
+      (correctNorm.length >= 4 && studentNorm.includes(correctNorm))
+    ) {
+      const lenDiff = Math.abs(studentNorm.length - correctNorm.length);
+      const maxLen = Math.max(studentNorm.length, correctNorm.length);
+      if (maxLen > 0 && lenDiff / maxLen < 0.4) {
+        return NextResponse.json(
+          {
+            success: true,
+            data: detailed
+              ? { isCorrect: true, reasoning: 'الإجابة مطابقة صرفياً للإجابة الصحيحة (اختلاف في الصيغة فقط)' }
+              : { isCorrect: true }
+          },
+          { headers: rateLimitHeaders }
+        );
+      }
     }
 
     // ─── Detailed mode: returns isCorrect + reasoning (for teacher AI grading) ───
