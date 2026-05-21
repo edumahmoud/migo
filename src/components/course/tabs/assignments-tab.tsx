@@ -913,7 +913,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
           </p>
         </motion.div>
       ) : (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {filteredAssignments.map((assignment) => {
             const mySub = mySubmissions[assignment.id];
             const countdown = assignment.due_date ? getCountdown(assignment.due_date) : null;

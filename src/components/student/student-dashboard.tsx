@@ -3862,7 +3862,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
       {/* Approved teachers list - grid layout */}
       {linkedTeachers.length > 0 && (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {linkedTeachers.map((teacher) => {
             return (
               <motion.div key={teacher.id} variants={itemVariants}>

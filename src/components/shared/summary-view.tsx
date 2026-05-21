@@ -23,6 +23,7 @@ import {
   Link2,
   Wand2,
   ArrowUp,
+  Eye,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -493,7 +494,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, AI_PHASES_QUIZ, 60000);
 
   // ─── Tab state ───
-  const [summaryTab, setSummaryTab] = useState<'summary' | 'quiz'>('summary');
+  const [summaryTab, setSummaryTab] = useState<'summary' | 'quiz' | 'completed'>('summary');
 
   // ─── Delete quiz confirmation ───
   const [deleteQuizConfirmOpen, setDeleteQuizConfirmOpen] = useState(false);
@@ -1288,11 +1289,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         </div>
       </motion.div>
 
-      {/* Tab Switcher — Summary / Quiz */}
+      {/* Tab Switcher — Summary / Quiz / Completed */}
       <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-0.5 print:hidden">
         <button
           onClick={() => setSummaryTab('summary')}
-          className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-all ${
+          className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all ${
             summaryTab === 'summary'
               ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -1303,7 +1304,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         </button>
         <button
           onClick={() => setSummaryTab('quiz')}
-          className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-all ${
+          className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all ${
             summaryTab === 'quiz'
               ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-200 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -1311,6 +1312,17 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         >
           <ClipboardList className="h-4 w-4" />
           الاختبار
+        </button>
+        <button
+          onClick={() => setSummaryTab('completed')}
+          className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+            summaryTab === 'completed'
+              ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-800 dark:text-violet-200 shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          المكتملة
         </button>
       </div>
 
@@ -1666,53 +1678,83 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
               </div>
             )}
 
-            {/* Delete quiz button */}
-            {relatedQuiz && (
-              <div className="mt-4 pt-4 border-t border-teal-100">
-                <div className="flex items-center justify-between rounded-lg border border-rose-100 bg-rose-50/30 p-3">
-                  <div className="flex items-center gap-2">
-                    <Trash2 className="h-3.5 w-3.5 text-rose-500" />
-                    <span className="text-xs text-rose-600">حذف الاختبار</span>
+          </CardContent>
+        </Card>
+      </motion.div>
+      )}
+
+      {/* Completed Quizzes Tab */}
+      {summaryTab === 'completed' && (
+      <motion.div variants={fadeInUp}>
+        <Card className="border-violet-200 bg-white shadow-sm print:hidden">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100">
+                <CheckCircle2 className="h-5 w-5 text-violet-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-violet-700">اختبارات مكتملة</h2>
+                <p className="text-xs text-violet-600/70">
+                  {relatedQuiz?.is_finished
+                    ? 'اختبار مكتمل'
+                    : 'لم يتم إكمال اختبارات بعد'}
+                </p>
+              </div>
+            </div>
+
+            {relatedQuiz?.is_finished ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-lg border border-violet-100 bg-violet-50/30 p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 text-violet-700 text-xs font-bold">
+                      <CheckCircle2 className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        {relatedQuiz.title || 'اختبار الملخص'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {relatedQuiz.questions?.length || 0} سؤال
+                      </p>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => setDeleteQuizConfirmOpen(true)}
-                    disabled={deletingQuiz}
-                    className="flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50"
-                  >
-                    {deletingQuiz ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                    حذف
-                  </button>
+                  <div className="text-start">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-1 text-xs font-medium text-teal-700">
+                      <CheckCircle2 className="h-3 w-3" />
+                      مكتمل
+                    </span>
+                  </div>
                 </div>
+                <Button
+                  onClick={() => onViewQuiz?.(relatedQuiz.id)}
+                  className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white w-full sm:w-auto"
+                  size="sm"
+                >
+                  <Eye className="h-4 w-4" />
+                  مراجعة الاختبار
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <CheckCircle2 className="h-12 w-12 text-violet-200 mb-3" />
+                <p className="text-sm text-muted-foreground">لم يتم إكمال اختبارات بعد</p>
+                {relatedQuiz && !relatedQuiz.is_finished && (
+                  <Button
+                    onClick={() => setSummaryTab('quiz')}
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
+                  >
+                    <Play className="h-4 w-4" />
+                    ابدأ الاختبار
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
       </motion.div>
       )}
-
-      {/* Delete Section */}
-      <motion.div variants={fadeInUp} className="print:hidden">
-        <div className="flex items-center justify-between rounded-xl border border-rose-100 bg-rose-50/30 p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100">
-              <Trash2 className="h-4 w-4 text-rose-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-rose-700">حذف الملخص</p>
-              <p className="text-xs text-rose-600/70">سيتم حذف الملخص والاختبار المرتبط به نهائياً</p>
-            </div>
-          </div>
-          <Button
-            onClick={() => setDeleteConfirmOpen(true)}
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-rose-300 text-rose-600 hover:bg-rose-50"
-          >
-            <Trash2 className="h-4 w-4" />
-            حذف
-          </Button>
-        </div>
-      </motion.div>
 
       {/* Delete Quiz Confirmation Dialog */}
       <AlertDialog open={deleteQuizConfirmOpen} onOpenChange={setDeleteQuizConfirmOpen}>

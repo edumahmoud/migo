@@ -738,7 +738,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   {generalNotes.length}
                 </Badge>
               </div>
-              <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {generalNotes.map((note) => renderNoteCard(note, true))}
               </motion.div>
             </div>
@@ -754,7 +754,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   {lectureNotes.length}
                 </Badge>
               </div>
-              <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {lectureNotes.map((note) => renderNoteCard(note, false))}
               </motion.div>
             </div>

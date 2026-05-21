@@ -328,6 +328,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
   // ─── Multi-select state ───
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
@@ -1915,7 +1916,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </button>
             )}
 
-            {/* Checkbox for multi-select */}
+            {/* Checkbox for multi-select — only visible in selection mode */}
+            {selectionMode && (
             <button
               onClick={() => toggleFileSelection(file.id)}
               className={`touch-target shrink-0 flex items-center justify-center rounded-md transition-colors ${
@@ -1926,6 +1928,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             >
               {selectedFileIds.has(file.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
             </button>
+            )}
 
             {/* Action menu */}
             <DropdownMenu dir="rtl">
@@ -2123,24 +2126,42 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         })}
       </motion.div>
 
-      {/* Select all + count */}
+      {/* Select mode toggle / Select all + count */}
       {!loadingFiles && filteredFiles.length > 0 && (
         <motion.div variants={itemVariants} className="flex items-center gap-3">
-          <button
-            onClick={toggleSelectAll}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
-              <CheckSquare className="h-4 w-4 text-sky-700" />
-            ) : (
-              <Square className="h-4 w-4" />
-            )}
-            تحديد الكل
-          </button>
-          {selectedFileIds.size > 0 && (
-            <span className="text-xs text-sky-700 font-medium">
-              تم تحديد {selectedFileIds.size} ملف
-            </span>
+          {!selectionMode ? (
+            <button
+              onClick={() => setSelectionMode(true)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <CheckSquare className="h-4 w-4" />
+              تحديد
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={toggleSelectAll}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
+                  <CheckSquare className="h-4 w-4 text-sky-700" />
+                ) : (
+                  <Square className="h-4 w-4" />
+                )}
+                تحديد الكل
+              </button>
+              {selectedFileIds.size > 0 && (
+                <span className="text-xs text-sky-700 font-medium">
+                  تم تحديد {selectedFileIds.size} ملف
+                </span>
+              )}
+              <button
+                onClick={() => { setSelectionMode(false); setSelectedFileIds(new Set()); }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                إلغاء
+              </button>
+            </>
           )}
         </motion.div>
       )}
@@ -2168,7 +2189,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       ) : (
         <motion.div
           variants={containerVariants}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
         >
           {filteredFiles.map((file) => (
             <div key={file.id}>{renderFileCard(file)}</div>
@@ -2183,7 +2204,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20, pointerEvents: 'none' as const }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
+            className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
             dir="rtl"
           >
             <span className="text-sm font-medium text-foreground whitespace-nowrap">
@@ -2320,7 +2341,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       ) : (
         <motion.div
           variants={containerVariants}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
         >
           {sharedWithMe.map((file) => (
             <motion.div key={`${file.id}-shared`} variants={itemVariants}>

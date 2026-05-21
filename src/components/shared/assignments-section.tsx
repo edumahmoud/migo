@@ -1058,7 +1058,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           </p>
         </motion.div>
       ) : (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {displayAssignments.map((assignment) => {
             const countdown = assignment.due_date ? getCountdown(assignment.due_date) : null;
             const pastDue = assignment.due_date ? isPastDue(assignment.due_date) : false;

@@ -618,7 +618,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                   </Card>
                 </motion.div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {publicFiles.map((file) => (
                     <motion.div key={file.id} variants={itemVariants}>
                       <motion.div
@@ -869,7 +869,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                 </Card>
               ) : (
                 <motion.section variants={containerVariants} initial="hidden" animate="visible">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                     {teacherSubjects.map((subject) => {
                       const color = subject.color || '#0D9488';
                       return (

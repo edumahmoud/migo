@@ -2086,7 +2086,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             )}
           </motion.div>
         ) : (
-          <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {activeQuizzes.map((quiz) =>
               role === 'teacher'
                 ? renderTeacherQuizCard(quiz, false)
@@ -2110,7 +2110,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             </p>
           </motion.div>
         ) : (
-          <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {finishedQuizzes.map((quiz) =>
               role === 'teacher'
                 ? renderTeacherQuizCard(quiz, true)
