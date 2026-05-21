@@ -381,16 +381,18 @@ export async function PATCH(
         month: 'short',
         day: 'numeric',
       });
-      const warnMessage = `تم تحذيرك بخصوص: ${warnReason} — ${warnTargetType} — تاريخ البلاغ: ${warnDate}`;
+      const reportNum = report.report_number || id;
+      const warnMessage = `تم تحذيرك بخصوص: ${warnReason} — ${warnTargetType} — تاريخ الشكوى: ${warnDate} — رقم الشكوى: ${reportNum}`;
 
-      // Send warning notification to the reported user
+      // Send warning notification to the reported user (includes report number)
+      const warnReportNum = report.report_number || id;
       await supabaseServer
         .from('notifications')
         .insert({
           user_id: warnUserId,
           type: 'report',
           title: 'رسالة بخصوص شكوى مقدم ضدها',
-          message: content || warnMessage,
+          message: `[${warnReportNum}] ${content || warnMessage}`,
           link: `/reports/${id}`,
           read: false,
         });
@@ -481,14 +483,15 @@ export async function PATCH(
         );
       }
 
-      // Notify the reported user about the new message
+      // Notify the reported user about the new message (includes report number)
+      const msgReportNum = report.report_number || id;
       await supabaseServer
         .from('notifications')
         .insert({
           user_id: reportedUserId,
           type: 'report',
           title: 'رسالة بخصوص شكوى مقدم ضدها',
-          message: message_content.substring(0, 100),
+          message: `[${msgReportNum}] ${message_content.substring(0, 100)}`,
           link: `/reports/${id}`,
           read: false,
         });

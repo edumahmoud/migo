@@ -1557,15 +1557,15 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 </p>
               </div>
 
-              {/* Link to related report if available */}
-              {msg.report_id && (
+              {/* Link to related report — only shown for reporter (الشاكي), not for المشكو ضده */}
+              {msg.report_id && msg.recipient_type === 'reporter' && (
                 <div className="mt-2 ms-13">
                   <button
                     onClick={() => fetchReportDetail(msg.report_id)}
                     className="text-xs text-sky-700 dark:text-sky-300 hover:underline flex items-center gap-1"
                   >
                     <ShieldAlert className="h-3 w-3" />
-                    عرض البلاغ ذي الصلة
+                    عرض الشكوى ذات الصلة
                   </button>
                 </div>
               )}
