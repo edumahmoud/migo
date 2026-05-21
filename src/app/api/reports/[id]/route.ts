@@ -261,21 +261,10 @@ export async function PATCH(
       );
     }
 
-    // Prevent double-forwarding: check if already forwarded
-    if (action === 'forward') {
-      const { data: existingForward } = await supabaseServer
-        .from('report_responses')
-        .select('id')
-        .eq('report_id', id)
-        .eq('action', 'forward')
-        .limit(1);
-      if (existingForward && existingForward.length > 0) {
-        return NextResponse.json(
-          { success: false, error: 'تم تحويل هذا الإبلاغ مسبقاً' },
-          { status: 400 }
-        );
-      }
-    }
+    // NOTE: Double-forwarding is now allowed.
+    // If a report was returned (action='return'), the supervisor/teacher
+    // should be able to forward it again. The previous forward-only-once
+    // restriction prevented re-forwarding after a return.
 
     // Resolve/dismiss: only assigned or admin
     if ((action === 'resolve' || action === 'dismiss') && !isAdmin && !isAssigned) {
@@ -521,6 +510,11 @@ export async function PATCH(
       status: newStatus,
       updated_at: new Date().toISOString(),
     };
+
+    // Increment reopen_count on reopen
+    if (action === 'reopen') {
+      updateData.reopen_count = (report.reopen_count || 0) + 1;
+    }
 
     if (action === 'forward' && forwarded_to) {
       updateData.assigned_to = forwarded_to;

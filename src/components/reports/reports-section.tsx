@@ -115,7 +115,7 @@ interface ReportsSectionProps {
 // Main Component
 // -------------------------------------------------------
 export default function ReportsSection({ profile, role }: ReportsSectionProps) {
-  const { setReportsUnreadCount, openProfile } = useAppStore();
+  const { setReportsUnreadCount, openProfile, pendingReportId, setPendingReportId } = useAppStore();
 
   // Whether the current user has staff privileges (not student)
   const isStaff = role === 'teacher' || role === 'admin' || role === 'superadmin';
@@ -141,7 +141,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [messageToReported, setMessageToReported] = useState('');
   const [showMessageReporter, setShowMessageReporter] = useState(false);
   const [showMessageReported, setShowMessageReported] = useState(false);
-  const [activeTab, setActiveTab] = useState<'reports' | 'inbox'>('reports');
+  const [activeTab, setActiveTab] = useState<'reports' | 'inbox' | 'against'>('reports');
   const [inboxMessages, setInboxMessages] = useState<any[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
@@ -156,6 +156,11 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [banReason, setBanReason] = useState('');
   const [searchReportNumber, setSearchReportNumber] = useState('');
   const [searching, setSearching] = useState(false);
+  const [againstReports, setAgainstReports] = useState<Report[]>([]);
+  const [loadingAgainst, setLoadingAgainst] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ReportResponseAction | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [targetUserStats, setTargetUserStats] = useState<{total_filed: number, total_against: number, total_reporters: number} | null>(null);
 
   // -------------------------------------------------------
   // Fetch reports
@@ -266,13 +271,15 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           return;
         }
       } else if (role === 'admin') {
-        const { data: superadmins } = await supabase
+        // Admin (مشرف) can forward to other admins and superadmins
+        const { data: staff } = await supabase
           .from('users')
           .select('id, name, email, avatar_url, role, gender, title_id, created_at, updated_at')
-          .eq('role', 'superadmin')
-          .limit(10);
-        if (superadmins && superadmins.length > 0) {
-          setAvailableForwardUsers(superadmins as unknown as UserProfile[]);
+          .in('role', ['admin', 'superadmin'])
+          .neq('id', profile.id)  // Exclude self
+          .limit(20);
+        if (staff && staff.length > 0) {
+          setAvailableForwardUsers(staff as unknown as UserProfile[]);
           return;
         }
       }
@@ -287,6 +294,14 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     if (!isAdmin) fetchReportsCount();
     if (isStaff) fetchForwardTargets();
   }, [fetchReports, fetchReportsCount, fetchForwardTargets, isStaff, isAdmin]);
+
+  // ─── Auto-select pending report from notification click ───
+  useEffect(() => {
+    if (pendingReportId) {
+      fetchReportDetail(pendingReportId);
+      setPendingReportId(null); // Clear after consuming
+    }
+  }, [pendingReportId, setPendingReportId]);
 
   // -------------------------------------------------------
   // Realtime subscription for reports
@@ -344,6 +359,21 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         setSelectedReport(result.data);
         setResponses(result.data.responses || []);
         setMessages(result.data.messages || []);
+
+        // Fetch user stats for the target user
+        if (result.data?.target_user?.id) {
+          try {
+            const statsRes = await fetch(`/api/reports/user-stats?user_id=${result.data.target_user.id}`, {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            const statsResult = await statsRes.json();
+            if (statsResult.success) {
+              setTargetUserStats(statsResult.data);
+            }
+          } catch {}
+        } else {
+          setTargetUserStats(null);
+        }
       }
     } catch {
       toast.error('فشل تحميل تفاصيل الإبلاغ');
@@ -384,6 +414,37 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       fetchInboxMessages();
     }
   }, [activeTab, fetchInboxMessages]);
+
+  // -------------------------------------------------------
+  // Fetch against reports (reports where current user is the target)
+  // -------------------------------------------------------
+  const fetchAgainstReports = useCallback(async () => {
+    setLoadingAgainst(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch('/api/reports/against', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await res.json();
+      if (result.success) {
+        setAgainstReports(result.data || []);
+      } else {
+        console.error('[Reports Against] API error:', result.error);
+      }
+    } catch (err) {
+      console.error('[Reports Against] Fetch error:', err);
+    } finally {
+      setLoadingAgainst(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'against') {
+      fetchAgainstReports();
+    }
+  }, [activeTab, fetchAgainstReports]);
 
   // -------------------------------------------------------
   // Handle reply file upload for inbox messages
@@ -910,6 +971,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1.5">
                     <StatusBadge status={report.status} />
+                    {report.reopen_count && report.reopen_count > 0 && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                        <RotateCcw className="h-2.5 w-2.5" />
+                        معاد فتحها
+                      </span>
+                    )}
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
                       <Hash className="h-2.5 w-2.5" />
                       {report.report_number}
@@ -979,23 +1046,23 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             <div className="rounded-lg bg-background/80 p-2 text-center">
               <div className="flex items-center justify-center gap-1 text-rose-600 dark:text-rose-400">
                 <BarChart3 className="h-3.5 w-3.5" />
-                <span className="text-lg font-bold">{tu.report_count ?? 0}</span>
+                <span className="text-lg font-bold">{targetUserStats?.total_against ?? tu.report_count ?? 0}</span>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">إجمالي البلاغات</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">شكاوى ضده</p>
             </div>
             <div className="rounded-lg bg-background/80 p-2 text-center">
               <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-400">
                 <Users className="h-3.5 w-3.5" />
-                <span className="text-lg font-bold">{reporterCount}</span>
+                <span className="text-lg font-bold">{targetUserStats?.total_reporters ?? reporterCount}</span>
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">عدد الشاكين</p>
             </div>
             <div className="rounded-lg bg-background/80 p-2 text-center">
-              <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                <User className="h-3.5 w-3.5" />
-                <span className="text-sm font-medium">{getRoleLabel(tu.role)}</span>
+              <div className="flex items-center justify-center gap-1 text-sky-600 dark:text-sky-400">
+                <Flag className="h-3.5 w-3.5" />
+                <span className="text-lg font-bold">{targetUserStats?.total_filed ?? 0}</span>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">الدور</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">بلاغات قدمها</p>
             </div>
           </div>
         ) : (
@@ -1210,8 +1277,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     const isAssignedToMe = selectedReport.assigned_to === profile.id;
     const isReporter = selectedReport.reporter_id === profile.id;
     const canTakeAction = isActive && (isAssignedToMe || isAdmin);
-    // Check if report was already forwarded (has a forward response)
-    const hasBeenForwarded = responses.some(r => r.action === 'forward');
+    // Reopen count display
+    const isReopened = selectedReport.reopen_count && selectedReport.reopen_count > 0;
 
     return (
       <motion.div
@@ -1237,6 +1304,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               {selectedReport.report_number}
             </span>
             <StatusBadge status={selectedReport.status} />
+            {isReopened && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                <RotateCcw className="h-3 w-3" />
+                معاد فتحها
+              </span>
+            )}
             <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
               {getTargetTypeLabel(selectedReport.target_type)}
             </span>
@@ -1390,35 +1463,28 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             {isStaff && availableForwardUsers.length > 0 && (
               <div className="space-y-2 pt-3 border-t border-border">
                 <label className="text-xs font-medium text-muted-foreground">
-                  تحويل الإبلاغ {role === 'teacher' ? 'للمشرف' : role === 'admin' ? 'لمدير المنصة' : ''}
+                  تحويل الإبلاغ {role === 'teacher' ? 'للمشرف' : isStaff ? 'للإدارة' : ''}
                 </label>
                 <div className="flex items-center gap-2">
                   <select
                     value={forwardToId}
                     onChange={(e) => setForwardToId(e.target.value)}
-                    disabled={hasBeenForwarded}
-                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
-                    <option value="">{hasBeenForwarded ? 'تم التحويل مسبقاً' : 'اختر المستخدم...'}</option>
+                    <option value="">اختر المستخدم...</option>
                     {availableForwardUsers.map((u) => (
                       <option key={u.id} value={u.id}>{u.name} ({getRoleLabel(u.role)})</option>
                     ))}
                   </select>
                   <button
-                    onClick={() => handleAction('forward')}
-                    disabled={submitting || !forwardToId || hasBeenForwarded}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                    onClick={() => setConfirmAction('forward')}
+                    disabled={submitting || !forwardToId}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors whitespace-nowrap"
                   >
                     <ArrowRightLeft className="h-4 w-4" />
                     تحويل
                   </button>
                 </div>
-                {hasBeenForwarded && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <ArrowRightLeft className="h-3 w-3" />
-                    تم تحويل هذا الإبلاغ مسبقاً ولا يمكن تحويله مرة أخرى
-                  </p>
-                )}
               </div>
             )}
 
@@ -1514,10 +1580,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             </div>
 
             {/* ── Section 6: Return to teacher — only for admin, only if forwarded ── */}
-            {isAdmin && hasBeenForwarded && (
+            {isAdmin && responses.some(r => r.action === 'forward') && (
               <div className="pt-3 border-t border-border">
                 <button
-                  onClick={() => handleAction('return')}
+                  onClick={() => setConfirmAction('return')}
                   disabled={submitting}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-white text-sm font-medium hover:bg-violet-700 disabled:opacity-50 transition-colors"
                 >
@@ -1545,7 +1611,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         {(selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && (isReporter || isAssignedToMe || isAdmin) && (
           <div className="pt-2">
             <button
-              onClick={() => handleDeleteReport(selectedReport.id)}
+              onClick={() => setConfirmDeleteId(selectedReport.id)}
               disabled={submitting}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-rose-600 border border-rose-200 dark:border-rose-800 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-50 transition-colors"
             >
@@ -1700,6 +1766,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         <><Flag className="h-3 w-3" /> بخصوص شكوى ضدك</>
                       )}
                     </span>
+                    {msg.report?.report_number && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+                        <Hash className="h-2.5 w-2.5" />
+                        {msg.report.report_number}
+                      </span>
+                    )}
                   </div>
                   <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                     <Clock className="h-3 w-3" />
@@ -1707,6 +1779,26 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   </span>
                 </div>
               </div>
+
+              {/* Report info (reporter, reported user, report number) */}
+              {msg.report && (
+                <div className="mt-2 ms-13 bg-muted/50 rounded-lg p-2 flex items-center gap-3 flex-wrap text-xs">
+                  <span className="inline-flex items-center gap-1 font-mono font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 px-1.5 py-0.5 rounded-full text-[10px]">
+                    <Hash className="h-2.5 w-2.5" />
+                    {msg.report.report_number}
+                  </span>
+                  {msg.report.reporter?.name && (
+                    <span className="text-muted-foreground">
+                      الشاكي: <span className="text-foreground font-medium">{msg.report.reporter.name}</span>
+                    </span>
+                  )}
+                  {msg.report.target_user?.name && (
+                    <span className="text-muted-foreground">
+                      ضد: <span className="text-rose-600 dark:text-rose-400 font-medium">{msg.report.target_user.name}</span>
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Message body */}
               <div className="mt-3 ms-13">
@@ -1746,7 +1838,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
               {/* Actions: Reply button */}
               <div className="mt-2 ms-13 flex items-center gap-2">
-                {msg.report_id && msg.recipient_type === 'reporter' && (
+                {msg.report_id && msg.recipient_type === 'reporter' && msg.message_type !== 'auto' && (
                   <button
                     onClick={() => fetchReportDetail(msg.report_id)}
                     className="text-xs text-sky-700 dark:text-sky-300 hover:underline flex items-center gap-1"
@@ -1755,23 +1847,25 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     عرض الشكوى ذات الصلة
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    if (replyingTo === msg.id) {
-                      setReplyingTo(null);
-                      setReplyContent('');
-                      setReplyAttachments([]);
-                    } else {
-                      setReplyingTo(msg.id);
-                      setReplyContent('');
-                      setReplyAttachments([]);
-                    }
-                  }}
-                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-                >
-                  <MessageSquare className="h-3 w-3" />
-                  رد
-                </button>
+                {msg.message_type !== 'auto' && (
+                  <button
+                    onClick={() => {
+                      if (replyingTo === msg.id) {
+                        setReplyingTo(null);
+                        setReplyContent('');
+                        setReplyAttachments([]);
+                      } else {
+                        setReplyingTo(msg.id);
+                        setReplyContent('');
+                        setReplyAttachments([]);
+                      }
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  >
+                    <MessageSquare className="h-3 w-3" />
+                    رد
+                  </button>
+                )}
               </div>
 
               {/* Reply input */}
@@ -1838,6 +1932,64 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             </motion.div>
             );
           })}
+        </div>
+      )}
+    </motion.div>
+  );
+
+  // -------------------------------------------------------
+  // Render: Against Reports (شكاوى ضدك)
+  // -------------------------------------------------------
+  const renderAgainstReports = () => (
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
+      <motion.div variants={itemVariants}>
+        <h2 className="text-xl font-bold text-foreground">شكاوى ضدك</h2>
+        <p className="text-sm text-muted-foreground mt-1">الشكاوى المقدمة ضدك وحالة معالجتها</p>
+      </motion.div>
+
+      {loadingAgainst ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+        </div>
+      ) : againstReports.length === 0 ? (
+        <motion.div variants={itemVariants} className="text-center py-16">
+          <ShieldAlert className="h-16 w-16 mx-auto text-muted-foreground/30" />
+          <p className="mt-4 text-muted-foreground">لا توجد شكاوى ضدك</p>
+        </motion.div>
+      ) : (
+        <div className="space-y-3">
+          {againstReports.map((report) => (
+            <motion.button
+              key={report.id}
+              variants={itemVariants}
+              onClick={() => fetchReportDetail(report.id)}
+              className="w-full text-start rounded-xl border p-4 transition-all hover:shadow-md border-border bg-card hover:border-rose-200 dark:hover:border-rose-800"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <StatusBadge status={report.status} />
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+                      <Hash className="h-2.5 w-2.5" />
+                      {report.report_number}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type)}</span>
+                  </div>
+                  <p className="text-sm font-medium text-foreground truncate">{getReasonLabel(report.reason)}</p>
+                  {report.description && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{report.description}</p>
+                  )}
+                  <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                    {report.reporter && (
+                      <span>الشاكي: <UserLink userId={report.reporter.id} name={report.reporter.name || 'غير معروف'} /></span>
+                    )}
+                    <span>{formatDate(report.created_at)}</span>
+                  </div>
+                </div>
+                <ChevronLeft className="h-5 w-5 text-muted-foreground shrink-0" />
+              </div>
+            </motion.button>
+          ))}
         </div>
       )}
     </motion.div>
@@ -1937,6 +2089,66 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       {/* Ban Modal */}
       {renderBanModal()}
 
+      {/* Confirmation Dialog */}
+      <AnimatePresence>
+        {(confirmAction || confirmDeleteId) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            onClick={() => { setConfirmAction(null); setConfirmDeleteId(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-card rounded-2xl border border-border p-6 w-full max-w-sm mx-4 shadow-xl"
+              dir="rtl"
+            >
+              <div className="text-center space-y-4">
+                <div className="flex justify-center">
+                  <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <AlertTriangle className="h-6 w-6 text-amber-600" />
+                  </div>
+                </div>
+                <h3 className="text-lg font-bold text-foreground">تأكيد الإجراء</h3>
+                <p className="text-sm text-muted-foreground">
+                  {confirmAction === 'forward' ? 'هل أنت متأكد من تحويل هذا الإبلاغ؟ لا يمكن التراجع عن هذا الإجراء.' 
+                   : confirmAction === 'return' ? 'هل أنت متأكد من إرجاع هذا الإبلاغ للمعلم؟'
+                   : 'هل أنت متأكد من حذف هذا الإبلاغ؟ لا يمكن التراجع عن هذا الإجراء.'}
+                </p>
+                <div className="flex items-center gap-3 justify-center">
+                  <button
+                    onClick={() => {
+                      if (confirmAction) {
+                        handleAction(confirmAction);
+                      } else if (confirmDeleteId) {
+                        handleDeleteReport(confirmDeleteId);
+                      }
+                      setConfirmAction(null);
+                      setConfirmDeleteId(null);
+                    }}
+                    disabled={submitting}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 disabled:opacity-50 transition-colors"
+                  >
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    تأكيد
+                  </button>
+                  <button
+                    onClick={() => { setConfirmAction(null); setConfirmDeleteId(null); }}
+                    className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {selectedReport ? (
           <motion.div key="detail" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -1974,9 +2186,20 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <Inbox className="h-4 w-4 inline-block ml-1.5" />
                 الرسائل الواردة
               </button>
+              <button
+                onClick={() => setActiveTab('against')}
+                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === 'against'
+                    ? 'bg-sky-700 text-white'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Flag className="h-4 w-4 inline-block ml-1.5" />
+                ضدك
+              </button>
             </div>
 
-            {activeTab === 'reports' ? renderReportList() : renderInbox()}
+            {activeTab === 'reports' ? renderReportList() : activeTab === 'inbox' ? renderInbox() : renderAgainstReports()}
           </motion.div>
         )}
       </AnimatePresence>

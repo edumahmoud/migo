@@ -2,6 +2,7 @@
 // Reports Inbox API — Fetch messages for current user
 // Uses server-side Supabase (service role) to bypass RLS
 // so the recipient can always see their messages.
+// Enriched with report details + target user info.
 // =====================================================
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
@@ -52,9 +53,68 @@ export async function GET(request: NextRequest) {
 
     console.log('[Reports Inbox] Found', (data || []).length, 'messages for user', userId);
 
+    // ─── Enrich messages with report details ───
+    const messages = data || [];
+
+    // Collect unique report_ids
+    const reportIds = [...new Set(messages.map((m: any) => m.report_id).filter(Boolean))];
+
+    // Fetch all related reports in parallel
+    const reportMap = new Map<string, any>();
+    if (reportIds.length > 0) {
+      const { data: reportsData } = await supabaseServer
+        .from('reports')
+        .select(`
+          id, report_number, reporter_id, target_type, target_id, reason, status,
+          reporter:users!reports_reporter_id_fkey(id, name, email, avatar_url, role, gender, title_id)
+        `)
+        .in('id', reportIds);
+
+      (reportsData || []).forEach((r: any) => reportMap.set(r.id, r));
+
+      // Resolve target users for each report
+      for (const report of (reportsData || [])) {
+        let targetUserId: string | null = null;
+
+        if (report.target_type === 'user' && report.target_id) {
+          targetUserId = report.target_id;
+        } else if (report.target_type === 'comment' && report.target_id) {
+          const { data: comment } = await supabaseServer
+            .from('video_comments')
+            .select('user_id')
+            .eq('id', report.target_id)
+            .single();
+          if (comment?.user_id) targetUserId = comment.user_id;
+        } else if (report.target_type === 'message' && report.target_id) {
+          const { data: message } = await supabaseServer
+            .from('chat_messages')
+            .select('sender_id')
+            .eq('id', report.target_id)
+            .single();
+          if (message?.sender_id) targetUserId = message.sender_id;
+        }
+
+        if (targetUserId) {
+          const { data: targetUser } = await supabaseServer
+            .from('users')
+            .select('id, name, email, avatar_url, role, gender, title_id')
+            .eq('id', targetUserId)
+            .single();
+          (report as any).target_user = targetUser || null;
+        }
+      }
+    }
+
+    // Attach report info + is_auto flag to each message
+    const enrichedMessages = messages.map((msg: any) => ({
+      ...msg,
+      is_auto: msg.message_type === 'auto',
+      report: reportMap.get(msg.report_id) || null,
+    }));
+
     return NextResponse.json({
       success: true,
-      data: data || [],
+      data: enrichedMessages,
     });
   } catch (error) {
     console.error('[Reports Inbox] GET error:', error);

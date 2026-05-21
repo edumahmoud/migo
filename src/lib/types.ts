@@ -533,6 +533,7 @@ export interface Report {
   updated_at: string;
   target_content?: string | null;
   reporter_count?: number;
+  reopen_count?: number;
   attachments?: { url: string; name: string; type: string }[];
   // Joined data
   reporter?: {

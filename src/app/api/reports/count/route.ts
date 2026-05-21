@@ -17,23 +17,10 @@ export async function GET(request: NextRequest) {
     const role = await getUserRole(userId);
 
     if (role === 'admin' || role === 'superadmin') {
-      // Admins/superadmins see count of ALL pending/in_progress reports on the platform
-      const { count, error } = await supabaseServer
-        .from('reports')
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['pending', 'in_progress']);
-
-      if (error) {
-        console.error('[Reports] Count error:', error.message);
-        return NextResponse.json(
-          { success: false, error: 'فشل جلب عدد الإبلاغات' },
-          { status: 500 }
-        );
-      }
-
+      // No badge for admin/superadmin — they use the admin dashboard instead
       return NextResponse.json({
         success: true,
-        data: { count: count || 0 },
+        data: { count: 0 },
       });
     } else if (role === 'teacher') {
       // Teachers see count of reports assigned to them + reports against them

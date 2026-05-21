@@ -276,8 +276,10 @@ export default function NotificationBell() {
       }
     } else if (role === 'admin' || role === 'superadmin') {
       const validSections = ['dashboard', 'users', 'subjects', 'reports', 'announcements', 'banned', 'institution', 'chat', 'settings', 'comments', 'complaints'];
-      if (validSections.includes(baseSection)) {
-        setAdminSection(baseSection as 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints');
+      // Special mapping: if the link is /reports/..., route to 'complaints' section (not analytics 'reports')
+      const adminSection = baseSection === 'reports' ? 'complaints' : baseSection;
+      if (validSections.includes(adminSection)) {
+        setAdminSection(adminSection as 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints');
         setCurrentPage('admin-dashboard');
       }
     }
@@ -299,10 +301,23 @@ export default function NotificationBell() {
       return;
     }
 
-    // Handle report notifications — navigate to the reports section
+    // Handle report notifications — navigate to the reports/complaints section
     if (notif.type === 'report' || notif.link?.startsWith('/reports')) {
       setIsOpen(false);
-      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
+      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage, setPendingReportId } = useAppStore.getState();
+      
+      // Extract report ID from link if available (format: "/reports/UUID")
+      let reportId: string | null = null;
+      if (notif.link) {
+        const parts = notif.link.replace(/^\//, '').split('/');
+        if (parts.length >= 2 && parts[0] === 'reports') {
+          reportId = parts[1];
+        }
+      }
+      if (reportId) {
+        setPendingReportId(reportId);
+      }
+      
       if (user?.role === 'student') {
         setStudentSection('reports');
         setCurrentPage('student-dashboard');
@@ -310,7 +325,7 @@ export default function NotificationBell() {
         setTeacherSection('reports');
         setCurrentPage('teacher-dashboard');
       } else if (user?.role === 'admin' || user?.role === 'superadmin') {
-        setAdminSection('reports');
+        setAdminSection('complaints');  // Admin's complaints section, NOT 'reports' (which is analytics)
         setCurrentPage('admin-dashboard');
       }
       return;

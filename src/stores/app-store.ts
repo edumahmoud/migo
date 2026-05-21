@@ -61,6 +61,10 @@ interface AppState {
   reportsUnreadCount: number;
   setReportsUnreadCount: (count: number) => void;
   
+  // Pending report ID (used when navigating from a notification to auto-select a report)
+  pendingReportId: string | null;
+  setPendingReportId: (id: string | null) => void;
+  
   // Reset
   reset: () => void;
 }
@@ -81,6 +85,7 @@ const initialState = {
   sidebarOpen: false,
   chatUnreadCount: 0,
   reportsUnreadCount: 0,
+  pendingReportId: null as string | null,
 };
 
 export const useAppStore = create<AppState>()(
@@ -129,6 +134,7 @@ export const useAppStore = create<AppState>()(
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       setChatUnreadCount: (count) => set({ chatUnreadCount: count }),
       setReportsUnreadCount: (count) => set({ reportsUnreadCount: count }),
+      setPendingReportId: (id) => set({ pendingReportId: id }),
       
       reset: () => set(initialState),
     }),

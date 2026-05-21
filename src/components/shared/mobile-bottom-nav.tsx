@@ -99,6 +99,7 @@ export default function MobileBottomNav({
               reportsUnreadCount={reportsUnreadCount}
               onSectionChange={onSectionChange}
               onToggleSidebar={onToggleSidebar}
+              role={role}
             />
           );
         })}
@@ -117,6 +118,7 @@ function BottomNavItemButton({
   reportsUnreadCount,
   onSectionChange,
   onToggleSidebar,
+  role,
 }: {
   item: BottomNavItem;
   isActive: boolean;
@@ -124,6 +126,7 @@ function BottomNavItemButton({
   reportsUnreadCount: number;
   onSectionChange: (id: string) => void;
   onToggleSidebar: () => void;
+  role?: string;
 }) {
   const handleClick = () => {
     if (item.isMore) {
@@ -174,8 +177,8 @@ function BottomNavItemButton({
             {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
           </motion.span>
         )}
-        {/* Reports unread badge */}
-        {(item.id === 'reports' || item.id === 'complaints') && reportsUnreadCount > 0 && (
+        {/* Reports unread badge — hidden for admin/superadmin */}
+        {(item.id === 'reports' || item.id === 'complaints') && reportsUnreadCount > 0 && role !== 'admin' && role !== 'superadmin' && (
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}

@@ -2259,7 +2259,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           </button>
         </motion.div>
       ) : (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredSubjects.map((subject) => {
             const teacher = allUsers.find((u) => u.id === subject.teacher_id);
             return (

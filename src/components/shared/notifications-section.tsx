@@ -59,7 +59,7 @@ function getNotifIcon(type: string, title?: string) {
 
 export default function NotificationsSection() {
   const { user } = useAuthStore();
-  const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore();
+  const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore();
   const {
     notifications,
     unreadCount,
@@ -112,6 +112,35 @@ export default function NotificationsSection() {
       if (teacherId) {
         setLinkRequestModal({ teacherId, notificationId: notif.id, teacher: null, loading: true });
         fetchTeacherForModal(teacherId);
+      }
+      return;
+    }
+
+    // Handle report notifications — navigate to the reports/complaints section
+    if (notif.type === 'report' || notif.link?.startsWith('/reports')) {
+      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage, setPendingReportId } = useAppStore.getState();
+      
+      // Extract report ID from link if available (format: "/reports/UUID")
+      let reportId: string | null = null;
+      if (notif.link) {
+        const parts = notif.link.replace(/^\//, '').split('/');
+        if (parts.length >= 2 && parts[0] === 'reports') {
+          reportId = parts[1];
+        }
+      }
+      if (reportId) {
+        setPendingReportId(reportId);
+      }
+      
+      if (user?.role === 'student') {
+        setStudentSection('reports');
+        setCurrentPage('student-dashboard');
+      } else if (user?.role === 'teacher') {
+        setTeacherSection('reports');
+        setCurrentPage('teacher-dashboard');
+      } else if (user?.role === 'admin' || user?.role === 'superadmin') {
+        setAdminSection('complaints');  // Admin's complaints section, NOT 'reports' (which is analytics)
+        setCurrentPage('admin-dashboard');
       }
       return;
     }
@@ -262,10 +291,18 @@ export default function NotificationsSection() {
         setCurrentPage('student-dashboard');
       }
     } else if (role === 'teacher') {
-      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications'];
+      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications', 'reports'];
       if (validSections.includes(section)) {
         setTeacherSection(section as any);
         setCurrentPage('teacher-dashboard');
+      }
+    } else if (role === 'admin' || role === 'superadmin') {
+      const validSections = ['dashboard', 'users', 'subjects', 'reports', 'announcements', 'banned', 'institution', 'chat', 'settings', 'comments', 'complaints'];
+      // Special mapping: if the section is 'reports', route to 'complaints' (not analytics)
+      const adminSection = section === 'reports' ? 'complaints' : section;
+      if (validSections.includes(adminSection)) {
+        setAdminSection(adminSection as any);
+        setCurrentPage('admin-dashboard');
       }
     }
   };
