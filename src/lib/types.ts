@@ -533,6 +533,7 @@ export interface Report {
   updated_at: string;
   target_content?: string | null;
   reporter_count?: number;
+  attachments?: { url: string; name: string; type: string }[];
   // Joined data
   reporter?: {
     id: string;
@@ -603,6 +604,7 @@ export interface ReportMessage {
   recipient_id: string;
   content: string;
   message_type: 'info' | 'warning';
+  attachments?: { url: string; name: string; type: string }[];
   created_at: string;
   // Joined data
   sender?: {

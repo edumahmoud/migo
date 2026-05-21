@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldAlert, X, Send, Loader2 } from 'lucide-react';
+import { ShieldAlert, X, Send, Loader2, ImagePlus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { ReportTargetType } from '@/lib/types';
@@ -36,14 +36,77 @@ interface ReportButtonProps {
 }
 
 // -------------------------------------------------------
+// Attachment type
+// -------------------------------------------------------
+interface Attachment {
+  url: string;
+  name: string;
+  type: string;
+}
+
+// -------------------------------------------------------
 // Component
 // -------------------------------------------------------
 export default function ReportButton({ targetType, targetId, compact, className, onReported }: ReportButtonProps) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const remaining = 3 - attachments.length;
+    if (remaining <= 0) {
+      toast.error('الحد الأقصى 3 صور');
+      return;
+    }
+
+    const filesToUpload = Array.from(files).slice(0, remaining);
+    setUploading(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      for (const file of filesToUpload) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/api/reports/upload-evidence', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: formData,
+        });
+
+        const result = await res.json();
+        if (result.success) {
+          setAttachments((prev) => [...prev, {
+            url: result.data.url,
+            name: result.data.name,
+            type: result.data.type,
+          }]);
+        } else {
+          toast.error(result.error || 'فشل رفع الصورة');
+        }
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء رفع الصور');
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async () => {
     if (!reason) {
@@ -67,6 +130,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
           target_id: targetId,
           reason,
           description: description.trim() || undefined,
+          attachments: attachments.length > 0 ? attachments : undefined,
         }),
       });
 
@@ -76,6 +140,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
         setOpen(false);
         setReason('');
         setDescription('');
+        setAttachments([]);
         setConfirming(false);
         onReported?.();
       } else {
@@ -163,6 +228,46 @@ export default function ReportButton({ targetType, targetId, compact, className,
                     />
                   </div>
 
+                  {/* Image evidence upload */}
+                  <div className="space-y-2 mb-4">
+                    <label className="text-sm font-medium text-foreground">صور إثبات (اختياري — حتى 3 صور)</label>
+
+                    {/* Attachments preview */}
+                    {attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {attachments.map((att, i) => (
+                          <div key={i} className="relative group rounded-lg overflow-hidden border border-border h-16 w-16">
+                            <img src={att.url} alt={att.name} className="h-full w-full object-cover" />
+                            <button
+                              onClick={() => removeAttachment(i)}
+                              className="absolute top-0.5 left-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      multiple
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading || attachments.length >= 3}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border bg-background text-xs text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                    >
+                      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                      {uploading ? 'جاري الرفع...' : 'إضافة صور'}
+                    </button>
+                  </div>
+
                   {/* Next: Confirm step */}
                   <button
                     onClick={() => setConfirming(true)}
@@ -185,6 +290,18 @@ export default function ReportButton({ targetType, targetId, compact, className,
                         <div>
                           <span className="text-xs font-medium text-muted-foreground">التفاصيل:</span>
                           <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{description.trim()}</p>
+                        </div>
+                      )}
+                      {attachments.length > 0 && (
+                        <div>
+                          <span className="text-xs font-medium text-muted-foreground">الصور المرفقة:</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {attachments.map((att, i) => (
+                              <div key={i} className="rounded-lg overflow-hidden border border-border h-12 w-12">
+                                <img src={att.url} alt={att.name} className="h-full w-full object-cover" />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

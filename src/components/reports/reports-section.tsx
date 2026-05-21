@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldAlert,
@@ -30,6 +30,8 @@ import {
   Clock,
   Search,
   Hash,
+  ImagePlus,
+  X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -142,6 +144,12 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const [activeTab, setActiveTab] = useState<'reports' | 'inbox'>('reports');
   const [inboxMessages, setInboxMessages] = useState<any[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [replyAttachments, setReplyAttachments] = useState<any[]>([]);
+  const [replyUploading, setReplyUploading] = useState(false);
+  const [replySending, setReplySending] = useState(false);
+  const replyFileInputRef = useRef<HTMLInputElement>(null);
   const [banModalOpen, setBanModalOpen] = useState(false);
   const [banDuration, setBanDuration] = useState<'permanent' | '1day' | '1week' | '1month' | 'custom'>('permanent');
   const [banCustomDate, setBanCustomDate] = useState('');
@@ -376,6 +384,95 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       fetchInboxMessages();
     }
   }, [activeTab, fetchInboxMessages]);
+
+  // -------------------------------------------------------
+  // Handle reply file upload for inbox messages
+  // -------------------------------------------------------
+  const handleReplyFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const remaining = 3 - replyAttachments.length;
+    if (remaining <= 0) {
+      toast.error('الحد الأقصى 3 صور');
+      return;
+    }
+
+    const filesToUpload = Array.from(files).slice(0, remaining);
+    setReplyUploading(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      for (const file of filesToUpload) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch('/api/reports/upload-evidence', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: formData,
+        });
+
+        const result = await res.json();
+        if (result.success) {
+          setReplyAttachments((prev) => [...prev, result.data]);
+        } else {
+          toast.error(result.error || 'فشل رفع الصورة');
+        }
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء رفع الصور');
+    } finally {
+      setReplyUploading(false);
+      if (replyFileInputRef.current) replyFileInputRef.current.value = '';
+    }
+  };
+
+  // -------------------------------------------------------
+  // Handle sending reply to inbox message
+  // -------------------------------------------------------
+  const handleSendReply = async (reportId: string) => {
+    if (!replyContent.trim() && replyAttachments.length === 0) {
+      toast.error('يرجى كتابة رسالة أو إرفاق صورة');
+      return;
+    }
+
+    setReplySending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch('/api/reports/messages', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          report_id: reportId,
+          content: replyContent.trim(),
+          attachments: replyAttachments.length > 0 ? replyAttachments : undefined,
+        }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        toast.success('تم إرسال الرد');
+        setReplyingTo(null);
+        setReplyContent('');
+        setReplyAttachments([]);
+        fetchInboxMessages(); // Refresh inbox
+      } else {
+        toast.error(result.error || 'فشل إرسال الرد');
+      }
+    } catch {
+      toast.error('حدث خطأ غير متوقع');
+    } finally {
+      setReplySending(false);
+    }
+  };
 
   // -------------------------------------------------------
   // Search reports by report number
@@ -1080,6 +1177,18 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         <p className={`text-sm whitespace-pre-wrap mt-1 ms-10 ${
                           isWarning ? 'text-orange-800 dark:text-orange-200' : 'text-foreground'
                         }`}>{msg.content}</p>
+                        {/* Message attachments in timeline */}
+                        {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5 ms-10">
+                            {msg.attachments.map((att: any, ai: number) => (
+                              <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                                <div className="rounded overflow-hidden border border-border h-10 w-10 hover:opacity-80 transition-opacity">
+                                  <img src={att.url} alt={att.name || `صورة`} className="h-full w-full object-cover" />
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   }
@@ -1179,6 +1288,19 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
           {selectedReport.description && (
             <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap bg-muted/50 rounded-lg p-2.5">{selectedReport.description}</p>
+          )}
+
+          {/* Report attachments */}
+          {selectedReport.attachments && Array.isArray(selectedReport.attachments) && selectedReport.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedReport.attachments.map((att: any, i: number) => (
+                <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                  <div className="rounded-lg overflow-hidden border border-border h-16 w-16 hover:opacity-80 transition-opacity">
+                    <img src={att.url} alt={att.name || `إثبات ${i+1}`} className="h-full w-full object-cover" />
+                  </div>
+                </a>
+              ))}
+            </div>
           )}
         </div>
 
@@ -1588,18 +1710,43 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
               {/* Message body */}
               <div className="mt-3 ms-13">
-                <p className={`text-sm whitespace-pre-wrap leading-relaxed rounded-lg p-3 border ${
-                  isWarning
-                    ? 'text-orange-800 dark:text-orange-200 bg-orange-100/60 dark:bg-orange-900/30 border-orange-300/50 dark:border-orange-700/50'
-                    : 'text-foreground bg-muted/30 border-border/50'
-                }`}>
-                  {msg.content}
-                </p>
+                {isWarning ? (
+                  // Structured warning details
+                  <div className="text-sm rounded-lg p-3 border text-orange-800 dark:text-orange-200 bg-orange-100/60 dark:bg-orange-900/30 border-orange-300/50 dark:border-orange-700/50 space-y-1.5">
+                    {msg.content.split('\n').map((line: string, i: number) => {
+                      if (line.startsWith('⚠️')) return <p key={i} className="font-bold text-base">{line}</p>;
+                      const colonIdx = line.indexOf(':');
+                      if (colonIdx > 0 && colonIdx < 20) {
+                        const label = line.substring(0, colonIdx + 1);
+                        const value = line.substring(colonIdx + 1);
+                        return <p key={i}><span className="font-medium">{label}</span>{value}</p>;
+                      }
+                      return <p key={i}>{line}</p>;
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed rounded-lg p-3 border text-foreground bg-muted/30 border-border/50">
+                    {msg.content}
+                  </p>
+                )}
               </div>
 
-              {/* Link to related report — only shown for reporter (الشاكي), not for المشكو ضده */}
-              {msg.report_id && msg.recipient_type === 'reporter' && (
-                <div className="mt-2 ms-13">
+              {/* Attachments */}
+              {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
+                <div className="mt-2 ms-13 flex flex-wrap gap-2">
+                  {msg.attachments.map((att: any, i: number) => (
+                    <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                      <div className="rounded-lg overflow-hidden border border-border h-16 w-16 hover:opacity-80 transition-opacity">
+                        <img src={att.url} alt={att.name || `صورة ${i+1}`} className="h-full w-full object-cover" />
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {/* Actions: Reply button */}
+              <div className="mt-2 ms-13 flex items-center gap-2">
+                {msg.report_id && msg.recipient_type === 'reporter' && (
                   <button
                     onClick={() => fetchReportDetail(msg.report_id)}
                     className="text-xs text-sky-700 dark:text-sky-300 hover:underline flex items-center gap-1"
@@ -1607,6 +1754,85 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     <ShieldAlert className="h-3 w-3" />
                     عرض الشكوى ذات الصلة
                   </button>
+                )}
+                <button
+                  onClick={() => {
+                    if (replyingTo === msg.id) {
+                      setReplyingTo(null);
+                      setReplyContent('');
+                      setReplyAttachments([]);
+                    } else {
+                      setReplyingTo(msg.id);
+                      setReplyContent('');
+                      setReplyAttachments([]);
+                    }
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                >
+                  <MessageSquare className="h-3 w-3" />
+                  رد
+                </button>
+              </div>
+
+              {/* Reply input */}
+              {replyingTo === msg.id && (
+                <div className="mt-3 ms-13 rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                  <textarea
+                    value={replyContent}
+                    onChange={(e) => setReplyContent(e.target.value)}
+                    placeholder="اكتب ردك هنا..."
+                    rows={2}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  {/* Reply attachments preview */}
+                  {replyAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {replyAttachments.map((att: any, i: number) => (
+                        <div key={i} className="relative group rounded-lg overflow-hidden border border-border h-12 w-12">
+                          <img src={att.url} alt={att.name} className="h-full w-full object-cover" />
+                          <button
+                            onClick={() => setReplyAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                            className="absolute top-0.5 left-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={replyFileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      multiple
+                      onChange={handleReplyFileSelect}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => replyFileInputRef.current?.click()}
+                      disabled={replyUploading || replyAttachments.length >= 3}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                      title="إرفاق صورة"
+                    >
+                      {replyUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                    </button>
+                    <button
+                      onClick={() => handleSendReply(msg.report_id)}
+                      disabled={replySending || (!replyContent.trim() && replyAttachments.length === 0)}
+                      className="ms-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 disabled:opacity-50 transition-colors"
+                    >
+                      {replySending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                      إرسال
+                    </button>
+                    <button
+                      onClick={() => { setReplyingTo(null); setReplyContent(''); setReplyAttachments([]); }}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </motion.div>

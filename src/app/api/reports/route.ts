@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { target_type, target_id, reason, description } = body;
+    const { target_type, target_id, reason, description, attachments } = body;
 
     if (!target_type || !reason) {
       return NextResponse.json(
@@ -30,6 +30,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate attachments if provided
+    const validAttachments = Array.isArray(attachments) && attachments.length > 0
+      ? attachments.filter((a: any) => a.url && a.name).slice(0, 3)
+      : [];
+
     // Create the report — the DB trigger auto_assign_report() will set assigned_to
     const { data: report, error } = await supabaseServer
       .from('reports')
@@ -39,6 +44,7 @@ export async function POST(request: NextRequest) {
         target_id: target_id || null,
         reason,
         description: description || null,
+        attachments: validAttachments.length > 0 ? validAttachments : [],
         status: 'pending',
       })
       .select()
