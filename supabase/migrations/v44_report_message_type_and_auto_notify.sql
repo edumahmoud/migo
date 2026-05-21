@@ -100,7 +100,7 @@ BEGIN
 
   -- Add content preview if available
   IF v_content_preview IS NOT NULL THEN
-    v_message_body := v_message_body || ' — المحتوى: "' || v_content_preview || IF(LENGTH(v_content_preview) >= 80, '...', '') || '"';
+    v_message_body := v_message_body || ' — المحتوى: "' || v_content_preview || CASE WHEN LENGTH(v_content_preview) >= 80 THEN '...' ELSE '' END || '"';
   END IF;
 
   -- Add report number
