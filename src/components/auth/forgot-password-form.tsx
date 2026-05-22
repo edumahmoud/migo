@@ -1,14 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, ArrowRight, Loader2, GraduationCap, CheckCircle2 } from 'lucide-react';
+import { Mail, ArrowRight, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+
+// Supabase Free plan limits emails to 2/hour per project.
+// We enforce a 60-second cooldown between attempts to avoid hitting the limit,
+// and track the last send time in localStorage so it persists across page reloads.
+const COOLDOWN_SECONDS = 60;
+const STORAGE_KEY = 'attendo_reset_pwd_last_sent';
+
+function getLastSentTime(): number {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? parseInt(raw, 10) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setLastSentTime(ts: number) {
+  try {
+    localStorage.setItem(STORAGE_KEY, String(ts));
+  } catch { /* ignore */ }
+}
 
 interface ForgotPasswordFormProps {
   onBackToLogin: () => void;
@@ -18,11 +39,50 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  // ─── Cooldown timer ───
+  // Prevents the user from sending another reset email until the cooldown expires.
+  // This protects against Supabase's 2 emails/hour limit.
+  useEffect(() => {
+    const lastSent = getLastSentTime();
+    const elapsed = Math.floor((Date.now() - lastSent) / 1000);
+    const remaining = Math.max(0, COOLDOWN_SECONDS - elapsed);
+
+    if (remaining > 0) {
+      setCooldownRemaining(remaining);
+    }
+
+    const interval = setInterval(() => {
+      setCooldownRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatCooldown = useCallback((seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    if (m > 0) return `${m}:${s.toString().padStart(2, '0')}`;
+    return `${s} ثانية`;
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
       toast.error('يرجى إدخال البريد الإلكتروني');
+      return;
+    }
+
+    // Client-side cooldown check
+    if (cooldownRemaining > 0) {
+      toast.error(`يرجى الانتظار ${formatCooldown(cooldownRemaining)} قبل المحاولة مرة أخرى`);
       return;
     }
 
@@ -33,39 +93,37 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
       });
 
       if (error) {
-        // Log the FULL error object for debugging (status, code, message, etc.)
-        console.error('[ForgotPassword] Full error object:', JSON.stringify(error, null, 2));
-        console.error('[ForgotPassword] Error message:', error.message);
-        console.error('[ForgotPassword] Error status:', (error as { status?: number }).status);
+        console.error('[ForgotPassword] Error:', error.message, 'Status:', (error as { status?: number }).status);
 
-        // Provide more specific error messages
         const msg = error.message?.toLowerCase() || '';
         const status = (error as { status?: number }).status;
         const errorCode = (error as { code?: string }).code;
 
-        // Check for rate limit (429 status or specific messages)
         if (status === 429 || msg.includes('rate limit') || msg.includes('too many')) {
-          toast.error(`طلبات كثيرة جداً (${status || 'no status'}): ${error.message}`);
+          // Rate limit hit — set a 30-min cooldown so the user doesn't retry too quickly
+          setLastSentTime(Date.now());
+          setCooldownRemaining(60);
+          toast.error('تم تجاوز حد عدد الرسائل. يرجى الانتظار قبل المحاولة مرة أخرى');
         } else if (msg.includes('email not found') || msg.includes('user not found')) {
           // Don't reveal whether the email exists (security best practice)
-          // Just show the success screen to avoid email enumeration
           setEmailSent(true);
         } else if (
           msg.includes('redirect') || msg.includes('url not allowed') || 
           msg.includes('invalid redirect') || msg.includes('not allowed') ||
           errorCode === 'url_not_allowed' || status === 403
         ) {
-          // The redirect URL is not whitelisted in Supabase dashboard
           toast.error('خطأ في إعدادات رابط إعادة التعيين. يرجى التواصل مع المشرف');
-          console.error('[ForgotPassword] Redirect URL not allowed! Add this URL to Supabase Dashboard > Authentication > URL Configuration > Redirect URLs:', `${window.location.origin}/auth/reset-password`);
+          console.error('[ForgotPassword] Redirect URL not allowed! Add to Supabase Dashboard > Authentication > URL Configuration > Redirect URLs:', `${window.location.origin}/auth/reset-password`);
         } else {
-          // Show the actual Supabase error message for debugging
-          toast.error(`حدث خطأ أثناء إرسال رابط إعادة التعيين: ${error.message}`);
-          console.error('[ForgotPassword] Unhandled reset password error:', error.message, 'Status:', status, 'Code:', errorCode);
+          toast.error('حدث خطأ أثناء إرسال رابط إعادة التعيين');
+          console.error('[ForgotPassword] Unhandled error:', error.message);
         }
         return;
       }
 
+      // Success — record the time and show confirmation
+      setLastSentTime(Date.now());
+      setCooldownRemaining(COOLDOWN_SECONDS);
       setEmailSent(true);
       toast.success('تم إرسال رابط إعادة التعيين إلى بريدك الإلكتروني');
     } catch {
@@ -74,6 +132,8 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
       setIsLoading(false);
     }
   };
+
+  const canResend = cooldownRemaining === 0 && !isLoading;
 
   return (
     <div dir="rtl" className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
@@ -111,6 +171,40 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                 <p className="text-xs text-gray-400">
                   يرجى التحقق من صندوق الوارد والبريد غير المرغوب فيه
                 </p>
+
+                {/* Resend button with cooldown */}
+                {cooldownRemaining > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg py-2 px-3">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>يمكنك إعادة الإرسال بعد {formatCooldown(cooldownRemaining)}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setEmailSent(false);
+                      }}
+                      variant="outline"
+                      disabled
+                      className="w-full h-10 text-sm font-medium border-gray-200 opacity-50"
+                    >
+                      <Clock className="h-4 w-4 ml-1" />
+                      إعادة الإرسال ({formatCooldown(cooldownRemaining)})
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setEmailSent(false);
+                    }}
+                    variant="outline"
+                    className="w-full h-10 text-sm font-medium border-gray-200 hover:bg-gray-50"
+                  >
+                    إعادة إرسال الرابط
+                  </Button>
+                )}
+
                 <Button
                   type="button"
                   onClick={onBackToLogin}
@@ -139,13 +233,21 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
-                      disabled={isLoading}
+                      disabled={isLoading || cooldownRemaining > 0}
                       dir="ltr"
                       maxLength={254}
                     />
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   </div>
                 </motion.div>
+
+                {/* Cooldown notice on the form */}
+                {cooldownRemaining > 0 && (
+                  <div className="flex items-center justify-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg py-2 px-3">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>يرجى الانتظار {formatCooldown(cooldownRemaining)} قبل إرسال رابط جديد</span>
+                  </div>
+                )}
 
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -154,13 +256,18 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                 >
                   <Button
                     type="submit"
-                    disabled={isLoading}
-                    className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300"
+                    disabled={!canResend}
+                    className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 disabled:opacity-50"
                   >
                     {isLoading ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
                         <span>جارٍ الإرسال...</span>
+                      </>
+                    ) : cooldownRemaining > 0 ? (
+                      <>
+                        <Clock className="h-4 w-4 ml-1" />
+                        انتظر {formatCooldown(cooldownRemaining)}
                       </>
                     ) : (
                       'إرسال رابط إعادة التعيين'
