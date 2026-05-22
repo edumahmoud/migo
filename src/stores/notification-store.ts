@@ -255,6 +255,22 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       pruneContentHashes();
       prunePendingDeletions();
 
+      // Load localStorage deleted IDs early — needed for both new-from-poll detection and filtering
+      const localStorageDeletedIds = getDeletedIdsFromStorage();
+
+      // ─── Detect truly NEW notifications (arrived since last refetch) ───
+      // These are notifications whose IDs are NOT in seenNotificationIds yet.
+      // We need to detect them BEFORE marking all DB IDs as seen, so we can
+      // show toasts for notifications that arrived via polling (not Realtime).
+      // This fixes the bug where notifications only appear when the user
+      // clicks the bell icon — now polling also triggers toasts.
+      const newFromPoll: Notification[] = [];
+      for (const n of dbNotifications) {
+        if (!seenNotificationIds.has(n.id) && !isPendingDeletion(n.id) && !localStorageDeletedIds.has(n.id)) {
+          newFromPoll.push(n);
+        }
+      }
+
       // Mark all DB notification IDs as seen (so Realtime duplicates are caught)
       for (const n of dbNotifications) {
         seenNotificationIds.add(n.id);
@@ -265,7 +281,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       // (optimistically removed from store but DB DELETE not yet completed)
       // Also filter out notifications whose IDs are in the localStorage deleted set
       // (deleted in a previous session but DB DELETE failed silently)
-      const localStorageDeletedIds = getDeletedIdsFromStorage();
       const filteredDbNotifications = dbNotifications.filter(
         (n) => !isPendingDeletion(n.id) && !localStorageDeletedIds.has(n.id)
       );
@@ -309,6 +324,24 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         const unreadCount = merged.filter((n) => !n.read).length;
         return { notifications: merged, unreadCount };
       });
+
+      // ─── Show toasts for notifications detected via polling (not Realtime) ───
+      // This ensures users see new notifications even if the Realtime subscription
+      // failed (e.g., due to RLS recursion, network issues, or slow connection).
+      // Only show toasts for unread, non-chat notifications that were truly new
+      // (detected in the newFromPoll list above).
+      if (newFromPoll.length > 0) {
+        // Limit to 3 toasts max to avoid flooding
+        const toShow = newFromPoll.filter(n => !n.read && n.type !== 'chat').slice(0, 3);
+        for (const n of toShow) {
+          try {
+            toast(n.title, {
+              description: n.message,
+              duration: 5000,
+            });
+          } catch { /* sonner may not be mounted */ }
+        }
+      }
     } catch (err) {
       // Silently ignore refetch errors - they're non-critical and the polling will retry
     }
@@ -741,8 +774,12 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // Track in localStorage so if DB DELETE fails, the ID won't reappear on reload
     addDeletedIdToStorage(id);
 
-    // Remove from seen IDs
-    seenNotificationIds.delete(id);
+    // IMPORTANT: Do NOT remove from seenNotificationIds!
+    // Keeping the ID in seenNotificationIds prevents refetchNotifications()
+    // from re-adding this notification if the DB DELETE is still pending or failed.
+    // Previously, deleting from seenNotificationIds caused notifications to
+    // reappear after deletion because the next poll would find them in the DB.
+    // seenNotificationIds.delete(id); // ← REMOVED: this was the cause of reappearing notifications
 
     // Remove from store immediately
     set((s) => ({
@@ -784,8 +821,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       addDeletedIdsToStorage(allIds);
     }
 
-    // Clear global dedup structures
-    resetDedupStructures();
+    // IMPORTANT: Do NOT call resetDedupStructures() here!
+    // Previously, clearAll would reset seenNotificationIds and contentHashTimestamps,
+    // which meant the very next refetchNotifications() call (every 8-15s) would
+    // re-add ALL notifications from the DB because there was nothing to dedupe against.
+    // The DB DELETE is async and might not complete before the next poll.
+    // By keeping the dedup structures populated, refetch won't re-add deleted notifications.
+    // resetDedupStructures(); // ← REMOVED: this was the cause of notifications reappearing after clearAll
 
     // Clear store immediately
     set({ notifications: [], unreadCount: 0 });
@@ -802,6 +844,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           if (error) {
             if (isRLSRecursionError(error)) console.warn('Notification store: RLS recursion on clearAll');
             else console.error('Failed to clear all notifications from DB:', error);
+          } else {
+            // DB DELETE succeeded — now safe to clear dedup structures
+            // (no more data in DB to accidentally re-add)
+            resetDedupStructures();
           }
         });
     } else {
