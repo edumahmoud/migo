@@ -594,7 +594,7 @@ export default function NotificationBell() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, pointerEvents: 'none' as const }}
               transition={{ duration: 0.1 }}
-              className="absolute top-full mt-2 start-0 sm:start-auto sm:end-0 w-[calc(100vw-2rem)] sm:w-[360px] z-50 rounded-xl border bg-background shadow-lg overflow-hidden"
+              className="fixed top-14 inset-x-2 sm:absolute sm:top-full sm:mt-2 sm:inset-x-auto sm:start-auto sm:end-0 sm:w-[360px] w-auto z-50 rounded-xl border bg-background shadow-lg overflow-hidden"
               dir="rtl"
             >
             {/* Header */}
