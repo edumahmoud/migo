@@ -121,10 +121,39 @@ export default function ResetPasswordPage() {
       const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
         auth: { detectSessionInUrl: false },
       });
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+      // ── Verify session is still valid before updating password ──
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession?.user) {
+        setErrorMessage('انتهت صلاحية الجلسة. يرجى فتح رابط إعادة التعيين مرة أخرى من البريد الإلكتروني');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // ── Call updateUser with timeout (15s) ──
+      const updatePromise = supabase.auth.updateUser({ password: newPassword });
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: { message: 'انتهت مهلة الاتصال. يرجى المحاولة مرة أخرى' } }), 15_000)
+      );
+
+      const { error } = await Promise.race([updatePromise, timeoutPromise]);
 
       if (error) {
-        setErrorMessage('حدث خطأ أثناء تحديث كلمة المرور. يرجى المحاولة مرة أخرى');
+        console.error('[ResetPassword] Update password error:', error.message, 'Status:', error.status, 'Code:', (error as any).code);
+        const msg = error.message?.toLowerCase() || '';
+
+        if (msg.includes('same') || msg.includes('different')) {
+          setErrorMessage('كلمة المرور الجديدة يجب أن تكون مختلفة عن كلمة المرور الحالية');
+        } else if (msg.includes('session') || msg.includes('auth') || msg.includes('unauthenticated')) {
+          setErrorMessage('انتهت صلاحية الجلسة. يرجى فتح رابط إعادة التعيين مرة أخرى من البريد الإلكتروني');
+        } else if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
+          setErrorMessage('طلبات كثيرة جداً. يرجى الانتظار ثم المحاولة مرة أخرى');
+        } else if (msg.includes('password') && (msg.includes('weak') || msg.includes('require') || msg.includes('strength') || msg.includes('policy') || msg.includes('validation'))) {
+          setErrorMessage('كلمة المرور لا تلبي متطلبات الأمان. تأكد من أن كلمة المرور تحتوي على أحرف كبيرة وصغيرة وأرقام');
+        } else {
+          // Show the actual error from Supabase with a fallback
+          setErrorMessage(error.message || 'حدث خطأ أثناء تحديث كلمة المرور. يرجى المحاولة مرة أخرى');
+        }
         setIsSubmitting(false);
         return;
       }
@@ -136,8 +165,9 @@ export default function ResetPasswordPage() {
         await supabase.auth.signOut();
         window.location.href = '/';
       }, 2500);
-    } catch {
-      setErrorMessage('حدث خطأ غير متوقع');
+    } catch (err) {
+      console.error('[ResetPassword] Unexpected error:', err);
+      setErrorMessage('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى');
       setIsSubmitting(false);
     }
   };
