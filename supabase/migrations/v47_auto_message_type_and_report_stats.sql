@@ -216,18 +216,68 @@ CREATE TRIGGER trg_increment_report_stats
 
 -- =====================================================
 -- 7. Backfill existing data into user_report_stats
+--    Uses a DO block with exception handling because
+--    chat_messages table may not exist in some installations.
 -- =====================================================
-INSERT INTO public.user_report_stats (user_id, complaints_filed_count, complaints_against_count)
-SELECT
-  u.id,
-  COALESCE((SELECT COUNT(*) FROM public.reports WHERE reporter_id = u.id), 0),
-  COALESCE((SELECT COUNT(*) FROM public.reports r WHERE
-    (r.target_type = 'user' AND r.target_id = u.id) OR
-    (r.target_type = 'comment' AND r.target_id IN (SELECT id FROM public.video_comments WHERE user_id = u.id)) OR
-    (r.target_type = 'message' AND r.target_id IN (SELECT id FROM public.chat_messages WHERE sender_id = u.id))
-  ), 0)
-FROM public.users u
-ON CONFLICT (user_id) DO UPDATE SET
-  complaints_filed_count = EXCLUDED.complaints_filed_count,
-  complaints_against_count = EXCLUDED.complaints_against_count,
-  updated_at = now();
+DO $$
+DECLARE
+  v_chat_messages_exists BOOLEAN;
+  v_video_comments_exists BOOLEAN;
+BEGIN
+  -- Check which tables exist
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'chat_messages'
+  ) INTO v_chat_messages_exists;
+
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'video_comments'
+  ) INTO v_video_comments_exists;
+
+  -- Build and execute the backfill query based on available tables
+  IF v_chat_messages_exists AND v_video_comments_exists THEN
+    INSERT INTO public.user_report_stats (user_id, complaints_filed_count, complaints_against_count)
+    SELECT
+      u.id,
+      COALESCE((SELECT COUNT(*) FROM public.reports WHERE reporter_id = u.id), 0),
+      COALESCE((SELECT COUNT(*) FROM public.reports r WHERE
+        (r.target_type = 'user' AND r.target_id = u.id) OR
+        (r.target_type = 'comment' AND r.target_id IN (SELECT id FROM public.video_comments WHERE user_id = u.id)) OR
+        (r.target_type = 'message' AND r.target_id IN (SELECT id FROM public.chat_messages WHERE sender_id = u.id))
+      ), 0)
+    FROM public.users u
+    ON CONFLICT (user_id) DO UPDATE SET
+      complaints_filed_count = EXCLUDED.complaints_filed_count,
+      complaints_against_count = EXCLUDED.complaints_against_count,
+      updated_at = now();
+  ELSIF v_video_comments_exists THEN
+    INSERT INTO public.user_report_stats (user_id, complaints_filed_count, complaints_against_count)
+    SELECT
+      u.id,
+      COALESCE((SELECT COUNT(*) FROM public.reports WHERE reporter_id = u.id), 0),
+      COALESCE((SELECT COUNT(*) FROM public.reports r WHERE
+        (r.target_type = 'user' AND r.target_id = u.id) OR
+        (r.target_type = 'comment' AND r.target_id IN (SELECT id FROM public.video_comments WHERE user_id = u.id))
+      ), 0)
+    FROM public.users u
+    ON CONFLICT (user_id) DO UPDATE SET
+      complaints_filed_count = EXCLUDED.complaints_filed_count,
+      complaints_against_count = EXCLUDED.complaints_against_count,
+      updated_at = now();
+  ELSE
+    INSERT INTO public.user_report_stats (user_id, complaints_filed_count, complaints_against_count)
+    SELECT
+      u.id,
+      COALESCE((SELECT COUNT(*) FROM public.reports WHERE reporter_id = u.id), 0),
+      COALESCE((SELECT COUNT(*) FROM public.reports r WHERE
+        r.target_type = 'user' AND r.target_id = u.id
+      ), 0)
+    FROM public.users u
+    ON CONFLICT (user_id) DO UPDATE SET
+      complaints_filed_count = EXCLUDED.complaints_filed_count,
+      complaints_against_count = EXCLUDED.complaints_against_count,
+      updated_at = now();
+  END IF;
+END;
+$$;
