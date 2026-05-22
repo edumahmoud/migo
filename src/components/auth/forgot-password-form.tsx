@@ -45,7 +45,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
 
         // Check for rate limit (429 status or specific messages)
         if (status === 429 || msg.includes('rate limit') || msg.includes('too many')) {
-          toast.error('طلبات كثيرة جداً. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى');
+          toast.error(`طلبات كثيرة جداً (${status || 'no status'}): ${error.message}`);
         } else if (msg.includes('email not found') || msg.includes('user not found')) {
           // Don't reveal whether the email exists (security best practice)
           // Just show the success screen to avoid email enumeration
