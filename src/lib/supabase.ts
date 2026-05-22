@@ -14,7 +14,18 @@ export { supabaseUrl };
 // Note: The placeholder URL is used when Supabase is not configured.
 // The app checks isSupabaseConfigured and shows an error page before making any real requests.
 export const supabase = isSupabaseConfigured
-  ? createBrowserClient(supabaseUrl, supabaseAnonKey)
+  ? createBrowserClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        // Disable automatic URL session detection to prevent race conditions.
+        // The app handles PKCE code exchange explicitly:
+        // - OAuth: server-side in /auth/callback/route.ts
+        // - Password recovery: client-side in /auth/reset-password/page.tsx
+        // When detectSessionInUrl is true (default), @supabase/auth-js auto-exchanges
+        // ?code=xxx in the URL, and then the page's explicit exchangeCodeForSession()
+        // call fails because PKCE codes can only be used once.
+        detectSessionInUrl: false,
+      },
+    })
   : createBrowserClient('https://placeholder.supabase.co', 'placeholder-key');
 
 

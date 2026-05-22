@@ -43,10 +43,20 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+        auth: { detectSessionInUrl: false },
+      });
 
       try {
-        // Check for PKCE code in URL query params
+        // ─── FIRST: Check if a session already exists (e.g. auto-detect from another client) ───
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        if (existingSession?.user) {
+          console.log('[ResetPassword] Existing session found — showing form');
+          setPageState('form');
+          return;
+        }
+
+        // ─── SECOND: Try PKCE code exchange if ?code= is in the URL ───
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
 
@@ -55,6 +65,13 @@ export default function ResetPasswordPage() {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) {
             console.error('[ResetPassword] Code exchange error:', exchangeError.message);
+            // ─── THIRD: Check session again — auto-detect might have succeeded elsewhere ───
+            const { data: { session: retrySession } } = await supabase.auth.getSession();
+            if (retrySession?.user) {
+              console.log('[ResetPassword] Session found after exchange error — showing form');
+              setPageState('form');
+              return;
+            }
             setErrorMessage('رابط إعادة التعيين غير صالح أو منتهي الصلاحية');
             setPageState('invalid');
             return;
@@ -63,10 +80,10 @@ export default function ResetPasswordPage() {
           window.history.replaceState({}, '', window.location.pathname);
         }
 
-        // Verify we have a valid session
-        const { data: { session } } = await supabase.auth.getSession();
+        // ─── FINAL: Verify we have a valid session ───
+        const { data: { session: finalSession } } = await supabase.auth.getSession();
 
-        if (!session?.user) {
+        if (!finalSession?.user) {
           setErrorMessage('رابط إعادة التعيين غير صالح أو منتهي الصلاحية');
           setPageState('invalid');
           return;
@@ -101,7 +118,9 @@ export default function ResetPasswordPage() {
     setErrorMessage('');
 
     try {
-      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+        auth: { detectSessionInUrl: false },
+      });
       const { error } = await supabase.auth.updateUser({ password: newPassword });
 
       if (error) {

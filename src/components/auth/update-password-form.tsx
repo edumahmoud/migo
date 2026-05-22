@@ -42,14 +42,59 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   useEffect(() => {
     const verifyRecovery = async () => {
       try {
+        // ─── FIRST: Check if a session already exists ───
+        // The auto-detect might have already exchanged the code.
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+        if (existingSession?.user) {
+          setIsValidRecovery(true);
+          setVerifying(false);
+          return;
+        }
+
+        // ─── SECOND: Try PKCE code exchange if ?code=xxx is in the URL ───
+        // This handles the case where the user lands on the main page
+        // with a PKCE code (instead of the dedicated /auth/reset-password page).
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        if (code) {
+          console.log('[UpdatePasswordForm] PKCE code detected — exchanging for session');
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) {
+            console.error('[UpdatePasswordForm] Code exchange error:', exchangeError.message);
+            // ─── THIRD: Check session again — auto-detect might have succeeded ───
+            const { data: { session: retrySession } } = await supabase.auth.getSession();
+            if (retrySession?.user) {
+              setIsValidRecovery(true);
+              // Clean the URL
+              try {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('code');
+                url.searchParams.delete('type');
+                url.searchParams.delete('token_hash');
+                window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+              } catch {}
+              setVerifying(false);
+              return;
+            }
+            setIsValidRecovery(false);
+            setVerifying(false);
+            return;
+          }
+          // Clean the URL
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('code');
+            url.searchParams.delete('type');
+            url.searchParams.delete('token_hash');
+            window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+          } catch {}
+        }
+
+        // ─── FINAL: Verify we have a valid session ───
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // If we have a session and this component is rendered, it's because
-          // the auth store detected a PASSWORD_RECOVERY event or the URL had
-          // type=recovery. Either way, the session is valid for password update.
           setIsValidRecovery(true);
         } else {
-          // No session — invalid or expired link
           setIsValidRecovery(false);
         }
       } catch {
