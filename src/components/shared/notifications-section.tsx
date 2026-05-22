@@ -15,6 +15,7 @@ import {
   UserCheck,
   UserPlus,
   Loader2,
+  ShieldAlert,
 } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
@@ -53,6 +54,7 @@ function getNotifIcon(type: string, title?: string) {
     case 'attendance': return <UserCheck className="h-5 w-5 text-violet-600" />;
     case 'lecture': return <BookOpen className="h-5 w-5 text-teal-600" />;
     case 'chat': return <Bell className="h-5 w-5 text-sky-600" />;
+    case 'report': return <ShieldAlert className="h-5 w-5 text-orange-600" />;
     default: return <Info className="h-5 w-5 text-sky-700" />;
   }
 }
@@ -149,6 +151,22 @@ export default function NotificationsSection() {
     if (notif.type === 'file_request' || notif.link?.startsWith('file_request:')) {
       const { openProfile } = useAppStore.getState();
       if (user?.id) openProfile(user.id);
+      return;
+    }
+
+    // Handle report:REPORT_ID links — navigate to the reports/complaints section
+    if (notif.type === 'report' || notif.link?.startsWith('report:')) {
+      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
+      if (user?.role === 'admin' || user?.role === 'superadmin') {
+        setAdminSection('reports');
+        setCurrentPage('admin-dashboard');
+      } else if (user?.role === 'teacher') {
+        setTeacherSection('dashboard');
+        setCurrentPage('teacher-dashboard');
+      } else {
+        setStudentSection('dashboard');
+        setCurrentPage('student-dashboard');
+      }
       return;
     }
 

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle, ShieldAlert } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
@@ -99,7 +99,7 @@ function getNotifIcon(type: string, title?: string) {
     case 'attendance': return <UserCheck className="h-4 w-4 text-violet-600" />;
     case 'lecture': return <BookOpen className="h-4 w-4 text-teal-600" />;
     case 'chat': return <Bell className="h-4 w-4 text-sky-600" />;
-    case 'report': return <FileText className="h-4 w-4 text-rose-600" />;
+    case 'report': return <ShieldAlert className="h-4 w-4 text-orange-600" />;
     default: return <Info className="h-4 w-4 text-sky-700" />;
   }
 }
@@ -337,6 +337,26 @@ export default function NotificationBell() {
       setIsOpen(false);
       const { openProfile } = useAppStore.getState();
       if (user?.id) openProfile(user.id);
+      return;
+    }
+
+    // Handle report:REPORT_ID links — navigate to the reports/complaints section
+    if (notif.type === 'report' || notif.link?.startsWith('report:')) {
+      setIsOpen(false);
+      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
+      if (user?.role === 'admin' || user?.role === 'superadmin') {
+        setAdminSection('reports');
+        setCurrentPage('admin-dashboard');
+      } else if (user?.role === 'teacher') {
+        // Teacher doesn't have a dedicated complaints section yet,
+        // so navigate to their dashboard for now
+        setTeacherSection('dashboard');
+        setCurrentPage('teacher-dashboard');
+      } else {
+        // Student — navigate to their dashboard
+        setStudentSection('dashboard');
+        setCurrentPage('student-dashboard');
+      }
       return;
     }
 
