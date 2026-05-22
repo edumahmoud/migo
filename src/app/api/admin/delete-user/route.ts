@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer, getSupabaseServerClient } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 
 export async function POST(request: NextRequest) {
   try {
+    // ── Authenticate ──
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
+
+    const authUserId = authResult.user.id;
+    const authRole = await getUserRole(authUserId);
+
+    if (!authRole || (authRole !== 'admin' && authRole !== 'superadmin')) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح بهذا الإجراء' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { userId } = body;
 
@@ -13,47 +28,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify the requester is authenticated - try Bearer token first, then cookie auth
-    let authUser = null;
-    const authHeader = request.headers.get('authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const { data: { user }, error } = await supabaseServer.auth.getUser(token);
-      if (!error && user) authUser = user;
-    }
-
-    if (!authUser) {
-      try {
-        const serverClient = await getSupabaseServerClient();
-        const { data: { user }, error } = await serverClient.auth.getUser();
-        if (!error && user) authUser = user;
-      } catch {
-        // Cookie auth failed
-      }
-    }
-
-    if (!authUser) {
+    // SECURITY FIX: Prevent self-deletion
+    if (userId === authUserId) {
       return NextResponse.json(
-        { success: false, error: 'يجب تسجيل الدخول أولاً' },
-        { status: 401 }
+        { success: false, error: 'لا يمكنك حذف حسابك الخاص. استخدم إعدادات الحساب بدلاً من ذلك' },
+        { status: 400 }
       );
     }
 
-    // Verify the requester is admin or superadmin
-    const { data: requesterProfile } = await supabaseServer
-      .from('users')
-      .select('role')
-      .eq('id', authUser.id)
-      .single();
-
-    if (!requesterProfile || (requesterProfile.role !== 'admin' && requesterProfile.role !== 'superadmin')) {
-      return NextResponse.json(
-        { success: false, error: 'غير مصرح بهذا الإجراء' },
-        { status: 403 }
-      );
-    }
-
-    // First, fetch the user's email before deleting
+    // First, fetch the user's email and role before deleting
     const { data: userRecord } = await supabaseServer
       .from('users')
       .select('email, role')
@@ -61,7 +44,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     // Only superadmin can delete admins
-    if (userRecord?.role === 'admin' && requesterProfile.role !== 'superadmin') {
+    if (userRecord?.role === 'admin' && authRole !== 'superadmin') {
       return NextResponse.json(
         { success: false, error: 'فقط مدير المنصة يمكنه حذف المشرفين' },
         { status: 403 }
@@ -78,7 +61,24 @@ export async function POST(request: NextRequest) {
 
     const userEmail = userRecord?.email;
 
-    // Delete the user from the users table
+    // SECURITY FIX: Delete the Supabase Auth user FIRST.
+    // Previously, only the profile was deleted, leaving the Auth account active.
+    // This meant the user could still log in (but with no profile).
+    // By deleting Auth first, the user is fully removed.
+    if (userId) {
+      try {
+        const { error: authDeleteError } = await supabaseServer.auth.admin.deleteUser(userId);
+        if (authDeleteError) {
+          console.error('[delete-user] Auth deletion failed:', authDeleteError.message);
+          // Continue anyway — the profile deletion and ban are still important
+        }
+      } catch (authErr) {
+        console.error('[delete-user] Auth deletion exception:', authErr);
+        // Continue — best effort
+      }
+    }
+
+    // Delete the user from the users (profiles) table
     const { error } = await supabaseServer
       .from('users')
       .delete()
@@ -97,13 +97,19 @@ export async function POST(request: NextRequest) {
       const { error: banError } = await supabaseServer
         .from('banned_users')
         .upsert(
-          { email: userEmail, reason: 'تم الحذف بواسطة المشرف' },
+          {
+            email: userEmail,
+            reason: 'تم الحذف بواسطة المشرف',
+            banned_by: authUserId,
+          },
           { onConflict: 'email' }
         );
 
       if (banError) {
         console.error('Error adding to banned_users:', banError);
-        // Non-critical: user is already deleted, just log the error
+        // Critical: If ban insert fails, the user could re-register.
+        // Log prominently so admins can manually add the ban.
+        console.error(`[SECURITY] Failed to ban deleted user email: ${userEmail}. Manual ban required!`);
       }
     }
 

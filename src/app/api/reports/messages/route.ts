@@ -38,10 +38,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine the user's role in this report and the recipient
-    let recipientType: 'reporter' | 'reported' = 'reporter';
-    let recipientId: string | null = null;
-
+    // SECURITY FIX: Verify the user is a party in this report.
+    // Previously, any authenticated user could send messages in any report.
     const isReporter = report.reporter_id === userId;
 
     // Resolve the reported user
@@ -68,15 +66,42 @@ export async function POST(request: NextRequest) {
       } catch {}
     }
 
+    // Check if the user is assigned to this report (handler)
+    const { data: assignedReport } = await supabaseServer
+      .from('reports')
+      .select('assigned_to')
+      .eq('id', report_id)
+      .single();
+
+    const isAssigned = assignedReport?.assigned_to === userId;
+    const isReported = reportedUserId === userId;
+
+    // Get user role for admin check
+    const { data: userProfile } = await supabaseServer
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    const isAdminOrSuperadmin = userProfile?.role === 'admin' || userProfile?.role === 'superadmin';
+
+    // Only allow: reporter, reported person, assigned handler, or admin/superadmin
+    if (!isReporter && !isReported && !isAssigned && !isAdminOrSuperadmin) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح بإرسال رسائل في هذه الشكوى' },
+        { status: 403 }
+      );
+    }
+
+    // Determine the user's role in this report and the recipient
+    let recipientType: 'reporter' | 'reported' = 'reporter';
+    let recipientId: string | null = null;
+
+    // Note: isReporter, reportedUserId, and assignedReport were already resolved above
+    // during the authorization check — no need to re-resolve them.
+
     if (isReporter) {
       // الشاكي replies → message goes to the assigned reviewer
-      // Find the assigned reviewer from the report
-      const { data: assignedReport } = await supabaseServer
-        .from('reports')
-        .select('assigned_to')
-        .eq('id', report_id)
-        .single();
-
       if (assignedReport?.assigned_to) {
         recipientId = assignedReport.assigned_to;
         recipientType = 'reporter'; // The reporter is sending, so recipient_type marks the conversation context
@@ -86,14 +111,8 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-    } else if (reportedUserId === userId) {
+    } else if (isReported) {
       // المشكو ضده replies → message goes to the assigned reviewer
-      const { data: assignedReport } = await supabaseServer
-        .from('reports')
-        .select('assigned_to')
-        .eq('id', report_id)
-        .single();
-
       if (assignedReport?.assigned_to) {
         recipientId = assignedReport.assigned_to;
         recipientType = 'reported';

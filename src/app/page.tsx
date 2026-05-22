@@ -197,13 +197,32 @@ function HomeContent() {
   // Must run BEFORE initialize() so we can prevent the SIGNED_IN race condition.
   // Supabase consumes the URL hash/query on first getSession() call, so we
   // need to capture it now before the auth store initializes.
+  //
+  // Detection methods:
+  // 1. Implicit flow: hash contains #type=recovery or ?type=recovery (legacy)
+  // 2. PKCE flow with explicit recovery: URL contains ?code=xxx AND ?type=recovery
+  //
+  // IMPORTANT FIX: We NO LONGER treat all ?code= URLs as recovery URLs.
+  // The ?code= parameter is used for multiple PKCE flows:
+  //   - Password recovery (type=recovery)
+  //   - Email confirmation/verification (type=signup)
+  //   - Magic link sign-in
+  //   - OAuth callback
+  // Previously, any ?code= URL was treated as a recovery URL, which caused
+  // email confirmation to redirect to the update-password form instead of
+  // the dashboard. Now we only treat it as recovery if type=recovery is also
+  // present in the URL, or if the hash contains type=recovery.
   const [isRecoveryUrl] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
       const hash = window.location.hash;
       const search = window.location.search;
+      const params = new URLSearchParams(search);
+      // Only consider it a recovery URL if type=recovery is explicitly present
+      // (either in hash or query params). A bare ?code= without type=recovery
+      // could be email confirmation, magic link, or OAuth callback.
       return hash.includes('type=recovery') || 
-             new URLSearchParams(search).get('type') === 'recovery';
+             params.get('type') === 'recovery';
     } catch {
       return false;
     }

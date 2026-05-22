@@ -27,7 +27,7 @@ async function hasEnhancedBanSchema(): Promise<boolean> {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, reason, banUntil, bannedBy } = body;
+    const { userId, reason, banUntil } = body;
 
     if (!userId) {
       return NextResponse.json(
@@ -78,6 +78,10 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // SECURITY FIX: Derive bannedBy from the authenticated session, not the request body.
+    // Previously, admins could forge the banned_by field to attribute bans to other admins.
+    const bannedBy = authUser.id;
 
     // Verify the requester is admin or superadmin
     const { data: requesterProfile } = await supabaseServer

@@ -1,15 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
+import { authenticateRequest, authErrorResponse, getUserRole } from '@/lib/auth-helpers';
 
 // ─── POST: Teacher manually registers a student as present ───
 // Uses service role key to bypass RLS (teacher can't normally insert on behalf of student)
+// SECURITY FIX: Added proper authentication — previously had NO auth at all.
 export async function POST(request: NextRequest) {
   try {
+    // ── Authenticate the requester ──
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
+
+    const userId = authResult.user.id;
+
+    // ── Verify the requester is a teacher, admin, or superadmin ──
+    const role = await getUserRole(userId);
+    if (!role || (role !== 'teacher' && role !== 'admin' && role !== 'superadmin')) {
+      return NextResponse.json(
+        { error: 'هذا الإجراء متاح للمعلمين فقط' },
+        { status: 403 }
+      );
+    }
+
     const { sessionId, studentId, teacherId } = await request.json();
 
     if (!sessionId || !studentId || !teacherId) {
       return NextResponse.json({ error: 'sessionId, studentId, and teacherId are required' }, { status: 400 });
     }
+
+    // SECURITY FIX: Use the authenticated user's ID instead of trusting the client-supplied teacherId.
+    // The client sends teacherId for reference, but we verify ownership using the authenticated ID.
+    const effectiveTeacherId = userId;
 
     // Verify the teacher owns this attendance session
     const { data: session, error: sessionError } = await supabaseServer
@@ -22,8 +43,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'جلسة الحضور غير موجودة' }, { status: 404 });
     }
 
-    if (session.teacher_id !== teacherId) {
-      return NextResponse.json({ error: 'غير مصرح بهذا الإجراء' }, { status: 403 });
+    // SECURITY FIX: Compare against the authenticated user's ID, not the client-supplied one
+    if (session.teacher_id !== effectiveTeacherId) {
+      // Admins/superadmins can register for any session they can see
+      if (role !== 'admin' && role !== 'superadmin') {
+        return NextResponse.json({ error: 'غير مصرح بهذا الإجراء — أنت لست معلم هذه الجلسة' }, { status: 403 });
+      }
     }
 
     if (session.status !== 'active') {

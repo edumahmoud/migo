@@ -395,6 +395,29 @@ export const useStatusStore = create<StatusState>((set, get) => ({
       presenceChannel = null;
       presenceInitializedWithUserId = false;
     }
+
+    // FIX: Also remove Socket.IO listeners that were registered in init().
+    // Previously, these listeners persisted after sign-out, causing ghost updates.
+    const socket = getSocket();
+    if (socket) {
+      try {
+        socket.off('connect');
+        socket.off('online-users');
+        socket.off('user-online');
+        socket.off('user-offline');
+        socket.off('user-status-change');
+        socket.off('disconnect');
+      } catch { /* Ignore */ }
+    }
+
+    // FIX: Reset the listenersRegistered flag so init() can re-register on next login
+    listenersRegistered = false;
+
+    // FIX: Clear myStatus from localStorage to prevent stale status on re-login
+    try {
+      localStorage.removeItem(STATUS_STORAGE_KEY);
+    } catch { /* Ignore */ }
+
     // Clear userStatuses to prevent stale data from previous sessions
     // persisting after sign-out and re-login with a different user
     set({ myUserId: null, initialized: false, userStatuses: new Map<string, UserStatus>() });

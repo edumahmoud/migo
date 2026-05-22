@@ -66,26 +66,10 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthRes
     }
   }
 
-  // Strategy 3: Check x-user-id header set by middleware
-  if (!authUser) {
-    const userIdHeader = request.headers.get('x-user-id');
-    if (userIdHeader) {
-      // Middleware already verified this user - trust the header
-      // But still verify the user exists in DB
-      try {
-        const { data: profile } = await supabaseServer
-          .from('users')
-          .select('id, email')
-          .eq('id', userIdHeader)
-          .single();
-        if (profile) {
-          authUser = { id: profile.id, email: profile.email };
-        }
-      } catch {
-        // User lookup failed
-      }
-    }
-  }
+  // NOTE: Strategy 3 (x-user-id header trust) was REMOVED for security.
+  // A client could set the x-user-id header to any user's ID and impersonate them.
+  // There was no HMAC or signature to prove the header was set by trusted middleware.
+  // If middleware-based auth is needed in the future, it must use signed tokens.
 
   if (!authUser) {
     return {

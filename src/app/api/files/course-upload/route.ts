@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
-import { authenticateRequest, authErrorResponse, verifyOwnership } from '@/lib/auth-helpers';
+import { authenticateRequest, authErrorResponse, verifyOwnership, getUserRole } from '@/lib/auth-helpers';
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -38,6 +38,13 @@ const DANGEROUS_EXTENSIONS = [
 ];
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_JSON_FILE_SIZE = 50 * 1024 * 1024; // 50MB (same limit for JSON mode)
+
+// Allowed Supabase storage URL patterns — prevents SSRF via arbitrary URLs
+const ALLOWED_STORAGE_URL_PATTERNS = [
+  '/storage/v1/object/public/',
+  '/storage/v1/object/sign/',
+];
 
 /**
  * Check for duplicate file names in a subject.
@@ -94,6 +101,56 @@ export async function POST(request: NextRequest) {
       // Verify that the authenticated user matches the uploadedBy user
       const ownershipError = verifyOwnership(authResult.user.id, uploadedBy);
       if (ownershipError) return authErrorResponse(ownershipError);
+
+      // SECURITY FIX: Verify the user is a teacher/admin of the subject.
+      // Previously, any authenticated user (including students) could upload files.
+      const uploaderRole = await getUserRole(authResult.user.id);
+      if (!uploaderRole || (uploaderRole !== 'teacher' && uploaderRole !== 'admin' && uploaderRole !== 'superadmin')) {
+        return NextResponse.json(
+          { success: false, error: 'رفع الملفات متاح للمعلمين والمشرفين فقط' },
+          { status: 403 }
+        );
+      }
+
+      // Verify the teacher/admin is associated with the subject
+      if (uploaderRole === 'teacher') {
+        const { data: teacherLink } = await supabaseServer
+          .from('subjects')
+          .select('id')
+          .eq('id', subjectId)
+          .eq('teacher_id', authResult.user.id)
+          .maybeSingle();
+        const { data: coTeacherLink } = await supabaseServer
+          .from('subject_teachers')
+          .select('id')
+          .eq('subject_id', subjectId)
+          .eq('teacher_id', authResult.user.id)
+          .maybeSingle();
+        if (!teacherLink && !coTeacherLink) {
+          return NextResponse.json(
+            { success: false, error: 'غير مصرح برفع ملفات في هذا المقرر' },
+            { status: 403 }
+          );
+        }
+      }
+
+      // SECURITY FIX: Validate file size in JSON mode.
+      // Previously, JSON mode had no size limit — clients could claim any size.
+      if (fileSize && fileSize > MAX_JSON_FILE_SIZE) {
+        return NextResponse.json(
+          { success: false, error: 'حجم الملف يتجاوز الحد الأقصى (50 ميجابايت)' },
+          { status: 400 }
+        );
+      }
+
+      // SECURITY FIX: Validate fileUrl is a legitimate Supabase storage URL.
+      // Prevents SSRF — previously clients could pass any arbitrary URL.
+      if (fileUrl && !ALLOWED_STORAGE_URL_PATTERNS.some(pattern => fileUrl.includes(pattern))) {
+        return NextResponse.json(
+          { success: false, error: 'رابط الملف غير صالح — يجب أن يكون رابط تخزين معتمد' },
+          { status: 400 }
+        );
+      }
 
       // ── Duplicate name check for JSON mode ──
       const effectiveDisplayName = displayName || customName || 'ملف';

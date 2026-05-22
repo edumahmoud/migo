@@ -383,14 +383,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // or SIGNED_IN first, then PASSWORD_RECOVERY later. If we process the
         // SIGNED_IN normally, the routing useEffect redirects to the dashboard
         // before PASSWORD_RECOVERY has a chance to set passwordRecoveryMode.
-        // FIX: Check the URL for recovery indicators BEFORE processing SIGNED_IN.
-        // If type=recovery is in the URL, skip normal sign-in and set recovery mode.
+        //
+        // There are two flows to detect:
+        // 1. Implicit flow: URL hash contains #type=recovery (legacy, deprecated)
+        // 2. PKCE flow: URL contains ?code=xxx but NO type=recovery
+        //    In PKCE flow, we must WAIT for the PASSWORD_RECOVERY event
+        //    because we can't distinguish recovery from normal sign-in from the URL alone.
+
+        // Also skip if passwordRecoveryMode is already set (PASSWORD_RECOVERY fired first)
+        if (get().passwordRecoveryMode) {
+          return;
+        }
+
+        // Check 1: Implicit flow — type=recovery in URL hash or query params
         const isRecoveryUrl = typeof window !== 'undefined' && (
           window.location.hash.includes('type=recovery') ||
           new URLSearchParams(window.location.search).get('type') === 'recovery'
         );
         if (isRecoveryUrl) {
-          console.log('[Auth] Recovery URL detected during SIGNED_IN — setting passwordRecoveryMode');
+          console.log('[Auth] Recovery URL detected (implicit flow) — setting passwordRecoveryMode');
           set({ passwordRecoveryMode: true, loading: false });
           // Clean the URL to prevent re-detection
           try {
@@ -399,9 +410,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return; // Skip normal sign-in processing
         }
 
-        // Also skip if passwordRecoveryMode is already set (PASSWORD_RECOVERY fired first)
-        if (get().passwordRecoveryMode) {
-          return;
+        // Check 2: PKCE flow — ?code=xxx in URL
+        // When a PKCE code is present, this could be a password recovery link.
+        // We can't tell from the URL alone, so we wait for PASSWORD_RECOVERY event.
+        // The await yields to the event loop, allowing PASSWORD_RECOVERY to fire
+        // and set passwordRecoveryMode before we continue.
+        const hasCodeParam = typeof window !== 'undefined' &&
+          new URLSearchParams(window.location.search).has('code');
+
+        if (hasCodeParam) {
+          console.log('[Auth] PKCE code detected — waiting up to 2s for PASSWORD_RECOVERY event...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          if (get().passwordRecoveryMode) {
+            console.log('[Auth] PASSWORD_RECOVERY detected after wait — skipping normal sign-in');
+            // Clean the URL
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('code');
+              url.searchParams.delete('type');
+              url.searchParams.delete('token_hash');
+              window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+            } catch {}
+            return;
+          }
+
+          console.log('[Auth] No PASSWORD_RECOVERY after wait — proceeding with normal sign-in');
+          // Clean the URL (code has been consumed)
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('code');
+            url.searchParams.delete('type');
+            url.searchParams.delete('token_hash');
+            window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+          } catch {}
         }
 
         // ─── Prevent race condition with signInWithEmail ───
@@ -764,6 +806,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       useNotificationStore.getState().cleanup();
     } catch {
       // Non-critical: notification store cleanup failure shouldn't block sign-out
+    }
+
+    // FIX: Clean up institution store — reset to prevent stale data
+    // from previous user persisting after switching accounts
+    try {
+      const { useInstitutionStore } = await import('@/stores/institution-store');
+      useInstitutionStore.getState().reset();
+    } catch {
+      // Non-critical: institution store cleanup failure shouldn't block sign-out
     }
 
     // Clean up summaries cache from localStorage to prevent showing

@@ -124,7 +124,7 @@ function scorePercentage(score: number, total: number): number {
 
 function pctColorClass(pct: number): string {
   if (pct >= 90) return 'text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/50';
-  if (pct >= 75) return 'text-teal-700 dark:text-teal-300 bg-teal-100 dark:bg-teal-900/50';
+  if (pct >= 75) return 'text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/50';
   if (pct >= 60) return 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50';
   return 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50';
 }
