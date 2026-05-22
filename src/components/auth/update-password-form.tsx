@@ -135,28 +135,30 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
         return;
       }
 
-      // ── Call updateUser with timeout (15s) ──
-      const updatePromise = supabase.auth.updateUser({ password: newPassword });
-      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
-        setTimeout(() => resolve({ data: null, error: { message: 'انتهت مهلة الاتصال. يرجى المحاولة مرة أخرى' } }), 15_000)
-      );
-
-      const { error } = await Promise.race([updatePromise, timeoutPromise]);
+      // ── Call updateUser ──
+      const result = await supabase.auth.updateUser({ password: newPassword });
+      const error = result.error;
 
       if (error) {
-        console.error('[UpdatePassword] Error:', error.message, 'Status:', error.status, 'Code:', (error as any).code);
+        console.error('[UpdatePassword] Error:', {
+          message: error.message,
+          name: error.name,
+          status: (error as any).status,
+          code: (error as any).code,
+        });
         const msg = error.message?.toLowerCase() || '';
 
-        if (msg.includes('same') || msg.includes('different')) {
+        if (msg.includes('same') || msg.includes('different') || msg.includes('old password')) {
           toast.error('كلمة المرور الجديدة يجب أن تكون مختلفة عن كلمة المرور الحالية');
-        } else if (msg.includes('session') || msg.includes('auth') || msg.includes('unauthenticated')) {
+        } else if (msg.includes('session') || msg.includes('unauthenticated') || msg.includes('not found') || msg.includes('jwt') || msg.includes('token')) {
           toast.error('انتهت صلاحية الجلسة. يرجى فتح رابط إعادة التعيين مرة أخرى من البريد الإلكتروني');
         } else if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
           toast.error('طلبات كثيرة جداً. يرجى الانتظار ثم المحاولة مرة أخرى');
-        } else if (msg.includes('password') && (msg.includes('weak') || msg.includes('require') || msg.includes('strength') || msg.includes('policy') || msg.includes('validation'))) {
-          toast.error('كلمة المرور لا تلبي متطلبات الأمان. تأكد من أن كلمة المرور تحتوي على أحرف كبيرة وصغيرة وأرقام');
+        } else if (msg.includes('password') || msg.includes('weak') || msg.includes('require') || msg.includes('strength') || msg.includes('policy') || msg.includes('validation') || msg.includes('criteria')) {
+          toast.error('كلمة المرور لا تلبي متطلبات الأمان. تأكد أن كلمة المرور تحتوي على أحرف كبيرة وصغيرة وأرقام ورموز');
         } else {
-          toast.error(error.message || 'حدث خطأ أثناء تحديث كلمة المرور. يرجى المحاولة مرة أخرى');
+          // Show the ACTUAL error from Supabase — no more hiding!
+          toast.error(`خطأ: ${error.message}`);
         }
         setIsLoading(false);
         return;
@@ -170,9 +172,9 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
         await supabase.auth.signOut();
         onSuccess();
       }, 2000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[UpdatePassword] Unexpected error:', err);
-      toast.error('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى');
+      toast.error(`خطأ غير متوقع: ${err?.message || 'يرجى المحاولة مرة أخرى'}`);
     } finally {
       setIsLoading(false);
     }

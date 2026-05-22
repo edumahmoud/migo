@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
+import { useEffect, useRef, useState } from 'react';
+import { createBrowserClient, SupabaseClient } from '@supabase/ssr';
 import { Lock, Loader2, CheckCircle2, Eye, EyeOff, ShieldCheck, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// ─── Supabase client (local to this page, independent of main app) ───
+// ─── Supabase config ───
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
@@ -34,6 +34,12 @@ export default function ResetPasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ── CRITICAL: Store the Supabase client instance so we reuse it ──
+  // Previously, handleSubmit created a NEW client each time, which lost the
+  // session that was established in init(). This was the root cause of
+  // "حدث خطأ أثناء تحديث كلمة المرور" — the new client had no session.
+  const supabaseRef = useRef<SupabaseClient | null>(null);
+
   // ─── Step 1: Exchange code / validate session ───
   useEffect(() => {
     const init = async () => {
@@ -43,12 +49,14 @@ export default function ResetPasswordPage() {
         return;
       }
 
+      // Create ONE client and store it for reuse
       const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
         auth: { detectSessionInUrl: false },
       });
+      supabaseRef.current = supabase;
 
       try {
-        // ─── FIRST: Check if a session already exists (e.g. auto-detect from another client) ───
+        // ─── FIRST: Check if a session already exists ───
         const { data: { session: existingSession } } = await supabase.auth.getSession();
         if (existingSession?.user) {
           console.log('[ResetPassword] Existing session found — showing form');
@@ -56,16 +64,16 @@ export default function ResetPasswordPage() {
           return;
         }
 
-        // ─── SECOND: Try PKCE code exchange if ?code= is in the URL ───
+        // ─── SECOND: Try PKCE code exchange ───
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
 
         if (code) {
-          // PKCE flow: exchange code for session
+          console.log('[ResetPassword] PKCE code found — exchanging for session');
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) {
             console.error('[ResetPassword] Code exchange error:', exchangeError.message);
-            // ─── THIRD: Check session again — auto-detect might have succeeded elsewhere ───
+            // Check session again — might have been set by another tab/client
             const { data: { session: retrySession } } = await supabase.auth.getSession();
             if (retrySession?.user) {
               console.log('[ResetPassword] Session found after exchange error — showing form');
@@ -89,7 +97,7 @@ export default function ResetPasswordPage() {
           return;
         }
 
-        // Valid session — show the update form
+        console.log('[ResetPassword] Valid session — showing form');
         setPageState('form');
       } catch (err) {
         console.error('[ResetPassword] Init error:', err);
@@ -114,60 +122,74 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    const supabase = supabaseRef.current;
+    if (!supabase) {
+      setErrorMessage('خطأ في الاتصال — يرجى إعادة تحميل الصفحة');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage('');
 
     try {
-      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
-        auth: { detectSessionInUrl: false },
-      });
+      // ── Verify session is still valid ──
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
 
-      // ── Verify session is still valid before updating password ──
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error('[ResetPassword] getSession error:', sessionError.message);
+      }
+
       if (!currentSession?.user) {
         setErrorMessage('انتهت صلاحية الجلسة. يرجى فتح رابط إعادة التعيين مرة أخرى من البريد الإلكتروني');
         setIsSubmitting(false);
         return;
       }
 
-      // ── Call updateUser with timeout (15s) ──
-      const updatePromise = supabase.auth.updateUser({ password: newPassword });
-      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
-        setTimeout(() => resolve({ data: null, error: { message: 'انتهت مهلة الاتصال. يرجى المحاولة مرة أخرى' } }), 15_000)
-      );
+      console.log('[ResetPassword] Updating password for user:', currentSession.user.email);
 
-      const { error } = await Promise.race([updatePromise, timeoutPromise]);
+      // ── Call updateUser ──
+      const result = await supabase.auth.updateUser({ password: newPassword });
+      const error = result.error;
 
       if (error) {
-        console.error('[ResetPassword] Update password error:', error.message, 'Status:', error.status, 'Code:', (error as any).code);
+        // Log FULL error details for debugging
+        console.error('[ResetPassword] Update password FAILED:', {
+          message: error.message,
+          name: error.name,
+          status: (error as any).status,
+          code: (error as any).code,
+          statusText: (error as any).statusText,
+        });
+
         const msg = error.message?.toLowerCase() || '';
 
-        if (msg.includes('same') || msg.includes('different')) {
+        if (msg.includes('same') || msg.includes('different') || msg.includes('old password')) {
           setErrorMessage('كلمة المرور الجديدة يجب أن تكون مختلفة عن كلمة المرور الحالية');
-        } else if (msg.includes('session') || msg.includes('auth') || msg.includes('unauthenticated')) {
+        } else if (msg.includes('session') || msg.includes('unauthenticated') || msg.includes('not found') || msg.includes('jwt') || msg.includes('token')) {
           setErrorMessage('انتهت صلاحية الجلسة. يرجى فتح رابط إعادة التعيين مرة أخرى من البريد الإلكتروني');
         } else if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
           setErrorMessage('طلبات كثيرة جداً. يرجى الانتظار ثم المحاولة مرة أخرى');
-        } else if (msg.includes('password') && (msg.includes('weak') || msg.includes('require') || msg.includes('strength') || msg.includes('policy') || msg.includes('validation'))) {
-          setErrorMessage('كلمة المرور لا تلبي متطلبات الأمان. تأكد من أن كلمة المرور تحتوي على أحرف كبيرة وصغيرة وأرقام');
+        } else if (msg.includes('password') || msg.includes('weak') || msg.includes('require') || msg.includes('strength') || msg.includes('policy') || msg.includes('validation') || msg.includes('criteria')) {
+          setErrorMessage('كلمة المرور لا تلبي متطلبات الأمان. تأكد أن كلمة المرور تحتوي على أحرف كبيرة وصغيرة وأرقام ورموز');
         } else {
-          // Show the actual error from Supabase with a fallback
-          setErrorMessage(error.message || 'حدث خطأ أثناء تحديث كلمة المرور. يرجى المحاولة مرة أخرى');
+          // Show the ACTUAL Supabase error message — no more hiding it!
+          setErrorMessage(`خطأ: ${error.message}`);
         }
         setIsSubmitting(false);
         return;
       }
 
+      console.log('[ResetPassword] Password updated successfully');
       setPageState('success');
 
-      // Sign out and redirect to main app after a short delay
+      // Sign out and redirect after delay
       setTimeout(async () => {
         await supabase.auth.signOut();
         window.location.href = '/';
       }, 2500);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[ResetPassword] Unexpected error:', err);
-      setErrorMessage('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى');
+      setErrorMessage(`خطأ غير متوقع: ${err?.message || 'يرجى المحاولة مرة أخرى'}`);
       setIsSubmitting(false);
     }
   };
