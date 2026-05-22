@@ -35,26 +35,26 @@ interface BottomNavItem {
 // Navigation items per role (5 items each)
 // -------------------------------------------------------
 const studentNavItems: BottomNavItem[] = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
 const teacherNavItems: BottomNavItem[] = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
 const adminNavItems: BottomNavItem[] = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
   { id: 'users', label: 'المستخدمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'complaints', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'complaints', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
   { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
@@ -87,14 +87,16 @@ export default function MobileBottomNav({
       dir="rtl"
     >
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-1">
-        {navItems.map((item) => {
+        {navItems.map((item, index) => {
           const isActive = !item.isMore && activeSection === item.id;
+          const isCenter = index === 2; // Dashboard is always at index 2 (center)
 
           return (
             <BottomNavItemButton
               key={item.id}
               item={item}
               isActive={isActive}
+              isCenter={isCenter}
               chatUnreadCount={chatUnreadCount}
               reportsUnreadCount={reportsUnreadCount}
               onSectionChange={onSectionChange}
@@ -114,6 +116,7 @@ export default function MobileBottomNav({
 function BottomNavItemButton({
   item,
   isActive,
+  isCenter,
   chatUnreadCount,
   reportsUnreadCount,
   onSectionChange,
@@ -122,6 +125,7 @@ function BottomNavItemButton({
 }: {
   item: BottomNavItem;
   isActive: boolean;
+  isCenter?: boolean;
   chatUnreadCount: number;
   reportsUnreadCount: number;
   onSectionChange: (id: string) => void;
@@ -139,29 +143,35 @@ function BottomNavItemButton({
   return (
     <motion.button
       onClick={handleClick}
-      className="relative flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 py-1.5 rounded-xl transition-colors duration-200"
+      className={`relative flex flex-col items-center justify-end flex-1 min-w-0 rounded-xl transition-colors duration-200 ${
+        isCenter ? '-mt-4 pb-1' : 'gap-0.5 py-1.5'
+      }`}
       whileTap={{ scale: 0.9 }}
       aria-label={item.label}
       aria-current={isActive ? 'page' : undefined}
     >
-      {/* Active background highlight */}
-      <AnimatePresence mode="wait">
-        {isActive && (
-          <motion.div
-            layoutId="bottomNavActiveBg"
-            className="absolute inset-0 rounded-xl bg-primary/10"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          />
-        )}
-      </AnimatePresence>
+      {/* Active background highlight — skip for center item (has its own circle) */}
+      {!isCenter && (
+        <AnimatePresence mode="wait">
+          {isActive && (
+            <motion.div
+              layoutId="bottomNavActiveBg"
+              className="absolute inset-0 rounded-xl bg-primary/10"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            />
+          )}
+        </AnimatePresence>
+      )}
 
       {/* Icon container */}
       <span
         className={`relative z-10 transition-colors duration-200 ${
-          isActive ? 'text-primary' : 'text-muted-foreground'
+          isCenter
+            ? `flex items-center justify-center h-12 w-12 rounded-full shadow-lg ${isActive ? 'bg-primary text-primary-foreground shadow-primary/30' : 'bg-muted text-muted-foreground shadow-black/10'}`
+            : isActive ? 'text-primary' : 'text-muted-foreground'
         }`}
       >
         {item.icon}
@@ -199,19 +209,21 @@ function BottomNavItemButton({
         {item.label}
       </span>
 
-      {/* Active indicator dot */}
-      <AnimatePresence mode="wait">
-        {isActive && (
-          <motion.div
-            layoutId="bottomNavIndicator"
-            className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-primary"
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-          />
-        )}
-      </AnimatePresence>
+      {/* Active indicator dot — skip for center item */}
+      {!isCenter && (
+        <AnimatePresence mode="wait">
+          {isActive && (
+            <motion.div
+              layoutId="bottomNavIndicator"
+              className="absolute -bottom-0.5 h-1 w-1 rounded-full bg-primary"
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+            />
+          )}
+        </AnimatePresence>
+      )}
     </motion.button>
   );
 }

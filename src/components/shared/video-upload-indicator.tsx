@@ -47,7 +47,7 @@ export default function VideoUploadIndicator() {
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 50 }}
-        className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 z-[60] pointer-events-none"
+        className="fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 sm:bottom-6 z-[60] pointer-events-none"
         dir="rtl"
       >
         <div className="pointer-events-auto rounded-xl border bg-background/95 backdrop-blur-md shadow-xl overflow-hidden">

@@ -884,7 +884,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background/95 backdrop-blur-md shadow-2xl px-5 py-3"
+            className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background/95 backdrop-blur-md shadow-2xl px-5 py-3"
             dir="rtl"
           >
             <div className="flex items-center gap-2">
