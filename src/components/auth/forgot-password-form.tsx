@@ -29,11 +29,21 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}`,
+        redirectTo: `${window.location.origin}/auth/reset-password`,
       });
 
       if (error) {
-        toast.error('حدث خطأ أثناء إرسال رابط إعادة التعيين');
+        // Provide more specific error messages
+        const msg = error.message?.toLowerCase() || '';
+        if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
+          toast.error('طلبات كثيرة جداً. يرجى الانتظار دقيقة ثم المحاولة مرة أخرى');
+        } else if (msg.includes('email not found') || msg.includes('user not found')) {
+          // Don't reveal whether the email exists (security best practice)
+          // Just show the success screen to avoid email enumeration
+          setEmailSent(true);
+        } else {
+          toast.error('حدث خطأ أثناء إرسال رابط إعادة التعيين');
+        }
         return;
       }
 
