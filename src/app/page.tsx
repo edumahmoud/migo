@@ -193,6 +193,22 @@ function HomeContent() {
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
 
+  // ─── Early Password Recovery Detection (synchronous) ───
+  // Must run BEFORE initialize() so we can prevent the SIGNED_IN race condition.
+  // Supabase consumes the URL hash/query on first getSession() call, so we
+  // need to capture it now before the auth store initializes.
+  const [isRecoveryUrl] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      return hash.includes('type=recovery') || 
+             new URLSearchParams(search).get('type') === 'recovery';
+    } catch {
+      return false;
+    }
+  });
+
   // ─── PWA Process Restore: Check for persisted session ───
   // MUST be defined BEFORE the useEffect that references it.
   // On mobile PWA, when Android kills the WebView process and restores it,
@@ -350,26 +366,17 @@ function HomeContent() {
   // ─── Password Recovery Detection ───
   // When the auth store detects a PASSWORD_RECOVERY event (user clicked
   // reset-password link from email), switch to the update-password form.
+  // Also handles the case where we detected type=recovery in the URL synchronously.
   useEffect(() => {
-    if (passwordRecoveryMode) {
-      setAuthMode('update-password');
-      // Force the page to auth mode so the form is visible
-      setCurrentPage('auth');
-    }
-  }, [passwordRecoveryMode, setCurrentPage]);
-
-  // Also detect recovery from URL hash on initial load
-  // (Supabase redirect puts #type=recovery in the URL)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const hash = window.location.hash;
-    if (hash && hash.includes('type=recovery')) {
+    if (passwordRecoveryMode || isRecoveryUrl) {
       setAuthMode('update-password');
       setCurrentPage('auth');
-      // Clean the hash from URL
-      window.history.replaceState({}, '', window.location.pathname);
+      // Clean the URL to prevent re-detection
+      try {
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch {}
     }
-  }, [setCurrentPage]);
+  }, [passwordRecoveryMode, isRecoveryUrl, setCurrentPage]);
 
   // Set correct page when user state changes
   useEffect(() => {
@@ -377,6 +384,18 @@ function HomeContent() {
 
     // Don't redirect away from the setup wizard while it's in progress
     if (wizardInProgress) return;
+
+    // ─── Don't redirect to dashboard during password recovery ───
+    // When the user clicks a password reset link, we need to keep them
+    // on the auth page to show the UpdatePasswordForm. Without this guard,
+    // the routing useEffect redirects to the dashboard because the user
+    // has a valid session (Supabase sets it during the recovery flow).
+    if (passwordRecoveryMode || isRecoveryUrl) {
+      if (currentPage !== 'auth') {
+        setCurrentPage('auth');
+      }
+      return;
+    }
 
     if (user) {
       if (currentPage === 'auth') {
@@ -411,7 +430,7 @@ function HomeContent() {
       }
       setCurrentPage('auth');
     }
-  }, [user, initialized, currentPage, setCurrentPage, wizardInProgress, hasPersistedSession]);
+  }, [user, initialized, currentPage, setCurrentPage, wizardInProgress, hasPersistedSession, passwordRecoveryMode, isRecoveryUrl]);
 
   // Show auth error toast if present in URL
   useEffect(() => {

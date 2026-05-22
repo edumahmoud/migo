@@ -44,18 +44,10 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // Check if this is a recovery flow by looking at URL hash or query params
-          const hash = window.location.hash;
-          const params = new URLSearchParams(hash.replace('#', ''));
-          const type = params.get('type');
-          
-          if (type === 'recovery' || type === 'signup') {
-            setIsValidRecovery(true);
-          } else {
-            // Even without explicit type, if we have a session and landed here,
-            // it's likely a recovery flow (auth store detected PASSWORD_RECOVERY event)
-            setIsValidRecovery(true);
-          }
+          // If we have a session and this component is rendered, it's because
+          // the auth store detected a PASSWORD_RECOVERY event or the URL had
+          // type=recovery. Either way, the session is valid for password update.
+          setIsValidRecovery(true);
         } else {
           // No session — invalid or expired link
           setIsValidRecovery(false);

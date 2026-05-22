@@ -378,6 +378,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // the INITIAL_SESSION event provides the valid session. Without handling this,
       // the user gets redirected to the login page on refresh.
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+        // ─── Password Recovery Detection (prevents race condition) ───
+        // When the user clicks a password reset link, Supabase fires INITIAL_SESSION
+        // or SIGNED_IN first, then PASSWORD_RECOVERY later. If we process the
+        // SIGNED_IN normally, the routing useEffect redirects to the dashboard
+        // before PASSWORD_RECOVERY has a chance to set passwordRecoveryMode.
+        // FIX: Check the URL for recovery indicators BEFORE processing SIGNED_IN.
+        // If type=recovery is in the URL, skip normal sign-in and set recovery mode.
+        const isRecoveryUrl = typeof window !== 'undefined' && (
+          window.location.hash.includes('type=recovery') ||
+          new URLSearchParams(window.location.search).get('type') === 'recovery'
+        );
+        if (isRecoveryUrl) {
+          console.log('[Auth] Recovery URL detected during SIGNED_IN — setting passwordRecoveryMode');
+          set({ passwordRecoveryMode: true, loading: false });
+          // Clean the URL to prevent re-detection
+          try {
+            window.history.replaceState({}, '', window.location.pathname);
+          } catch {}
+          return; // Skip normal sign-in processing
+        }
+
+        // Also skip if passwordRecoveryMode is already set (PASSWORD_RECOVERY fired first)
+        if (get().passwordRecoveryMode) {
+          return;
+        }
+
         // ─── Prevent race condition with signInWithEmail ───
         // If the user was already set (by signInWithEmail), and the existing profile
         // has a non-fallback role (not 'student' from createFallbackProfile), skip
@@ -435,9 +461,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // User clicked the password reset link from the email.
         // Set passwordRecoveryMode so the UI shows the UpdatePasswordForm
         // instead of the dashboard. We still need the session (user) to call
-        // updateUser({ password }), so we keep the session active.
+        // updateUser({ password }), so we keep the session active but prevent
+        // the routing useEffect from redirecting to the dashboard.
         console.log('[Auth] PASSWORD_RECOVERY event detected');
         set({ passwordRecoveryMode: true, loading: false });
+        // Clean the URL to prevent re-detection
+        try {
+          if (typeof window !== 'undefined') {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        } catch {}
       } else if (event === 'SIGNED_OUT') {
         // Clean up session validation interval
         if (sessionCheckCleanup) {
