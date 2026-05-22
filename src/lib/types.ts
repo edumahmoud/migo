@@ -604,7 +604,7 @@ export interface ReportMessage {
   recipient_type: 'reporter' | 'reported';
   recipient_id: string;
   content: string;
-  message_type: 'info' | 'warning';
+  message_type: 'info' | 'warning' | 'auto';
   attachments?: { url: string; name: string; type: string }[];
   created_at: string;
   // Joined data

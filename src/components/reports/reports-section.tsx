@@ -1754,16 +1754,20 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${
                       isWarning
                         ? 'bg-orange-200 dark:bg-orange-800/60 text-orange-700 dark:text-orange-300'
-                        : msg.recipient_type === 'reporter'
+                        : msg.recipient_role === 'reporter'
                           ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300'
-                          : 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
+                          : msg.recipient_role === 'reported'
+                            ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
+                            : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
                     }`}>
                       {isWarning ? (
                         <><AlertTriangle className="h-3 w-3" /> تحذير</>
-                      ) : msg.recipient_type === 'reporter' ? (
+                      ) : msg.recipient_role === 'reporter' ? (
                         <><Mail className="h-3 w-3" /> بخصوص شكواك</>
-                      ) : (
+                      ) : msg.recipient_role === 'reported' ? (
                         <><Flag className="h-3 w-3" /> بخصوص شكوى ضدك</>
+                      ) : (
+                        <><ShieldAlert className="h-3 w-3" /> بخصوص شكوى تراجعها</>
                       )}
                     </span>
                     {msg.report?.report_number && (

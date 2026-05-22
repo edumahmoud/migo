@@ -105,12 +105,32 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Attach report info + is_auto flag to each message
-    const enrichedMessages = messages.map((msg: any) => ({
-      ...msg,
-      is_auto: msg.message_type === 'auto',
-      report: reportMap.get(msg.report_id) || null,
-    }));
+    // Attach report info + is_auto flag + recipient_role to each message
+    // recipient_role is the ACTUAL role of the recipient in this report context,
+    // unlike recipient_type which only stores 'reporter' or 'reported' as the message context.
+    // This fixes the bug where a teacher/handler sees "بخصوص شكوى ضدك" when they're
+    // not the accused party — just the handler.
+    const enrichedMessages = messages.map((msg: any) => {
+      const report = reportMap.get(msg.report_id);
+      let recipientRole: 'reporter' | 'reported' | 'handler' = 'handler';
+
+      if (report) {
+        if (msg.recipient_id === report.reporter_id) {
+          recipientRole = 'reporter';
+        } else if (report.target_user && msg.recipient_id === report.target_user.id) {
+          recipientRole = 'reported';
+        } else {
+          recipientRole = 'handler';
+        }
+      }
+
+      return {
+        ...msg,
+        is_auto: msg.message_type === 'auto',
+        recipient_role: recipientRole,
+        report: report || null,
+      };
+    });
 
     return NextResponse.json({
       success: true,
