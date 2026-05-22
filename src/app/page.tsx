@@ -15,6 +15,7 @@ import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
 import RegisterForm from '@/components/auth/register-form';
 import ForgotPasswordForm from '@/components/auth/forgot-password-form';
+import UpdatePasswordForm from '@/components/auth/update-password-form';
 import StudentDashboard from '@/components/student/student-dashboard';
 import TeacherDashboard from '@/components/teacher/teacher-dashboard';
 import AdminDashboard from '@/components/admin/admin-dashboard';
@@ -142,7 +143,7 @@ class AppErrorBoundary extends React.Component<
   }
 }
 
-type AuthMode = 'login' | 'register' | 'forgot-password';
+type AuthMode = 'login' | 'register' | 'forgot-password' | 'update-password';
 
 // Admin navigation items (shared between admin-dashboard and profile page sidebar)
 const adminNavItems = [
@@ -185,7 +186,7 @@ const studentNavItems = [
 ];
 
 function HomeContent() {
-  const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo } = useAuthStore();
+  const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo, passwordRecoveryMode, clearPasswordRecovery } = useAuthStore();
   const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, setViewingQuizId, setViewingSummaryId, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection } = useAppStore();
   const { cleanup: cleanupStatusStore, init: initStatusStore } = useStatusStore();
   const { cleanup: cleanupNotifications } = useNotificationStore();
@@ -345,6 +346,30 @@ function HomeContent() {
       }
     } catch {}
   }, [initialize]);
+
+  // ─── Password Recovery Detection ───
+  // When the auth store detects a PASSWORD_RECOVERY event (user clicked
+  // reset-password link from email), switch to the update-password form.
+  useEffect(() => {
+    if (passwordRecoveryMode) {
+      setAuthMode('update-password');
+      // Force the page to auth mode so the form is visible
+      setCurrentPage('auth');
+    }
+  }, [passwordRecoveryMode, setCurrentPage]);
+
+  // Also detect recovery from URL hash on initial load
+  // (Supabase redirect puts #type=recovery in the URL)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash;
+    if (hash && hash.includes('type=recovery')) {
+      setAuthMode('update-password');
+      setCurrentPage('auth');
+      // Clean the hash from URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [setCurrentPage]);
 
   // Set correct page when user state changes
   useEffect(() => {
@@ -645,6 +670,21 @@ function HomeContent() {
                   transition={{ duration: 0.3 }}
                 >
                   <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
+                </motion.div>
+              ) : authMode === 'update-password' ? (
+                <motion.div
+                  key="update-password"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <UpdatePasswordForm
+                    onSuccess={() => {
+                      clearPasswordRecovery();
+                      setAuthMode('login');
+                    }}
+                  />
                 </motion.div>
               ) : (
                 <motion.div

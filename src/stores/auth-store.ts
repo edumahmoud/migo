@@ -205,6 +205,7 @@ interface AuthState {
   initialized: boolean;
   sessionKickedMessage: string | null;
   banInfo: { reason?: string; bannedAt?: string; banUntil?: string | null; isPermanent?: boolean } | null;
+  passwordRecoveryMode: boolean;
   
   // Actions
   setUser: (user: UserProfile | null) => void;
@@ -217,6 +218,7 @@ interface AuthState {
   refreshProfile: () => Promise<void>;
   checkBanStatus: () => Promise<void>;
   cleanup: () => void;
+  clearPasswordRecovery: () => void;
 }
 
 // Cleanup function for session validation interval
@@ -231,8 +233,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialized: false,
   sessionKickedMessage: null,
   banInfo: null,
+  passwordRecoveryMode: false,
   
   setUser: (user) => set({ user, loading: false }),
+  
+  clearPasswordRecovery: () => set({ passwordRecoveryMode: false }),
   
   initialize: async () => {
     // Prevent double initialization
@@ -426,6 +431,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const fallbackProfile = createFallbackProfile(session.user);
           set({ user: fallbackProfile, loading: false, banInfo: null });
         }
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // User clicked the password reset link from the email.
+        // Set passwordRecoveryMode so the UI shows the UpdatePasswordForm
+        // instead of the dashboard. We still need the session (user) to call
+        // updateUser({ password }), so we keep the session active.
+        console.log('[Auth] PASSWORD_RECOVERY event detected');
+        set({ passwordRecoveryMode: true, loading: false });
       } else if (event === 'SIGNED_OUT') {
         // Clean up session validation interval
         if (sessionCheckCleanup) {
@@ -439,7 +451,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             useNotificationStore.getState().cleanup();
           }).catch(() => { /* non-critical */ });
         } catch { /* non-critical */ }
-        set({ user: null, loading: false, banInfo: null });
+        set({ user: null, loading: false, banInfo: null, passwordRecoveryMode: false });
       }
     });
     })();
