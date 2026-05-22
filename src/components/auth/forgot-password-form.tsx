@@ -7,15 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { supabase } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { toast } from 'sonner';
 
-// Supabase Free plan limits emails to 2/hour per project.
-// We enforce a 60-second cooldown between attempts to avoid hitting the limit,
-// and track the last send time in localStorage so it persists across page reloads.
-const COOLDOWN_SECONDS = 60;
+// ─── Constants ───
+const REQUEST_TIMEOUT_MS = 15_000; // 15 seconds timeout for the API call
+const COOLDOWN_SECONDS = 60; // Cooldown between reset emails (Supabase free plan = 2 emails/hour)
 const STORAGE_KEY = 'attendo_reset_pwd_last_sent';
 
+// ─── Helpers ───
 function getLastSentTime(): number {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -29,6 +29,38 @@ function setLastSentTime(ts: number) {
   try {
     localStorage.setItem(STORAGE_KEY, String(ts));
   } catch { /* ignore */ }
+}
+
+/** Basic email format check — avoids sending obviously invalid emails to the API */
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+/**
+ * Wrap a promise with a timeout.
+ * Returns { data, error } just like Supabase — avoids throwing on timeout.
+ * This is the KEY FIX: without a timeout, if the Supabase API is slow/unreachable,
+ * the Promise never settles and the spinner stays forever.
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<{ data: T | null; error: { message: string; status?: number; code?: string } | null }> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      resolve({ data: null, error: { message: `انتهت مهلة الطلب (${Math.round(ms / 1000)} ثانية). يرجى المحاولة مرة أخرى` } });
+    }, ms);
+
+    promise
+      .then((data) => {
+        clearTimeout(timer);
+        resolve({ data, error: null });
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        resolve({ data: null, error: { message: err?.message || 'حدث خطأ في الاتصال', status: err?.status, code: err?.code } });
+      });
+  });
 }
 
 interface ForgotPasswordFormProps {
@@ -75,40 +107,56 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // ── Pre-flight checks ──
     if (!email.trim()) {
       toast.error('يرجى إدخال البريد الإلكتروني');
       return;
     }
-
-    // Client-side cooldown check
+    if (!isValidEmail(email)) {
+      toast.error('صيغة البريد الإلكتروني غير صحيحة');
+      return;
+    }
     if (cooldownRemaining > 0) {
       toast.error(`يرجى الانتظار ${formatCooldown(cooldownRemaining)} قبل المحاولة مرة أخرى`);
+      return;
+    }
+    if (!isSupabaseConfigured) {
+      toast.error('خطأ في إعدادات الخادم — يرجى التواصل مع الدعم');
+      console.error('[ForgotPassword] Supabase is not configured — NEXT_PUBLIC_SUPABASE_URL or ANON_KEY is missing');
       return;
     }
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      });
+      // ── Call Supabase with a timeout wrapper ──
+      // Without timeout, if the API hangs the spinner stays forever.
+      const { data, error } = await withTimeout(
+        supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/reset-password`,
+        }),
+        REQUEST_TIMEOUT_MS,
+      );
 
       if (error) {
-        console.error('[ForgotPassword] Error:', error.message, 'Status:', (error as { status?: number }).status);
+        console.error('[ForgotPassword] Error:', error.message, 'Status:', error.status);
 
         const msg = error.message?.toLowerCase() || '';
-        const status = (error as { status?: number }).status;
-        const errorCode = (error as { code?: string }).code;
+        const status = error.status;
+        const errorCode = error.code;
 
-        if (status === 429 || msg.includes('rate limit') || msg.includes('too many')) {
-          // Rate limit hit — set a 30-min cooldown so the user doesn't retry too quickly
+        if (status === 429 || msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
+          // Rate limit hit — start cooldown so the user doesn't retry too quickly
           setLastSentTime(Date.now());
-          setCooldownRemaining(60);
+          setCooldownRemaining(COOLDOWN_SECONDS);
           toast.error('تم تجاوز حد عدد الرسائل. يرجى الانتظار قبل المحاولة مرة أخرى');
+        } else if (msg.includes('انتهت مهلة') || msg.includes('timeout')) {
+          toast.error('انتهت مهلة الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى');
         } else if (msg.includes('email not found') || msg.includes('user not found')) {
           // Don't reveal whether the email exists (security best practice)
           setEmailSent(true);
         } else if (
-          msg.includes('redirect') || msg.includes('url not allowed') || 
+          msg.includes('redirect') || msg.includes('url not allowed') ||
           msg.includes('invalid redirect') || msg.includes('not allowed') ||
           errorCode === 'url_not_allowed' || status === 403
         ) {
@@ -121,13 +169,14 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
         return;
       }
 
-      // Success — record the time and show confirmation
+      // ── Success ──
       setLastSentTime(Date.now());
       setCooldownRemaining(COOLDOWN_SECONDS);
       setEmailSent(true);
       toast.success('تم إرسال رابط إعادة التعيين إلى بريدك الإلكتروني');
-    } catch {
-      toast.error('حدث خطأ غير متوقع');
+    } catch (err) {
+      console.error('[ForgotPassword] Unexpected error:', err);
+      toast.error('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى');
     } finally {
       setIsLoading(false);
     }
@@ -148,7 +197,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
               استعادة كلمة المرور
             </CardTitle>
             <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-              {emailSent 
+              {emailSent
                 ? 'تم إرسال رابط إعادة التعيين إلى بريدك الإلكتروني'
                 : 'أدخل بريدك الإلكتروني وسنرسل لك رابط إعادة التعيين'
               }
