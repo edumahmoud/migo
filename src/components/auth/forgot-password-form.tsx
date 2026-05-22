@@ -37,24 +37,35 @@ function isValidEmail(email: string): boolean {
 }
 
 /**
- * Wrap a promise with a timeout.
- * Returns { data, error } just like Supabase — avoids throwing on timeout.
- * This is the KEY FIX: without a timeout, if the Supabase API is slow/unreachable,
- * the Promise never settles and the spinner stays forever.
+ * Wrap a Supabase promise with a timeout.
+ *
+ * CRITICAL: Supabase clients resolve with { data, error } even on failure —
+ * they don't throw. The previous version of this wrapper only checked for
+ * thrown errors, which meant Supabase errors were silently swallowed and
+ * the success branch ran (showing a false "email sent" message).
+ *
+ * Now: extracts the inner `error` from the Supabase response so the caller
+ * can check a single `error` variable for both timeout/connection errors
+ * AND Supabase-returned errors.
  */
-function withTimeout<T>(
-  promise: Promise<T>,
+function withSupabaseTimeout<Res extends { data: unknown; error: { message: string; status?: number; code?: string } | null }>(
+  promise: Promise<Res>,
   ms: number,
-): Promise<{ data: T | null; error: { message: string; status?: number; code?: string } | null }> {
+): Promise<{ data: Res['data'] | null; error: { message: string; status?: number; code?: string } | null }> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       resolve({ data: null, error: { message: `انتهت مهلة الطلب (${Math.round(ms / 1000)} ثانية). يرجى المحاولة مرة أخرى` } });
     }, ms);
 
     promise
-      .then((data) => {
+      .then((res) => {
         clearTimeout(timer);
-        resolve({ data, error: null });
+        // Forward Supabase errors so the caller sees them in `error`
+        if (res.error) {
+          resolve({ data: null, error: { message: res.error.message, status: res.error.status, code: (res.error as any).code } });
+        } else {
+          resolve({ data: res.data, error: null });
+        }
       })
       .catch((err) => {
         clearTimeout(timer);
@@ -130,8 +141,9 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
     setIsLoading(true);
     try {
       // ── Call Supabase with a timeout wrapper ──
-      // Without timeout, if the API hangs the spinner stays forever.
-      const { data, error } = await withTimeout(
+      // The wrapper extracts both thrown errors and Supabase-returned errors
+      // into a single `error` field so we never miss a failure.
+      const { error } = await withSupabaseTimeout(
         supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth/reset-password`,
         }),
@@ -139,32 +151,46 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
       );
 
       if (error) {
-        console.error('[ForgotPassword] Error:', error.message, 'Status:', error.status);
+        console.error('[ForgotPassword] Error:', error.message, 'Status:', error.status, 'Code:', error.code);
 
         const msg = error.message?.toLowerCase() || '';
         const status = error.status;
         const errorCode = error.code;
 
-        if (status === 429 || msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
+        if (status === 429 || msg.includes('rate limit') || msg.includes('too many') || msg.includes('429') || msg.includes('email rate limit exceeded')) {
           // Rate limit hit — start cooldown so the user doesn't retry too quickly
           setLastSentTime(Date.now());
           setCooldownRemaining(COOLDOWN_SECONDS);
           toast.error('تم تجاوز حد عدد الرسائل. يرجى الانتظار قبل المحاولة مرة أخرى');
-        } else if (msg.includes('انتهت مهلة') || msg.includes('timeout')) {
+        } else if (msg.includes('انتهت مهلة') || msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort')) {
           toast.error('انتهت مهلة الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى');
-        } else if (msg.includes('email not found') || msg.includes('user not found')) {
+        } else if (
+          msg.includes('email not found') || msg.includes('user not found') ||
+          msg.includes('no user found')
+        ) {
           // Don't reveal whether the email exists (security best practice)
           setEmailSent(true);
         } else if (
           msg.includes('redirect') || msg.includes('url not allowed') ||
           msg.includes('invalid redirect') || msg.includes('not allowed') ||
-          errorCode === 'url_not_allowed' || status === 403
+          errorCode === 'url_not_allowed' || status === 403 ||
+          msg.includes('requested url is not allowed')
         ) {
           toast.error('خطأ في إعدادات رابط إعادة التعيين. يرجى التواصل مع المشرف');
           console.error('[ForgotPassword] Redirect URL not allowed! Add to Supabase Dashboard > Authentication > URL Configuration > Redirect URLs:', `${window.location.origin}/auth/reset-password`);
+        } else if (msg.includes('failed to fetch') || msg.includes('network') || msg.includes('net::')) {
+          toast.error('فشل الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى');
+        } else if (msg.includes('invalid api key') || msg.includes('invalid api') || status === 401) {
+          toast.error('خطأ في إعدادات الخادم. يرجى التواصل مع الدعم الفني');
+          console.error('[ForgotPassword] API key issue — check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY');
         } else {
-          toast.error('حدث خطأ أثناء إرسال رابط إعادة التعيين');
-          console.error('[ForgotPassword] Unhandled error:', error.message);
+          // Show the actual error message so the user can report it —
+          // a generic message makes debugging impossible.
+          const displayMsg = error.message?.length > 100
+            ? error.message.substring(0, 100) + '...'
+            : error.message;
+          toast.error(`خطأ: ${displayMsg}`);
+          console.error('[ForgotPassword] Unhandled error — full details:', JSON.stringify(error));
         }
         return;
       }
