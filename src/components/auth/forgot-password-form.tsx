@@ -33,16 +33,35 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
       });
 
       if (error) {
+        // Log the FULL error object for debugging (status, code, message, etc.)
+        console.error('[ForgotPassword] Full error object:', JSON.stringify(error, null, 2));
+        console.error('[ForgotPassword] Error message:', error.message);
+        console.error('[ForgotPassword] Error status:', (error as { status?: number }).status);
+
         // Provide more specific error messages
         const msg = error.message?.toLowerCase() || '';
-        if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
-          toast.error('طلبات كثيرة جداً. يرجى الانتظار دقيقة ثم المحاولة مرة أخرى');
+        const status = (error as { status?: number }).status;
+        const errorCode = (error as { code?: string }).code;
+
+        // Check for rate limit (429 status or specific messages)
+        if (status === 429 || msg.includes('rate limit') || msg.includes('too many')) {
+          toast.error('طلبات كثيرة جداً. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى');
         } else if (msg.includes('email not found') || msg.includes('user not found')) {
           // Don't reveal whether the email exists (security best practice)
           // Just show the success screen to avoid email enumeration
           setEmailSent(true);
+        } else if (
+          msg.includes('redirect') || msg.includes('url not allowed') || 
+          msg.includes('invalid redirect') || msg.includes('not allowed') ||
+          errorCode === 'url_not_allowed' || status === 403
+        ) {
+          // The redirect URL is not whitelisted in Supabase dashboard
+          toast.error('خطأ في إعدادات رابط إعادة التعيين. يرجى التواصل مع المشرف');
+          console.error('[ForgotPassword] Redirect URL not allowed! Add this URL to Supabase Dashboard > Authentication > URL Configuration > Redirect URLs:', `${window.location.origin}/auth/reset-password`);
         } else {
-          toast.error('حدث خطأ أثناء إرسال رابط إعادة التعيين');
+          // Show the actual Supabase error message for debugging
+          toast.error(`حدث خطأ أثناء إرسال رابط إعادة التعيين: ${error.message}`);
+          console.error('[ForgotPassword] Unhandled reset password error:', error.message, 'Status:', status, 'Code:', errorCode);
         }
         return;
       }
