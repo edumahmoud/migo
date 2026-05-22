@@ -197,16 +197,45 @@ export default function SettingsModal({
 
     setIsChangingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) {
-        toast.error('فشل في تغيير كلمة المرور. تأكد من صحة كلمة المرور الحالية');
+      // ── Step 1: Reauthenticate with current password ──
+      // Supabase requires a recent session to update the password.
+      // We must verify the current password by signing in again.
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: profile.email || '',
+        password: currentPassword,
+      });
+
+      if (reauthError) {
+        console.error('[SettingsModal] Reauthentication failed:', reauthError.message);
+        toast.error('كلمة المرور الحالية غير صحيحة');
+        setIsChangingPassword(false);
         return;
       }
+
+      // ── Step 2: Update password (now the session is fresh) ──
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        console.error('[SettingsModal] Password update error:', error.message, 'Status:', error.status);
+        const msg = error.message?.toLowerCase() || '';
+
+        if (msg.includes('same') || msg.includes('different')) {
+          toast.error('كلمة المرور الجديدة يجب أن تكون مختلفة عن الحالية');
+        } else if (msg.includes('password') && (msg.includes('weak') || msg.includes('require') || msg.includes('strength') || msg.includes('policy'))) {
+          toast.error('كلمة المرور لا تلبي متطلبات الأمان. تأكد من أن كلمة المرور تحتوي على أحرف كبيرة وصغيرة وأرقام');
+        } else if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
+          toast.error('طلبات كثيرة جداً. يرجى الانتظار ثم المحاولة مرة أخرى');
+        } else {
+          toast.error(error.message || 'فشل في تغيير كلمة المرور');
+        }
+        return;
+      }
+
       toast.success('تم تغيير كلمة المرور بنجاح');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch {
+    } catch (err) {
+      console.error('[SettingsModal] Password change error:', err);
       toast.error('حدث خطأ أثناء تغيير كلمة المرور');
     } finally {
       setIsChangingPassword(false);
