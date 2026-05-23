@@ -1765,37 +1765,40 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
     return (
       <motion.div key={quiz.id} variants={itemVariants}>
-        <div className="group relative rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all">
-          {/* Top-right action buttons (teacher) — always visible on mobile, hover on desktop */}
-          <div className="absolute top-3 left-3 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+        <div className="group relative rounded-xl border bg-card p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
+          {/* Teacher action buttons — prominent on mobile, hover-reveal on desktop */}
+          <div className="flex items-center gap-2 mb-3 sm:absolute sm:top-3 sm:left-3 sm:mb-0 sm:gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             {/* Settings */}
             <button
               onClick={() => setSettingsQuiz(quiz)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-teal-50 hover:text-teal-600 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-950/50 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-teal-50 sm:dark:hover:bg-teal-50 sm:hover:text-teal-600 sm:text-sm sm:font-normal"
               title="إعدادات"
             >
-              <Database className="h-3.5 w-3.5" />
+              <Settings className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+              <span className="sm:hidden">إعدادات</span>
             </button>
             {/* Edit */}
             <button
               onClick={() => handleEditQuiz(quiz)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-950/50 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-sky-50 sm:dark:hover:bg-sky-50 sm:hover:text-sky-700 sm:text-sm sm:font-normal"
               title="تعديل"
             >
-              <Pencil className="h-3.5 w-3.5" />
+              <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+              <span className="sm:hidden">تعديل</span>
             </button>
             {/* Delete */}
             <button
               onClick={() => setDeleteQuizConfirmId(quiz.id)}
               disabled={deletingId === quiz.id}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors disabled:opacity-50 sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-rose-50 sm:dark:hover:bg-rose-50 sm:hover:text-rose-600 sm:text-sm sm:font-normal"
               title="حذف"
             >
               {deletingId === quiz.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin sm:h-3.5 sm:w-3.5" />
               ) : (
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
               )}
+              <span className="sm:hidden">حذف</span>
             </button>
           </div>
 

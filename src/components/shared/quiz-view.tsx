@@ -217,6 +217,10 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
       // ─── Review mode: load saved score and show results + review directly ───
       if (reviewMode) {
+        // Reset any state from a previous (non-review) fetch that would block the review UI
+        setAlreadyTaken(false);
+        setQuizCompleted(false);
+
         const { data: savedScore } = await supabase
           .from('scores')
           .select('*')
@@ -279,6 +283,10 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   useEffect(() => {
     if (!reviewMode || !quiz || !profile.id || reviewLoadedRef.current) return;
     reviewLoadedRef.current = true;
+
+    // Clear any blocking state from a non-review fetch
+    setAlreadyTaken(false);
+    setQuizCompleted(false);
 
     // If we already have results showing, no need to reload
     if (showResults) return;
@@ -1169,9 +1177,9 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   }
 
   // -------------------------------------------------------
-  // Already taken state
+  // Already taken state — but review mode takes priority
   // -------------------------------------------------------
-  if (alreadyTaken) {
+  if (alreadyTaken && !reviewMode) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir="rtl">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
