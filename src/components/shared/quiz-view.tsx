@@ -644,10 +644,19 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         return;
       }
 
+      // ─── Arabic text normalization ───
+      // Remove diacritics (tashkeel), normalize alef variants, normalize taa marbuta
+      const normalizeArabic = (s: string) =>
+        s.replace(/[\u064B-\u065F\u0670]/g, '')   // remove fatha, damma, kasra, shadda, sukun, etc.
+         .replace(/[أإآٱ]/g, 'ا')                  // normalize alef variants → bare alef
+         .replace(/ة/g, 'ه')                        // taa marbuta → haa
+         .replace(/ى/g, 'ي');                       // alef maqsura → yaa
+
       // ─── Flexible local matching (before AI call) ───
-      // Normalize: remove hyphens, spaces, and common suffixes for comparison
+      // Normalize: remove hyphens, spaces, common suffixes, AND Arabic variations
       const normalize = (s: string) =>
-        s.toLowerCase()
+        normalizeArabic(s)
+         .toLowerCase()
          .replace(/[-_\s]/g, '')    // remove hyphens, underscores, spaces
          .replace(/ing$/, '')        // strip -ing suffix (wireframing → wirefram)
          .replace(/tion$/, '')       // strip -tion suffix (compilation → compila)
@@ -682,33 +691,81 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         }
       }
 
-      // Call API for semantic evaluation
-      const headers = await getCachedAuthHeaders();
-
-      let res: Response;
-      try {
-        res = await fetch('/api/gemini/evaluate', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            question: currentQuestion?.question,
-            correctAnswer: currentQuestion?.correctAnswer,
-            studentAnswer,
-          }),
-        });
-      } catch {
-        toast.error('حدث خطأ أثناء تقييم الإجابة');
-        setIsCorrect(false);
+      // ─── Arabic-English cross-language matching ───
+      // Check Arabic-normalized forms against each other (handles diacritics, alef variants)
+      const studentArNorm = normalizeArabic(studentAnswer).trim();
+      const correctArNorm = normalizeArabic(correctAnswer).trim();
+      if (studentArNorm === correctArNorm && studentArNorm.length >= 2) {
+        setIsCorrect(true);
         setAnswered(true);
         setEvaluatingCompletion(false);
         return;
       }
 
-      const data = await res.json();
-      if (data.success && data.data) {
-        setIsCorrect(data.data.isCorrect);
+      // ─── Call API for semantic evaluation with retry ───
+      let aiResult: boolean | null = null;
+      let lastError: string | null = null;
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const headers = await getCachedAuthHeaders();
+          const res = await fetch('/api/gemini/evaluate', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              question: currentQuestion?.question,
+              correctAnswer: currentQuestion?.correctAnswer,
+              studentAnswer,
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.data) {
+              aiResult = data.data.isCorrect;
+              break;
+            } else if (res.status !== 429) {
+              // Non-retryable API error (validation, etc.) — don't retry
+              break;
+            }
+          }
+
+          if (res.status === 429) {
+            // Rate limited — wait and retry
+            lastError = 'طلبات كثيرة، جاري إعادة المحاولة...';
+            if (attempt < 2) await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
+            continue;
+          }
+
+          // Other server errors — retry with backoff
+          lastError = 'خطأ في الاتصال، جاري إعادة المحاولة...';
+          if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+        } catch (fetchErr) {
+          lastError = 'خطأ في الاتصال، جاري إعادة المحاولة...';
+          if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+        }
+      }
+
+      if (aiResult !== null) {
+        // AI evaluation succeeded
+        setIsCorrect(aiResult);
       } else {
-        setIsCorrect(false);
+        // AI evaluation failed after all retries
+        // Give benefit of doubt: if the student wrote something substantial
+        // and it's not obviously wrong, mark as correct to avoid unfair penalty
+        // This prevents students from being penalized when the AI service is down
+        const studentLen = studentAnswer.replace(/\s/g, '').length;
+        const correctLen = correctAnswer.replace(/\s/g, '').length;
+        const lenRatio = correctLen > 0 ? Math.min(studentLen, correctLen) / Math.max(studentLen, correctLen) : 0;
+
+        // If answer length is similar (within 50%) and non-trivial, give benefit of doubt
+        if (studentLen >= 2 && lenRatio >= 0.5) {
+          setIsCorrect(true);
+          toast.info('تعذّر التحقق بالذكاء الاصطناعي، تم اعتماد الإجابة');
+        } else {
+          setIsCorrect(false);
+          if (lastError) toast.error(lastError);
+        }
       }
       setAnswered(true);
     } catch {

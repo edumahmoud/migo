@@ -505,7 +505,9 @@ export async function evaluateCompletionAnswer(
     { temperature: 0.1, maxTokens: 10, timeoutMs: 30000, retries: 1, nonStream: true, operation: 'evaluate' },
   );
 
-  return text.trim().toLowerCase().includes('true');
+  const normalized = text.trim().toLowerCase();
+  // Accept both English and Arabic affirmative responses
+  return normalized.includes('true') || normalized.includes('صحيح') || normalized.includes('صح');
 }
 
 /**

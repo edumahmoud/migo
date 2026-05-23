@@ -72,9 +72,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ─── Arabic text normalization ───
+    // Remove diacritics (tashkeel), normalize alef variants, normalize taa marbuta
+    const normalizeArabic = (s: string) =>
+      s.replace(/[\u064B-\u065F\u0670]/g, '')   // remove fatha, damma, kasra, shadda, sukun, etc.
+       .replace(/[أإآٱ]/g, 'ا')                  // normalize alef variants → bare alef
+       .replace(/ة/g, 'ه')                        // taa marbuta → haa
+       .replace(/ى/g, 'ي');                       // alef maqsura → yaa
+
+    // Check Arabic-normalized forms (handles diacritics, alef variants, taa marbuta)
+    const studentArNorm = normalizeArabic(studentLower).trim();
+    const correctArNorm = normalizeArabic(correctLower).trim();
+
+    if (studentArNorm === correctArNorm && studentArNorm.length >= 2) {
+      return NextResponse.json(
+        {
+          success: true,
+          data: detailed
+            ? { isCorrect: true, reasoning: 'الإجابة مطابقة بعد تطبيع النص العربي' }
+            : { isCorrect: true }
+        },
+        { headers: rateLimitHeaders }
+      );
+    }
+
     // ─── Flexible local matching (before AI call) ───
     const normalize = (s: string) =>
-      s.toLowerCase()
+      normalizeArabic(s)
+       .toLowerCase()
        .replace(/[-_\s]/g, '')
        .replace(/ing$/, '')
        .replace(/tion$/, '')
