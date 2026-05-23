@@ -77,6 +77,7 @@ import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar
 import UserLink from '@/components/shared/user-link';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import { useI18n } from '@/lib/i18n/context';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 
@@ -420,6 +421,9 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
 // Main Component
 // -------------------------------------------------------
 export default function AdminDashboard({ profile, onSignOut }: AdminDashboardProps) {
+  // ─── i18n ───
+  const { t, dir } = useI18n();
+
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
   const { sidebarOpen, setSidebarOpen, adminSection: storedAdminSection, setAdminSection: storeSetAdminSection } = useAppStore();
@@ -1324,7 +1328,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* Header */}
       <motion.div variants={itemVariants}>
         <h2 className="text-2xl font-bold text-foreground">
-          {profile.role === 'superadmin' ? 'لوحة تحكم مدير المنصة' : 'لوحة تحكم المشرف'}
+          {profile.role === 'superadmin' ? t('admin.dashboardLabel') : t('admin.dashboardLabel')}
         </h2>
         <p className="text-muted-foreground mt-1">مرحباً بك في لوحة إدارة منصة أتيندو</p>
       </motion.div>
@@ -1333,19 +1337,19 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           icon={<Users className="h-5 w-5" />}
-          label="إجمالي المستخدمين"
+          label={t('admin.statTotalUsers')}
           value={allUsers.length}
           color="sky"
         />
         <StatCard
           icon={<GraduationCap className="h-5 w-5" />}
-          label="المعلمون"
+          label={t('admin.statTeachers')}
           value={teacherCount}
           color="teal"
         />
         <StatCard
           icon={<Users className="h-5 w-5" />}
-          label="الطلاب"
+          label={t('admin.statStudents')}
           value={studentCount}
           color="amber"
         />
@@ -1358,7 +1362,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <div onClick={() => setActiveSection('banned')} className="cursor-pointer">
           <StatCard
             icon={<Ban className="h-5 w-5" />}
-            label="المحظورون"
+            label={t('admin.statBanned')}
             value={bannedUsers.filter(b => b.is_active !== false && (!b.ban_until || new Date(b.ban_until) > new Date())).length}
             color="rose"
           />
@@ -1543,7 +1547,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">المستخدمون</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('admin.usersTitle')}</h2>
           <p className="text-muted-foreground mt-1">إدارة جميع المستخدمين على المنصة</p>
         </div>
         <div className="flex items-center gap-3">
@@ -1573,7 +1577,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
             placeholder="بحث بالاسم أو البريد الإلكتروني..."
             className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-            dir="rtl"
+            dir={dir}
           />
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -1750,7 +1754,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -2002,7 +2006,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -2034,7 +2038,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     placeholder="أدخل سبب الحظر (اختياري)..."
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-colors resize-none"
                     rows={3}
-                    dir="rtl"
+                    dir={dir}
                   />
                 </div>
 
@@ -2136,7 +2140,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">المقررات الدراسية</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('admin.subjectsTitle')}</h2>
           <p className="text-muted-foreground mt-1">جميع المقررات على المنصة</p>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -2158,7 +2162,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 onChange={(e) => setSubjectSearch(e.target.value)}
                 placeholder="بحث باسم المقرر أو الوصف..."
                 className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors"
-                dir="rtl"
+                dir={dir}
               />
             </div>
             {/* Level filter */}
@@ -2168,7 +2172,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 value={subjectLevelFilter}
                 onChange={(e) => setSubjectLevelFilter(e.target.value)}
                 className="w-full sm:w-auto appearance-none rounded-lg border bg-background pr-10 pl-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
-                dir="rtl"
+                dir={dir}
               >
                 <option value="">كل الفرقات</option>
                 {LEVEL_OPTIONS.map((opt) => (
@@ -2183,7 +2187,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 value={subjectSubLevelFilter}
                 onChange={(e) => setSubjectSubLevelFilter(e.target.value)}
                 className="w-full sm:w-auto appearance-none rounded-lg border bg-background pr-10 pl-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
-                dir="rtl"
+                dir={dir}
               >
                 <option value="">كل المستويات</option>
                 {SUB_LEVEL_OPTIONS.map((opt) => (
@@ -2377,7 +2381,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -2715,7 +2719,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">المستخدمون المحظورون</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('admin.bannedUsersTitle')}</h2>
           <p className="text-muted-foreground mt-1">إدارة الحظر المؤقت والنهائي للمستخدمين</p>
         </div>
         <button
@@ -2884,7 +2888,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Header */}
         <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">الإعلانات</h2>
+            <h2 className="text-2xl font-bold text-foreground">{t('admin.announcementsTitle')}</h2>
             <p className="text-muted-foreground mt-1">إنشاء وإدارة إعلانات المنصة</p>
           </div>
           <button
@@ -2996,7 +3000,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 onClick={(e) => e.stopPropagation()}
                 className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-                dir="rtl"
+                dir={dir}
               >
                 <div className="flex items-center justify-between border-b p-5">
                   <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -3021,7 +3025,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       placeholder="عنوان الإعلان..."
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                       disabled={creatingAnnouncement}
-                      dir="rtl"
+                      dir={dir}
                     />
                   </div>
 
@@ -3034,7 +3038,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       rows={4}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
                       disabled={creatingAnnouncement}
-                      dir="rtl"
+                      dir={dir}
                     />
                   </div>
 
@@ -3095,7 +3099,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">التقارير</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('admin.reportsTitle')}</h2>
           <p className="text-muted-foreground mt-1">تقارير وإحصائيات المنصة</p>
         </div>
         <div className="flex items-center gap-3">
@@ -3821,7 +3825,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // Main Render
   // -------------------------------------------------------
   return (
-    <div className="flex min-h-screen" dir="rtl">
+    <div className="flex min-h-screen" dir={dir}>
       {/* Header */}
       <AppHeader
         userName={profile.name}

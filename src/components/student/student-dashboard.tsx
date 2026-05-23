@@ -52,6 +52,7 @@ import ReportsSection from '@/components/reports/reports-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
+import { useI18n } from '@/lib/i18n/context';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
@@ -132,6 +133,9 @@ function scorePercentage(score: number, total: number): number {
 // Main Component
 // -------------------------------------------------------
 export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
+  // ─── i18n ───
+  const { t, dir } = useI18n();
+
   // ─── App store ───
   const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
 
@@ -2415,27 +2419,27 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       {/* Header */}
       <motion.div variants={itemVariants}>
-        <h2 className="text-2xl font-bold text-foreground">لوحة التحكم</h2>
-        <p className="text-muted-foreground mt-1">مرحباً بك في منصة أتيندو التعليمية</p>
+        <h2 className="text-2xl font-bold text-foreground">{t('student.dashboardTitle')}</h2>
+        <p className="text-muted-foreground mt-1">{t('student.welcomeMessage')}</p>
       </motion.div>
 
       {/* Stats row */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           icon={<FileText className="h-5 w-5" />}
-          label="ملخصات"
+          label={t('student.statSummaries')}
           value={summaries.length}
           color="sky"
         />
         <StatCard
           icon={<Folder className="h-5 w-5" />}
-          label="الملفات"
+          label={t('student.statFiles')}
           value={fileCount}
           color="teal"
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5" />}
-          label="متوسط الأداء"
+          label={t('student.statAvgPerformance')}
           value={`${avgPerformance}%`}
           color="amber"
         />
@@ -2449,7 +2453,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                أحدث الملخصات
+                {t('student.latestSummaries')}
               </h3>
               <button
                 onClick={() => setActiveSection('summaries')}
@@ -2492,7 +2496,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               )}
               {summaries.length === 0 && pendingSummaries.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground text-sm">
-                  لا توجد ملخصات بعد
+                  {t('student.noSummariesYet')}
                 </div>
               ) : (
                 <div className="divide-y">
@@ -2596,15 +2600,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">الملخصات</h2>
-          <p className="text-muted-foreground mt-1">جميع ملخصاتك الدراسية في مكان واحد</p>
+          <h2 className="text-2xl font-bold text-foreground">{t('student.summariesTitle')}</h2>
+          <p className="text-muted-foreground mt-1">{t('student.summariesDesc')}</p>
         </div>
         <button
           onClick={() => setNewSummaryOpen(true)}
           className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <Plus className="h-4 w-4" />
-          ملخص جديد
+          {t('student.newSummary')}
         </button>
       </motion.div>
 
@@ -2650,7 +2654,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <FileText className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملخصات</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('student.noSummaries')}</p>
           <p className="text-sm text-muted-foreground mb-4">ابدأ بإنشاء ملخصك الأول من محتوى دراسي</p>
           <button
             onClick={() => setNewSummaryOpen(true)}
@@ -2755,7 +2759,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[90vh] rounded-2xl border bg-background shadow-xl overflow-y-auto"
-              dir="rtl"
+              dir={dir}
             >
               {/* Modal header — sticky so close button stays visible while scrolling */}
               <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
@@ -2923,13 +2927,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <FileText className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  ملخص جديد
+                  {t('student.newSummary')}
                 </h3>
                 <button
                   onClick={() => setNewSummaryOpen(false)}
@@ -2950,7 +2954,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     onChange={(e) => setSummaryTitle(e.target.value)}
                     placeholder="مثال: ملخص الفصل الثالث - الفيزياء"
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
-                    dir="rtl"
+                    dir={dir}
                   />
                 </div>
 
@@ -3090,7 +3094,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       rows={6}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors resize-none"
   
-                      dir="rtl"
+                      dir={dir}
                     />
                   </div>
                 )}
@@ -3251,7 +3255,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       {/* Header */}
       <motion.div variants={itemVariants}>
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground">الاختبارات</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground">{t('student.quizzesTitle')}</h2>
         <p className="text-muted-foreground mt-1 text-sm sm:text-base">اختباراتك واختبارات المعلمين</p>
       </motion.div>
 
@@ -3470,7 +3474,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">المعلمون</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('student.teachersTitle')}</h2>
           <p className="text-muted-foreground mt-1">معلموك المسجلون في المنصة</p>
         </div>
         <div className="flex items-center gap-2">
@@ -3496,7 +3500,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
           >
             <UserPlus className="h-4 w-4" />
-            الارتباط بمعلم جديد
+            {t('student.linkNewTeacher')}
           </button>
         </div>
       </motion.div>
@@ -3510,7 +3514,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <Users className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا يوجد معلمون</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('student.noTeachers')}</p>
           <p className="text-sm text-muted-foreground mb-4">
             اربط حسابك مع معلمك باستخدام الرمز الخاص به
           </p>
@@ -3519,7 +3523,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
           >
             <Link2 className="h-4 w-4" />
-            الارتباط بمعلم جديد
+            {t('student.linkNewTeacher')}
           </button>
         </motion.div>
       )}
@@ -3552,7 +3556,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               exit={{ scale: 0.92, opacity: 0, y: 20, pointerEvents: 'none' as const }}
               transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl border border-border/50 bg-background shadow-2xl shadow-black/8 overflow-hidden"
-              dir="rtl"
+              dir={dir}
             >
               {/* Modal Header */}
               <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-sky-50/30 to-transparent">
@@ -3685,7 +3689,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 mb-4">
@@ -3732,7 +3736,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
@@ -3917,7 +3921,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -3995,7 +3999,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       className="flex items-center gap-1.5 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-100 hover:border-rose-300 transition-colors"
                     >
                       <Unlink className="h-3 w-3" />
-                      إلغاء الربط
+                      {t('student.unlink')}
                     </button>
                   ) : (
                     <div className="space-y-2">
@@ -4056,7 +4060,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -4279,7 +4283,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Main render
   // -------------------------------------------------------
   return (
-    <div className="min-h-screen bg-background" dir="rtl">
+    <div className="min-h-screen bg-background" dir={dir}>
       {/* Header */}
       <AppHeader
         userName={profile.name}

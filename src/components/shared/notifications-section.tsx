@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import type { CourseTab } from '@/lib/types';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/i18n/context';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -60,6 +61,7 @@ function getNotifIcon(type: string, title?: string) {
 }
 
 export default function NotificationsSection() {
+  const { t, dir } = useI18n();
   const { user } = useAuthStore();
   const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore();
   const {
@@ -405,7 +407,7 @@ export default function NotificationsSection() {
 
   return (
     <>
-      <motion.div variants={containerVariants} initial="hidden" animate="visible" dir="rtl" className="space-y-4">
+      <motion.div variants={containerVariants} initial="hidden" animate="visible" dir={dir} className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -413,7 +415,7 @@ export default function NotificationsSection() {
               <Bell className="h-5 w-5 text-sky-700" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-foreground">الإشعارات</h2>
+              <h2 className="text-lg font-bold text-foreground">{t('notifications.title')}</h2>
               <p className="text-xs text-muted-foreground">
                 {bellUnreadCount > 0 ? `${bellUnreadCount} إشعار غير مقروء` : 'لا توجد إشعارات جديدة'}
               </p>
@@ -448,7 +450,7 @@ export default function NotificationsSection() {
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
                 <BellOff className="h-8 w-8 text-sky-400" />
               </div>
-              <p className="text-sm font-medium text-muted-foreground">لا توجد إشعارات</p>
+              <p className="text-sm font-medium text-muted-foreground">{t('notifications.noNotifications')}</p>
               <p className="text-xs text-muted-foreground/70 mt-1">ستظهر الإشعارات الجديدة هنا</p>
             </div>
           </motion.div>
@@ -517,7 +519,7 @@ export default function NotificationsSection() {
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 {linkRequestModal.loading ? (

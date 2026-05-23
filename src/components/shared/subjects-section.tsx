@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject } from '@/lib/types';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Auth helpers
@@ -158,6 +159,7 @@ const modalContentVariants = {
 // -------------------------------------------------------
 
 export default function SubjectsSection({ profile, role }: SubjectsSectionProps) {
+  const { t, dir } = useI18n();
   // ─── App store ───
   const { setSelectedSubjectId: setStoreSelectedSubjectId } = useAppStore();
 
@@ -919,9 +921,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
         <div>
-          <h2 className="text-2xl font-bold text-foreground">المقررات الدراسية</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('subjects.title')}</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            {role === 'teacher' ? 'إدارة مقرراتك ومحاضراتك' : 'مقرراتك المسجلة ومحاضراتها'}
+            {role === 'teacher' ? t('subjects.subtitle') : 'مقرراتك المسجلة ومحاضراتها'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -931,7 +933,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               className="flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-teal-200 transition-all hover:bg-teal-700 hover:shadow-md hover:shadow-teal-200 active:scale-[0.97]"
             >
               <UserPlus className="h-4 w-4" />
-              انضمام بمقرر
+              {t('subjects.joinSubject')}
             </button>
           )}
           {role === 'teacher' && (
@@ -940,7 +942,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-200 transition-all hover:bg-sky-800 hover:shadow-md hover:shadow-sky-200 active:scale-[0.97]"
             >
               <Plus className="h-4 w-4" />
-              مقرر جديد
+              {t('subjects.newSubject')}
             </button>
           )}
         </div>
@@ -964,7 +966,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 value={filterLevel}
                 onChange={(e) => setFilterLevel(e.target.value)}
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
-                dir="rtl"
+                dir={dir}
               >
                 <option value="">جميع الفرق</option>
                 {LEVEL_OPTIONS.map((opt) => (
@@ -980,7 +982,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 value={filterSubLevel}
                 onChange={(e) => setFilterSubLevel(e.target.value)}
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
-                dir="rtl"
+                dir={dir}
               >
                 <option value="">جميع المستويات</option>
                 {SUB_LEVEL_OPTIONS.map((opt) => (
@@ -1021,7 +1023,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             <BookOpen className="h-10 w-10 text-sky-700" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1.5">
-            {role === 'teacher' ? 'لا توجد مقررات بعد' : 'لست مسجلاً في أي مقرر'}
+            {role === 'teacher' ? t('subjects.noSubjects') : 'لست مسجلاً في أي مقرر'}
           </p>
           <p className="text-sm text-muted-foreground mb-6">
             {role === 'teacher'
@@ -1035,7 +1037,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 className="flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-teal-700 active:scale-[0.97]"
               >
                 <UserPlus className="h-4 w-4" />
-                انضمام بمقرر
+                {t('subjects.joinSubject')}
               </button>
             )}
             {role === 'teacher' && (
@@ -1427,7 +1429,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       <Sparkles className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">مقرر جديد</h3>
+                      <h3 className="text-lg font-bold text-foreground">{t('subjects.newSubject')}</h3>
                       <p className="text-xs text-muted-foreground">أنشئ مقرراً دراسياً جديداً</p>
                     </div>
                   </div>
@@ -1452,7 +1454,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     onChange={(e) => setNewSubjectName(e.target.value)}
                     placeholder="مثال: الرياضيات 101"
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                    dir="rtl"
+                    dir={dir}
                     disabled={creatingSubject}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !creatingSubject) handleCreateSubject();
@@ -1471,7 +1473,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     placeholder="وصف اختياري للمقرر..."
                     rows={2}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none"
-                    dir="rtl"
+                    dir={dir}
                     disabled={creatingSubject}
                   />
                 </div>
@@ -1531,7 +1533,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       value={newSubjectLevel}
                       onChange={(e) => setNewSubjectLevel(e.target.value)}
                       className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
-                      dir="rtl"
+                      dir={dir}
                       disabled={creatingSubject}
                     >
                       <option value="">بدون فرقة</option>
@@ -1548,7 +1550,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       value={newSubjectSubLevel}
                       onChange={(e) => setNewSubjectSubLevel(e.target.value)}
                       className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
-                      dir="rtl"
+                      dir={dir}
                       disabled={creatingSubject}
                     >
                       <option value="">بدون ترم</option>
@@ -1656,7 +1658,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               animate="visible"
               exit="exit"
               className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden"
-              dir="rtl"
+              dir={dir}
             >
               {/* Modal gradient header */}
               <div
@@ -1697,7 +1699,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   <>
                     <div className="space-y-2">
                       <label className="text-sm font-semibold text-foreground">
-                        كود الانضمام <span className="text-rose-500">*</span>
+                        {t('subjects.joinCode')} <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -1870,7 +1872,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               animate="visible"
               exit="exit"
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 mb-4">

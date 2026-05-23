@@ -51,6 +51,7 @@ import { toast } from 'sonner';
 import type { UserProfile, UserFile, FileRequest, UserStatus, Subject } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
+import { useI18n } from '@/lib/i18n/context';
 
 // ─── Props ───────────────────────────────────────────────
 interface UserProfilePageProps {
@@ -189,6 +190,7 @@ function getStatusBorderColor(status: UserStatus) {
 
 // ─── Component ───────────────────────────────────────────
 export default function UserProfilePage({ userId, currentUser, onBack }: UserProfilePageProps) {
+  const { t, dir } = useI18n();
   // ─── State ───────────────────────────────────────────
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [publicFiles, setPublicFiles] = useState<PublicFile[]>([]);
@@ -424,7 +426,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
   }
 
   return (
-    <div dir="rtl" className="relative max-w-5xl mx-auto pb-8 px-2 sm:px-0">
+    <div dir={dir} className="relative max-w-5xl mx-auto pb-8 px-2 sm:px-0">
       {/* ─── Cover Banner ─────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -567,7 +569,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         transition={{ duration: 0.4, delay: 0.4 }}
         className="px-4 sm:px-10 mt-5"
       >
-        <Tabs defaultValue="files" dir="rtl" className="w-full">
+        <Tabs defaultValue="files" dir={dir} className="w-full">
           <TabsList className="mb-5 bg-muted/60">
             <TabsTrigger value="files" className="gap-1.5 text-xs sm:text-sm">
               <FolderOpen className="h-4 w-4" />
@@ -768,7 +770,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                         طلب ملف
                                       </Button>
                                     </DialogTrigger>
-                                    <DialogContent dir="rtl" className="sm:max-w-md">
+                                    <DialogContent dir={dir} className="sm:max-w-md">
                                       <DialogHeader>
                                         <DialogTitle className="flex items-center gap-2 text-right">
                                           <MessageSquare className="h-5 w-5 text-sky-700" />
@@ -1029,7 +1031,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
 
       {/* Photo enlargement dialog */}
       <Dialog open={photoEnlarged} onOpenChange={setPhotoEnlarged}>
-        <DialogContent className="max-w-lg p-0 border-0 bg-transparent shadow-none" dir="rtl">
+        <DialogContent className="max-w-lg p-0 border-0 bg-transparent shadow-none" dir={dir}>
           <div className="relative">
             <img
               src={profile.avatar_url || ''}

@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // fetchWithRetry — resilient fetch with automatic retry on network errors
@@ -467,6 +468,7 @@ function ScrollToTopButton() {
 // Main Component
 // -------------------------------------------------------
 export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode }: SummaryViewProps) {
+  const { t, dir } = useI18n();
   // ─── State ───
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1215,7 +1217,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   if (error && !loading) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir="rtl">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={dir}>
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100">
           <XCircle className="h-8 w-8 text-rose-600" />
         </div>
@@ -1247,7 +1249,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   if (!loading && !summary) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir="rtl">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={dir}>
         <p className="text-lg font-semibold text-foreground">لم يتم العثور على الملخص</p>
         <Button onClick={onBack} variant="outline" className="gap-2">
           <ChevronLeft className="h-4 w-4" />
@@ -1266,7 +1268,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       animate="visible"
       variants={staggerContainer}
       className="mx-auto max-w-3xl space-y-6 px-4 py-6 overflow-x-hidden"
-      dir="rtl"
+      dir={dir}
     >
       {/* Header */}
       <motion.div variants={fadeInUp} className="flex items-start gap-3">
@@ -1347,7 +1349,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           }`}
         >
           <BookOpen className="h-4 w-4" />
-          الملخص
+          {t('nav.summaries')}
         </button>
         <button
           onClick={() => setSummaryTab('quiz')}
@@ -1358,7 +1360,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           }`}
         >
           <ClipboardList className="h-4 w-4" />
-          الاختبار
+          {t('student.quizzesTitle')}
         </button>
         <button
           onClick={() => setSummaryTab('completed')}
@@ -1369,7 +1371,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           }`}
         >
           <CheckCircle2 className="h-4 w-4" />
-          المكتملة
+          {t('common.completed')}
         </button>
       </div>
 
@@ -1564,7 +1566,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     size="sm"
                   >
                     <Play className="h-4 w-4" />
-                    ابدأ الاختبار
+                    {t('exams.startQuiz')}
                   </Button>
                 </div>
               </div>
@@ -1768,7 +1770,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   <div className="text-start">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${studentScore.score / studentScore.total >= 0.5 ? 'bg-teal-100 text-teal-700' : 'bg-red-100 text-red-700'}`}>
                       <CheckCircle2 className="h-3 w-3" />
-                      مكتمل
+                      {t('common.completed')}
                     </span>
                   </div>
                 </div>
@@ -1779,7 +1781,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   size="sm"
                 >
                   <Eye className="h-4 w-4" />
-                  مراجعة الاختبار
+                  {t('exams.reviewQuiz')}
                 </Button>
                 )}
               </div>
@@ -1795,7 +1797,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     className="mt-3 gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
                   >
                     <Play className="h-4 w-4" />
-                    ابدأ الاختبار
+                    {t('exams.startQuiz')}
                   </Button>
                 )}
               </div>
@@ -1807,7 +1809,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
       {/* Delete Quiz Confirmation Dialog */}
       <AlertDialog open={deleteQuizConfirmOpen} onOpenChange={setDeleteQuizConfirmOpen}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
             <AlertDialogTitle>حذف الاختبار</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1830,7 +1832,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
       {/* Delete Summary Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
             <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
             <AlertDialogDescription>

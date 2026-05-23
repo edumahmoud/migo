@@ -65,6 +65,7 @@ import TeacherStudentTrackingSection from '@/components/teacher/teacher-student-
 import QuestionBankSection from '@/components/teacher/question-bank-section';
 import ReportsSection from '@/components/reports/reports-section';
 import { useAppStore } from '@/stores/app-store';
+import { useI18n } from '@/lib/i18n/context';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
@@ -136,6 +137,9 @@ const PIE_COLORS = ['#0284c7', '#0d9488', '#f59e0b', '#ef4444'];
 // Main Component
 // -------------------------------------------------------
 export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboardProps) {
+  // ─── i18n ───
+  const { t, dir } = useI18n();
+
   // ─── Stores ───
   const { teacherSection: storedTeacherSection, setTeacherSection: storeSetTeacherSection, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
@@ -1114,7 +1118,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     >
       <div>
         <h2 className="text-2xl font-bold text-foreground">أهلاً بك، {formatNameWithTitle(profile.name, profile.role, profile.title_id, profile.gender)}</h2>
-        <p className="text-muted-foreground mt-1">لوحة تحكم المعلم</p>
+        <p className="text-muted-foreground mt-1">{t('teacher.dashboardLabel')}</p>
       </div>
       {profile.teacher_code && (
         <motion.button
@@ -1125,7 +1129,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           title="انقر للنسخ"
         >
           <Copy className="h-3 w-3" />
-          <span>كود المعلم:</span>
+          <span>{t('teacher.teacherCodeLabel')}</span>
           <span className="font-mono text-xs tracking-wider">{profile.teacher_code}</span>
         </motion.button>
       )}
@@ -1144,7 +1148,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         <div className="relative">
           <StatCard
             icon={<Users className="h-5 w-5" />}
-            label="إجمالي الطلاب"
+            label={t('teacher.statTotalStudents')}
             value={students.length}
             color="sky"
           />
@@ -1160,19 +1164,19 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         </div>
         <StatCard
           icon={<FolderOpen className="h-5 w-5" />}
-          label="الملفات"
+          label={t('teacher.statFiles')}
           value={teacherFilesCount}
           color="teal"
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5" />}
-          label="متوسط الأداء"
+          label={t('teacher.statAvgPerformance')}
           value={`${avgPerformance}%`}
           color="amber"
         />
         <StatCard
           icon={<BookOpen className="h-5 w-5" />}
-          label="المقررات"
+          label={t('teacher.statSubjects')}
           value={teacherSubjects.length}
           color="rose"
         />
@@ -1407,7 +1411,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">الطلاب</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('teacher.studentsTitle')}</h2>
           <p className="text-muted-foreground mt-1">{students.length} طالب مسجل</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1443,7 +1447,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               onChange={(e) => setStudentSearch(e.target.value)}
               placeholder="بحث عن طالب..."
               className="w-full sm:w-48 rounded-lg border bg-background pr-10 pl-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
-              dir="rtl"
+              dir={dir}
             />
           </div>
           {/* View toggle */}
@@ -1509,7 +1513,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               exit={{ scale: 0.92, opacity: 0, y: 20, pointerEvents: 'none' as const }}
               transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl border border-border/50 bg-background shadow-2xl shadow-black/8 overflow-hidden"
-              dir="rtl"
+              dir={dir}
             >
               {/* Modal Header - warm gradient */}
               <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-sky-50/30 to-transparent">
@@ -1641,7 +1645,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 mb-4">
@@ -1688,7 +1692,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
@@ -1744,7 +1748,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -1989,8 +1993,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">التقارير والإحصائيات</h2>
-          <p className="text-muted-foreground mt-1">تحليل شامل لأداء الطلاب والاختبارات</p>
+          <h2 className="text-2xl font-bold text-foreground">{t('teacher.reportsTitle')}</h2>
+          <p className="text-muted-foreground mt-1">{t('teacher.reportsDesc')}</p>
         </div>
         <button
           onClick={handleExportAllData}
@@ -2166,7 +2170,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // Main render
   // -------------------------------------------------------
   return (
-    <div className="min-h-screen bg-background" dir="rtl">
+    <div className="min-h-screen bg-background" dir={dir}>
       {/* Header */}
       <AppHeader
         userName={profile.name}
@@ -2246,7 +2250,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className={`w-full rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto ${viewingScore ? 'max-w-2xl' : 'max-w-lg'}`}
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -2586,7 +2590,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
