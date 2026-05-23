@@ -169,6 +169,9 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   // ─── Shuffle question order state (Feature 8) ───
   const [shuffledOrder, setShuffledOrder] = useState<number[]>([]);
 
+  // ─── Track which question is being AI-evaluated (prevent race condition) ───
+  const evaluatingQuestionIdxRef = useRef<number | null>(null);
+
   // ─── Timer state ───
   const [timeLeft, setTimeLeft] = useState<number | null>(null); // seconds remaining
   const [timerWarning, setTimerWarning] = useState(false);
@@ -479,11 +482,21 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
         } else {
           answerValue = selectedOption || '';
         }
+        // For completion questions not yet evaluated by AI, apply benefit-of-doubt
+        // instead of marking wrong when the timer runs out mid-evaluation
+        let autoIsCorrect = isCorrect;
+        if (currentQuestion.type === 'completion' && !answered && answerValue) {
+          const correctAns = currentQuestion.correctAnswer?.trim() || '';
+          const sLen = String(answerValue).replace(/\s/g, '').length;
+          const cLen = correctAns.replace(/\s/g, '').length;
+          const ratio = cLen > 0 ? Math.min(sLen, cLen) / Math.max(sLen, cLen) : 0;
+          autoIsCorrect = sLen >= 2 && ratio >= 0.5;
+        }
         allAnswers.push({
           questionIndex: autoOriginalIdx,
           type: currentQuestion.type,
           answer: answerValue,
-          isCorrect,
+          isCorrect: autoIsCorrect,
         });
       }
       for (let i = 0; i < (quiz.questions?.length || 0); i++) {
@@ -627,6 +640,10 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       return;
     }
 
+    // Track which question is being evaluated to prevent race condition
+    const evaluatingIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx;
+    evaluatingQuestionIdxRef.current = evaluatingIdx;
+
     setEvaluatingCompletion(true);
 
     try {
@@ -722,8 +739,14 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
           if (res.ok) {
             const data = await res.json();
             if (data.success && data.data) {
-              aiResult = data.data.isCorrect;
-              break;
+              // If server returned a fallback (e.g., rate-limited), don't trust isCorrect
+              // Let it fall through to benefit-of-doubt logic instead
+              if (data.data.fallback) {
+                aiResult = null;
+              } else {
+                aiResult = data.data.isCorrect;
+                break;
+              }
             } else if (res.status !== 429) {
               // Non-retryable API error (validation, etc.) — don't retry
               break;
@@ -744,6 +767,12 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
           lastError = 'خطأ في الاتصال، جاري إعادة المحاولة...';
           if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
         }
+      }
+
+      // Guard: if user navigated away during AI evaluation, don't apply result to wrong question
+      if (evaluatingQuestionIdxRef.current !== evaluatingIdx) {
+        setEvaluatingCompletion(false);
+        return;
       }
 
       if (aiResult !== null) {
@@ -774,6 +803,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       setAnswered(true);
     } finally {
       setEvaluatingCompletion(false);
+      evaluatingQuestionIdxRef.current = null;
     }
   };
 
@@ -1429,6 +1459,23 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                   {currentIdx > 0 && (
                     <Button
                       onClick={() => {
+                        // Save current answer before navigating back
+                        if (answered && currentQuestion) {
+                          const prevOriginalIdx = shuffledOrder.length > 0 ? shuffledOrder[currentIdx] : currentIdx;
+                          const alreadySaved = userAnswers.find(a => a.questionIndex === prevOriginalIdx);
+                          if (!alreadySaved) {
+                            let answerValue: string | Record<string, string> = '';
+                            if (currentQuestion.type === 'matching') answerValue = matchedPairs;
+                            else if (currentQuestion.type === 'completion') answerValue = completionInput.trim();
+                            else answerValue = selectedOption || '';
+                            setUserAnswers(prev => [...prev.filter(a => a.questionIndex !== prevOriginalIdx), {
+                              questionIndex: prevOriginalIdx,
+                              type: currentQuestion.type,
+                              answer: answerValue,
+                              isCorrect,
+                            }]);
+                          }
+                        }
                         setCurrentIdx(prev => prev - 1);
                       }}
                       variant="outline"
