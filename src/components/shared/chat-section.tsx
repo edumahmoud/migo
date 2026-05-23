@@ -1680,7 +1680,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   if (e.key === 'Escape') handleCancelEdit();
                 }}
                 className="rounded-xl border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                dir="rtl"
+                dir={dir}
                 autoFocus
               />
               <div className="flex items-center gap-1.5">
@@ -2400,7 +2400,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     }}
                     placeholder={t('chat.placeholder')}
                     className="flex-1 rounded-xl border bg-muted/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/20 focus:border-sky-600 transition-all"
-                    dir="rtl"
+                    dir={dir}
                     disabled={sending}
                   />
                   <button
@@ -2460,7 +2460,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               transition={{ duration: 0.15 }}
               className="w-full max-w-md bg-card rounded-2xl shadow-2xl border overflow-hidden"
               onClick={(e) => e.stopPropagation()}
-              dir="rtl"
+              dir={dir}
             >
               {/* Dialog header */}
               <div className="flex items-center justify-between p-4 border-b">
@@ -2553,7 +2553,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           if (!open) setConfirmDialog((prev) => ({ ...prev, open: false }));
         }}
       >
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-right">
               <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />

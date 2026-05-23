@@ -67,7 +67,7 @@ export default function AppHeader({
   const { openProfile, setReportsUnreadCount } = useAppStore();
   const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
   const { myStatus, init: initStatusStore } = useStatusStore();
-  const { t, dir } = useI18n();
+  const { t, dir, isRTL } = useI18n();
 
   // Initialize status store with userId (critical for Supabase Presence)
   useEffect(() => {
@@ -203,7 +203,7 @@ export default function AppHeader({
             >
               {/* Avatar + Name — whole area opens dropdown */}
               <div className="hidden sm:flex items-center gap-2 sm:gap-2.5 min-w-0">
-                <div className="flex flex-col items-end min-w-0">
+                <div className={`flex flex-col min-w-0 ${isRTL ? 'items-end' : 'items-start'}`}>
                   <span className="text-sm font-semibold text-foreground truncate max-w-[140px]">
                     {userName}
                   </span>
@@ -214,13 +214,13 @@ export default function AppHeader({
                 <div className="relative">
                   <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
                   {/* Status dot on desktop avatar */}
-                  <span className={`absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
+                  <span className={`absolute -bottom-0.5 ${isRTL ? '-left-0.5' : '-right-0.5'} h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
                 </div>
               </div>
               {/* Mobile: Just avatar with status dot */}
               <div className="sm:hidden relative">
                 <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
-                <span className={`absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
+                <span className={`absolute -bottom-0.5 ${isRTL ? '-left-0.5' : '-right-0.5'} h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
               </div>
               <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 hidden sm:block ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -234,7 +234,7 @@ export default function AppHeader({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, pointerEvents: 'none' as const }}
                   transition={{ duration: 0.1 }}
-                  className="absolute left-0 top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50"
+                  className="absolute end-0 top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50"
                   dir={dir}
                 >
                   {/* User info in dropdown */}

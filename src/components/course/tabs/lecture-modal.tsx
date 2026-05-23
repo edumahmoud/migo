@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePWALifecycle } from '@/hooks/use-pwa-lifecycle';
+import { useI18n } from '@/lib/i18n/context';
 // xlsx is dynamically imported in handleExportExcel to reduce initial bundle size
 import {
   BookOpen,
@@ -228,6 +229,7 @@ export default function LectureModal({
   totalStudents,
   onRefresh,
 }: LectureModalProps) {
+  const { dir } = useI18n();
   const isActive = lecture.attendance_session?.status === 'active';
   const hasSession = !!lecture.attendance_session;
 
@@ -928,7 +930,7 @@ export default function LectureModal({
               animate="visible"
               exit="exit"
               className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border bg-background shadow-2xl pointer-events-auto"
-              dir="rtl"
+              dir={dir}
             >
               {/* ─── Header ─── */}
               <div className="sticky top-0 z-10 bg-background border-b p-5">
@@ -1107,7 +1109,7 @@ export default function LectureModal({
                                     onChange={(e) => updatePendingFileName(idx, e.target.value)}
                                     placeholder="اسم الملف (بدون الامتداد)"
                                     className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                                    dir="rtl"
+                                    dir={dir}
                                     disabled={pf.status === 'uploading'}
                                   />
                                   {pf.fileName.includes('.') && (
@@ -1430,7 +1432,7 @@ export default function LectureModal({
                             onChange={(e) => setNewNote(e.target.value)}
                             placeholder={noteVisibility === 'public' ? 'اكتب ملاحظة عامة يراها جميع الطلاب...' : 'اكتب ملاحظة خاصة بك...'}
                             className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                            dir="rtl"
+                            dir={dir}
                             disabled={savingNote}
                             onKeyDown={(e) => { if (e.key === 'Enter' && !savingNote) handleAddNote(); }}
                           />
@@ -1566,7 +1568,7 @@ export default function LectureModal({
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[80vh] rounded-2xl border bg-background shadow-xl overflow-hidden"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">
@@ -1597,7 +1599,7 @@ export default function LectureModal({
                     onChange={(e) => setManualSearchQuery(e.target.value)}
                     placeholder="ابحث بالاسم..."
                     className="w-full rounded-xl border bg-background pr-10 pl-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                    dir="rtl"
+                    dir={dir}
                     autoFocus
                   />
                 </div>
@@ -1685,7 +1687,7 @@ export default function LectureModal({
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden pointer-events-auto"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">

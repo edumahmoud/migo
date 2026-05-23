@@ -5,6 +5,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Lock, Loader2, CheckCircle2, Eye, EyeOff, ShieldCheck, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useI18n } from '@/lib/i18n/context';
 
 // ─── Supabase config ───
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -27,6 +28,7 @@ const strengthTextColors = ['text-rose-600', 'text-amber-600', 'text-emerald-600
 type PageState = 'loading' | 'invalid' | 'form' | 'success' | 'error';
 
 export default function ResetPasswordPage() {
+  const { dir } = useI18n();
   const [pageState, setPageState] = useState<PageState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -203,7 +205,7 @@ export default function ResetPasswordPage() {
   // ─── Render ───
   return (
     <div
-      dir="rtl"
+      dir={dir}
       className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 via-white to-sky-50/30 px-4 py-8"
     >
       <div className="w-full max-w-md">

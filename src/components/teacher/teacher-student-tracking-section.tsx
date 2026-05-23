@@ -1013,7 +1013,7 @@ export default function TeacherStudentTrackingSection({
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="w-full sm:w-48 h-9 pr-9 pl-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 transition-all"
-                    dir="rtl"
+                    dir={dir}
                   />
                 </div>
 
@@ -1023,7 +1023,7 @@ export default function TeacherStudentTrackingSection({
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value as SortOption)}
                     className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 appearance-none cursor-pointer"
-                    dir="rtl"
+                    dir={dir}
                   >
                     {SORT_OPTIONS.map(opt => (
                       <option key={opt.key} value={opt.key}>

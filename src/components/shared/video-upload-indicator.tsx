@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, CheckCircle2, AlertCircle, Pause, Play, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useVideoUploadStore } from '@/stores/video-upload-store';
+import { useI18n } from '@/lib/i18n/context';
 import { useState } from 'react';
 
 /**
@@ -12,6 +13,7 @@ import { useState } from 'react';
  * Supports pause/resume/cancel for each upload.
  */
 export default function VideoUploadIndicator() {
+  const { dir } = useI18n();
   const { tasks, pauseTask, resumeTask, cancelTask, clearCompleted } = useVideoUploadStore();
   const [expanded, setExpanded] = useState(false);
 
@@ -48,7 +50,7 @@ export default function VideoUploadIndicator() {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 50 }}
         className="fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 sm:bottom-6 z-[60] pointer-events-none"
-        dir="rtl"
+        dir={dir}
       >
         <div className="pointer-events-auto rounded-xl border bg-background/95 backdrop-blur-md shadow-xl overflow-hidden">
           {/* Header - always visible */}

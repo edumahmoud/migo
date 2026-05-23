@@ -30,6 +30,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Types
@@ -64,6 +65,7 @@ export default function SettingsModal({
   onUpdateProfile,
   onDeleteAccount,
 }: SettingsModalProps) {
+  const { dir } = useI18n();
   const [name, setName] = useState(profile.name);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -258,7 +260,7 @@ export default function SettingsModal({
   // ─── Render ───────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir={dir}>
         <DialogHeader className="text-right">
           <DialogTitle className="flex items-center gap-2 text-right">
             <Settings className="h-5 w-5 text-sky-700" />
@@ -511,7 +513,7 @@ export default function SettingsModal({
                   </Button>
                 </AlertDialogTrigger>
 
-                <AlertDialogContent dir="rtl">
+                <AlertDialogContent dir={dir}>
                   <AlertDialogHeader className="text-right">
                     <AlertDialogTitle className="text-right">
                       تأكيد حذف الحساب

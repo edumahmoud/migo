@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Megaphone, X, AlertTriangle, Info, AlertCircle } from 'lucide-react';
 import type { Announcement } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -81,6 +82,7 @@ function saveDismissedSet(userId: string, dismissed: Set<string>) {
 // Main Component
 // -------------------------------------------------------
 export default function AnnouncementsBanner({ userId }: AnnouncementsBannerProps) {
+  const { dir } = useI18n();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dismissed, setDismissed] = useState<Set<string>>(() => getDismissedSet(userId));
@@ -139,7 +141,7 @@ export default function AnnouncementsBanner({ userId }: AnnouncementsBannerProps
         animate="visible"
         exit="exit"
         className={`rounded-xl border ${style.bg} p-3 sm:p-4`}
-        dir="rtl"
+        dir={dir}
       >
         <div className="flex items-start gap-3">
           {style.icon}

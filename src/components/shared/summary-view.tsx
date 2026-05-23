@@ -84,7 +84,7 @@ async function fetchWithRetry(
     }
   }
   clearTimeout(timeoutId);
-  throw lastError || new Error('فشل الاتصال بعد عدة محاولات');
+  throw lastError || new Error('Connection failed after multiple retries');
 }
 
 // -------------------------------------------------------
@@ -174,27 +174,27 @@ interface AiProgressState {
   phase: string;
 }
 
-const AI_PHASES_SUMMARY = [
-  { threshold: 0,  label: 'جاري تحليل المحتوى...' },
-  { threshold: 25, label: 'جاري استخراج المفاهيم الرئيسية...' },
-  { threshold: 50, label: 'جاري بناء الملخص...' },
-  { threshold: 75, label: 'جاري تنسيق النص...' },
-  { threshold: 90, label: 'جاري المراجعة النهائية...' },
+const AI_PHASES_SUMMARY_KEYS = [
+  { threshold: 0,  labelKey: 'summary.analyzing' },
+  { threshold: 25, labelKey: 'summary.extractingConcepts' },
+  { threshold: 50, labelKey: 'summary.buildingSummary' },
+  { threshold: 75, labelKey: 'summary.formatting' },
+  { threshold: 90, labelKey: 'summary.finalReview' },
 ];
 
-const AI_PHASES_REFINE = [
-  { threshold: 0,  label: 'جاري قراءة النص المستخرج...' },
-  { threshold: 20, label: 'جاري تصحيح أخطاء التعرف البصري...' },
-  { threshold: 45, label: 'جاري تنظيم الفقرات والعناوين...' },
-  { threshold: 70, label: 'جاري تنسيق المحتوى...' },
-  { threshold: 90, label: 'جاري المراجعة النهائية...' },
+const AI_PHASES_REFINE_KEYS = [
+  { threshold: 0,  labelKey: 'summary.readingText' },
+  { threshold: 20, labelKey: 'summary.fixingOcr' },
+  { threshold: 45, labelKey: 'summary.organizingParagraphs' },
+  { threshold: 70, labelKey: 'summary.formatting' },
+  { threshold: 90, labelKey: 'summary.finalReview' },
 ];
 
-const AI_PHASES_QUIZ = [
-  { threshold: 0,  label: 'جاري تحليل المحتوى...' },
-  { threshold: 30, label: 'جاري إنشاء الأسئلة...' },
-  { threshold: 60, label: 'جاري مراجعة الإجابات...' },
-  { threshold: 85, label: 'جاري التنسيق النهائي...' },
+const AI_PHASES_QUIZ_KEYS = [
+  { threshold: 0,  labelKey: 'summary.analyzing' },
+  { threshold: 30, labelKey: 'summary.creatingQuestions' },
+  { threshold: 60, labelKey: 'summary.reviewingAnswers' },
+  { threshold: 85, labelKey: 'summary.finalFormatting' },
 ];
 
 function useAiProgress(isActive: boolean, phases: { threshold: number; label: string }[], estimatedDurationMs: number = 60000) {
@@ -242,9 +242,9 @@ function useAiProgress(isActive: boolean, phases: { threshold: number; label: st
     };
   }, [isActive, phases, estimatedDurationMs]);
 
-  const completeProgress = useCallback(() => {
+  const completeProgress = useCallback((completionLabel?: string) => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    setProgress({ percent: 100, phase: 'اكتمل!' });
+    setProgress({ percent: 100, phase: completionLabel || '✓' });
   }, []);
 
   return { progress, completeProgress };
@@ -259,11 +259,13 @@ function StepProgress({
   phase,
   steps,
   color = 'sky',
+  pleaseWaitText,
 }: {
   percent: number;
   phase: string;
   steps: { threshold: number; label: string }[];
   color?: 'sky' | 'teal' | 'rose';
+  pleaseWaitText?: string;
 }) {
   // Determine active step based on percent and thresholds
   let activeStepIdx = 0;
@@ -405,7 +407,7 @@ function StepProgress({
           <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: c.text }} />
           <p className="text-sm font-semibold" style={{ color: c.text }}>{phase}</p>
         </div>
-        <p className="text-xs text-muted-foreground">يرجى الانتظار، لا تغادر الصفحة</p>
+        <p className="text-xs text-muted-foreground">{pleaseWaitText}</p>
       </div>
     </div>
   );
@@ -439,6 +441,7 @@ const staggerContainer = {
 // Scroll to Top Button
 // -------------------------------------------------------
 function ScrollToTopButton() {
+  const { t } = useI18n();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -457,7 +460,7 @@ function ScrollToTopButton() {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.5, y: 20 }}
       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-      aria-label="العودة للأعلى"
+      aria-label={t('summary.scrollToTop')}
     >
       <ArrowUp className="h-5 w-5" />
     </motion.button>
@@ -490,10 +493,14 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [copied, setCopied] = useState(false);
   const [refining, setRefining] = useState(false);
 
-  // ─── AI Progress trackers ───
-  const summaryProgress = useAiProgress(regenerating, AI_PHASES_SUMMARY, 60000);
-  const refineProgress = useAiProgress(refining, AI_PHASES_REFINE, 60000);
-  const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, AI_PHASES_QUIZ, 60000);
+  // ─── AI Progress trackers (resolve i18n keys at render time) ───
+  const aiPhasesSummary = AI_PHASES_SUMMARY_KEYS.map(p => ({ ...p, label: t(p.labelKey) }));
+  const aiPhasesRefine = AI_PHASES_REFINE_KEYS.map(p => ({ ...p, label: t(p.labelKey) }));
+  const aiPhasesQuiz = AI_PHASES_QUIZ_KEYS.map(p => ({ ...p, label: t(p.labelKey) }));
+
+  const summaryProgress = useAiProgress(regenerating, aiPhasesSummary, 60000);
+  const refineProgress = useAiProgress(refining, aiPhasesRefine, 60000);
+  const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, aiPhasesQuiz, 60000);
 
   // ─── Tab state ───
   const [summaryTab, setSummaryTab] = useState<'summary' | 'quiz' | 'completed'>('summary');
@@ -537,7 +544,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         console.warn('[fetchSummary] No token available after waiting');
         // If we already have data, don't show error — just keep existing data
         if (hasValidDataRef.current) return;
-        setError('جاري تحميل الجلسة...');
+        setError(t('summary.loadingSession'));
         return;
       }
 
@@ -561,7 +568,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         console.warn('[fetchSummary] Auth not ready (401), will retry on auth state change');
         // If we already have data, don't overwrite with error
         if (!hasValidDataRef.current) {
-          setError('جاري تحميل الجلسة...');
+          setError(t('summary.loadingSession'));
         }
         return;
       }
@@ -569,7 +576,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       // ─── Strategy 3: If 404, the summary might not be saved yet (still generating) ───
       if (res.status === 404) {
         console.warn('[fetchSummary] Summary not found in DB, might still be generating');
-        setError('لم يتم العثور على الملخص');
+        setError(t('summary.notFound'));
         return;
       }
 
@@ -596,7 +603,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       if (fetchError || !data) {
         // If we already have data, don't overwrite with error
         if (!hasValidDataRef.current) {
-          setError('لم يتم العثور على الملخص');
+          setError(t('summary.notFound'));
         }
         return;
       }
@@ -605,7 +612,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     } catch {
       // If we already have data, don't overwrite with error
       if (!hasValidDataRef.current) {
-        setError('حدث خطأ أثناء تحميل الملخص');
+        setError(t('summary.loadError'));
       }
     } finally {
       setLoading(false);
@@ -698,7 +705,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       // Only set error if we don't already have data
       setSummary((prev) => {
         if (!prev) {
-          setError('انتهت مهلة تحميل الملخص. يرجى المحاولة مرة أخرى');
+          setError(t('summary.timeoutError'));
         }
         return prev;
       });
@@ -764,17 +771,17 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       if (e.key === 'PrintScreen') {
         e.preventDefault();
         navigator.clipboard?.writeText('').catch(() => {});
-        toast.warning('تم تعطيل لقطة الشاشة');
+        toast.warning(t('summary.screenshotDisabled'));
         return;
       }
       if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
-        toast.warning('تم تعطيل لقطة الشاشة');
+        toast.warning(t('summary.screenshotDisabled'));
         return;
       }
       if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
         e.preventDefault();
-        toast.warning('تم تعطيل لقطة الشاشة');
+        toast.warning(t('summary.screenshotDisabled'));
         return;
       }
       if (e.ctrlKey && e.key === 'p') {
@@ -869,9 +876,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           if (recovered) {
             setSummary(recovered);
             hasValidDataRef.current = true;
-            toast.success('تم استرداد نتيجة التنقيح بنجاح!');
+            toast.success(t('summary.recoverRefineSuccess'));
           } else {
-            toast.info('لم يتم العثور على نتيجة سابقة للتنقيح');
+            toast.info(t('summary.recoverRefineNotFound'));
           }
           setRefining(false);
           sessionStorage.removeItem(STORAGE_KEY_OP);
@@ -882,9 +889,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           if (recovered) {
             setSummary(recovered);
             hasValidDataRef.current = true;
-            toast.success('تم استرداد نتيجة إعادة التلخيص بنجاح!');
+            toast.success(t('summary.recoverRegenerateSuccess'));
           } else {
-            toast.info('لم يتم العثور على نتيجة سابقة');
+            toast.info(t('summary.recoverRegenerateNotFound'));
           }
           setRegenerating(false);
           sessionStorage.removeItem(STORAGE_KEY_OP);
@@ -894,7 +901,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         recoverQuizFromDB(summaryId, 5).then(recovered => {
           if (recovered) {
             setRelatedQuiz(recovered);
-            toast.success('تم استرداد الاختبار بنجاح!');
+            toast.success(t('summary.recoverQuizSuccess'));
           }
           setGeneratingQuiz(false);
           sessionStorage.removeItem(STORAGE_KEY_OP);
@@ -921,11 +928,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       }, 3);
       const data = await res.json();
       if (res.ok && data.success) {
-        summaryProgress.completeProgress();
+        summaryProgress.completeProgress(t('summary.completed'));
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
         markOpComplete();
-        toast.success('تم إعادة توليد الملخص بنجاح');
+        toast.success(t('summary.regenerateSuccess'));
         setRegenerating(false);
         return; // ✅ Success — exit loading
       }
@@ -939,18 +946,18 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     console.log('[handleRegenerateSummary] Fetch failed, attempting DB recovery...');
     const recovered = await recoverSummaryFromDB(summaryId, previousContent);
     if (recovered) {
-      summaryProgress.completeProgress();
+      summaryProgress.completeProgress(t('summary.completed'));
       setSummary(recovered);
       hasValidDataRef.current = true;
       markOpComplete();
-      toast.success('تم إعادة توليد الملخص بنجاح');
+      toast.success(t('summary.regenerateSuccess'));
       setRegenerating(false);
       return; // ✅ Recovered — exit loading
     }
 
     // Truly failed — all recovery attempts exhausted
     markOpComplete();
-    toast.error('حدث خطأ أثناء إعادة التلخيص. يرجى المحاولة مرة أخرى');
+    toast.error(t('summary.regenerateError'));
     setRegenerating(false);
   };
 
@@ -967,13 +974,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم حذف الملخص بنجاح');
+        toast.success(t('summary.deleteSuccess'));
         onBack();
       } else {
-        toast.error(data.error || 'فشل حذف الملخص');
+        toast.error(data.error || t('summary.deleteError'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء حذف الملخص');
+      toast.error(t('summary.deleteErrorGeneral'));
     } finally {
       setDeleting(false);
       setDeleteConfirmOpen(false);
@@ -989,13 +996,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     try {
       const { error } = await supabase.from('quizzes').delete().eq('id', relatedQuiz.id);
       if (error) {
-        toast.error('حدث خطأ أثناء حذف الاختبار');
+        toast.error(t('summary.quizDeleteError'));
       } else {
-        toast.success('تم حذف الاختبار بنجاح');
+        toast.success(t('summary.quizDeleted'));
         setRelatedQuiz(null);
       }
     } catch {
-      toast.error('حدث خطأ أثناء حذف الاختبار');
+      toast.error(t('summary.quizDeleteError'));
     } finally {
       setDeletingQuiz(false);
       setDeleteQuizConfirmOpen(false);
@@ -1023,21 +1030,21 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         // Try recovery — quiz might have been created but response lost
         const recoveredQuiz = await recoverQuizFromDB(summaryId);
         if (recoveredQuiz) {
-          quizProgress.completeProgress();
+          quizProgress.completeProgress(t('summary.completed'));
           setRelatedQuiz({ ...recoveredQuiz, shuffle_questions: quizShuffleQuestions } as Quiz);
-          toast.success('تم إنشاء الاختبار بنجاح');
+          toast.success(t('summary.quizCreated'));
           setShowQuizConfig(false);
           setGeneratingQuiz(false);
           return; // ✅ Recovered
         }
-        toast.error(quizData.error || 'فشل إنشاء الاختبار');
+        toast.error(quizData.error || t('summary.quizCreateError'));
         setGeneratingQuiz(false);
         return;
       }
 
       // Save the quiz
       const quizPayload: Record<string, unknown> = {
-        title: `اختبار: ${summary?.title || 'ملخص'}`,
+        title: t('summary.quizTitle', { title: summary?.title || t('student.summariesTitle') }),
         questions: quizData.data.questions,
         summaryId,
         show_results: quizAnswerMode === 'after' ? false : true,
@@ -1057,28 +1064,28 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       if (saveRes.ok) {
         const saveData = await saveRes.json();
         const savedQuiz = { ...saveData.data, shuffle_questions: quizShuffleQuestions } as Quiz;
-        quizProgress.completeProgress();
+        quizProgress.completeProgress(t('summary.completed'));
         setRelatedQuiz(savedQuiz);
-        toast.success('تم إنشاء الاختبار بنجاح');
+        toast.success(t('summary.quizCreated'));
         setShowQuizConfig(false);
         setGeneratingQuiz(false);
       } else {
         const saveErrData = await saveRes.json().catch(() => ({}));
         console.error('[SummaryView] Quiz save failed:', saveRes.status, saveErrData);
-        toast.error(saveErrData.error || 'فشل حفظ الاختبار');
+        toast.error(saveErrData.error || t('summary.quizSaveError'));
       }
     } catch {
       // Network error — try recovery
       const recoveredQuiz = await recoverQuizFromDB(summaryId);
       if (recoveredQuiz) {
-        quizProgress.completeProgress();
+        quizProgress.completeProgress(t('summary.completed'));
         setRelatedQuiz({ ...recoveredQuiz, shuffle_questions: quizShuffleQuestions } as Quiz);
-        toast.success('تم إنشاء الاختبار بنجاح');
+        toast.success(t('summary.quizCreated'));
         setShowQuizConfig(false);
         setGeneratingQuiz(false);
         return; // ✅ Recovered
       }
-      toast.error('حدث خطأ أثناء إنشاء الاختبار');
+      toast.error(t('summary.quizCreateGeneralError'));
     } finally {
       setGeneratingQuiz(false);
     }
@@ -1101,8 +1108,8 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       const data = await res.json();
       if (res.ok && data.success) {
         setRelatedQuiz(data.data as Quiz);
-        quizProgress.completeProgress();
-        toast.success('تم إعادة إنشاء الاختبار بنجاح');
+        quizProgress.completeProgress(t('summary.completed'));
+        toast.success(t('summary.quizRegenerateSuccess'));
         setRegeneratingQuiz(false);
         return; // ✅ Success
       }
@@ -1114,13 +1121,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     const recoveredQuiz = await recoverQuizFromDB(summaryId);
     if (recoveredQuiz) {
       setRelatedQuiz(recoveredQuiz);
-      quizProgress.completeProgress();
-      toast.success('تم إعادة إنشاء الاختبار بنجاح');
+      quizProgress.completeProgress(t('summary.completed'));
+      toast.success(t('summary.quizRegenerateSuccess'));
       setRegeneratingQuiz(false);
       return; // ✅ Recovered
     }
 
-    toast.error('حدث خطأ أثناء إعادة إنشاء الاختبار');
+    toast.error(t('summary.quizRegenerateError'));
     setRegeneratingQuiz(false);
   };
 
@@ -1142,11 +1149,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       }, 3);
       const data = await res.json();
       if (res.ok && data.success) {
-        refineProgress.completeProgress();
+        refineProgress.completeProgress(t('summary.completed'));
         setSummary(data.data as Summary);
         hasValidDataRef.current = true;
         markOpComplete();
-        toast.success('تم تنقيح وتنسيق النص بنجاح');
+        toast.success(t('summary.refineSuccess'));
         setRefining(false);
         return; // ✅ Success — exit loading
       }
@@ -1159,18 +1166,18 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     console.log('[handleRefineText] Fetch failed, attempting DB recovery...');
     const recovered = await recoverSummaryFromDB(summaryId, previousContent);
     if (recovered) {
-      refineProgress.completeProgress();
+      refineProgress.completeProgress(t('summary.completed'));
       setSummary(recovered);
       hasValidDataRef.current = true;
       markOpComplete();
-      toast.success('تم تنقيح وتنسيق النص بنجاح');
+      toast.success(t('summary.refineSuccess'));
       setRefining(false);
       return; // ✅ Recovered — exit loading
     }
 
     // Truly failed — all recovery attempts exhausted
     markOpComplete();
-    toast.error('حدث خطأ أثناء تنقيح النص. يرجى المحاولة مرة أخرى');
+    toast.error(t('summary.refineError'));
     setRefining(false);
   };
 
@@ -1182,7 +1189,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     try {
       await navigator.clipboard.writeText(summary.summary_content);
       setCopied(true);
-      toast.success('تم نسخ المحتوى');
+      toast.success(t('summary.copySuccess'));
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback for older browsers
@@ -1195,10 +1202,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       try {
         document.execCommand('copy');
         setCopied(true);
-        toast.success('تم نسخ المحتوى');
+        toast.success(t('summary.copySuccess'));
         setTimeout(() => setCopied(false), 2000);
       } catch {
-        toast.error('فشل نسخ المحتوى');
+        toast.error(t('summary.copyFail'));
       }
       document.body.removeChild(textArea);
     }
@@ -1221,7 +1228,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100">
           <XCircle className="h-8 w-8 text-rose-600" />
         </div>
-        <p className="text-lg font-semibold text-foreground">{error || 'حدث خطأ غير متوقع'}</p>
+        <p className="text-lg font-semibold text-foreground">{error || t('common.errorUnexpected')}</p>
         <div className="flex gap-2">
           <Button
             onClick={() => fetchSummary()}
@@ -1229,7 +1236,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
           >
             <RefreshCw className="h-4 w-4" />
-            إعادة المحاولة
+            {t('common.retry')}
           </Button>
           <Button
             onClick={onBack}
@@ -1237,7 +1244,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             className="gap-2 border-sky-300 text-sky-800 hover:bg-sky-50"
           >
             <ChevronLeft className="h-4 w-4" />
-            العودة
+            {t('common.back')}
           </Button>
         </div>
       </div>
@@ -1250,10 +1257,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   if (!loading && !summary) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={dir}>
-        <p className="text-lg font-semibold text-foreground">لم يتم العثور على الملخص</p>
+        <p className="text-lg font-semibold text-foreground">{t('summary.notFound')}</p>
         <Button onClick={onBack} variant="outline" className="gap-2">
           <ChevronLeft className="h-4 w-4" />
-          العودة
+          {t('common.back')}
         </Button>
       </div>
     );
@@ -1289,7 +1296,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
               <h1 className="text-xl font-bold text-foreground leading-relaxed">{summary?.title}</h1>
               <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
                 <BookOpen className="h-3 w-3" />
-                ملخص دراسي
+                {t('summary.studySummary')}
               </p>
             </>
           )}
@@ -1301,7 +1308,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             variant="outline"
             size="sm"
             className="gap-1.5 border-rose-300 text-rose-600 hover:bg-rose-50 print:hidden sm:hidden"
-            title="حذف الملخص"
+            title={t('summary.deleteSummary')}
             disabled={deleting}
           >
             {deleting ? (
@@ -1316,14 +1323,14 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             variant="outline"
             size="sm"
             className="gap-1.5 border-sky-300 text-sky-800 hover:bg-sky-50 print:hidden"
-            title="نسخ المحتوى"
+            title={t('summary.copyContent')}
           >
             {copied ? (
               <CheckCircle2 className="h-4 w-4 text-sky-600" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
-            <span className="hidden sm:inline">{copied ? 'تم النسخ' : 'نسخ'}</span>
+            <span className="hidden sm:inline">{copied ? t('summary.copySuccess') : t('summary.copyContent')}</span>
           </Button>
           {/* Print button */}
           <Button
@@ -1333,7 +1340,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             className="gap-1.5 border-sky-300 text-sky-800 hover:bg-sky-50 print:hidden"
           >
             <Printer className="h-4 w-4" />
-            <span className="hidden sm:inline">طباعة</span>
+            <span className="hidden sm:inline">{t('common.download')}</span>
           </Button>
         </div>
       </motion.div>
@@ -1388,20 +1395,20 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 </div>
                 <div>
                   <h2 className={`text-sm font-bold ${isTranscribed ? 'text-teal-700' : 'text-sky-800'}`}>
-                    {isTranscribed ? 'النص المفرّغ' : 'الملخص'}
+                    {isTranscribed ? t('summary.transcribedText') : t('nav.summaries')}
                   </h2>
                   <p className={`text-xs ${isTranscribed ? 'text-teal-600/70' : 'text-sky-700/70'}`}>
                     {isTranscribed
                       ? sourceFileType === 'docx'
-                        ? 'تم استخراج النص من ملف Word'
+                        ? t('summary.extractedFromWord')
                         : sourceFileType === 'pdf'
-                          ? 'تم استخراج النص من ملف PDF'
-                          : 'تم استخراج النص من ملف'
+                          ? t('summary.extractedFromPdf')
+                          : t('summary.extractedFromFile')
                       : sourceFileType === 'docx'
-                        ? 'تم إنشاؤه بواسطة الذكاء الاصطناعي من ملف Word'
+                        ? t('summary.generatedFromWord')
                         : sourceFileType === 'pdf'
-                          ? 'تم إنشاؤه بواسطة الذكاء الاصطناعي من ملف PDF'
-                          : 'تم إنشاؤه بواسطة الذكاء الاصطناعي'
+                          ? t('summary.generatedFromPdf')
+                          : t('summary.generatedByAi')
                     }
                   </p>
                 </div>
@@ -1415,7 +1422,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 hover:border-sky-300 transition-colors"
                 >
                   <FileText className="h-3.5 w-3.5" />
-                  تحميل الملف الأصلي
+                  {t('summary.downloadOriginal')}
                 </a>
               )}
               {/* Re-summarize button - only show for AI-generated summaries */}
@@ -1426,14 +1433,14 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   variant="ghost"
                   size="sm"
                   className="gap-1.5 text-sky-700 hover:text-sky-800 hover:bg-sky-50"
-                title="إعادة التلخيص"
+                title={t('summary.reSummarize')}
               >
                 {regenerating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                <span className="hidden sm:inline">{regenerating ? 'جاري الإعادة...' : 'إعادة التلخيص'}</span>
+                <span className="hidden sm:inline">{regenerating ? t('summary.regenerating') : t('summary.reSummarize')}</span>
               </Button>
               )}
               {/* Refine/format button - only show for transcribed content */}
@@ -1444,14 +1451,14 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   variant="ghost"
                   size="sm"
                   className="gap-1.5 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                  title="تنقيح وتنسيق"
+                  title={t('summary.refineFormat')}
                 >
                   {refining ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Wand2 className="h-4 w-4" />
                   )}
-                  <span className="hidden sm:inline">{refining ? 'جاري التنقيح...' : 'تنقيح وتنسيق'}</span>
+                  <span className="hidden sm:inline">{refining ? t('summary.refining') : t('summary.refineFormat')}</span>
                 </Button>
               )}
             </div>
@@ -1462,8 +1469,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <StepProgress
                   percent={summaryProgress.progress.percent}
                   phase={summaryProgress.progress.phase}
-                  steps={AI_PHASES_SUMMARY}
+                  steps={aiPhasesSummary}
                   color="sky"
+                  pleaseWaitText={t('summary.pleaseWait')}
                 />
               </div>
             ) : refining ? (
@@ -1471,8 +1479,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <StepProgress
                   percent={refineProgress.progress.percent}
                   phase={refineProgress.progress.phase}
-                  steps={AI_PHASES_REFINE}
+                  steps={aiPhasesRefine}
                   color="teal"
+                  pleaseWaitText={t('summary.pleaseWait')}
                 />
               </div>
             ) : loading ? (
@@ -1505,11 +1514,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   <ClipboardList className="h-5 w-5 text-teal-600" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-teal-700">الاختبار</h2>
+                  <h2 className="text-sm font-bold text-teal-700">{t('summary.quiz')}</h2>
                   <p className="text-xs text-teal-600/70">
                     {relatedQuiz
-                      ? `${relatedQuiz.questions?.length || 0} سؤال`
-                      : 'أنشئ اختباراً من هذا الملخص'}
+                      ? t('summary.questionCount', { count: relatedQuiz.questions?.length || 0 })
+                      : t('summary.createQuizFromSummary')}
                   </p>
                 </div>
               </div>
@@ -1520,14 +1529,14 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   variant="ghost"
                   size="sm"
                   className="gap-1.5 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                  title="إعادة إنشاء الاختبار"
+                  title={t('summary.regenerateQuiz')}
                 >
                   {regeneratingQuiz ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <RefreshCw className="h-4 w-4" />
                   )}
-                  <span className="hidden sm:inline">{regeneratingQuiz ? 'جاري الإعادة...' : 'إعادة إنشاء'}</span>
+                  <span className="hidden sm:inline">{regeneratingQuiz ? t('summary.regenerating') : t('summary.regenerate')}</span>
                 </Button>
               )}
             </div>
@@ -1540,23 +1549,23 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     <p className="text-sm font-medium text-teal-800 break-words">{relatedQuiz.title}</p>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap text-xs text-teal-600">
                       <span>
-                        {relatedQuiz.questions?.length || 0} سؤال
+                        {relatedQuiz.questions?.length || 0} {t('common.questions')}
                       </span>
                       <span className="text-teal-400">•</span>
                       <span>
-                        {relatedQuiz.questions?.filter(q => q.type === 'mcq').length || 0} اختيار من متعدد
+                        {relatedQuiz.questions?.filter(q => q.type === 'mcq').length || 0} {t('summary.multipleChoice')}
                       </span>
                       <span className="text-teal-400">•</span>
                       <span>
-                        {relatedQuiz.questions?.filter(q => q.type === 'boolean').length || 0} صح/خطأ
+                        {relatedQuiz.questions?.filter(q => q.type === 'boolean').length || 0} {t('summary.trueFalse')}
                       </span>
                       <span className="text-teal-400">•</span>
                       <span>
-                        {relatedQuiz.questions?.filter(q => q.type === 'completion').length || 0} أكمل الفراغ
+                        {relatedQuiz.questions?.filter(q => q.type === 'completion').length || 0} {t('summary.fillBlank')}
                       </span>
                       <span className="text-teal-400">•</span>
                       <span>
-                        {relatedQuiz.questions?.filter(q => q.type === 'matching').length || 0} مطابقة
+                        {relatedQuiz.questions?.filter(q => q.type === 'matching').length || 0} {t('summary.matching')}
                       </span>
                     </div>
                   </div>
@@ -1575,20 +1584,21 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <StepProgress
                   percent={quizProgress.progress.percent}
                   phase={quizProgress.progress.phase}
-                  steps={AI_PHASES_QUIZ}
+                  steps={aiPhasesQuiz}
                   color="teal"
+                  pleaseWaitText={t('summary.pleaseWait')}
                 />
               </div>
             ) : showQuizConfig ? (
               <div className="space-y-4">
                 {/* Question types */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">أنواع الأسئلة وعددها</label>
+                  <label className="text-sm font-medium text-foreground">{t('summary.questionTypesAndCount')}</label>
                   {([
-                    { key: 'mcq' as const, label: 'اختيار من متعدد', icon: <ListChecks className="h-4 w-4" /> },
-                    { key: 'boolean' as const, label: 'صح أو خطأ', icon: <CheckCircle2 className="h-4 w-4" /> },
-                    { key: 'completion' as const, label: 'أكمل الجملة', icon: <Type className="h-4 w-4" /> },
-                    { key: 'matching' as const, label: 'توصيل', icon: <Link2 className="h-4 w-4" /> },
+                    { key: 'mcq' as const, label: t('summary.multipleChoice'), icon: <ListChecks className="h-4 w-4" /> },
+                    { key: 'boolean' as const, label: t('summary.trueFalse'), icon: <CheckCircle2 className="h-4 w-4" /> },
+                    { key: 'completion' as const, label: t('summary.fillBlank'), icon: <Type className="h-4 w-4" /> },
+                    { key: 'matching' as const, label: t('summary.matching'), icon: <Link2 className="h-4 w-4" /> },
                   ]).map((qt) => (
                     <div key={qt.key} className="flex items-center justify-between gap-3 rounded-lg border bg-card p-2.5">
                       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -1616,7 +1626,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
                 {/* Answer display mode */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">عرض الإجابات</label>
+                  <label className="text-sm font-medium text-foreground">{t('summary.showAnswers')}</label>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setQuizAnswerMode('after')}
@@ -1626,7 +1636,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
-                      بعد الاختبار
+                      {t('summary.afterQuiz')}
                     </button>
                     <button
                       onClick={() => setQuizAnswerMode('during')}
@@ -1636,16 +1646,16 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
-                      أثناء الاختبار
+                      {t('summary.duringQuiz')}
                     </button>
                   </div>
                 </div>
 
                 {/* Retake & Shuffle toggles */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">إعدادات إضافية</label>
+                  <label className="text-sm font-medium text-foreground">{t('summary.additionalSettings')}</label>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-2.5">
-                    <span className="text-sm font-medium text-foreground">السماح بإعادة الاختبار</span>
+                    <span className="text-sm font-medium text-foreground">{t('summary.allowRetake')}</span>
                     <button
                       type="button"
                       role="switch"
@@ -1663,7 +1673,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     </button>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-2.5">
-                    <span className="text-sm font-medium text-foreground">ترتيب عشوائي للأسئلة</span>
+                    <span className="text-sm font-medium text-foreground">{t('summary.shuffleQuestions')}</span>
                     <button
                       type="button"
                       role="switch"
@@ -1691,7 +1701,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     size="sm"
                   >
                     <ClipboardList className="h-4 w-4" />
-                    تأكيد الإنشاء
+                    {t('summary.confirmCreation')}
                   </Button>
                   <Button
                     onClick={() => setShowQuizConfig(false)}
@@ -1699,7 +1709,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     size="sm"
                     className="border-teal-300 text-teal-700 hover:bg-teal-50"
                   >
-                    إلغاء
+                  {t('common.cancel')}
                   </Button>
                 </div>
               </div>
@@ -1708,7 +1718,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-50">
                   <ClipboardList className="h-6 w-6 text-teal-400" />
                 </div>
-                <p className="text-sm text-muted-foreground">لم يتم إنشاء اختبار بعد</p>
+                <p className="text-sm text-muted-foreground">{t('summary.noQuizYet')}</p>
                 <Button
                   onClick={() => {
                     setQuizConfigTypes({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
@@ -1722,7 +1732,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   size="sm"
                 >
                   <ClipboardList className="h-4 w-4" />
-                  إنشاء اختبار
+                  {t('summary.createQuiz')}
                 </Button>
               </div>
             )}
@@ -1742,11 +1752,11 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <CheckCircle2 className="h-5 w-5 text-violet-600" />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-violet-700">اختبارات مكتملة</h2>
+                <h2 className="text-sm font-bold text-violet-700">{t('summary.completedQuizzes')}</h2>
                 <p className="text-xs text-violet-600/70">
                   {studentScore
-                    ? 'اختبار مكتمل'
-                    : 'لم يتم إكمال اختبارات بعد'}
+                    ? t('summary.quizCompleted')
+                    : t('summary.noCompletedQuizzes')}
                 </p>
               </div>
             </div>
@@ -1760,7 +1770,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        {relatedQuiz?.title || studentScore.quiz_title || 'اختبار الملخص'}
+                        {relatedQuiz?.title || studentScore.quiz_title || t('summary.summaryQuiz')}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {studentScore.score} / {studentScore.total} — {Math.round((studentScore.score / studentScore.total) * 100)}%
@@ -1788,7 +1798,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <CheckCircle2 className="h-12 w-12 text-violet-200 mb-3" />
-                <p className="text-sm text-muted-foreground">لم يتم إكمال اختبارات بعد</p>
+                <p className="text-sm text-muted-foreground">{t('summary.noCompletedQuizzes')}</p>
                 {relatedQuiz && !studentScore && (
                   <Button
                     onClick={() => setSummaryTab('quiz')}
@@ -1811,20 +1821,20 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       <AlertDialog open={deleteQuizConfirmOpen} onOpenChange={setDeleteQuizConfirmOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف الاختبار</AlertDialogTitle>
+            <AlertDialogTitle>{t('summary.deleteQuizTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف هذا الاختبار؟ لا يمكن التراجع عن هذا الإجراء.
+              {t('summary.deleteQuizConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); handleDeleteQuiz(); }}
               disabled={deletingQuiz}
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {deletingQuiz ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              حذف
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1834,20 +1844,20 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>تأكيد الحذف</AlertDialogTitle>
+            <AlertDialogTitle>{t('summary.confirmDelete')}</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف ملخص "{summary?.title}"؟ لا يمكن التراجع عن هذا الإجراء.
+              {t('summary.deleteSummaryConfirm', { title: summary?.title || '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); handleDeleteSummary(); }}
               disabled={deleting}
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              حذف
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

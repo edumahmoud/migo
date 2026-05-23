@@ -2,8 +2,10 @@
 
 import { motion } from 'framer-motion';
 import { WifiOff, RefreshCw, X, GraduationCap } from 'lucide-react';
+import { useI18n } from '@/lib/i18n/context';
 
 export default function OfflinePage() {
+  const { dir } = useI18n();
   const handleExit = () => {
     try {
       window.close();
@@ -13,7 +15,7 @@ export default function OfflinePage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 rounded-full blur-3xl" />

@@ -1181,7 +1181,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 mx-auto mb-4">
                 <Trash2 className="h-6 w-6 text-rose-600" />
@@ -1414,7 +1414,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                             placeholder="أضف ملاحظاتك هنا..."
                             rows={2}
                             className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
-                            dir="rtl"
+                            dir={dir}
                           />
                         </div>
                       </div>
@@ -1638,7 +1638,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 placeholder="اكتب إجابتك هنا..."
                 rows={5}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none"
-                dir="rtl"
+                dir={dir}
                 disabled={submitting}
               />
             )}
@@ -1780,7 +1780,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -1799,7 +1799,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                       value={newSubjectId}
                       onChange={(e) => setNewSubjectId(e.target.value)}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30"
-                      dir="rtl"
+                      dir={dir}
                       disabled={isProcessing}
                     >
                       <option value="">اختر المقرر</option>
@@ -1811,11 +1811,11 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 )}
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المهمة</label>
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: واجب الفصل الثاني" className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir="rtl" disabled={isProcessing} />
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: واجب الفصل الثاني" className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir={dir} disabled={isProcessing} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
-                  <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="وصف المهمة..." rows={3} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none" dir="rtl" disabled={isProcessing} />
+                  <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="وصف المهمة..." rows={3} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none" dir={dir} disabled={isProcessing} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block flex items-center gap-1.5">

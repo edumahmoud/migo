@@ -935,7 +935,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg rounded-2xl border bg-background shadow-xl max-h-[90vh] overflow-y-auto"
-              dir="rtl"
+              dir={dir}
             >
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -959,7 +959,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                     onChange={(e) => setSummaryTitle(e.target.value)}
                     placeholder="مثال: ملخص محاضرة الفيزياء..."
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
-                    dir="rtl"
+                    dir={dir}
                   />
                 </div>
 
@@ -970,7 +970,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                     value={selectedSubjectId}
                     onChange={(e) => setSelectedSubjectId(e.target.value)}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
-                    dir="rtl"
+                    dir={dir}
                   >
                     <option value="">بدون مقرر</option>
                     {subjects.map(s => (
@@ -1103,7 +1103,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       placeholder="الصق المحتوى الدراسي هنا..."
                       rows={6}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors resize-none"
-                      dir="rtl"
+                      dir={dir}
                     />
                   </div>
                 )}

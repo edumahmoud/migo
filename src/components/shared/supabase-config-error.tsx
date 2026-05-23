@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Database, AlertTriangle, RefreshCw, X, GraduationCap } from 'lucide-react';
+import { useI18n } from '@/lib/i18n/context';
 
 const REQUIRED_ENV_VARS = [
   'NEXT_PUBLIC_SUPABASE_URL',
@@ -33,6 +34,7 @@ function getMissingEnvVars(): string[] {
 }
 
 export default function SupabaseConfigError() {
+  const { dir } = useI18n();
   const missingVars = getMissingEnvVars();
   const hasMissingVars = missingVars.length > 0;
 
@@ -52,7 +54,7 @@ export default function SupabaseConfigError() {
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4"
-      dir="rtl"
+      dir={dir}
     >
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">

@@ -489,7 +489,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="بحث في الفيديوهات..."
               className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              dir="rtl"
+              dir={dir}
             />
           </div>
           <Button

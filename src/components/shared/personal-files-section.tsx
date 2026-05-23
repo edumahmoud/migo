@@ -1912,7 +1912,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 }}
                 className="flex-1 rounded-md border border-sky-600 bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30"
                 autoFocus
-                dir="rtl"
+                dir={dir}
               />
               <span className="text-xs text-muted-foreground">.{getFileExtension(file.file_name)}</span>
               <button
@@ -1973,7 +1973,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             )}
 
             {/* Action menu */}
-            <DropdownMenu dir="rtl">
+            <DropdownMenu dir={dir}>
               <DropdownMenuTrigger asChild>
                 <button
                   className="touch-target shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
@@ -2247,7 +2247,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20, pointerEvents: 'none' as const }}
             className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
-            dir="rtl"
+            dir={dir}
           >
             <span className="text-sm font-medium text-foreground whitespace-nowrap">
               تم تحديد {selectedFileIds.size} ملف
@@ -2272,7 +2272,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </div>
             ) : (
               <>
-                <DropdownMenu dir="rtl">
+                <DropdownMenu dir={dir}>
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center gap-1.5 rounded-md bg-sky-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-sky-800 transition-colors">
                       إجراءات
@@ -2511,7 +2511,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-lg rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir="rtl"
+            dir={dir}
           >
             {/* Modal header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
@@ -2624,7 +2624,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                                 : 'border-border bg-background text-foreground focus:ring-sky-600'
                             }`}
                             placeholder="اسم الملف"
-                            dir="rtl"
+                            dir={dir}
                           />
                           {item.extension && (
                             <span className={`text-xs shrink-0 ${
@@ -2753,7 +2753,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir="rtl"
+            dir={dir}
           >
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -2901,7 +2901,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir="rtl"
+            dir={dir}
           >
             {/* Modal header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
@@ -2968,7 +2968,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     onChange={(e) => handleSearchUsers(e.target.value)}
                     placeholder="ابحث بالاسم أو البريد الإلكتروني..."
                     className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir="rtl"
+                    dir={dir}
                     disabled={searchingUsers}
                   />
                   {searchingUsers && (
@@ -3167,7 +3167,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-sm rounded-2xl border bg-background shadow-xl"
-            dir="rtl"
+            dir={dir}
           >
             <div className="flex items-center justify-between border-b p-5">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -3282,7 +3282,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-4xl max-h-[90vh] rounded-2xl border bg-background shadow-xl overflow-hidden flex flex-col"
-            dir="rtl"
+            dir={dir}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4 shrink-0">
@@ -3399,7 +3399,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir="rtl"
+            dir={dir}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
@@ -3464,7 +3464,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     onChange={(e) => handleBulkShareSearch(e.target.value)}
                     placeholder="ابحث بالاسم أو البريد الإلكتروني..."
                     className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir="rtl"
+                    dir={dir}
                     disabled={bulkShareSearching}
                   />
                   {bulkShareSearching && (
@@ -3623,7 +3623,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir="rtl"
+            dir={dir}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">

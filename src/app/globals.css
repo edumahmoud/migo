@@ -147,10 +147,9 @@
   }
 }
 
-/* RTL Arabic Markdown Typography for Summary View */
+/* Markdown Typography for Summary View — direction inherited from parent */
 .prose-summary {
-  direction: rtl;
-  text-align: right;
+  text-align: start;
   font-feature-settings: "ss01", "ss02";
   line-height: 1.9;
   color: var(--foreground);
@@ -577,7 +576,7 @@ body.quiz-capture-detected::after {
   font-weight: 700;
   color: #fff;
   background: rgba(220, 38, 38, 0.97);
-  direction: rtl;
+  text-align: start;
 }
 
 /* Prevent text selection on quiz pages for copy protection */

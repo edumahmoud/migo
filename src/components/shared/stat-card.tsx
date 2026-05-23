@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Types
@@ -83,6 +84,7 @@ const colorMap = {
 // Component
 // -------------------------------------------------------
 export default function StatCard({ icon, label, value, color }: StatCardProps) {
+  const { dir } = useI18n();
   const colors = colorMap[color];
 
   return (
@@ -94,7 +96,7 @@ export default function StatCard({ icon, label, value, color }: StatCardProps) {
     >
       <Card
         className={`${colors.cardBg} ${colors.border} ${colors.shadow} transition-all duration-200 shadow-md hover:shadow-lg cursor-default border-0`}
-        dir="rtl"
+        dir={dir}
       >
         <CardContent className="flex items-center gap-3 p-3 sm:p-4">
           {/* Icon */}

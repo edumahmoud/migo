@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type { UserProfile, Score, AttendanceRecord, AttendanceSession, Submission, StudentPerformance } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -48,6 +49,7 @@ function formatDate(dateStr: string): string {
 // Main Component
 // -------------------------------------------------------
 export default function StudentProfileModal({ studentId, subjectId, open, onClose }: StudentProfileModalProps) {
+  const { dir } = useI18n();
   const [performance, setPerformance] = useState<StudentPerformance | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -182,7 +184,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir={dir}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-sky-700" />

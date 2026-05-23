@@ -73,73 +73,73 @@ interface SettingsSectionProps {
 // Constants
 // -------------------------------------------------------
 const GENDER_OPTIONS = [
-  { value: 'male', label: 'ذكر' },
-  { value: 'female', label: 'أنثى' },
+  { value: 'male', labelKey: 'settings.profile.genderMale' },
+  { value: 'female', labelKey: 'settings.profile.genderFemale' },
 ] as const;
 
 const ACADEMIC_TITLES = [
-  { value: 'teacher', label: 'معلم', femaleLabel: 'معلمة' },
-  { value: 'dr', label: 'دكتور', femaleLabel: 'دكتورة' },
-  { value: 'prof', label: 'أستاذ', femaleLabel: 'أستاذة' },
-  { value: 'assoc_prof', label: 'أستاذ مشارك', femaleLabel: 'أستاذة مشاركة' },
-  { value: 'assist_prof', label: 'أستاذ مساعد', femaleLabel: 'أستاذة مساعدة' },
-  { value: 'lecturer', label: 'محاضر', femaleLabel: 'محاضرة' },
-  { value: 'teaching_assist', label: 'معيد', femaleLabel: 'معيدة' },
+  { value: 'teacher', label: 'titles.teacher', femaleLabel: 'titles.teacherFemale' },
+  { value: 'dr', label: 'titles.dr', femaleLabel: 'titles.drFemale' },
+  { value: 'prof', label: 'titles.prof', femaleLabel: 'titles.profFemale' },
+  { value: 'assoc_prof', label: 'titles.assocProf', femaleLabel: 'titles.assocProfFemale' },
+  { value: 'assist_prof', label: 'titles.assistProf', femaleLabel: 'titles.assistProfFemale' },
+  { value: 'lecturer', label: 'titles.lecturer', femaleLabel: 'titles.lecturerFemale' },
+  { value: 'teaching_assist', label: 'titles.teachingAssist', femaleLabel: 'titles.teachingAssistFemale' },
 ] as const;
 
 const STATUS_OPTIONS: {
   value: UserStatus;
-  label: string;
+  labelKey: string;
   color: string;       // Tailwind bg class for the dot
   textColor: string;   // Tailwind text class for label
   borderColor: string; // Tailwind border class when selected
   bgColor: string;     // Tailwind bg class when selected
-  description: string;
+  descriptionKey: string;
 }[] = [
   {
     value: 'online',
-    label: 'متصل',
+    labelKey: 'settings.status.online',
     color: 'bg-sky-600',
     textColor: 'text-sky-800 dark:text-sky-200',
     borderColor: 'border-sky-600',
     bgColor: 'bg-sky-50 dark:bg-sky-950/30',
-    description: 'متاح',
+    descriptionKey: 'settings.status.onlineDesc',
   },
   {
     value: 'busy',
-    label: 'مشغول',
+    labelKey: 'settings.status.busy',
     color: 'bg-amber-500',
     textColor: 'text-amber-700 dark:text-amber-300',
     borderColor: 'border-amber-500',
     bgColor: 'bg-amber-50 dark:bg-amber-950/30',
-    description: 'مشغول',
+    descriptionKey: 'settings.status.busyDesc',
   },
   {
     value: 'away',
-    label: 'بعيد',
+    labelKey: 'settings.status.away',
     color: 'bg-orange-500',
     textColor: 'text-orange-700',
     borderColor: 'border-orange-500',
     bgColor: 'bg-orange-50',
-    description: 'بعيد',
+    descriptionKey: 'settings.status.awayDesc',
   },
   {
     value: 'invisible',
-    label: 'غير مرئي',
+    labelKey: 'settings.status.invisible',
     color: 'bg-gray-400',
     textColor: 'text-gray-600 dark:text-gray-400',
     borderColor: 'border-gray-400',
     bgColor: 'bg-gray-50 dark:bg-gray-800/50',
-    description: 'مخفي',
+    descriptionKey: 'settings.status.invisibleDesc',
   },
   {
     value: 'offline',
-    label: 'غير متصل',
+    labelKey: 'settings.status.offline',
     color: 'bg-gray-400',
     textColor: 'text-gray-500 dark:text-gray-400',
     borderColor: 'border-gray-400',
     bgColor: 'bg-gray-50 dark:bg-gray-800/50',
-    description: 'غير مرئي',
+    descriptionKey: 'settings.status.offlineDesc',
   },
 ];
 
@@ -262,9 +262,9 @@ export default function SettingsSection({
     // Update status store (handles localStorage + socket emission)
     setMyStatus(newStatus, profile.id);
 
-    const statusLabel = STATUS_OPTIONS.find(s => s.value === newStatus)?.label || newStatus;
-    toast.success(`تم تغيير الحالة إلى: ${statusLabel}`);
-  }, [profile.id, setMyStatus]);
+    const statusLabel = t(STATUS_OPTIONS.find(s => s.value === newStatus)?.labelKey || '') || newStatus;
+    toast.success(t('settings.status.changedToast', { status: statusLabel }));
+  }, [profile.id, setMyStatus, t]);
 
   // ─── Keep auth cache fresh ───
   useEffect(() => {
@@ -345,16 +345,16 @@ export default function SettingsSection({
   const getRoleLabel = (role: string, g: string | null | undefined, tid: string | null | undefined) => {
     const isFemale = g === 'female';
     switch (role) {
-      case 'student': return isFemale ? 'طالبة' : 'طالب';
-      case 'superadmin': return isFemale ? 'مديرة المنصة' : 'مدير المنصة';
-      case 'admin': return isFemale ? 'مشرفة' : 'مشرف';
+      case 'student': return isFemale ? t('roles.studentFemale') : t('roles.student');
+      case 'superadmin': return isFemale ? t('roles.superadminFemale') : t('roles.superadmin');
+      case 'admin': return isFemale ? t('roles.adminFemale') : t('roles.admin');
       case 'teacher': {
         const effectiveTitleId = tid || 'teacher';
-        const title = ACADEMIC_TITLES.find(t => t.value === effectiveTitleId);
+        const title = ACADEMIC_TITLES.find(at => at.value === effectiveTitleId);
         if (title) {
-          return isFemale ? title.femaleLabel : title.label;
+          return isFemale ? t(title.femaleLabel) : t(title.label);
         }
-        return isFemale ? 'معلمة' : 'معلم';
+        return isFemale ? t('titles.teacherFemale') : t('titles.teacher');
       }
       default: return role;
     }
@@ -380,14 +380,14 @@ export default function SettingsSection({
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        return { error: data.error || 'حدث خطأ أثناء التحديث' };
+        return { error: data.error || t('settings.errorUpdateFailed') };
       }
 
       // Refresh the auth store profile to keep UI in sync
       await refreshProfile();
       return { error: null };
     } catch {
-      return { error: 'حدث خطأ غير متوقع' };
+      return { error: t('settings.errorUnexpected') };
     }
   };
 
@@ -395,7 +395,7 @@ export default function SettingsSection({
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      toast.error('الاسم مطلوب');
+      toast.error(t('settings.errorNameRequired'));
       return;
     }
 
@@ -404,11 +404,11 @@ export default function SettingsSection({
     const usernameChanged = cleanUsername !== (profile.username || '').toLowerCase();
     if (usernameChanged) {
       if (cleanUsername.length < 3) {
-        toast.error('اسم المستخدم يجب أن يكون 3 أحرف على الأقل');
+        toast.error(t('settings.errorUsernameMinLength'));
         return;
       }
       if (!usernameAvailable) {
-        toast.error('اسم المستخدم غير متاح');
+        toast.error(t('settings.errorUsernameUnavailable'));
         return;
       }
     }
@@ -435,11 +435,11 @@ export default function SettingsSection({
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success('تم حفظ الإعدادات بنجاح');
+        toast.success(t('settings.successSaved'));
         setHasChanges(false);
       }
     } catch {
-      toast.error('حدث خطأ أثناء الحفظ');
+      toast.error(t('settings.errorSaving'));
     } finally {
       setIsSaving(false);
     }
@@ -451,12 +451,12 @@ export default function SettingsSection({
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      toast.error('يرجى اختيار ملف صورة فقط');
+      toast.error(t('settings.errorImageOnly'));
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('حجم الصورة يجب أن يكون أقل من 5 ميجابايت');
+      toast.error(t('settings.errorImageSize'));
       return;
     }
 
@@ -474,15 +474,15 @@ export default function SettingsSection({
 
       const data = await res.json();
       if (!data.success) {
-        toast.error(data.error || 'حدث خطأ أثناء رفع الصورة');
+        toast.error(data.error || t('settings.errorAvatarUpload'));
         return;
       }
 
       // Refresh profile to get the new avatar URL
       await refreshProfile();
-      toast.success('تم تحديث الصورة الشخصية بنجاح');
+      toast.success(t('settings.successAvatarUpdated'));
     } catch {
-      toast.error('حدث خطأ أثناء رفع الصورة');
+      toast.error(t('settings.errorAvatarUpload'));
     } finally {
       setIsUploadingAvatar(false);
       if (avatarInputRef.current) {
@@ -494,23 +494,23 @@ export default function SettingsSection({
   // ─── Password change ───
   const handleChangePassword = async () => {
     if (!currentPassword) {
-      toast.error('يرجى إدخال كلمة المرور الحالية');
+      toast.error(t('settings.password.errorCurrentRequired'));
       return;
     }
     if (!newPassword) {
-      toast.error('يرجى إدخال كلمة المرور الجديدة');
+      toast.error(t('settings.password.errorNewRequired'));
       return;
     }
     if (newPassword.length < 6) {
-      toast.error('كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل');
+      toast.error(t('settings.password.errorNewMinLength'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('كلمة المرور الجديدة غير متطابقة');
+      toast.error(t('settings.password.errorMismatch'));
       return;
     }
     if (currentPassword === newPassword) {
-      toast.error('كلمة المرور الجديدة يجب أن تكون مختلفة عن الحالية');
+      toast.error(t('settings.password.errorSamePassword'));
       return;
     }
 
@@ -536,20 +536,20 @@ export default function SettingsSection({
 
       if (!res.ok || data.error) {
         console.error('[Settings] Password change failed:', data.error, 'Status:', res.status);
-        toast.error(data.error || 'فشل في تغيير كلمة المرور');
+        toast.error(data.error || t('settings.password.errorChangeFailed'));
         return;
       }
 
-      toast.success('تم تغيير كلمة المرور بنجاح');
+      toast.success(t('settings.password.successChanged'));
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
       console.error('[Settings] Password change unexpected error:', err);
       if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
-        toast.error('فشل الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى');
+        toast.error(t('common.errorNetwork'));
       } else {
-        toast.error(`خطأ غير متوقع: ${err?.message || 'يرجى المحاولة مرة أخرى'}`);
+        toast.error(`${t('settings.errorUnexpected')}: ${err?.message || ''}`);
       }
     } finally {
       setIsChangingPassword(false);
@@ -558,19 +558,19 @@ export default function SettingsSection({
 
   // ─── Delete account ───
   const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== 'حذف') {
-      toast.error('يرجى كتابة "حذف" للتأكيد');
+    if (deleteConfirmText !== t('common.delete')) {
+      toast.error(t('settings.errorDeleteConfirm'));
       return;
     }
 
     setIsDeleting(true);
     try {
       await onDeleteAccount();
-      toast.success('تم حذف الحساب بنجاح');
+      toast.success(t('settings.successAccountDeleted'));
       setDeleteConfirmOpen(false);
       setDeleteConfirmText('');
     } catch {
-      toast.error('حدث خطأ أثناء حذف الحساب');
+      toast.error(t('settings.errorDeleteAccount'));
     } finally {
       setIsDeleting(false);
     }
@@ -590,7 +590,7 @@ export default function SettingsSection({
             await screen.orientation.lock('portrait');
             setOrientationLocked(true);
             localStorage.setItem('attenddo-orientation-locked', 'true');
-            toast.success('تم قفل تدوير الشاشة');
+            toast.success(t('settings.orientation.locked'));
           } catch (lockError: unknown) {
             // The Screen Orientation API requires a fullscreen context in most browsers.
             // If direct lock fails, request fullscreen first then retry.
@@ -611,15 +611,15 @@ export default function SettingsSection({
               await screen.orientation.lock('portrait');
               setOrientationLocked(true);
               localStorage.setItem('attenddo-orientation-locked', 'true');
-              toast.success('تم قفل تدوير الشاشة');
+              toast.success(t('settings.orientation.locked'));
             } catch (fullscreenError: unknown) {
               const fsErrMsg = fullscreenError instanceof Error ? fullscreenError.message : String(fullscreenError);
               console.warn('[Orientation Lock] Fullscreen + lock failed:', fsErrMsg);
-              toast.error('لم يتمكن التطبيق من قفل التدوير. تأكد من السماح بملء الشاشة.');
+              toast.error(t('settings.orientation.lockFailed'));
             }
           }
         } else {
-          toast.error('المتصفح لا يدعم قفل التدوير');
+          toast.error(t('settings.orientation.notSupported'));
         }
       } else {
         // Unlock
@@ -636,10 +636,10 @@ export default function SettingsSection({
         }
         setOrientationLocked(false);
         localStorage.removeItem('attenddo-orientation-locked');
-        toast.success('تم فتح تدوير الشاشة');
+        toast.success(t('settings.orientation.unlocked'));
       }
     } catch {
-      toast.error('فشل تغيير إعداد التدوير');
+      toast.error(t('settings.orientation.toggleFailed'));
     }
   };
 
@@ -697,22 +697,22 @@ export default function SettingsSection({
           }
         }
         setPushPermission('default');
-        toast.success('تم إيقاف الإشعارات الخارجية');
+        toast.success(t('settings.push.disabled'));
       } else {
         // Enable push — request permission first
         if (!('Notification' in window)) {
-          toast.error('المتصفح لا يدعم الإشعارات');
+          toast.error(t('settings.push.notSupported'));
           return;
         }
 
         const result = await Notification.requestPermission();
         setPushPermission(result);
         if (result !== 'granted') {
-          toast.error('تم رفض إذن الإشعارات. يمكنك تفعيله من إعدادات المتصفح.');
+          toast.error(t('settings.push.denied'));
           return;
         }
 
-        toast.success('تم تفعيل الإشعارات!');
+        toast.success(t('settings.push.enabled'));
 
         // Try Web Push subscription (only works in standalone/secure context)
         const registration = await waitForServiceWorker(4000);
@@ -740,20 +740,20 @@ export default function SettingsSection({
                 subscription: { endpoint: subJSON.endpoint, keys: { p256dh: subJSON.keys?.p256dh, auth: subJSON.keys?.auth } },
               }),
             });
-            toast.success('تم تفعيل الإشعارات الخارجية! ستصلك حتى عند إغلاق المتصفح.');
+            toast.success(t('settings.push.pushEnabled'));
           } catch (pushError) {
             // Push subscription failed (common in iframe/sandbox)
             console.warn('[Push] Web Push subscription failed:', pushError);
-            toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.');
+            toast.info(t('settings.push.pwaOnly'));
           }
         } else {
           // SW not available or timed out
-          toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.');
+          toast.info(t('settings.push.pwaOnly'));
         }
       }
     } catch (error) {
       console.error('Push toggle error:', error);
-      toast.error('حدث خطأ في تغيير إعدادات الإشعارات');
+      toast.error(t('settings.push.toggleFailed'));
     } finally {
       setIsTogglingPush(false);
     }
@@ -763,7 +763,7 @@ export default function SettingsSection({
   const handleTestNotification = async () => {
     try {
       if (pushPermission !== 'granted') {
-        toast.error('يرجى تفعيل الإشعارات أولاً');
+        toast.error(t('settings.push.enableFirst'));
         return;
       }
 
@@ -773,30 +773,30 @@ export default function SettingsSection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: profile.id,
-          title: 'إشعار تجريبي 🔔',
-          message: 'تم تفعيل الإشعارات الخارجية بنجاح! ستصلك الإشعارات حتى عند إغلاق المتصفح.',
+          title: t('settings.push.testTitle'),
+          message: t('settings.push.testBody'),
           type: 'system',
         }),
       });
 
       const data = await res.json();
       if (data.sent > 0) {
-        toast.success('تم إرسال إشعار تجريبي! تحقق من إشعارات المتصفح.');
+        toast.success(t('settings.push.testSent'));
       } else {
         // Fallback: show an in-app notification instead
         if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('إشعار تجريبي 🔔', {
-            body: 'الإشعارات تعمل داخل المتصفح. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.',
+          new Notification(t('settings.push.testTitle'), {
+            body: t('settings.push.testLocalBody'),
             icon: '/icons/icon-192x192.png',
             dir,
           });
-          toast.info('تم إرسال إشعار محلي. الإشعارات الخارجية تحتاج تثبيت التطبيق كـ PWA.');
+          toast.info(t('settings.push.testLocal'));
         } else {
-          toast.info('لا توجد اشتراكات إشعارات خارجية. الإشعارات تعمل داخل التطبيق فقط.');
+          toast.info(t('settings.push.noSubscription'));
         }
       }
     } catch {
-      toast.error('فشل في إرسال الإشعار التجريبي');
+      toast.error(t('settings.push.testFailed'));
     }
   };
 
@@ -882,20 +882,20 @@ export default function SettingsSection({
                   <div className="space-y-2">
                     <div>
                       <Label htmlFor="settings-name" className="text-xs text-muted-foreground">
-                        الاسم
+                        {t('settings.profile.nameLabel')}
                       </Label>
                       <Input
                         id="settings-name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="أدخل اسمك"
+                        placeholder={t('settings.profile.namePlaceholder')}
                         className="text-right h-9 text-sm"
                         disabled={isSaving}
                       />
                     </div>
                     <div>
                       <Label htmlFor="settings-username" className="text-xs text-muted-foreground">
-                        اسم المستخدم
+                        {t('settings.profile.usernameLabel')}
                       </Label>
                       <div className="relative">
                         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">@</div>
@@ -920,7 +920,7 @@ export default function SettingsSection({
                           )}
                         </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-1">سيظهر في رابط صفحتك الشخصية</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{t('settings.profile.usernameHint')}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -932,9 +932,9 @@ export default function SettingsSection({
                       disabled={isUploadingAvatar}
                     >
                       <Camera className="h-3.5 w-3.5" />
-                      {profile.avatar_url ? 'تغيير الصورة' : 'إضافة صورة'}
+                      {profile.avatar_url ? t('settings.profile.changePhoto') : t('settings.profile.addPhoto')}
                     </Button>
-                    <span className="text-[10px] text-muted-foreground">PNG, JPG حتى 5MB</span>
+                    <span className="text-[10px] text-muted-foreground">{t('settings.profile.photoSizeHint')}</span>
                   </div>
                 </div>
               </div>
@@ -943,7 +943,7 @@ export default function SettingsSection({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Gender */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">الجنس</Label>
+                  <Label className="text-xs text-muted-foreground">{t('settings.profile.genderLabel')}</Label>
                   <div className="flex gap-1.5">
                     {GENDER_OPTIONS.map((opt) => (
                       <button
@@ -956,7 +956,7 @@ export default function SettingsSection({
                         }`}
                         disabled={isSaving}
                       >
-                        {opt.label}
+                        {t(opt.labelKey)}
                       </button>
                     ))}
                     {gender && (
@@ -965,7 +965,7 @@ export default function SettingsSection({
                         className="rounded-lg border border-border px-2 py-1.5 text-[10px] text-muted-foreground hover:bg-muted/50 transition-colors"
                         disabled={isSaving}
                       >
-                        إزالة
+                        {t('settings.profile.genderRemove')}
                       </button>
                     )}
                   </div>
@@ -973,7 +973,7 @@ export default function SettingsSection({
 
                 {/* Role (display only) - for teachers shows academic title */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">صفة المستخدم</Label>
+                  <Label className="text-xs text-muted-foreground">{t('settings.profile.roleLabel')}</Label>
                   <div>
                     <Badge className={`${roleBadgeClass} border text-xs`}>
                       {roleLabel}
@@ -984,11 +984,11 @@ export default function SettingsSection({
 
               {/* Email (read-only) */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">البريد الإلكتروني</Label>
+                <Label className="text-xs text-muted-foreground">{t('settings.profile.emailLabel')}</Label>
                 <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2">
                   <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground select-all truncate">{profile.email}</span>
-                  <Badge variant="outline" className="ms-auto text-[9px] px-1.5 py-0 shrink-0">للقراءة فقط</Badge>
+                  <Badge variant="outline" className="ms-auto text-[9px] px-1.5 py-0 shrink-0">{t('settings.profile.emailReadonly')}</Badge>
                 </div>
               </div>
 
@@ -997,11 +997,11 @@ export default function SettingsSection({
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground flex items-center gap-1">
                     <GraduationCap className="h-3 w-3" />
-                    اللقب الأكاديمي
+                    {t('settings.profile.academicTitleLabel')}
                   </Label>
                   <div className="flex flex-wrap gap-1.5">
                     {ACADEMIC_TITLES.map((title) => {
-                      const displayLabel = (gender || profile.gender) === 'female' ? title.femaleLabel : title.label;
+                      const displayLabel = (gender || profile.gender) === 'female' ? t(title.femaleLabel) : t(title.label);
                       return (
                         <button
                           key={title.value}
@@ -1019,12 +1019,12 @@ export default function SettingsSection({
                     })}
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <span className="text-[10px] text-muted-foreground">سيظهر كـ:</span>
+                    <span className="text-[10px] text-muted-foreground">{t('settings.profile.willAppearAs')}</span>
                     <span className="text-xs font-semibold text-sky-800 dark:text-sky-200">
                       {(() => {
-                        const t = ACADEMIC_TITLES.find((t) => t.value === titleId);
-                        if (!t) return '';
-                        return ((gender || profile.gender) === 'female' ? t.femaleLabel : t.label);
+                        const titleObj = ACADEMIC_TITLES.find((at) => at.value === titleId);
+                        if (!titleObj) return '';
+                        return ((gender || profile.gender) === 'female' ? t(titleObj.femaleLabel) : t(titleObj.label));
                       })()} {profile.name}
                     </span>
                   </div>
@@ -1041,12 +1041,12 @@ export default function SettingsSection({
                   {isSaving ? (
                     <span className="flex items-center gap-1.5">
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      جاري الحفظ...
+                      {t('settings.saving')}
                     </span>
                   ) : (
                     <>
                       <Save className="h-3.5 w-3.5" />
-                      حفظ الإعدادات
+                      {t('settings.saveSettings')}
                     </>
                   )}
                 </Button>
@@ -1067,7 +1067,7 @@ export default function SettingsSection({
               <div className="flex h-5 w-5 items-center justify-center rounded-md bg-sky-100 dark:bg-sky-900/50">
                 <div className={`h-2.5 w-2.5 rounded-full ${currentStatusInfo.color} ${userStatus === 'online' && isConnected ? 'animate-pulse' : ''}`} />
               </div>
-              <h3 className="font-semibold text-foreground text-sm">الحالة والظهور</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('settings.status.presenceTitle')}</h3>
             </div>
 
             <div className="p-4 space-y-4">
@@ -1083,12 +1083,12 @@ export default function SettingsSection({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-foreground">{currentStatusInfo.label}</p>
+                    <p className="text-sm font-semibold text-foreground">{t(currentStatusInfo.labelKey)}</p>
                     {/* Connection indicator - shows actual socket status */}
                     <div className="flex items-center gap-1" title={
-                      isConnected ? 'متصل بالخادم' 
-                        : socketStatus === 'connecting' ? 'جاري الاتصال بالخادم...' 
-                        : 'غير متصل بالخادم'
+                      isConnected ? t('settings.status.connectedToServer') 
+                        : socketStatus === 'connecting' ? t('settings.status.connectingToServer') 
+                        : t('settings.status.disconnectedFromServer')
                     }>
                       <div className={`h-1.5 w-1.5 rounded-full ${
                         isConnected ? 'bg-sky-600' 
@@ -1100,29 +1100,29 @@ export default function SettingsSection({
                           : socketStatus === 'connecting' ? 'text-amber-600 dark:text-amber-400' 
                           : 'text-red-500'
                       }`}>
-                        {isConnected ? 'متصل' 
-                          : socketStatus === 'connecting' ? 'جاري الاتصال' 
-                          : 'غير متصل'}
+                        {isConnected ? t('settings.status.connectedShort') 
+                          : socketStatus === 'connecting' ? t('settings.status.connectingShort') 
+                          : t('settings.status.disconnectedShort')}
                       </span>
                     </div>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     {userStatus === 'invisible'
-                      ? 'ستظهر كغير متصل مع إمكانية استخدام المحادثة'
+                      ? t('settings.status.invisibleHidden')
                       : userStatus === 'online'
-                        ? 'ستظهر كمتصل للآخرين'
+                        ? t('settings.status.onlineAvailable')
                         : userStatus === 'busy'
-                          ? 'ستظهر كمشغول للآخرين'
+                          ? t('settings.status.busyUnavailable')
                           : userStatus === 'away'
-                            ? 'ستظهر كبعيد عن الجهاز'
-                            : 'ستظهر كغير متصل'}
+                            ? t('settings.status.awayFromDevice')
+                            : t('settings.status.offlineHidden')}
                   </p>
                 </div>
               </div>
 
               {/* Status options */}
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">تغيير حالتك</Label>
+                <Label className="text-xs text-muted-foreground">{t('settings.status.changeYourStatus')}</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                   {STATUS_OPTIONS.map((option) => {
                     const isSelected = userStatus === option.value;
@@ -1139,14 +1139,14 @@ export default function SettingsSection({
                         <div className={`h-3 w-3 rounded-full shrink-0 ${option.color}`} />
                         <div className="flex-1 min-w-0">
                           <span className={`text-xs font-medium ${isSelected ? option.textColor : 'text-foreground'}`}>
-                            {option.label}
+                            {t(option.labelKey)}
                           </span>
                           <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                            {option.value === 'online' ? 'متاح للمحادثة' :
-                             option.value === 'busy' ? 'مشغول، لا يمكن إزعاجك' :
-                             option.value === 'away' ? 'بعيد عن الجهاز' :
-                             option.value === 'invisible' ? 'مخفي، تظهر كغير متصل' :
-                             'غير متصل بالمحادثة'}
+                            {option.value === 'online' ? t('settings.status.onlineDetail') :
+                             option.value === 'busy' ? t('settings.status.busyDetail') :
+                             option.value === 'away' ? t('settings.status.awayDetail') :
+                             option.value === 'invisible' ? t('settings.status.invisibleDetail') :
+                             t('settings.status.offlineDetail')}
                           </p>
                         </div>
                         {isSelected && (
@@ -1163,7 +1163,7 @@ export default function SettingsSection({
                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 p-2.5 flex items-start gap-2">
                   <WifiOff className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400 shrink-0 mt-0.5" />
                   <p className="text-[11px] text-gray-600 dark:text-gray-400">
-                    أنت في وضع عدم الظهور. يمكنك استخدام المحادثة واستقبال الرسائل، لكنك ستظهر كغير متصل للآخرين.
+                    {t('settings.status.invisibleNote')}
                   </p>
                 </div>
               )}
@@ -1183,7 +1183,7 @@ export default function SettingsSection({
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
               <Smartphone className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <h3 className="font-semibold text-foreground text-sm">إعدادات التطبيق</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('settings.appSettingsTitle')}</h3>
             </div>
 
             <div className="p-4 space-y-4">
@@ -1206,13 +1206,13 @@ export default function SettingsSection({
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">الإشعارات الخارجية</p>
+                    <p className="text-sm font-medium text-foreground">{t('settings.push.pushTitle')}</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       {pushPermission === 'granted'
-                        ? 'مفعّلة — ستصلك الإشعارات عند إغلاق المتصفح'
+                        ? t('settings.push.enabledDesc')
                         : pushPermission === 'denied'
-                          ? 'محظورة — فعّلها من إعدادات المتصفح'
-                          : 'غير مفعّلة — اضغط لتفعيل الإشعارات خارج المتصفح'}
+                          ? t('settings.push.deniedDesc')
+                          : t('settings.push.defaultDesc')}
                     </p>
                   </div>
                 </div>
@@ -1226,7 +1226,7 @@ export default function SettingsSection({
                         ? 'bg-rose-300 cursor-not-allowed'
                         : 'bg-muted-foreground/30'
                   }`}
-                  aria-label={pushPermission === 'granted' ? 'إيقاف الإشعارات' : 'تفعيل الإشعارات'}
+                  aria-label={pushPermission === 'granted' ? t('settings.push.disableAria') : t('settings.push.enableAria')}
                 >
                   <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-200 ${
                     pushPermission === 'granted' ? 'end-0.5' : 'start-0.5'
@@ -1247,7 +1247,7 @@ export default function SettingsSection({
                   className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 px-3 py-2 text-xs font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100/60 active:bg-sky-100 transition-colors"
                 >
                   <BellRing className="h-3.5 w-3.5" />
-                  إرسال إشعار تجريبي
+                  {t('settings.push.testButton')}
                 </button>
               )}
 
@@ -1270,12 +1270,12 @@ export default function SettingsSection({
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground">
-                      {orientationLocked ? 'فتح تدوير الشاشة' : 'قفل تدوير الشاشة'}
+                      {orientationLocked ? t('settings.orientation.unlockLabel') : t('settings.orientation.lockLabel')}
                     </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       {orientationLocked
-                        ? 'الشاشة مقفلة بالوضع العمودي'
-                        : 'الشاشة تدور تلقائياً'}
+                        ? t('settings.orientation.lockedDesc')
+                        : t('settings.orientation.unlockedDesc')}
                     </p>
                   </div>
                 </div>
@@ -1284,7 +1284,7 @@ export default function SettingsSection({
                   className={`relative shrink-0 h-6 w-11 rounded-full transition-colors duration-200 ${
                     orientationLocked ? 'bg-sky-600' : 'bg-muted-foreground/30'
                   }`}
-                  aria-label={orientationLocked ? 'فتح تدوير الشاشة' : 'قفل تدوير الشاشة'}
+                  aria-label={orientationLocked ? t('settings.orientation.unlockAria') : t('settings.orientation.lockAria')}
                 >
                   <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-200 ${
                     orientationLocked ? 'end-0.5' : 'start-0.5'
@@ -1348,14 +1348,14 @@ export default function SettingsSection({
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
               <Lock className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <h3 className="font-semibold text-foreground text-sm">تغيير كلمة المرور</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('settings.password.title')}</h3>
             </div>
 
             <div className="p-4 space-y-3">
               {/* Current password */}
               <div className="space-y-1">
                 <Label htmlFor="current-password" className="text-xs text-muted-foreground">
-                  كلمة المرور الحالية
+                  {t('settings.password.currentLabel')}
                 </Label>
                 <div className="relative">
                   <Input
@@ -1363,7 +1363,7 @@ export default function SettingsSection({
                     type={showCurrentPassword ? 'text' : 'password'}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
-                    placeholder="أدخل كلمة المرور الحالية"
+                    placeholder={t('settings.password.currentPlaceholder')}
                     className="text-left pr-10 h-9 text-sm"
                     disabled={isChangingPassword}
                     dir="ltr"
@@ -1381,7 +1381,7 @@ export default function SettingsSection({
               {/* New password */}
               <div className="space-y-1">
                 <Label htmlFor="new-password" className="text-xs text-muted-foreground">
-                  كلمة المرور الجديدة
+                  {t('settings.password.newLabel')}
                 </Label>
                 <div className="relative">
                   <Input
@@ -1389,7 +1389,7 @@ export default function SettingsSection({
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="أدخل كلمة المرور الجديدة"
+                    placeholder={t('settings.password.newPlaceholder')}
                     className="text-left pr-10 h-9 text-sm"
                     disabled={isChangingPassword}
                     dir="ltr"
@@ -1407,7 +1407,7 @@ export default function SettingsSection({
               {/* Confirm new password */}
               <div className="space-y-1">
                 <Label htmlFor="confirm-password" className="text-xs text-muted-foreground">
-                  تأكيد كلمة المرور الجديدة
+                  {t('settings.password.confirmLabel')}
                 </Label>
                 <div className="relative">
                   <Input
@@ -1415,7 +1415,7 @@ export default function SettingsSection({
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="أعد إدخال كلمة المرور الجديدة"
+                    placeholder={t('settings.password.confirmPlaceholder')}
                     className="text-left pr-10 h-9 text-sm"
                     disabled={isChangingPassword}
                     dir="ltr"
@@ -1438,12 +1438,12 @@ export default function SettingsSection({
                 {isChangingPassword ? (
                   <span className="flex items-center gap-1.5">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    جاري التغيير...
+                    {t('settings.password.changing')}
                   </span>
                 ) : (
                   <>
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    تغيير كلمة المرور
+                    {t('settings.password.submit')}
                   </>
                 )}
               </Button>
@@ -1461,7 +1461,7 @@ export default function SettingsSection({
           >
             <div className="flex items-center gap-2 border-b border-rose-200 dark:border-rose-800 px-4 py-2.5 bg-rose-50/50 dark:bg-rose-950/30">
               <Shield className="h-4 w-4 text-rose-500" />
-              <h3 className="font-semibold text-rose-700 dark:text-rose-300 text-sm">منطقة الخطر</h3>
+              <h3 className="font-semibold text-rose-700 dark:text-rose-300 text-sm">{t('settings.danger.title')}</h3>
             </div>
 
             <div className="p-4">
@@ -1469,10 +1469,10 @@ export default function SettingsSection({
                 <div>
                   <h4 className="text-sm font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
                     <AlertTriangle className="h-3.5 w-3.5" />
-                    حذف الحساب
+                    {t('settings.danger.deleteButton')}
                   </h4>
                   <p className="text-[11px] text-rose-600/80 dark:text-rose-400 mt-0.5">
-                    سيؤدي إلى إزالة جميع بياناتك نهائياً. هذا الإجراء لا يمكن التراجع عنه.
+                    {t('settings.danger.deleteDesc')}
                   </p>
                 </div>
                 <Button
@@ -1483,7 +1483,7 @@ export default function SettingsSection({
                   disabled={isDeleting}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  حذف الحساب
+                  {t('settings.danger.deleteButton')}
                 </Button>
               </div>
 
@@ -1496,40 +1496,40 @@ export default function SettingsSection({
                   <AlertDialogHeader className="text-right">
                     <AlertDialogTitle className="text-right flex items-center gap-2">
                       <AlertTriangle className="h-5 w-5 text-rose-500" />
-                      تأكيد حذف الحساب
+                      {t('settings.danger.confirmTitle')}
                     </AlertDialogTitle>
                     <AlertDialogDescription className="text-right">
-                      هذا الإجراء لا يمكن التراجع عنه. سيتم حذف حسابك وجميع بياناتك بشكل نهائي.
+                      {t('settings.danger.confirmDesc')}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
 
                   <div className="space-y-3 py-2">
                     <p className="text-sm text-muted-foreground">
-                      يرجى كتابة <span className="font-bold text-rose-600 dark:text-rose-400">حذف</span> للتأكيد:
+                      {t('settings.profile.deleteTypeHint')} <span className="font-bold text-rose-600 dark:text-rose-400">{t('common.delete')}</span>:
                     </p>
                     <Input
                       value={deleteConfirmText}
                       onChange={(e) => setDeleteConfirmText(e.target.value)}
-                      placeholder='اكتب "حذف" هنا'
+                      placeholder={t('settings.profile.deletePlaceholder')}
                       className="text-right"
                       dir={dir}
                     />
                   </div>
 
                   <AlertDialogFooter className="flex-row-reverse gap-2">
-                    <AlertDialogCancel disabled={isDeleting}>إلغاء</AlertDialogCancel>
+                    <AlertDialogCancel disabled={isDeleting}>{t('settings.danger.confirmCancel')}</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDeleteAccount}
                       className="bg-rose-600 hover:bg-rose-700 text-white"
-                      disabled={isDeleting || deleteConfirmText !== 'حذف'}
+                      disabled={isDeleting || deleteConfirmText !== t('common.delete')}
                     >
                       {isDeleting ? (
                         <span className="flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          جاري الحذف...
+                          {t('settings.danger.deleting')}
                         </span>
                       ) : (
-                        'حذف الحساب نهائياً'
+                        t('settings.danger.confirmDelete')
                       )}
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -1547,7 +1547,7 @@ export default function SettingsSection({
           className="sm:max-w-md p-0 overflow-hidden bg-black/95 border-none"
           showCloseButton={false}
         >
-          <DialogTitle className="sr-only">معاينة الصورة الشخصية</DialogTitle>
+          <DialogTitle className="sr-only">{t('settings.profile.avatarPreviewTitle')}</DialogTitle>
           <div className="relative flex items-center justify-center min-h-[300px]">
             <img
               src={profile.avatar_url || ''}
@@ -1580,7 +1580,7 @@ export default function SettingsSection({
               className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-white hover:bg-black/80 transition-colors text-xs"
             >
               <Camera className="h-3.5 w-3.5" />
-              تغيير الصورة
+              {t('settings.profile.changePhoto')}
             </button>
           </div>
         </DialogContent>
