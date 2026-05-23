@@ -25,6 +25,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { toast } from 'sonner';
+import { useTranslation, useI18n } from '@/lib/i18n/context';
 
 interface RegisterFormProps {
   onSwitchToLogin?: () => void;
@@ -33,7 +34,6 @@ interface RegisterFormProps {
 /** Password strength calculator */
 function getPasswordStrength(password: string): {
   score: number;
-  label: string;
   color: string;
 } {
   let score = 0;
@@ -43,10 +43,10 @@ function getPasswordStrength(password: string): {
   if (/[0-9]/.test(password)) score++;
   if (/[^A-Za-z0-9]/.test(password)) score++;
 
-  if (score <= 1) return { score, label: 'ضعيفة', color: 'bg-red-500' };
-  if (score <= 2) return { score, label: 'متوسطة', color: 'bg-yellow-500' };
-  if (score <= 3) return { score, label: 'جيدة', color: 'bg-blue-500' };
-  return { score, label: 'قوية', color: 'bg-teal-500' };
+  if (score <= 1) return { score, color: 'bg-red-500' };
+  if (score <= 2) return { score, color: 'bg-yellow-500' };
+  if (score <= 3) return { score, color: 'bg-blue-500' };
+  return { score, color: 'bg-teal-500' };
 }
 
 export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
@@ -62,6 +62,8 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const { signUpWithEmail, signInWithGoogle } = useAuthStore();
   const { setCurrentPage } = useAppStore();
   const { institution, fetchInstitution, loaded } = useInstitutionStore();
+  const { t } = useTranslation();
+  const { dir } = useI18n();
 
   // Fetch institution data on mount
   useEffect(() => {
@@ -72,28 +74,29 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const displayLogo = institution?.logo_url;
 
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
+  const passwordStrengthLabel = passwordStrength.score <= 1 ? t('auth.register.passwordStrengthWeak') : passwordStrength.score <= 2 ? t('auth.register.passwordStrengthMedium') : passwordStrength.score <= 3 ? t('auth.register.passwordStrengthGood') : t('auth.register.passwordStrengthStrong');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name.trim()) {
-      toast.error('يرجى إدخال الاسم');
+      toast.error(t('auth.register.errorNameRequired'));
       return;
     }
     if (!email.trim()) {
-      toast.error('يرجى إدخال البريد الإلكتروني');
+      toast.error(t('auth.register.errorEmailRequired'));
       return;
     }
     if (!password.trim()) {
-      toast.error('يرجى إدخال كلمة المرور');
+      toast.error(t('auth.register.errorPasswordRequired'));
       return;
     }
     if (password.length < 6) {
-      toast.error('يجب أن تكون كلمة المرور 6 أحرف على الأقل');
+      toast.error(t('auth.register.errorPasswordMinLength'));
       return;
     }
     if (password !== confirmPassword) {
-      toast.error('كلمتا المرور غير متطابقتين');
+      toast.error(t('auth.register.errorPasswordMismatch'));
       return;
     }
 
@@ -106,11 +109,11 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       }
 
       if (needsConfirmation) {
-        toast.success('تم إرسال رابط التأكيد إلى بريدك الإلكتروني. يرجى التحقق من بريدك (تحقق من مجلد البريد المزعج أيضاً).', {
+        toast.success(t('auth.register.successConfirmation'), {
           duration: 8000,
         });
       } else {
-        toast.success('تم إنشاء الحساب بنجاح');
+        toast.success(t('auth.register.successCreated'));
         // Check the user's role after signup (might be superadmin if first user)
         const user = useAuthStore.getState().user;
         if (user) {
@@ -124,7 +127,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         }
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('auth.register.errorUnexpected'));
     } finally {
       setIsLoading(false);
     }
@@ -140,7 +143,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       // Google OAuth redirects away - the auth state change listener
       // in the auth store will handle navigation after redirect back
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('auth.register.errorUnexpected'));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -153,7 +156,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   };
 
   return (
-    <div dir="rtl" className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+    <div dir={dir} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -172,10 +175,10 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               </motion.div>
             )}
             <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
-              إنشاء حساب جديد
+              {t('auth.register.title')}
             </CardTitle>
             <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-              انضم إلى {displayName} وابدأ رحلتك التعليمية
+              {t('auth.register.subtitle', { displayName })}
             </CardDescription>
           </CardHeader>
 
@@ -189,13 +192,13 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 className="space-y-2"
               >
                 <Label htmlFor="reg-name" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  الاسم الكامل
+                  {t('auth.register.fullNameLabel')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="reg-name"
                     type="text"
-                    placeholder="أدخل اسمك الكامل"
+                    placeholder={t('auth.register.fullNamePlaceholder')}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
@@ -214,13 +217,13 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 className="space-y-2"
               >
                 <Label htmlFor="reg-email" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  البريد الإلكتروني
+                  {t('auth.register.emailLabel')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="reg-email"
                     type="email"
-                    placeholder="أدخل بريدك الإلكتروني"
+                    placeholder={t('auth.register.emailPlaceholder')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
@@ -240,13 +243,13 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 className="space-y-2"
               >
                 <Label htmlFor="reg-password" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  كلمة المرور
+                  {t('auth.register.passwordLabel')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="reg-password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="أنشئ كلمة مرور قوية"
+                    placeholder={t('auth.register.passwordPlaceholder')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pr-10 pl-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
@@ -288,7 +291,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                       passwordStrength.score <= 3 ? 'text-blue-600' :
                       'text-teal-600'
                     }`}>
-                      قوة كلمة المرور: {passwordStrength.label}
+                      قوة كلمة المرور: {passwordStrengthLabel}
                     </p>
                   </div>
                 )}
@@ -305,13 +308,13 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   htmlFor="reg-confirm-password"
                   className="text-gray-700 font-medium text-xs sm:text-sm"
                 >
-                  تأكيد كلمة المرور
+                  {t('auth.register.confirmPasswordLabel')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="reg-confirm-password"
                     type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="أعد إدخال كلمة المرور"
+                    placeholder={t('auth.register.confirmPasswordPlaceholder')}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="pr-10 pl-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
@@ -343,7 +346,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 <div className="rounded-lg bg-sky-50 border border-sky-200 p-2 sm:p-3 text-xs text-sky-700 flex items-start gap-2">
                   <GraduationCap className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>
-                    يتم إنشاء حسابك كطالب بشكل افتراضي. يمكن للمشرف تغيير نوع حسابك لاحقاً.
+                    {t('auth.register.studentDefaultNote')}
                   </span>
                 </div>
               </motion.div>
@@ -362,10 +365,10 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   {isLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>جارٍ إنشاء الحساب...</span>
+                      <span>{t('auth.register.creatingAccount')}</span>
                     </>
                   ) : (
-                    'إنشاء حساب'
+                    t('auth.register.submit')
                   )}
                 </Button>
               </motion.div>
@@ -382,7 +385,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 <div className="w-full border-t border-gray-200" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-white px-4 text-gray-400">أو</span>
+                <span className="bg-white px-4 text-gray-400">{t('auth.register.or')}</span>
               </div>
             </motion.div>
 
@@ -421,7 +424,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                     />
                   </svg>
                 )}
-                <span>التسجيل بحساب جوجل</span>
+                <span>{t('auth.register.googleSignUp')}</span>
               </Button>
             </motion.div>
 
@@ -434,13 +437,13 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 className="mt-3 sm:mt-6 text-center"
               >
                 <p className="text-sm text-gray-500">
-                  لديك حساب بالفعل؟{' '}
+                  {t('auth.register.hasAccount')}{' '}
                   <button
                     type="button"
                     onClick={handleSwitchToLogin}
                     className="font-semibold text-sky-600 hover:text-sky-700 transition-colors hover:underline"
                   >
-                    سجّل دخولك
+                    {t('auth.register.signIn')}
                   </button>
                 </p>
               </motion.div>

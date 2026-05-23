@@ -11,6 +11,7 @@ import { useNotificationStore } from '@/stores/notification-store';
 import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 import { setSocketAuth, destroySocket } from '@/lib/socket';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { useI18n } from '@/lib/i18n/context';
 import SupabaseConfigError from '@/components/shared/supabase-config-error';
 import LoginForm from '@/components/auth/login-form';
 import RegisterForm from '@/components/auth/register-form';
@@ -35,13 +36,13 @@ import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary
 // FIX (v2): Added auto-recovery (3-second timer) and Zustand store reset
 // so transient layout-level errors don't permanently crash the app.
 class AppErrorBoundary extends React.Component<
-  { children: React.ReactNode; onFallbackToLogin?: () => void },
+  { children: React.ReactNode; onFallbackToLogin?: () => void; t?: (key: string) => string; dir?: 'rtl' | 'ltr' },
   { hasError: boolean; error: Error | null; retryKey: number; retryCount: number; autoRetrying: boolean }
 > {
   private autoRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   static MAX_AUTO_RETRIES = 1; // Only auto-retry once to prevent infinite loops
 
-  constructor(props: { children: React.ReactNode; onFallbackToLogin?: () => void }) {
+  constructor(props: { children: React.ReactNode; onFallbackToLogin?: () => void; t?: (key: string) => string; dir?: 'rtl' | 'ltr' }) {
     super(props);
     this.state = { hasError: false, error: null, retryKey: 0, retryCount: 0, autoRetrying: false };
   }
@@ -95,11 +96,13 @@ class AppErrorBoundary extends React.Component<
   };
 
   render() {
+    const t = this.props.t || ((key: string) => key);
+    const dir = this.props.dir || 'rtl';
     if (this.state.hasError) {
       // Auto-recovery spinner
       if (this.state.autoRetrying) {
         return (
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -108,7 +111,7 @@ class AppErrorBoundary extends React.Component<
               </div>
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
-                <span className="text-sm font-medium text-sky-800">جاري محاولة إعادة التحميل...</span>
+                <span className="text-sm font-medium text-sky-800">{t('common.retrying')}</span>
               </div>
             </div>
           </div>
@@ -116,22 +119,22 @@ class AppErrorBoundary extends React.Component<
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center max-w-md mx-auto">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50">
               <AlertTriangle className="h-8 w-8 text-amber-500" />
             </div>
-            <h1 className="text-lg font-bold text-gray-900 mb-2">حدث خطأ في التطبيق</h1>
-            <p className="text-sm text-gray-500 mb-4">حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.</p>
+            <h1 className="text-lg font-bold text-gray-900 mb-2">{t('common.appError')}</h1>
+            <p className="text-sm text-gray-500 mb-4">{t('common.errorUnexpected')}</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <button onClick={this.handleRetry} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 w-full sm:w-auto">
                 <RefreshCw className="h-4 w-4" />
-                إعادة المحاولة
+                {t('common.retry')}
               </button>
               {this.props.onFallbackToLogin && (
                 <button onClick={this.props.onFallbackToLogin} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 w-full sm:w-auto">
                   <LogOut className="h-4 w-4" />
-                  العودة لتسجيل الدخول
+                  {t('common.backToLogin')}
                 </button>
               )}
             </div>
@@ -147,42 +150,42 @@ type AuthMode = 'login' | 'register' | 'forgot-password' | 'update-password';
 
 // Admin navigation items (shared between admin-dashboard and profile page sidebar)
 const adminNavItems = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'users', label: 'المستخدمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'announcements', label: 'الإعلانات', icon: <Megaphone className="h-5 w-5" /> },
-  { id: 'banned', label: 'المحظورون', icon: <Ban className="h-5 w-5" /> },
-  { id: 'reports', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
-  { id: 'institution', label: 'المؤسسة', icon: <Building2 className="h-5 w-5" /> },
+  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'users', label: 'nav.users', icon: <Users className="h-5 w-5" /> },
+  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'announcements', label: 'nav.announcements', icon: <Megaphone className="h-5 w-5" /> },
+  { id: 'banned', label: 'nav.banned', icon: <Ban className="h-5 w-5" /> },
+  { id: 'reports', label: 'nav.analytics', icon: <TrendingUp className="h-5 w-5" /> },
+  { id: 'chat', label: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'settings', label: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
+  { id: 'institution', label: 'nav.institution', icon: <Building2 className="h-5 w-5" /> },
 ];
 
 // Teacher navigation items (for profile page sidebar)
 const teacherNavItems = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'students', label: 'الطلاب', icon: <Users className="h-5 w-5" /> },
-  { id: 'tracking', label: 'تتبع الطلاب', icon: <Activity className="h-5 w-5" /> },
-  { id: 'files', label: 'ملفاتي', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'analytics', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
+  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'chat', label: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'students', label: 'nav.students', icon: <Users className="h-5 w-5" /> },
+  { id: 'tracking', label: 'nav.studentTracking', icon: <Activity className="h-5 w-5" /> },
+  { id: 'files', label: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
+  { id: 'analytics', label: 'nav.analytics', icon: <TrendingUp className="h-5 w-5" /> },
+  { id: 'notifications', label: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'settings', label: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
 ];
 
 // Student navigation items (for profile page sidebar)
 const studentNavItems = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'tracking', label: 'تتبع الطالب', icon: <Activity className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'teachers', label: 'المعلمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'summaries', label: 'الملخصات', icon: <FileText className="h-5 w-5" /> },
-  { id: 'assignments', label: 'المهام', icon: <FileSpreadsheet className="h-5 w-5" /> },
-  { id: 'files', label: 'ملفاتي', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
+  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'tracking', label: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },
+  { id: 'chat', label: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'teachers', label: 'nav.teachers', icon: <Users className="h-5 w-5" /> },
+  { id: 'summaries', label: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },
+  { id: 'assignments', label: 'nav.assignments', icon: <FileSpreadsheet className="h-5 w-5" /> },
+  { id: 'files', label: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
+  { id: 'notifications', label: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'settings', label: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
 ];
 
 function HomeContent() {
@@ -192,6 +195,7 @@ function HomeContent() {
   const { cleanup: cleanupNotifications } = useNotificationStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
+  const { t, dir } = useI18n();
 
   // ─── Early Password Recovery Detection (synchronous) ───
   // Must run BEFORE initialize() so we can prevent the SIGNED_IN race condition.
@@ -546,7 +550,7 @@ function HomeContent() {
   const showFullLoading = (loading || !initialized) && !hasPersistedSession;
   if (showFullLoading || (!setupCheckDone && !hasPersistedSession)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -560,7 +564,7 @@ function HomeContent() {
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
-            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+            <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
         </motion.div>
       </div>
@@ -582,7 +586,7 @@ function HomeContent() {
   // to prevent the jarring flash of login → dashboard.
   if ((!user && hasPersistedSession) || (loading && hasPersistedSession && !initialized)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -591,7 +595,7 @@ function HomeContent() {
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
-            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+            <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
         </div>
       </div>
@@ -600,7 +604,7 @@ function HomeContent() {
 
   if (!user || currentPage === 'auth') {
     return (
-      <div className="min-h-screen flex flex-col lg:flex-row" dir="rtl">
+      <div className="min-h-screen flex flex-col lg:flex-row" dir={dir}>
         {/* ── Right Panel: Branding & Illustration (hidden on mobile) ── */}
         <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700 overflow-hidden">
           {/* Background decoration */}
@@ -627,19 +631,19 @@ function HomeContent() {
               </div> */}
 
               <h2 className="text-3xl xl:text-4xl font-bold text-white mb-4 leading-tight">
-                منصتك التعليمية الذكية
+                {t('app.platformTagline')}
               </h2>
               <p className="text-lg text-sky-100/80 mb-10 leading-relaxed">
-                منصة متكاملة مدعومة بالذكاء الاصطناعي للطلاب والمعلمين، توفر تلخيص ذكي، اختبارات تفاعلية، ومتابعة مستمرة
+                {t('app.platformDescription')}
               </p>
 
               {/* Feature cards */}
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { icon: <BrainCircuit className="h-5 w-5" />, title: 'ذكاء اصطناعي', desc: 'تلخيص وتحليل ذكي' },
-                  { icon: <BookOpen className="h-5 w-5" />, title: 'تلخيص ذكي', desc: 'من أي مصدر تعليمي' },
-                  { icon: <Users className="h-5 w-5" />, title: 'متابعة الطلاب', desc: 'تقارير وإحصائيات' },
-                  { icon: <Shield className="h-5 w-5" />, title: 'آمن وموثوق', desc: 'حماية بياناتك' },
+                  { icon: <BrainCircuit className="h-5 w-5" />, title: t('features.aiTitle'), desc: t('features.aiDesc') },
+                  { icon: <BookOpen className="h-5 w-5" />, title: t('features.summarizeTitle'), desc: t('features.summarizeDesc') },
+                  { icon: <Users className="h-5 w-5" />, title: t('features.trackingTitle'), desc: t('features.trackingDesc') },
+                  { icon: <Shield className="h-5 w-5" />, title: t('features.securityTitle'), desc: t('features.securityDesc') },
                 ].map((feature, i) => (
                   <motion.div
                     key={i}
@@ -666,19 +670,19 @@ function HomeContent() {
             <div className="flex items-center gap-3 text-muted-foreground flex-wrap justify-center">
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <BrainCircuit className="w-3 h-3" />
-                <span>ذكاء اصطناعي</span>
+                <span>{t('features.aiTitle')}</span>
               </div>
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <BookOpen className="w-3 h-3" />
-                <span>تلخيص ذكي</span>
+                <span>{t('features.summarizeTitle')}</span>
               </div>
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <Users className="w-3 h-3" />
-                <span>متابعة الطلاب</span>
+                <span>{t('features.trackingTitle')}</span>
               </div>
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <Shield className="w-3 h-3" />
-                <span>آمن وموثوق</span>
+                <span>{t('features.securityTitle')}</span>
               </div>
             </div>
           </div>
@@ -748,8 +752,8 @@ function HomeContent() {
   // would crash the entire app with no recovery.
   if (currentPage === 'quiz' && viewingQuizId) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
-        <AppErrorBoundary onFallbackToLogin={() => {
+      <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
+        <AppErrorBoundary t={t} dir={dir} onFallbackToLogin={() => {
           setViewingQuizId(null);
           setCurrentPage('auth');
         }}>
@@ -773,7 +777,7 @@ function HomeContent() {
   // ─── Loading spinners for orphaned pages (while useEffect hasn't run yet) ───
   if (currentPage === 'quiz' && !viewingQuizId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -782,7 +786,7 @@ function HomeContent() {
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
-            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+            <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
         </div>
       </div>
@@ -791,7 +795,7 @@ function HomeContent() {
 
   if (currentPage === 'summary') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -800,7 +804,7 @@ function HomeContent() {
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
-            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+            <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
         </div>
       </div>
@@ -810,13 +814,12 @@ function HomeContent() {
   // Profile view — includes AppSidebar so the toggle button works
   if (currentPage === 'profile' && profileUserId) {
     const profileNavItems = (() => {
-      if (user.role === 'superadmin' || user.role === 'admin') {
-        return adminNavItems;
-      } else if (user.role === 'teacher') {
-        return teacherNavItems;
-      } else {
-        return studentNavItems;
-      }
+      const items = user.role === 'superadmin' || user.role === 'admin'
+        ? adminNavItems
+        : user.role === 'teacher'
+          ? teacherNavItems
+          : studentNavItems;
+      return items.map(item => ({ ...item, label: t(item.label) }));
     })();
 
     const profileActiveSection = (() => {
@@ -840,7 +843,7 @@ function HomeContent() {
     };
 
     return (
-      <div className="flex min-h-screen bg-background" dir="rtl">
+      <div className="flex min-h-screen bg-background" dir={dir}>
         <AppHeader
           userName={user.name}
           userId={user.id}
@@ -912,7 +915,7 @@ function HomeContent() {
   // If user becomes null (e.g., auth timeout with persisted session), redirect to auth.
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -921,7 +924,7 @@ function HomeContent() {
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
-            <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+            <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
           </div>
         </div>
       </div>
@@ -977,8 +980,8 @@ function HomeContent() {
   })();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50/50 to-sky-50/30" dir="rtl">
-      <AppErrorBoundary onFallbackToLogin={handleSignOut}>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50/50 to-sky-50/30" dir={dir}>
+      <AppErrorBoundary t={t} dir={dir} onFallbackToLogin={handleSignOut}>
         {dashboardContent}
       </AppErrorBoundary>
     </div>
@@ -998,7 +1001,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
-              <span className="text-sm font-medium text-sky-800">جاري التحميل...</span>
+              <span className="text-sm font-medium text-sky-800">...</span>
             </div>
           </div>
         </div>

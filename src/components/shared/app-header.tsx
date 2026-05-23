@@ -16,6 +16,7 @@ import NotificationBell from '@/components/shared/notification-bell';
 import UserAvatar from '@/components/shared/user-avatar';
 import ThemeToggle from '@/components/shared/theme-toggle';
 import { supabase } from '@/lib/supabase';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -34,14 +35,15 @@ interface AppHeaderProps {
 }
 
 // Academic titles (same as settings-section)
+// Labels are i18n keys resolved via t()
 const ACADEMIC_TITLES = [
-  { value: 'teacher', label: 'معلم', femaleLabel: 'معلمة' },
-  { value: 'dr', label: 'دكتور', femaleLabel: 'دكتورة' },
-  { value: 'prof', label: 'أستاذ', femaleLabel: 'أستاذة' },
-  { value: 'assoc_prof', label: 'أستاذ مشارك', femaleLabel: 'أستاذة مشاركة' },
-  { value: 'assist_prof', label: 'أستاذ مساعد', femaleLabel: 'أستاذة مساعدة' },
-  { value: 'lecturer', label: 'محاضر', femaleLabel: 'محاضرة' },
-  { value: 'teaching_assist', label: 'معيد', femaleLabel: 'معيدة' },
+  { value: 'teacher', label: 'titles.teacher', femaleLabel: 'titles.teacherFemale' },
+  { value: 'dr', label: 'titles.dr', femaleLabel: 'titles.drFemale' },
+  { value: 'prof', label: 'titles.prof', femaleLabel: 'titles.profFemale' },
+  { value: 'assoc_prof', label: 'titles.assocProf', femaleLabel: 'titles.assocProfFemale' },
+  { value: 'assist_prof', label: 'titles.assistProf', femaleLabel: 'titles.assistProfFemale' },
+  { value: 'lecturer', label: 'titles.lecturer', femaleLabel: 'titles.lecturerFemale' },
+  { value: 'teaching_assist', label: 'titles.teachingAssist', femaleLabel: 'titles.teachingAssistFemale' },
 ] as const;
 
 // -------------------------------------------------------
@@ -65,6 +67,7 @@ export default function AppHeader({
   const { openProfile, setReportsUnreadCount } = useAppStore();
   const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
   const { myStatus, init: initStatusStore } = useStatusStore();
+  const { t, dir } = useI18n();
 
   // Initialize status store with userId (critical for Supabase Presence)
   useEffect(() => {
@@ -113,19 +116,19 @@ export default function AppHeader({
   // Gender-aware role label
   const isFemale = userGender === 'female';
   const roleLabel = userRole === 'student'
-    ? (isFemale ? 'طالبة' : 'طالب')
+    ? (isFemale ? t('roles.studentFemale') : t('roles.student'))
     : userRole === 'superadmin'
-      ? (isFemale ? 'مديرة المنصة' : 'مدير المنصة')
+      ? (isFemale ? t('roles.superadminFemale') : t('roles.superadmin'))
       : userRole === 'admin'
-        ? (isFemale ? 'مشرفة' : 'مشرف')
+        ? (isFemale ? t('roles.adminFemale') : t('roles.admin'))
         : (() => {
             // For teachers, show academic title if available, otherwise default to معلم/معلمة
             const effectiveTitleId = titleId || 'teacher';
-            const title = ACADEMIC_TITLES.find(t => t.value === effectiveTitleId);
+            const title = ACADEMIC_TITLES.find(at => at.value === effectiveTitleId);
             if (title) {
-              return isFemale ? title.femaleLabel : title.label;
+              return isFemale ? t(title.femaleLabel) : t(title.label);
             }
-            return isFemale ? 'معلمة' : 'معلم';
+            return isFemale ? t('titles.teacherFemale') : t('titles.teacher');
           })();
 
   // Close dropdown on outside click
@@ -151,7 +154,7 @@ export default function AppHeader({
   }, [dropdownOpen]);
 
   return (
-    <header className="fixed top-0 right-0 left-0 z-40 h-14 sm:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border" dir="rtl">
+    <header className="fixed top-0 right-0 left-0 z-40 h-14 sm:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border" dir={dir}>
       <div className="flex h-full items-center justify-between px-2 sm:px-5">
         {/* ── Right side: Logo + App name ── */}
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
@@ -159,7 +162,7 @@ export default function AppHeader({
           <button
             onClick={onToggleSidebar}
             className="touch-target shrink-0 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
-            aria-label={sidebarCollapsed ? 'فتح القائمة' : 'إغلاق القائمة'}
+            aria-label={sidebarCollapsed ? t('header.openMenu') : t('header.closeMenu')}
           >
             <svg
               className="h-5 w-5"
@@ -232,7 +235,7 @@ export default function AppHeader({
                   exit={{ opacity: 0, pointerEvents: 'none' as const }}
                   transition={{ duration: 0.1 }}
                   className="absolute left-0 top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50"
-                  dir="rtl"
+                  dir={dir}
                 >
                   {/* User info in dropdown */}
                   <div className="border-b px-4 py-3 bg-muted/20">
@@ -249,7 +252,7 @@ export default function AppHeader({
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 active:bg-muted/80 transition-colors"
                     >
                       <UserCircle className="h-4 w-4 text-muted-foreground" />
-                      الملف الشخصي
+                      {t('header.profile')}
                     </button>
                     <button
                       onClick={() => {
@@ -259,7 +262,7 @@ export default function AppHeader({
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 active:bg-muted/80 transition-colors"
                     >
                       <Settings className="h-4 w-4 text-muted-foreground" />
-                      الإعدادات
+                      {t('header.settings')}
                     </button>
                     <ThemeToggle />
                     <button
@@ -270,7 +273,7 @@ export default function AppHeader({
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 active:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-950/50 transition-colors"
                     >
                       <LogOut className="h-4 w-4" />
-                      تسجيل الخروج
+                      {t('header.signOut')}
                     </button>
                   </div>
                 </motion.div>
@@ -288,24 +291,25 @@ export default function AppHeader({
 // -------------------------------------------------------
 function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 'superadmin' }) {
   const { studentSection, teacherSection, adminSection } = useAppStore();
+  const { t } = useI18n();
 
   const sectionLabels: Record<string, string> = {
-    dashboard: 'لوحة التحكم',
-    subjects: 'المقررات',
-    summaries: 'الملخصات',
-    assignments: 'المهام',
-    files: 'ملفاتي',
-    teachers: 'المعلمون',
-    students: 'الطلاب',
-    analytics: 'التقارير',
-    settings: 'الإعدادات',
-    users: 'المستخدمون',
-    reports: 'التقارير',
-    announcements: 'الإعلانات',
-    banned: 'المحظورون',
-    institution: 'المؤسسة',
-    chat: 'المحادثات',
-    notifications: 'الإشعارات',
+    dashboard: t('nav.dashboard'),
+    subjects: t('nav.subjects'),
+    summaries: t('nav.summaries'),
+    assignments: t('nav.assignments'),
+    files: t('nav.files'),
+    teachers: t('nav.teachers'),
+    students: t('nav.students'),
+    analytics: t('nav.analytics'),
+    settings: t('nav.settings'),
+    users: t('nav.users'),
+    reports: t('nav.reports'),
+    announcements: t('nav.announcements'),
+    banned: t('nav.banned'),
+    institution: t('nav.institution'),
+    chat: t('nav.chat'),
+    notifications: t('nav.notifications'),
   };
 
   const activeSection = role === 'student' ? studentSection : role === 'teacher' ? teacherSection : (role === 'admin' || role === 'superadmin') ? adminSection : 'dashboard';
@@ -354,6 +358,7 @@ function HeaderLogo() {
 // -------------------------------------------------------
 function HeaderTitle() {
   const { institution, fetchInstitution, loaded } = useInstitutionStore();
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!loaded) fetchInstitution();
@@ -362,7 +367,7 @@ function HeaderTitle() {
   return (
     <div className="flex flex-col min-w-0">
       <h1 className="text-base sm:text-lg font-bold text-primary whitespace-nowrap truncate max-w-[180px] sm:max-w-[250px]">
-        {loaded ? (institution?.name || 'أتيندو') : '\u00A0'}
+        {loaded ? (institution?.name || t('header.appNameFallback')) : '\u00A0'}
       </h1>
       {loaded && institution?.tagline && (
         <span className="text-[10px] sm:text-xs text-primary/60 whitespace-nowrap truncate max-w-[180px] sm:max-w-[250px] -mt-0.5">

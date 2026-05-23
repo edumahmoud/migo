@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, X, Smartphone } from 'lucide-react';
+import { useI18n } from '@/lib/i18n/context';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -14,6 +15,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function InstallPrompt() {
+  const { t, dir } = useI18n();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(() => {
@@ -89,13 +91,13 @@ export default function InstallPrompt() {
           exit={{ opacity: 0, y: 80, pointerEvents: 'none' as const }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md sm:bottom-6 sm:left-auto sm:right-6"
-          dir="rtl"
+          dir={dir}
         >
           <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-xl sm:p-5">
             <button
               onClick={handleDismiss}
               className="absolute top-3 left-3 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/50 transition-colors"
-              aria-label="إغلاق"
+              aria-label={t('common.close')}
             >
               <X className="h-4 w-4" />
             </button>
@@ -105,16 +107,16 @@ export default function InstallPrompt() {
                 <Smartphone className="h-6 w-6 text-sky-700" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-foreground">تثبيت أتيندو</h3>
+                <h3 className="text-sm font-bold text-foreground">{t('install.title')}</h3>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  ثبّت التطبيق على جهازك للوصول السريع والعمل بدون إنترنت
+                  {t('install.description')}
                 </p>
                 <button
                   onClick={handleInstall}
                   className="mt-3 flex items-center gap-2 rounded-xl bg-sky-700 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-sky-800 active:bg-sky-900 transition-colors"
                 >
                   <Download className="h-3.5 w-3.5" />
-                  تثبيت التطبيق
+                  {t('install.button')}
                 </button>
               </div>
             </div>

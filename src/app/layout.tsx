@@ -10,6 +10,7 @@ import SocketErrorBoundary from "@/components/shared/socket-error-boundary";
 import VideoUploadIndicator from "@/components/shared/video-upload-indicator";
 
 import { SocketProvider } from "@/lib/socket";
+import ClientProviders from "@/components/providers/client-providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,7 +58,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning>
+    <html lang="ar" dir="rtl" suppressHydrationWarning className="rtl">
       <head>
         <link rel="apple-touch-icon" href="/api/icon/180" data-dynamic-apple />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -125,21 +126,23 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <SocketErrorBoundary
-          // Slot 1 (normal): Full app WITH SocketProvider
-          // Slot 2 (fallback): App WITHOUT SocketProvider — used when socket.io crashes
-          fallback={
+        <ClientProviders>
+          <SocketErrorBoundary
+            // Slot 1 (normal): Full app WITH SocketProvider
+            // Slot 2 (fallback): App WITHOUT SocketProvider — used when socket.io crashes
+            fallback={
+              <React.Suspense fallback={null}>
+                {children}
+              </React.Suspense>
+            }
+          >
             <React.Suspense fallback={null}>
-              {children}
+              <SocketProvider>
+                {children}
+              </SocketProvider>
             </React.Suspense>
-          }
-        >
-          <React.Suspense fallback={null}>
-            <SocketProvider>
-              {children}
-            </SocketProvider>
-          </React.Suspense>
-        </SocketErrorBoundary>
+          </SocketErrorBoundary>
+        </ClientProviders>
         <InstitutionHead />
         <Toaster />
         <ServiceWorkerRegistration />

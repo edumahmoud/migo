@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AppPage, StudentSection, TeacherSection, AdminSection, CourseTab } from '@/lib/types';
+import type { Locale } from '@/lib/i18n/types';
 
 interface AppState {
   // Navigation
@@ -68,6 +69,10 @@ interface AppState {
   // Pending report ID (used when navigating from a notification to auto-select a report)
   pendingReportId: string | null;
   setPendingReportId: (id: string | null) => void;
+
+  // Language / i18n
+  language: Locale;
+  setLanguage: (locale: Locale) => void;
   
   // Reset
   reset: () => void;
@@ -91,6 +96,7 @@ const initialState = {
   chatUnreadCount: 0,
   reportsUnreadCount: 0,
   pendingReportId: null as string | null,
+  language: 'ar' as Locale,
 };
 
 export const useAppStore = create<AppState>()(
@@ -142,6 +148,7 @@ export const useAppStore = create<AppState>()(
       setChatUnreadCount: (count) => set({ chatUnreadCount: count }),
       setReportsUnreadCount: (count) => set({ reportsUnreadCount: count }),
       setPendingReportId: (id) => set({ pendingReportId: id }),
+      setLanguage: (locale) => set({ language: locale }),
       
       reset: () => set(initialState),
     }),
@@ -163,6 +170,8 @@ export const useAppStore = create<AppState>()(
         quizReviewMode: state.quizReviewMode,
         // Persist previousStudentSection so back navigation works after refresh
         previousStudentSection: state.previousStudentSection,
+        // Persist language preference
+        language: state.language,
       }),
     }
   )

@@ -28,6 +28,7 @@ import {
   Sun,
   Moon,
   Unlock,
+  Globe,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -57,6 +58,7 @@ import { useSharedSocket, useSocketEvent, setSocketAuth } from '@/lib/socket';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import type { UserProfile, UserStatus } from '@/lib/types';
 import ThemeToggle from '@/components/shared/theme-toggle';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Types
@@ -165,6 +167,9 @@ export default function SettingsSection({
   onDeleteAccount,
 }: SettingsSectionProps) {
   const { refreshProfile } = useAuthStore();
+
+  // ─── i18n ───
+  const { t, locale, setLocale, dir, isRTL } = useI18n();
 
   // ─── Shared socket ───
   const { isConnected, status: socketStatus, emitStatusChange } = useSharedSocket();
@@ -783,7 +788,7 @@ export default function SettingsSection({
           new Notification('إشعار تجريبي 🔔', {
             body: 'الإشعارات تعمل داخل المتصفح. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.',
             icon: '/icons/icon-192x192.png',
-            dir: 'rtl',
+            dir,
           });
           toast.info('تم إرسال إشعار محلي. الإشعارات الخارجية تحتاج تثبيت التطبيق كـ PWA.');
         } else {
@@ -807,8 +812,8 @@ export default function SettingsSection({
     >
       {/* Header */}
       <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground">الإعدادات</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">إدارة الملف الشخصي وإعدادات الحساب</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground">{t('settings.title')}</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">{t('settings.subtitle')}</p>
       </div>
 
 
@@ -826,7 +831,7 @@ export default function SettingsSection({
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
               <User className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <h3 className="font-semibold text-foreground text-sm">الملف الشخصي</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('settings.profile.title')}</h3>
             </div>
 
             <div className="p-4 space-y-4">
@@ -1292,6 +1297,44 @@ export default function SettingsSection({
 
               {/* Theme Toggle (Appearance) */}
               <ThemeToggle />
+
+              {/* Divider */}
+              <div className="border-t" />
+
+              {/* Language Switcher */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300">
+                    <Globe className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground">{t('settings.language')}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{t('settings.languageDesc')}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={() => setLocale('ar')}
+                    className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                      locale === 'ar'
+                        ? 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-700 dark:bg-sky-950/30 dark:text-sky-300'
+                        : 'border-border text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    العربية
+                  </button>
+                  <button
+                    onClick={() => setLocale('en')}
+                    className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                      locale === 'en'
+                        ? 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-700 dark:bg-sky-950/30 dark:text-sky-300'
+                        : 'border-border text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    English
+                  </button>
+                </div>
+              </div>
             </div>
           </motion.div>
 
@@ -1449,7 +1492,7 @@ export default function SettingsSection({
                 setDeleteConfirmOpen(open);
                 if (!open) setDeleteConfirmText('');
               }}>
-                <AlertDialogContent dir="rtl">
+                <AlertDialogContent dir={dir}>
                   <AlertDialogHeader className="text-right">
                     <AlertDialogTitle className="text-right flex items-center gap-2">
                       <AlertTriangle className="h-5 w-5 text-rose-500" />
@@ -1469,7 +1512,7 @@ export default function SettingsSection({
                       onChange={(e) => setDeleteConfirmText(e.target.value)}
                       placeholder='اكتب "حذف" هنا'
                       className="text-right"
-                      dir="rtl"
+                      dir={dir}
                     />
                   </div>
 

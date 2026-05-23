@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Types
@@ -35,27 +36,27 @@ interface BottomNavItem {
 // Navigation items per role (5 items each)
 // -------------------------------------------------------
 const studentNavItems: BottomNavItem[] = [
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
+  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'notifications', label: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'reports', label: 'nav.reports', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'more', label: 'common.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
 const teacherNavItems: BottomNavItem[] = [
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
+  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'notifications', label: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'reports', label: 'nav.reports', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'more', label: 'common.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
 const adminNavItems: BottomNavItem[] = [
-  { id: 'users', label: 'المستخدمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'complaints', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
+  { id: 'users', label: 'nav.users', icon: <Users className="h-5 w-5" /> },
+  { id: 'notifications', label: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'complaints', label: 'nav.reports', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'more', label: 'common.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
 // -------------------------------------------------------
@@ -69,6 +70,7 @@ export default function MobileBottomNav({
 }: MobileBottomNavProps) {
   const isMobile = useIsMobile();
   const { chatUnreadCount, reportsUnreadCount } = useAppStore();
+  const { dir } = useI18n();
 
   // Don't render on desktop
   if (!isMobile) return null;
@@ -84,7 +86,7 @@ export default function MobileBottomNav({
     <nav
       className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border dark:bg-card/95 dark:border-border"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      dir="rtl"
+      dir={dir}
     >
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-1">
         {navItems.map((item, index) => {
@@ -132,6 +134,8 @@ function BottomNavItemButton({
   onToggleSidebar: () => void;
   role?: string;
 }) {
+  const { t } = useI18n();
+
   const handleClick = () => {
     if (item.isMore) {
       onToggleSidebar();
@@ -147,7 +151,7 @@ function BottomNavItemButton({
         isCenter ? '-mt-4 pb-1' : 'gap-0.5 py-1.5'
       }`}
       whileTap={{ scale: 0.9 }}
-      aria-label={item.label}
+      aria-label={t(item.label)}
       aria-current={isActive ? 'page' : undefined}
     >
       {/* Active background highlight — skip for center item (has its own circle) */}
@@ -206,7 +210,7 @@ function BottomNavItemButton({
           isActive ? 'text-primary' : 'text-muted-foreground'
         }`}
       >
-        {item.label}
+        {t(item.label)}
       </span>
 
       {/* Active indicator dot — skip for center item */}

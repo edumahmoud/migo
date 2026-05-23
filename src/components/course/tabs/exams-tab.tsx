@@ -54,6 +54,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile, QuestionBank, BankQuestion } from '@/lib/types';
 import QuizSettingsModal from '@/components/shared/quiz-settings-modal';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -105,6 +106,7 @@ function scorePercentage(score: number, total: number): number {
 // Countdown timer for scheduled quizzes
 // -------------------------------------------------------
 function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string; scheduledTime?: string }) {
+  const { t } = useI18n();
   const [remaining, setRemaining] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
   const [started, setStarted] = useState(false);
 
@@ -137,7 +139,7 @@ function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string
     return (
       <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800">
         <Play className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-        <span className="text-xs font-bold text-sky-700 dark:text-sky-300">متاح الآن</span>
+        <span className="text-xs font-bold text-sky-700 dark:text-sky-300">{t('exams.availableNow')}</span>
       </div>
     );
   }
@@ -199,6 +201,7 @@ function isQuizExpired(quiz: Quiz): boolean {
 // -------------------------------------------------------
 export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   const { setViewingQuizId } = useAppStore();
+  const { t, dir } = useI18n();
 
   // ─── Sub-tab ───
   const [subTab, setSubTab] = useState<ExamSubTab>('active');
@@ -1056,7 +1059,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           }
           className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
           disabled={savingQuiz}
-          dir="rtl"
+          dir={dir}
         />
       </div>
 
@@ -1088,7 +1091,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 placeholder={`الخيار ${idx + 1}`}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
-                dir="rtl"
+                dir={dir}
               />
             </div>
           ))}
@@ -1138,7 +1141,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             placeholder="أدخل الإجابة الصحيحة للفراغ"
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             disabled={savingQuiz}
-            dir="rtl"
+            dir={dir}
           />
         </div>
       )}
@@ -1161,7 +1164,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 placeholder="العنصر"
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
-                dir="rtl"
+                dir={dir}
               />
               <span className="text-muted-foreground text-sm">←</span>
               <input
@@ -1175,7 +1178,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 placeholder="المطابق"
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
-                dir="rtl"
+                dir={dir}
               />
               {matchingPairs.length > 1 && (
                 <button
@@ -1269,13 +1272,13 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-2xl rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"
-            dir="rtl"
+            dir={dir}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4 sm:p-5 sticky top-0 bg-background z-10">
               <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2 min-w-0 truncate">
                 <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300 shrink-0" />
-                <span className="truncate">{editingQuiz ? 'تعديل الاختبار' : 'إنشاء اختبار جديد'}</span>
+                <span className="truncate">{editingQuiz ? t('exams.editQuiz') : t('exams.createQuiz')}</span>
               </h3>
               <button
                 onClick={() => { if (!savingQuiz) { setQuizModalOpen(false); resetQuizForm(); } }}
@@ -1298,7 +1301,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   placeholder="مثال: اختبار الفصل الثاني - الرياضيات"
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                   disabled={savingQuiz || generatingFromAi}
-                  dir="rtl"
+                  dir={dir}
                 />
               </div>
 
@@ -1734,7 +1737,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4" />
-                    {editingQuiz ? 'حفظ التعديلات' : 'إنشاء الاختبار'}
+                    {editingQuiz ? t('exams.saveChanges') : t('exams.createQuiz')}
                   </>
                 )}
               </button>
@@ -1743,7 +1746,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 disabled={savingQuiz || generatingFromAi}
                 className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
               >
-                إلغاء
+                {t('common.cancel')}
               </button>
             </div>
           </motion.div>
@@ -1772,33 +1775,33 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             <button
               onClick={() => setSettingsQuiz(quiz)}
               className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-950/50 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-teal-50 sm:dark:hover:bg-teal-50 sm:hover:text-teal-600 sm:text-sm sm:font-normal"
-              title="إعدادات"
+              title={t('exams.settings')}
             >
               <Settings className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-              <span className="sm:hidden">إعدادات</span>
+              <span className="sm:hidden">{t('exams.settings')}</span>
             </button>
             {/* Edit */}
             <button
               onClick={() => handleEditQuiz(quiz)}
               className="flex items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-950/50 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-sky-50 sm:dark:hover:bg-sky-50 sm:hover:text-sky-700 sm:text-sm sm:font-normal"
-              title="تعديل"
+              title={t('exams.edit')}
             >
               <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-              <span className="sm:hidden">تعديل</span>
+              <span className="sm:hidden">{t('exams.edit')}</span>
             </button>
             {/* Delete */}
             <button
               onClick={() => setDeleteQuizConfirmId(quiz.id)}
               disabled={deletingId === quiz.id}
               className="flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors disabled:opacity-50 sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-rose-50 sm:dark:hover:bg-rose-50 sm:hover:text-rose-600 sm:text-sm sm:font-normal"
-              title="حذف"
+              title={t('exams.delete')}
             >
               {deletingId === quiz.id ? (
                 <Loader2 className="h-4 w-4 animate-spin sm:h-3.5 sm:w-3.5" />
               ) : (
                 <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
               )}
-              <span className="sm:hidden">حذف</span>
+              <span className="sm:hidden">{t('exams.delete')}</span>
             </button>
           </div>
 
@@ -1811,7 +1814,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               <div className="flex items-center gap-2 mt-0.5">
                 {getStatusBadge(getQuizStatus(quiz))}
                 {quiz.questions && (
-                  <span className="text-xs text-muted-foreground">{quiz.questions.length} سؤال</span>
+                  <span className="text-xs text-muted-foreground">{quiz.questions.length} {t('common.question')}</span>
                 )}
               </div>
             </div>
@@ -1822,7 +1825,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             {quiz.duration && (
               <span className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {quiz.duration} دقيقة
+                {quiz.duration} {t('common.minutes')}
               </span>
             )}
             {quiz.scheduled_date && (
@@ -1839,11 +1842,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             <div className="flex items-center gap-3 mb-3 p-2.5 rounded-lg bg-muted/50">
               <div className="flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">{qScores.length} مشارك</span>
+                <span className="text-xs text-muted-foreground">{qScores.length} {t('exams.participants')}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Trophy className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                <span className="text-xs font-medium text-foreground">متوسط: {avgScore}%</span>
+                <span className="text-xs font-medium text-foreground">{t('exams.average')}: {avgScore}%</span>
               </div>
             </div>
           )}
@@ -1863,7 +1866,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 <Eye className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
               )}
               <span className={quiz.show_results === false ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}>
-                {quiz.show_results === false ? 'النتائج مخفية' : 'إظهار النتائج'}
+                {quiz.show_results === false ? t('exams.resultsHidden') : t('exams.showResults')}
               </span>
             </button>
             <button
@@ -1877,7 +1880,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
               )}
               <span className={quiz.allow_retake ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'}>
-                {quiz.allow_retake ? 'إعادة مسموحة' : 'بدون إعادة'}
+                {quiz.allow_retake ? t('exams.retakeAllowed') : t('exams.retakeNotAllowed')}
               </span>
             </button>
           </div>
@@ -1894,7 +1897,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   : 'text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100'
               }`}
             >
-              {isFinishedTab ? 'إعادة تفعيل' : 'إنهاء الاختبار'}
+              {isFinishedTab ? t('exams.reactivate') : t('exams.finishQuiz')}
             </button>
 
             {/* Export results (finished tab only) */}
@@ -1904,7 +1907,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 hover:bg-teal-100 transition-colors"
               >
                 <Download className="h-3.5 w-3.5" />
-                تصدير النتائج
+                {t('exams.exportResults')}
               </button>
             )}
           </div>
@@ -1932,7 +1935,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               <div className="flex items-center gap-2 mt-0.5">
                 {getStatusBadge(getQuizStatus(quiz))}
                 {quiz.questions && (
-                  <span className="text-xs text-muted-foreground">{quiz.questions.length} سؤال</span>
+                  <span className="text-xs text-muted-foreground">{quiz.questions.length} {t('common.question')}</span>
                 )}
               </div>
             </div>
@@ -1972,7 +1975,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           {quiz.duration && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
               <Clock className="h-3 w-3" />
-              {quiz.duration} دقيقة
+              {quiz.duration} {t('common.minutes')}
             </div>
           )}
 
@@ -1988,7 +1991,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-sky-800 mt-3 w-full justify-center"
             >
               <Play className="h-3.5 w-3.5" />
-              بدء الاختبار
+              {t('exams.startQuiz')}
             </button>
           )}
 
@@ -1999,7 +2002,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               className="flex items-center gap-1.5 rounded-lg border px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors mt-3 w-full justify-center"
             >
               <Eye className="h-3.5 w-3.5" />
-              مراجعة الاختبار
+              {t('exams.reviewQuiz')}
             </button>
           )}
         </div>
@@ -2015,7 +2018,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       {/* Header with sub-tab switcher */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="text-xl font-bold text-foreground">الاختبارات</h3>
+          <h3 className="text-xl font-bold text-foreground">{t('exams.title')}</h3>
           <p className="text-muted-foreground text-sm mt-1">{quizzes.length} اختبار</p>
         </div>
 
@@ -2031,7 +2034,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               }`}
             >
               <Play className="h-3 w-3" />
-              نشطة
+              {t('exams.active')}
             </button>
             <button
               onClick={() => setSubTab('finished')}
@@ -2042,7 +2045,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               }`}
             >
               <ClipboardList className="h-3 w-3" />
-              منتهية
+              {t('exams.finished')}
             </button>
           </div>
 
@@ -2053,7 +2056,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
             >
               <Plus className="h-4 w-4" />
-              إنشاء اختبار
+              {t('exams.createQuiz')}
             </button>
           )}
         </div>
@@ -2074,7 +2077,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
               <ClipboardList className="h-8 w-8 text-sky-700 dark:text-sky-300" />
             </div>
-            <p className="text-lg font-semibold text-foreground mb-1">لا توجد اختبارات نشطة</p>
+            <p className="text-lg font-semibold text-foreground mb-1">{t('exams.noActiveQuizzes')}</p>
             <p className="text-sm text-muted-foreground">
               {role === 'teacher' ? 'ابدأ بإنشاء اختبار جديد لطلابك' : 'لم يتم إضافة اختبارات نشطة بعد'}
             </p>
@@ -2084,7 +2087,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800 mt-4"
               >
                 <Plus className="h-4 w-4" />
-                إنشاء اختبار
+                {t('exams.createQuiz')}
               </button>
             )}
           </motion.div>
@@ -2107,7 +2110,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted-100 mb-4">
               <ClipboardList className="h-8 w-8 text-muted-400" />
             </div>
-            <p className="text-lg font-semibold text-foreground mb-1">لا توجد اختبارات منتهية</p>
+            <p className="text-lg font-semibold text-foreground mb-1">{t('exams.noFinishedQuizzes')}</p>
             <p className="text-sm text-muted-foreground">
               {role === 'teacher' ? 'الاختبارات المنتهية ستظهر هنا مع نتائجها' : 'الاختبارات المكتملة ستظهر هنا'}
             </p>
@@ -2142,15 +2145,15 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
       {/* Delete Quiz Confirmation Dialog */}
       <AlertDialog open={!!deleteQuizConfirmId} onOpenChange={(open) => { if (!open) setDeleteQuizConfirmId(null); }}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف الاختبار</AlertDialogTitle>
+            <AlertDialogTitle>{t('exams.deleteQuiz')}</AlertDialogTitle>
             <AlertDialogDescription>
               هل أنت متأكد من حذف هذا الاختبار؟ لا يمكن التراجع عن هذا الإجراء.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();

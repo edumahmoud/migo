@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Ban, Clock, ShieldAlert, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
+import { useI18n } from '@/lib/i18n/context';
 
 interface BannedUserOverlayProps {
   children: React.ReactNode;
@@ -11,6 +12,7 @@ interface BannedUserOverlayProps {
 
 export default function BannedUserOverlay({ children }: BannedUserOverlayProps) {
   const { banInfo, signOut, checkBanStatus } = useAuthStore();
+  const { t, dir } = useI18n();
   const [timeLeft, setTimeLeft] = useState('');
 
   // Periodically check ban status (to auto-unban when time expires)
@@ -32,7 +34,7 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
     const updateCountdown = () => {
       const remaining = new Date(banInfo.banUntil!).getTime() - Date.now();
       if (remaining <= 0) {
-        setTimeLeft('منتهي الصلاحية');
+        setTimeLeft(t('banned.expired'));
         checkBanStatus();
         return;
       }
@@ -40,11 +42,11 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
       const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
       const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
       if (days > 0) {
-        setTimeLeft(`${days} يوم و ${hours} ساعة و ${minutes} دقيقة`);
+        setTimeLeft(t('banned.timeDaysHoursMinutes', { days, hours, minutes }));
       } else if (hours > 0) {
-        setTimeLeft(`${hours} ساعة و ${minutes} دقيقة`);
+        setTimeLeft(t('banned.timeHoursMinutes', { hours, minutes }));
       } else {
-        setTimeLeft(`${minutes} دقيقة`);
+        setTimeLeft(t('banned.timeMinutes', { minutes }));
       }
     };
 
@@ -71,7 +73,7 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
-        dir="rtl"
+        dir={dir}
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -85,9 +87,9 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/20 mb-4">
                 <ShieldAlert className="h-10 w-10 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-white">حسابك محظور</h2>
+              <h2 className="text-2xl font-bold text-white">{t('banned.title')}</h2>
               <p className="text-rose-100 mt-2 text-sm">
-                {banInfo.isPermanent ? 'تم حظر حسابك نهائياً' : 'تم حظر حسابك مؤقتاً'}
+                {banInfo.isPermanent ? t('banned.permanentBan') : t('banned.temporaryBan')}
               </p>
             </div>
 
@@ -96,7 +98,7 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
               {/* Ban reason */}
               {banInfo.reason && (
                 <div className="rounded-lg bg-rose-50 border border-rose-200 p-4">
-                  <p className="text-sm font-medium text-rose-700 mb-1">سبب الحظر:</p>
+                  <p className="text-sm font-medium text-rose-700 mb-1">{t('banned.reasonLabel')}</p>
                   <p className="text-sm text-rose-600">{banInfo.reason}</p>
                 </div>
               )}
@@ -107,21 +109,21 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
                   <div className="flex items-center gap-3">
                     <Ban className="h-5 w-5 text-rose-500 shrink-0" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">حظر نهائي</p>
-                      <p className="text-xs text-muted-foreground">لا يمكن رفع الحظر إلا بواسطة المشرف</p>
+                      <p className="text-sm font-medium text-foreground">{t('banned.permanentBanLabel')}</p>
+                      <p className="text-xs text-muted-foreground">{t('banned.permanentBanDesc')}</p>
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
                     <Clock className="h-5 w-5 text-amber-500 shrink-0" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">حظر مؤقت</p>
+                      <p className="text-sm font-medium text-foreground">{t('banned.temporaryBanLabel')}</p>
                       <p className="text-xs text-muted-foreground">
-                        الوقت المتبقي: <span className="font-bold text-amber-600">{timeLeft}</span>
+                        {t('banned.timeRemaining')}: <span className="font-bold text-amber-600">{timeLeft}</span>
                       </p>
                       {banInfo.banUntil && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          ينتهي في: {new Date(banInfo.banUntil).toLocaleDateString('ar-SA', {
+                          {t('banned.endsAt')}: {new Date(banInfo.banUntil).toLocaleDateString('ar-SA', {
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric',
@@ -137,23 +139,23 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
 
               {/* Restrictions list */}
               <div className="rounded-lg bg-muted/30 border p-4">
-                <p className="text-sm font-medium text-foreground mb-2">القيود المفروضة:</p>
+                <p className="text-sm font-medium text-foreground mb-2">{t('banned.restrictionsLabel')}</p>
                 <ul className="space-y-1.5">
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    لا يمكن فتح المقررات الدراسية
+                    {t('banned.restrictionCourses')}
                   </li>
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    لا يمكن إرسال طلبات إضافة معلمين أو مقررات
+                    {t('banned.restrictionRequests')}
                   </li>
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    لا يمكن استخدام المحادثات
+                    {t('banned.restrictionChat')}
                   </li>
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    لا يتم استلام الإشعارات
+                    {t('banned.restrictionNotifications')}
                   </li>
                 </ul>
               </div>
@@ -164,7 +166,7 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
                 className="flex items-center justify-center gap-2 w-full rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 hover:bg-rose-100 transition-colors"
               >
                 <LogOut className="h-4 w-4" />
-                تسجيل الخروج
+                {t('banned.signOut')}
               </button>
             </div>
           </div>

@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
+import { useI18n } from '@/lib/i18n/context';
 import type { Quiz } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -112,6 +113,7 @@ export default function QuizSettingsModal({
   onClose,
   onUpdate,
 }: QuizSettingsModalProps) {
+  const { t, dir } = useI18n();
   const [allowRetake, setAllowRetake] = useState(quiz.allow_retake ?? true);
   const [showResults, setShowResults] = useState(quiz.show_results ?? true);
   const [shuffleQuestions, setShuffleQuestions] = useState(quiz.shuffle_questions ?? true);
@@ -148,14 +150,14 @@ export default function QuizSettingsModal({
       if (res.ok && data.success) {
         // Merge the local shuffle setting with the server response
         const updatedQuiz = { ...data.data, shuffle_questions: shuffleQuestions } as Partial<Quiz>;
-        toast.success('تم تحديث إعدادات الاختبار بنجاح');
+        toast.success(t('quizSettings.updateSuccess'));
         onUpdate(updatedQuiz);
         onClose();
       } else {
-        toast.error(data.error || 'فشل تحديث إعدادات الاختبار');
+        toast.error(data.error || t('quizSettings.updateFailed'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء حفظ الإعدادات');
+      toast.error(t('quizSettings.saveError'));
     } finally {
       setSaving(false);
     }
@@ -163,14 +165,14 @@ export default function QuizSettingsModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }} key={quiz.id}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir="rtl">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir={dir}>
         <DialogHeader className="text-right">
           <DialogTitle className="flex items-center gap-2 text-right">
             <Settings className="h-5 w-5 text-teal-600" />
-            إعدادات الاختبار
+            {t('quizSettings.title')}
           </DialogTitle>
           <DialogDescription className="text-right">
-            تعديل إعدادات &quot;{quiz.title}&quot;
+            {t('quizSettings.editQuizSettings', { title: quiz.title })}
           </DialogDescription>
         </DialogHeader>
 
@@ -183,10 +185,10 @@ export default function QuizSettingsModal({
             animate="visible"
             custom={0}
           >
-            <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">الاختبار</p>
+            <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">{t('quizSettings.quizLabel')}</p>
             <p className="text-sm font-medium text-teal-800 dark:text-teal-300 truncate">{quiz.title}</p>
             <p className="text-xs text-teal-600/70 mt-1">
-              {quiz.questions?.length || 0} سؤال
+              {t('quizSettings.questionCount', { count: quiz.questions?.length || 0 })}
             </p>
           </motion.div>
 
@@ -200,12 +202,12 @@ export default function QuizSettingsModal({
           >
             <div className="flex items-center gap-2">
               <Settings className="h-4 w-4 text-teal-600" />
-              <h3 className="text-sm font-semibold text-foreground">خيارات الاختبار</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('quizSettings.optionsLabel')}</h3>
             </div>
 
             <ToggleSwitch
-              label="السماح بإعادة الاختبار"
-              description="السماح للطلاب بإعادة الاختبار بعد إكماله"
+              label={t('quizSettings.allowRetake')}
+              description={t('quizSettings.allowRetakeDesc')}
               icon={<RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
               checked={allowRetake}
               onChange={setAllowRetake}
@@ -213,8 +215,8 @@ export default function QuizSettingsModal({
             />
 
             <ToggleSwitch
-              label="عرض النتائج"
-              description="إظهار النتائج والإجابات الصحيحة بعد الاختبار"
+              label={t('quizSettings.showResults')}
+              description={t('quizSettings.showResultsDesc')}
               icon={<Eye className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
               checked={showResults}
               onChange={setShowResults}
@@ -222,8 +224,8 @@ export default function QuizSettingsModal({
             />
 
             <ToggleSwitch
-              label="ترتيب عشوائي للأسئلة"
-              description="عرض الأسئلة بترتيب مختلف لكل طالب"
+              label={t('quizSettings.shuffleQuestions')}
+              description={t('quizSettings.shuffleQuestionsDesc')}
               icon={<Shuffle className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
               checked={shuffleQuestions}
               onChange={setShuffleQuestions}
@@ -243,7 +245,7 @@ export default function QuizSettingsModal({
           >
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-teal-600" />
-              <h3 className="text-sm font-semibold text-foreground">المدة الزمنية</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('quizSettings.durationLabel')}</h3>
             </div>
 
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
@@ -251,8 +253,8 @@ export default function QuizSettingsModal({
                 <Clock className="h-4 w-4 text-teal-600 dark:text-teal-400" />
               </div>
               <div className="flex-1">
-                <Label className="text-sm text-muted-foreground">المدة بالدقائق</Label>
-                <p className="text-[10px] text-muted-foreground/70">اتركه فارغاً بدون وقت محدد</p>
+                <Label className="text-sm text-muted-foreground">{t('quizSettings.durationInMinutes')}</Label>
+                <p className="text-[10px] text-muted-foreground/70">{t('quizSettings.durationHint')}</p>
               </div>
               <Input
                 type="number"
@@ -275,15 +277,15 @@ export default function QuizSettingsModal({
             disabled={saving}
             className="bg-teal-600 hover:bg-teal-700 text-white gap-2"
           >
-            {saving ? (
+                {saving ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                جاري الحفظ...
+                {t('quizSettings.saving')}
               </span>
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4" />
-                حفظ الإعدادات
+                {t('quizSettings.save')}
               </>
             )}
           </Button>
@@ -293,7 +295,7 @@ export default function QuizSettingsModal({
             disabled={saving}
             className="border-teal-300 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:border-teal-800 dark:hover:bg-teal-950/30"
           >
-            إلغاء
+            {t('common.cancel')}
           </Button>
         </DialogFooter>
       </DialogContent>
