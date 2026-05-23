@@ -502,7 +502,7 @@ export async function evaluateCompletionAnswer(
   const text = await chatWithFallback(
     EVALUATE_SYSTEM,
     EVALUATE_USER(question, correctAnswer, studentAnswer),
-    { temperature: 0.1, maxTokens: 10, timeoutMs: 30000, retries: 1, nonStream: true, operation: 'evaluate' },
+    { temperature: 0.1, maxTokens: 30, timeoutMs: 30000, retries: 1, nonStream: true, operation: 'evaluate' },
   );
 
   const normalized = text.trim().toLowerCase();

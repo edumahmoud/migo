@@ -30,26 +30,32 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { question, correctAnswer, studentAnswer, detailed } = body;
 
-    if (!question || !correctAnswer || !studentAnswer) {
+    if (!question || !studentAnswer) {
       return NextResponse.json(
-        { success: false, error: 'جميع الحقول مطلوبة' },
+        { success: false, error: 'السؤال وإجابة الطالب مطلوبان' },
         { status: 400, headers: rateLimitHeaders }
       );
     }
 
-    if (typeof question !== 'string' || typeof correctAnswer !== 'string' || typeof studentAnswer !== 'string') {
+    if (typeof question !== 'string' || typeof studentAnswer !== 'string') {
       return NextResponse.json(
-        { success: false, error: 'يجب أن تكون جميع الحقول نصية' },
+        { success: false, error: 'يجب أن تكون الحقول نصية' },
         { status: 400, headers: rateLimitHeaders }
       );
     }
+
+    // Allow missing/empty correctAnswer — the AI can evaluate based on the question context alone.
+    // This is important for completion questions where correctAnswer may not always be available.
+    const effectiveCorrectAnswer = typeof correctAnswer === 'string' && correctAnswer.trim()
+      ? correctAnswer.trim()
+      : 'غير محدد';
 
     // Sanitize inputs with reasonable length limits
     const sanitizedQuestion = sanitizeString(question, 2000);
-    const sanitizedCorrectAnswer = sanitizeString(correctAnswer, 1000);
+    const sanitizedCorrectAnswer = sanitizeString(effectiveCorrectAnswer, 1000);
     const sanitizedStudentAnswer = sanitizeString(studentAnswer, 1000);
 
-    if (!sanitizedQuestion || !sanitizedCorrectAnswer || !sanitizedStudentAnswer) {
+    if (!sanitizedQuestion || !sanitizedStudentAnswer) {
       return NextResponse.json(
         { success: false, error: 'حقول غير صالحة بعد التنظيف' },
         { status: 400, headers: rateLimitHeaders }

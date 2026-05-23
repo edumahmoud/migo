@@ -130,7 +130,10 @@ export const EVALUATE_USER = (
   question: string,
   correctAnswer: string,
   studentAnswer: string,
-) => `السؤال: ${question}\nالإجابة النموذجية: ${correctAnswer}\nإجابة الطالب: ${studentAnswer}\n\nهل إجابة الطالب صحيحة معنوياً؟`;
+) => {
+  const hasCorrectAnswer = correctAnswer && correctAnswer !== 'غير محدد';
+  return `السؤال: ${question}\n${hasCorrectAnswer ? `الإجابة النموذجية: ${correctAnswer}` : 'ملاحظة: الإجابة النموذجية غير متاحة، قيّم الإجابة بناءً على السياق والمعرفة العامة'}\nإجابة الطالب: ${studentAnswer}\n\nهل إجابة الطالب صحيحة معنوياً؟`;
+};
 
 export const EVALUATE_DETAILED_SYSTEM = `أنت مصحح اختبارات ذكي. تقرر ما إذا كانت إجابة الطالب صحيحة من الناحية المعنوية، وتقدم تبريراً موجزاً لإجابتك. يجب أن يكون ردك بتنسيق JSON فقط: {"isCorrect": true/false, "reasoning": "تبرير موجز باللغة العربية"}
 
@@ -149,7 +152,10 @@ export const EVALUATE_DETAILED_USER = (
   question: string,
   correctAnswer: string,
   studentAnswer: string,
-) => `السؤال: ${question}\nالإجابة النموذجية: ${correctAnswer}\nإجابة الطالب: ${studentAnswer}\n\nهل إجابة الطالب صحيحة معنوياً؟ قدم تبريراً موجزاً.`;
+) => {
+  const hasCorrectAnswer = correctAnswer && correctAnswer !== 'غير محدد';
+  return `السؤال: ${question}\n${hasCorrectAnswer ? `الإجابة النموذجية: ${correctAnswer}` : 'ملاحظة: الإجابة النموذجية غير متاحة، قيّم الإجابة بناءً على السياق والمعرفة العامة'}\nإجابة الطالب: ${studentAnswer}\n\nهل إجابة الطالب صحيحة معنوياً؟ قدم تبريراً موجزاً.`;
+};
 
 // -------------------------------------------------------
 // Explanation Prompts (لماذا خطأ)
