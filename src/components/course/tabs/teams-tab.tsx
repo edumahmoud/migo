@@ -54,6 +54,7 @@ import {
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile } from '@/lib/types';
 import * as XLSX from 'xlsx';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Types
@@ -102,6 +103,7 @@ const itemVariants = {
 };
 
 export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
+  const { t, dir } = useI18n();
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<Record<string, TeamMember[]>>({});
   const [unassigned, setUnassigned] = useState<UserProfile[]>([]);
@@ -589,7 +591,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) { setCreateOpen(false); setEditTeam(null); setFormName(''); setFormLevel(''); setFormColor('#6366f1'); }
       }}>
-        <DialogContent className="sm:max-w-md" dir="rtl">
+        <DialogContent className="sm:max-w-md" dir={dir}>
           <DialogHeader>
             <DialogTitle>{isEdit ? 'تعديل المجموعة' : 'إنشاء مجموعة جديدة'}</DialogTitle>
           </DialogHeader>
@@ -638,7 +640,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   // -------------------------------------------------------
   const renderAutoAssignDialog = () => (
     <Dialog open={autoAssignOpen} onOpenChange={setAutoAssignOpen}>
-      <DialogContent className="sm:max-w-sm" dir="rtl">
+      <DialogContent className="sm:max-w-sm" dir={dir}>
         <DialogHeader>
           <DialogTitle>توزيع تلقائي على المجموعات</DialogTitle>
         </DialogHeader>
@@ -675,7 +677,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   // -------------------------------------------------------
   const renderAddMemberDialog = () => (
     <Dialog open={!!addMemberTeamId} onOpenChange={(open) => { if (!open) setAddMemberTeamId(null); }}>
-      <DialogContent className="sm:max-w-md max-h-[80vh]" dir="rtl">
+      <DialogContent className="sm:max-w-md max-h-[80vh]" dir={dir}>
         <DialogHeader>
           <DialogTitle>إضافة عضو للمجموعة</DialogTitle>
         </DialogHeader>
@@ -822,7 +824,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Users className="h-5 w-5 text-sky-700" />
-            المجموعات والمستويات
+            {t('course.teams')}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
             قسّم طلاب المقرر إلى مجموعات ومستويات
@@ -949,7 +951,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       {/* EXPORT: Select Teams Dialog                  */}
       {/* ============================================ */}
       <Dialog open={exportOpen} onOpenChange={(open) => { if (!open) { setExportOpen(false); setSelectedTeamIds(new Set()); } }}>
-        <DialogContent className="sm:max-w-md" dir="rtl">
+        <DialogContent className="sm:max-w-md" dir={dir}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-sky-700" />
@@ -1023,7 +1025,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
 
       {/* Performance Assign Dialog */}
       <Dialog open={perfAssignOpen} onOpenChange={setPerfAssignOpen}>
-        <DialogContent className="sm:max-w-sm" dir="rtl">
+        <DialogContent className="sm:max-w-sm" dir={dir}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-sky-700" />
@@ -1062,7 +1064,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
 
       {/* Group Message Dialog */}
       <Dialog open={!!msgTeamId} onOpenChange={(open) => { if (!open) { setMsgTeamId(null); setMsgText(''); } }}>
-        <DialogContent className="sm:max-w-md" dir="rtl">
+        <DialogContent className="sm:max-w-md" dir={dir}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-teal-600" />
@@ -1080,7 +1082,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                 onChange={(e) => setMsgText(e.target.value)}
                 placeholder="اكتب ملاحظتك هنا..."
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-600/30 focus:border-teal-600 transition-colors min-h-[100px] resize-y"
-                dir="rtl"
+                dir={dir}
                 disabled={msgSending}
               />
             </div>

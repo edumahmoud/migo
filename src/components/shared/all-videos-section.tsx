@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
+import { useI18n } from '@/lib/i18n/context';
 import type { UserProfile, Subject, SubjectVideo, VideoComment } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -87,6 +88,7 @@ const itemVariants = {
 // Main Component
 // -------------------------------------------------------
 export default function AllVideosSection({ profile, role }: AllVideosSectionProps) {
+  const { t, dir } = useI18n();
   const [videos, setVideos] = useState<VideoWithMeta[]>([]);
   const [subjects, setSubjects] = useState<SubjectWithVideoCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -653,7 +655,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
       initial="hidden"
       animate="visible"
       className="space-y-6"
-      dir="rtl"
+      dir={dir}
     >
       {selectedVideo ? (
         <div key="player">{renderVideoPlayer()}</div>

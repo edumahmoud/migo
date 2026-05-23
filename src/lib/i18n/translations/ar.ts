@@ -57,6 +57,10 @@ export const ar: TranslationDict = {
     noResults: 'لا توجد نتائج',
     tryDifferentSearch: 'جرّب البحث بكلمات مختلفة',
     errorUnexpected: 'حدث خطأ غير متوقع',
+    section: 'قسم',
+    thisSection: 'هذا القسم',
+    encounteredProblem: 'واجه مشكلة. يمكنك المحاولة مرة أخرى.',
+    errorDetailsDev: 'تفاصيل الخطأ (للمطورين)',
     appError: 'حدث خطأ في التطبيق',
     errorNetwork: 'فشل الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى',
     errorServer: 'خطأ في الخادم',
@@ -75,6 +79,7 @@ export const ar: TranslationDict = {
   // ─── App ───
   app: {
     title: 'أتيندو',
+    tagline: 'منصة تعليمية ذكية',
     description: 'منصة تعليمية ذكية مدعومة بالذكاء الاصطناعي للطلاب والمعلمين',
     appleWebAppTitle: 'أتيندو',
     platformTagline: 'منصتك التعليمية الذكية',
@@ -595,6 +600,14 @@ export const ar: TranslationDict = {
     title: 'الإشعارات',
     noNotifications: 'لا توجد إشعارات',
     markAllRead: 'تحديد الكل كمقروء',
+    blocked: 'الإشعارات محظورة',
+    disabledTap: 'الإشعارات متوقفة - اضغط للتفعيل',
+    blockedBrowser: 'الإشعارات محظورة - فعّلها من إعدادات المتصفح',
+    disabled: 'الإشعارات متوقفة',
+    enabledTap: 'الإشعارات مفعّلة - اضغط لإيقافها',
+    enabled: 'الإشعارات مفعّلة',
+    enable: 'تفعيل الإشعارات',
+    enableHint: 'فعّل الإشعارات لتصلك حتى عند إغلاق المتصفح',
   },
 
   // ─── Chat ───
@@ -609,8 +622,13 @@ export const ar: TranslationDict = {
   course: {
     overview: 'نظرة عامة',
     lectures: 'المحاضرات',
+    newLecture: 'محاضرة جديدة',
+    noLectures: 'لا توجد محاضرات بعد',
     videos: 'الفيديوهات',
+    uploadVideo: 'رفع فيديو',
+    noVideos: 'لا توجد فيديوهات',
     files: 'الملفات',
+    noFiles: 'لا توجد ملفات',
     exams: 'الاختبارات',
     assignments: 'المهام',
     students: 'الطلاب',
@@ -715,5 +733,22 @@ export const ar: TranslationDict = {
   gender: {
     male: 'ذكر',
     female: 'أنثى',
+  },
+
+  // ─── Dashboard Error ───
+  dashboard: {
+    couldNotLoad: 'تعذر تحميل لوحة التحكم',
+    couldNotLoadAfterRetries: 'تعذر تحميل لوحة التحكم بعد عدة محاولات. يمكنك المحاولة مرة أخرى أو إعادة تعيين التطبيق بالكامل.',
+    errorLoadingDashboard: 'حدث خطأ أثناء تحميل لوحة التحكم الخاصة بك. يمكنك المحاولة مرة أخرى أو العودة لتسجيل الدخول.',
+    attempt: 'محاولة',
+    of: 'من',
+    backToLogin: 'العودة لتسجيل الدخول',
+    resetApp: 'إعادة تعيين التطبيق',
+  },
+
+  // ─── Theme ───
+  theme: {
+    lightMode: 'الوضع الفاتح',
+    darkMode: 'الوضع الداكن',
   },
 };

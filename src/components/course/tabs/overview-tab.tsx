@@ -23,6 +23,7 @@ import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { getTitleLabel } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { useAppStore } from '@/stores/app-store';
+import { useI18n } from '@/lib/i18n/context';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Lecture, SubjectFile, SubjectTeacher } from '@/lib/types';
 
@@ -73,6 +74,7 @@ function formatDate(dateStr: string): string {
 // Main Component
 // -------------------------------------------------------
 export default function OverviewTab({ profile, role, subjectId, subject }: OverviewTabProps) {
+  const { t, dir } = useI18n();
   const { openProfile, setSelectedSubjectId, setCourseTab } = useAppStore();
   const [stats, setStats] = useState({
     totalLectures: 0,
@@ -269,25 +271,25 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
       <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard
           icon={<BookOpen className="h-5 w-5" />}
-          label="المحاضرات"
+          label={t('course.lectures')}
           value={stats.totalLectures}
           color="ocean"
         />
         <StatCard
           icon={<Users className="h-5 w-5" />}
-          label="الطلاب"
+          label={t('course.students')}
           value={stats.totalStudents}
           color="teal"
         />
         <StatCard
           icon={<File className="h-5 w-5" />}
-          label="الملفات"
+          label={t('course.files')}
           value={stats.totalFiles}
           color="amber"
         />
         <StatCard
           icon={<ClipboardCheck className="h-5 w-5" />}
-          label="المهام"
+          label={t('course.assignments')}
           value={stats.totalAssignments}
           color="rose"
         />
@@ -533,7 +535,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10, pointerEvents: 'none' as const }}
             className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-            dir="rtl"
+            dir={dir}
           >
             <div className="flex flex-col items-center text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
@@ -596,7 +598,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10, pointerEvents: 'none' as const }}
             className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden"
-            dir="rtl"
+            dir={dir}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b px-6 pt-5 pb-4">

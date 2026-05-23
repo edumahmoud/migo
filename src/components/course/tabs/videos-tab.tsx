@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectVideo, VideoComment } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -135,6 +136,7 @@ interface SubjectVideoWithUploader extends SubjectVideo {
 // Main Component
 // -------------------------------------------------------
 export default function VideosTab({ profile, role, subjectId }: VideosTabProps) {
+  const { t, dir } = useI18n();
   // ─── App store for persisted video ID ───
   const { selectedVideoId, setSelectedVideoId } = useAppStore();
 
@@ -949,7 +951,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="text-xl font-bold text-foreground">الفيديوهات</h3>
+          <h3 className="text-xl font-bold text-foreground">{t('course.videos')}</h3>
           <p className="text-muted-foreground text-sm mt-1">{videos.length} فيديو</p>
         </div>
         {role === 'teacher' && (
@@ -958,7 +960,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             className="flex items-center gap-2 bg-sky-700 hover:bg-sky-800 text-white"
           >
             <Upload className="h-4 w-4" />
-            رفع فيديو
+            {t('course.uploadVideo')}
           </Button>
         )}
       </motion.div>
@@ -976,7 +978,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <FileVideo className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد فيديوهات</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('course.noVideos')}</p>
           <p className="text-sm text-muted-foreground">لم يتم رفع فيديوهات بعد</p>
         </motion.div>
       ) : (
@@ -1397,7 +1399,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       initial="hidden"
       animate="visible"
       className="space-y-6 mt-6"
-      dir="rtl"
+      dir={dir}
     >
       {selectedVideo ? (
         <div key="player">
@@ -1429,7 +1431,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[90vh] rounded-2xl border bg-background shadow-xl my-4 sm:my-0 flex flex-col"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5 shrink-0">
@@ -1598,7 +1600,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -1707,7 +1709,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           if (!open) setConfirmDeleteId(null);
         }}
       >
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
             <AlertDialogTitle>حذف الفيديو</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1738,7 +1740,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           if (!open) setConfirmDeleteCommentId(null);
         }}
       >
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
             <AlertDialogTitle>حذف التعليق</AlertDialogTitle>
             <AlertDialogDescription>

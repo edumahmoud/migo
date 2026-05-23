@@ -46,6 +46,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useI18n } from '@/lib/i18n/context';
 
 // =====================================================
 // Props
@@ -135,6 +136,7 @@ function TypingIndicator({ names }: { names: string[] }) {
 // Main Component
 // =====================================================
 export default function ChatSection({ profile, role }: ChatSectionProps) {
+  const { t, dir } = useI18n();
   // ─── Shared socket ───
   const { socket, status, isConnected, isRealtimeMode, joinRoom, leaveRoom, joinAllRooms } = useSharedSocket();
   const { openProfile } = useAppStore();
@@ -1825,7 +1827,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       initial="hidden"
       animate="visible"
       className="flex flex-col h-[calc(100vh-10rem)] min-h-[500px]"
-      dir="rtl"
+      dir={dir}
     >
       <div className="flex flex-1 min-h-0 gap-0 md:gap-3">
 
@@ -1840,7 +1842,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100">
                   <MessageCircle className="h-4 w-4 text-sky-800" />
                 </div>
-                <h2 className="text-base font-bold text-foreground">المحادثات</h2>
+                <h2 className="text-base font-bold text-foreground">{t('chat.title')}</h2>
               </div>
               <div className="flex items-center gap-2">
                 {/* Connection indicator */}
@@ -2120,7 +2122,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                           <p className="text-xs text-muted-foreground truncate">
                             {lastMsg
                               ? (lastMsg.content.length > 35 ? lastMsg.content.substring(0, 35) + '...' : lastMsg.content)
-                              : 'لا توجد رسائل بعد'}
+                              : t('chat.noMessages')}
                           </p>
                           {unread > 0 && (
                             <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-700 text-white text-[10px] font-bold px-1.5">
@@ -2200,7 +2202,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                             <p className="text-xs text-muted-foreground truncate mt-0.5">
                               {lastMsg
                                 ? (lastMsg.content.length > 35 ? lastMsg.content.substring(0, 35) + '...' : lastMsg.content)
-                                : 'لا توجد رسائل بعد'}
+                                : t('chat.noMessages')}
                             </p>
                           </div>
                         </div>
@@ -2396,7 +2398,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         handleSend();
                       }
                     }}
-                    placeholder="اكتب رسالة..."
+                    placeholder={t('chat.placeholder')}
                     className="flex-1 rounded-xl border bg-muted/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/20 focus:border-sky-600 transition-all"
                     dir="rtl"
                     disabled={sending}

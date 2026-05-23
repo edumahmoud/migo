@@ -34,6 +34,7 @@ import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectTeacher, CourseTab } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Lazy-load tab components for performance
@@ -71,22 +72,22 @@ interface CoursePageProps {
 // -------------------------------------------------------
 interface TabConfig {
   id: CourseTab;
-  label: string;
+  labelKey: string;
   icon: React.ReactNode;
   teacherOnly?: boolean;
 }
 
 const TABS: TabConfig[] = [
-  { id: 'overview', label: 'نظرة عامة', icon: <LayoutDashboard className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'lectures', label: 'المحاضرات', icon: <BookOpen className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'notes', label: 'الملاحظات', icon: <PenLine className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'files', label: 'الملفات', icon: <Folder className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'videos', label: 'الفيديوهات', icon: <Video className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'exams', label: 'الاختبارات', icon: <FileCheck className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'assignments', label: 'المهام', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'chat', label: 'المحادثة', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'students', label: 'الطلاب', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
-  { id: 'teams', label: 'المجموعات', icon: <ClipboardList className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
+  { id: 'overview', labelKey: 'course.overview', icon: <LayoutDashboard className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'lectures', labelKey: 'course.lectures', icon: <BookOpen className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'notes', labelKey: 'course.notes', icon: <PenLine className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'files', labelKey: 'course.files', icon: <Folder className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'videos', labelKey: 'course.videos', icon: <Video className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'exams', labelKey: 'course.exams', icon: <FileCheck className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'assignments', labelKey: 'course.assignments', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'chat', labelKey: 'course.chat', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'students', labelKey: 'course.students', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
+  { id: 'teams', labelKey: 'course.teams', icon: <ClipboardList className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
 ];
 
 // -------------------------------------------------------
@@ -175,6 +176,7 @@ const modalContentVariants = {
 // Main Component
 // -------------------------------------------------------
 export default function CoursePage({ profile, role }: CoursePageProps) {
+  const { t, dir } = useI18n();
   const { selectedSubjectId, courseTab, setSelectedSubjectId, setCourseTab, openProfile } = useAppStore();
   const [subject, setSubject] = useState<Subject | null>(null);
   const [loading, setLoading] = useState(true);
@@ -474,7 +476,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         {courseTab === 'files' && <FilesTab {...commonProps} />}
         {courseTab === 'videos' && <VideosTab {...commonProps} />}
         {courseTab === 'exams' && (
-          <SectionErrorBoundary name="الاختبارات">
+          <SectionErrorBoundary name={t('course.exams')}>
             <ExamsTab {...commonProps} />
           </SectionErrorBoundary>
         )}
@@ -482,7 +484,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         {courseTab === 'chat' && <ChatTab {...commonProps} />}
         {courseTab === 'students' && role === 'teacher' && <StudentsTab {...commonProps} />}
         {courseTab === 'teams' && role === 'teacher' && (
-          <SectionErrorBoundary name="المجموعات">
+          <SectionErrorBoundary name={t('course.teams')}>
             <TeamsTab subjectId={subject.id} profile={profile} />
           </SectionErrorBoundary>
         )}
@@ -682,7 +684,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               <button
                 key={tab.id}
                 onClick={() => setCourseTab(tab.id)}
-                title={tab.label}
+                title={t(tab.labelKey)}
                 className={`
                   relative flex items-center justify-center gap-1.5
                   rounded-full px-2.5 py-2 sm:px-4 sm:py-2
@@ -701,7 +703,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 }
               >
                 <span className={isActive ? 'text-white' : ''}>{tab.icon}</span>
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="hidden sm:inline">{t(tab.labelKey)}</span>
               </button>
             );
           })}
@@ -717,7 +719,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
           style={{ backgroundColor: subjectColor }}
         >
           {availableTabs.find((t) => t.id === courseTab)?.icon}
-          <span>{availableTabs.find((t) => t.id === courseTab)?.label}</span>
+          <span>{t(availableTabs.find((tab) => tab.id === courseTab)?.labelKey || '')}</span>
         </div>
       </div>
 
@@ -753,7 +755,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               animate="visible"
               exit="exit"
               className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden"
-              dir="rtl"
+              dir={dir}
             >
               {/* Modal gradient header */}
               <div
@@ -796,7 +798,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder="مثال: الرياضيات 101"
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                    dir="rtl"
+                    dir={dir}
                     disabled={savingSubject}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !savingSubject) handleSaveSubject();
@@ -815,7 +817,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     placeholder="وصف اختياري للمقرر..."
                     rows={3}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none"
-                    dir="rtl"
+                    dir={dir}
                     disabled={savingSubject}
                   />
                 </div>
@@ -830,7 +832,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       value={editLevel}
                       onChange={(e) => setEditLevel(e.target.value)}
                       className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
-                      dir="rtl"
+                      dir={dir}
                       disabled={savingSubject}
                     >
                       <option value="">بدون فرقة</option>
@@ -847,7 +849,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       value={editSubLevel}
                       onChange={(e) => setEditSubLevel(e.target.value)}
                       className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
-                      dir="rtl"
+                      dir={dir}
                       disabled={savingSubject}
                     >
                       <option value="">بدون ترم</option>
@@ -937,7 +939,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               animate="visible"
               exit="exit"
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
@@ -1001,7 +1003,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               animate="visible"
               exit="exit"
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">

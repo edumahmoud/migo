@@ -56,6 +56,10 @@ export const en: TranslationDict = {
     noResults: 'No results',
     tryDifferentSearch: 'Try different search terms',
     errorUnexpected: 'An unexpected error occurred',
+    section: 'Section',
+    thisSection: 'This section',
+    encounteredProblem: 'encountered a problem. You can try again.',
+    errorDetailsDev: 'Error details (for developers)',
     appError: 'Application Error',
     errorNetwork: 'Failed to connect to the server. Please check your internet connection and try again',
     errorServer: 'Server error',
@@ -74,6 +78,7 @@ export const en: TranslationDict = {
   // ─── App ───
   app: {
     title: 'Attendo',
+    tagline: 'Smart Educational Platform',
     description: 'Smart AI-powered educational platform for students and teachers',
     appleWebAppTitle: 'Attendo',
     platformTagline: 'Your Smart Educational Platform',
@@ -594,6 +599,14 @@ export const en: TranslationDict = {
     title: 'Notifications',
     noNotifications: 'No notifications',
     markAllRead: 'Mark all as read',
+    blocked: 'Notifications blocked',
+    disabledTap: 'Notifications disabled - tap to enable',
+    blockedBrowser: 'Notifications blocked - enable in browser settings',
+    disabled: 'Notifications disabled',
+    enabledTap: 'Notifications enabled - tap to disable',
+    enabled: 'Notifications enabled',
+    enable: 'Enable notifications',
+    enableHint: 'Enable notifications to receive them even when the browser is closed',
   },
 
   // ─── Chat ───
@@ -608,8 +621,13 @@ export const en: TranslationDict = {
   course: {
     overview: 'Overview',
     lectures: 'Lectures',
+    newLecture: 'New Lecture',
+    noLectures: 'No lectures yet',
     videos: 'Videos',
+    uploadVideo: 'Upload Video',
+    noVideos: 'No videos',
     files: 'Files',
+    noFiles: 'No files',
     exams: 'Exams',
     assignments: 'Assignments',
     students: 'Students',
@@ -714,5 +732,22 @@ export const en: TranslationDict = {
   gender: {
     male: 'Male',
     female: 'Female',
+  },
+
+  // ─── Dashboard Error ───
+  dashboard: {
+    couldNotLoad: 'Could not load dashboard',
+    couldNotLoadAfterRetries: 'Could not load the dashboard after several attempts. You can try again or reset the app.',
+    errorLoadingDashboard: 'An error occurred while loading your dashboard. You can try again or go back to login.',
+    attempt: 'Attempt',
+    of: 'of',
+    backToLogin: 'Back to Login',
+    resetApp: 'Reset App',
+  },
+
+  // ─── Theme ───
+  theme: {
+    lightMode: 'Light Mode',
+    darkMode: 'Dark Mode',
   },
 };

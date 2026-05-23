@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectFile } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -174,6 +175,7 @@ interface SubjectFileWithUploader extends SubjectFile {
 // Main Component
 // -------------------------------------------------------
 export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
+  const { t, dir } = useI18n();
   const [files, setFiles] = useState<SubjectFileWithUploader[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<FileCategory>('الكل');
@@ -557,11 +559,11 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
   // Render
   // -------------------------------------------------------
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6" dir="rtl">
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6" dir={dir}>
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="text-xl font-bold text-foreground">الملفات</h3>
+          <h3 className="text-xl font-bold text-foreground">{t('course.files')}</h3>
           <p className="text-muted-foreground text-sm mt-1">{files.length} ملف</p>
         </div>
       </motion.div>
@@ -644,7 +646,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <File className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملفات</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('course.noFiles')}</p>
           <p className="text-sm text-muted-foreground">
             {categoryFilter !== 'الكل' ? 'لا توجد ملفات في هذا التصنيف' : 'لم يتم رفع ملفات بعد'}
           </p>
@@ -759,7 +761,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20, pointerEvents: 'none' as const }}
               className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
-              dir="rtl"
+              dir={dir}
             >
               <span className="text-sm font-medium text-foreground whitespace-nowrap">
                 تم تحديد {selectedFileIds.size} ملف
@@ -767,7 +769,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               <div className="h-6 w-px bg-border" />
               {confirmBulkDelete ? null : (
                 <>
-                  <DropdownMenu dir="rtl">
+                  <DropdownMenu dir={dir}>
                     <DropdownMenuTrigger asChild>
                       <button className="flex items-center gap-1.5 rounded-md bg-sky-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-sky-800 transition-colors">
                         إجراءات
@@ -838,7 +840,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
 
       {/* Delete Single File Confirmation Dialog */}
       <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
             <AlertDialogTitle>حذف الملف</AlertDialogTitle>
             <AlertDialogDescription>
@@ -864,7 +866,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
 
       {/* Bulk Delete Files Confirmation Dialog */}
       <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
-        <AlertDialogContent dir="rtl">
+        <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
             <AlertDialogTitle>حذف الملفات المحددة</AlertDialogTitle>
             <AlertDialogDescription>
@@ -902,7 +904,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -987,7 +989,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-4xl max-h-[90vh] rounded-2xl border bg-background shadow-xl overflow-hidden flex flex-col"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-4 shrink-0">

@@ -33,6 +33,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import SummaryView from '@/components/shared/summary-view';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Summary, UserFile, Subject } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Types
@@ -70,6 +71,7 @@ const cardHover = {
 // Main Component
 // -------------------------------------------------------
 export default function TeacherSummariesSection({ profile }: TeacherSummariesSectionProps) {
+  const { t, dir } = useI18n();
   const isMobile = useIsMobile();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setViewingQuizId } = useAppStore();
@@ -784,7 +786,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">الملخصات والتفريغ</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('nav.summaries')}</h2>
           <p className="text-muted-foreground mt-1">فرّغ محتوى الملفات وأنشئ ملخصات واختبارات لطلابك</p>
         </div>
         <button

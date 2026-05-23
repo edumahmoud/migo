@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, Lecture, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -99,6 +100,7 @@ const GENERAL_NOTES_LECTURE_PREFIX = '__general__';
 // Main Component
 // -------------------------------------------------------
 export default function NotesTab({ profile, role, subjectId, teacherName }: NotesTabProps) {
+  const { t, dir } = useI18n();
   // ─── Data state ───
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [allNotes, setAllNotes] = useState<LectureNoteWithAuthor[]>([]);
@@ -592,7 +594,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h3 className="text-xl font-bold text-foreground">الملاحظات</h3>
+          <h3 className="text-xl font-bold text-foreground">{t('course.notes')}</h3>
           <p className="text-muted-foreground text-sm mt-1">{visibleNotes.length} ملاحظة</p>
         </div>
         {role === 'teacher' && (
@@ -665,7 +667,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                     value={noteLectureId}
                     onChange={(e) => setNoteLectureId(e.target.value)}
                     className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir="rtl"
+                    dir={dir}
                   >
                     <option value="">بدون محاضرة (ملاحظة عامة)</option>
                     {lectures
@@ -684,7 +686,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                 placeholder={noteVisibility === 'public' ? 'اكتب ملاحظة أو إعلان يراه جميع الطلاب...' : 'اكتب ملاحظتك الخاصة هنا...'}
                 rows={4}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
-                dir="rtl"
+                dir={dir}
                 disabled={savingNote}
                 autoFocus
               />
@@ -778,7 +780,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl p-5"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-sm font-bold text-foreground flex items-center gap-2">

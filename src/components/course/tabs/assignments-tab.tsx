@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import type { UserProfile, Subject, Assignment, Submission, UserFile } from '@/lib/types';
 import UserAvatar from '@/components/shared/user-avatar';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -170,6 +171,7 @@ interface SubmissionWithStudent extends Submission {
 // Main Component
 // -------------------------------------------------------
 export default function AssignmentsTab({ profile, role, subjectId }: AssignmentsTabProps) {
+  const { t, dir } = useI18n();
   // ─── Data state ───
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -822,7 +824,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
     <>
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="text-xl font-bold text-foreground">المهام</h3>
+          <h3 className="text-xl font-bold text-foreground">{t('assignments.title')}</h3>
           <p className="text-muted-foreground text-sm mt-1">{assignments.length} مهمة</p>
         </div>
         {role === 'teacher' && (
@@ -831,7 +833,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
             className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]"
           >
             <Plus className="h-4 w-4" />
-            مهمة جديدة
+            {t('assignments.newAssignment')}
           </button>
         )}
       </motion.div>
@@ -892,7 +894,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-5">
             <ClipboardCheck className="h-10 w-10 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-bold text-foreground mb-1">لا توجد مهام بعد</p>
+          <p className="text-lg font-bold text-foreground mb-1">{t('assignments.noAssignments')}</p>
           <p className="text-sm text-muted-foreground">
             {role === 'teacher' ? 'ابدأ بإنشاء مهمة جديدة' : 'لم يتم إضافة مهام بعد'}
           </p>
@@ -1032,7 +1034,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
               exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mx-auto mb-4">
                 <Trash2 className="h-6 w-6 text-rose-600 dark:text-rose-400" />
@@ -1182,7 +1184,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                         placeholder="ملاحظات..."
                         rows={2}
                         className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none"
-                        dir="rtl"
+                        dir={dir}
                       />
                     </div>
                     <div className="flex items-center gap-2">
@@ -1363,7 +1365,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                 placeholder="اكتب إجابتك هنا..."
                 rows={5}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none"
-                dir="rtl"
+                dir={dir}
                 disabled={submitting}
               />
             )}
@@ -1507,7 +1509,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
               exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -1527,7 +1529,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="مثال: واجب الفصل الثاني"
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30"
-                    dir="rtl"
+                    dir={dir}
                     disabled={isProcessing}
                   />
                 </div>
@@ -1539,7 +1541,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                     placeholder="وصف المهمة..."
                     rows={3}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none"
-                    dir="rtl"
+                    dir={dir}
                     disabled={isProcessing}
                   />
                 </div>

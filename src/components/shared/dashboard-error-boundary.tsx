@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, GraduationCap, LogOut, RotateCcw } from 'lucide-react';
+import { useI18n } from '@/lib/i18n/context';
 
 /**
  * DashboardErrorBoundary
@@ -42,6 +43,173 @@ interface DashboardErrorBoundaryState {
 }
 
 const MAX_RETRIES = 3;
+
+/** Functional component for dashboard error UI that uses i18n hooks */
+function DashboardErrorUI({
+  tooManyRetries,
+  retryCount,
+  autoRetrying,
+  error,
+  errorInfo,
+  onRetry,
+  onGoToLogin,
+  onResetApp,
+}: {
+  tooManyRetries: boolean;
+  retryCount: number;
+  autoRetrying: boolean;
+  error: Error | null;
+  errorInfo: React.ErrorInfo | null;
+  onRetry: () => void;
+  onGoToLogin: () => void;
+  onResetApp: () => void;
+}) {
+  const { t, dir } = useI18n();
+
+  // Auto-retry UI
+  if (autoRetrying) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
+              <GraduationCap className="w-9 h-9 text-white" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
+            <span className="text-sm font-medium text-sky-800">{t('common.retrying')}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
+      {/* Background decoration */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 rounded-full blur-3xl" />
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: 'easeOut' as const }}
+        className="relative z-10 w-full max-w-md mx-auto"
+      >
+        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center">
+          {/* Brand icon */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30"
+          >
+            <GraduationCap className="h-7 w-7 text-white" />
+          </motion.div>
+
+          {/* Error icon */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
+            className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50"
+          >
+            <AlertTriangle className="h-10 w-10 text-amber-500" />
+          </motion.div>
+
+          {/* Title */}
+          <motion.h1
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="text-xl font-bold text-gray-900 mb-2"
+          >
+            {tooManyRetries ? t('dashboard.couldNotLoad') : t('common.errorUnexpected')}
+          </motion.h1>
+
+          {/* Description */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-sm text-gray-500 mb-6 leading-relaxed"
+          >
+            {tooManyRetries
+              ? t('dashboard.couldNotLoadAfterRetries')
+              : t('dashboard.errorLoadingDashboard')}
+          </motion.p>
+
+          {/* Error details (collapsible for debugging) */}
+          {process.env.NODE_ENV === 'development' && error && (
+            <details className="mb-5 text-left">
+              <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
+                {t('common.errorDetailsDev')}
+              </summary>
+              <pre className="mt-2 text-xs text-red-500 bg-red-50 p-3 rounded-lg overflow-auto max-h-32">
+                {error.message}
+                {errorInfo?.componentStack}
+              </pre>
+            </details>
+          )}
+
+          {/* Retry count indicator */}
+          {retryCount > 1 && (
+            <p className="text-xs text-amber-600 mb-4">
+              {t('dashboard.attempt')} {retryCount} {t('dashboard.of')} {MAX_RETRIES}
+            </p>
+          )}
+
+          {/* Action buttons — retry is ALWAYS available */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="flex flex-col items-center justify-center gap-3"
+          >
+            <button
+              onClick={onRetry}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
+            >
+              <RefreshCw className="h-4 w-4" />
+              {t('common.retry')}
+            </button>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
+              <button
+                onClick={onGoToLogin}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
+              >
+                <LogOut className="h-4 w-4" />
+                {t('dashboard.backToLogin')}
+              </button>
+
+              <button
+                onClick={onResetApp}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-red-200 px-6 py-2.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 active:bg-red-100 transition-all duration-200 w-full sm:w-auto"
+              >
+                <RotateCcw className="h-4 w-4" />
+                {t('dashboard.resetApp')}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Footer branding */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+          className="text-center text-xs text-gray-400 mt-4"
+        >
+          {t('app.title')} — {t('app.tagline')}
+        </motion.p>
+      </motion.div>
+    </div>
+  );
+}
 
 export default class DashboardErrorBoundary extends React.Component<
   DashboardErrorBoundaryProps,
@@ -119,12 +287,6 @@ export default class DashboardErrorBoundary extends React.Component<
       localStorage.removeItem('_attendo_busy');
     } catch {}
 
-    // NOTE: We intentionally do NOT reset retryCount to 0 here.
-    // Resetting it would allow the auto-retry mechanism to trigger again,
-    // creating an infinite loop: error → auto-retry → handleRetry(reset count) →
-    // error → auto-retry → handleRetry(reset count) → ...
-    // Instead, keep the retryCount so auto-retry is disabled after MAX_RETRIES.
-
     // Force remount by changing the key
     this.setState(prev => ({
       hasError: false,
@@ -146,7 +308,6 @@ export default class DashboardErrorBoundary extends React.Component<
       localStorage.removeItem('_attendo_busy');
 
       // Reset Zustand stores directly
-      // We import dynamically to avoid circular deps in a class component
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { useAppStore } = require('@/stores/app-store');
@@ -192,148 +353,17 @@ export default class DashboardErrorBoundary extends React.Component<
     if (this.state.hasError) {
       const tooManyRetries = this.state.retryCount >= MAX_RETRIES;
 
-      // Auto-retry UI — show spinner instead of error buttons
-      if (this.state.autoRetrying) {
-        return (
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-                  <GraduationCap className="w-9 h-9 text-white" />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
-                <span className="text-sm font-medium text-sky-800">جاري محاولة إعادة التحميل...</span>
-              </div>
-            </div>
-          </div>
-        );
-      }
-
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
-          {/* Background decoration */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 rounded-full blur-3xl" />
-            <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 rounded-full blur-3xl" />
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 30, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.5, ease: 'easeOut' as const }}
-            className="relative z-10 w-full max-w-md mx-auto"
-          >
-            <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center">
-              {/* Brand icon */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 shadow-lg shadow-sky-600/30"
-              >
-                <GraduationCap className="h-7 w-7 text-white" />
-              </motion.div>
-
-              {/* Error icon */}
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.3, type: 'spring', stiffness: 200 }}
-                className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50"
-              >
-                <AlertTriangle className="h-10 w-10 text-amber-500" />
-              </motion.div>
-
-              {/* Title */}
-              <motion.h1
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                className="text-xl font-bold text-gray-900 mb-2"
-              >
-                {tooManyRetries ? 'تعذر تحميل لوحة التحكم' : 'حدث خطأ في تحميل لوحة التحكم'}
-              </motion.h1>
-
-              {/* Description */}
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="text-sm text-gray-500 mb-6 leading-relaxed"
-              >
-                {tooManyRetries
-                  ? 'تعذر تحميل لوحة التحكم بعد عدة محاولات. يمكنك المحاولة مرة أخرى أو إعادة تعيين التطبيق بالكامل.'
-                  : 'حدث خطأ أثناء تحميل لوحة التحكم الخاصة بك. يمكنك المحاولة مرة أخرى أو العودة لتسجيل الدخول.'}
-              </motion.p>
-
-              {/* Error details (collapsible for debugging) */}
-              {process.env.NODE_ENV === 'development' && this.state.error && (
-                <details className="mb-5 text-left">
-                  <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">
-                    تفاصيل الخطأ (للمطورين)
-                  </summary>
-                  <pre className="mt-2 text-xs text-red-500 bg-red-50 p-3 rounded-lg overflow-auto max-h-32">
-                    {this.state.error.message}
-                    {this.state.errorInfo?.componentStack}
-                  </pre>
-                </details>
-              )}
-
-              {/* Retry count indicator */}
-              {this.state.retryCount > 1 && (
-                <p className="text-xs text-amber-600 mb-4">
-                  محاولة {this.state.retryCount} من {MAX_RETRIES}
-                </p>
-              )}
-
-              {/* Action buttons — retry is ALWAYS available */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="flex flex-col items-center justify-center gap-3"
-              >
-                <button
-                  onClick={this.handleRetry}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  إعادة المحاولة
-                </button>
-
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
-                  <button
-                    onClick={this.handleGoToLogin}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    العودة لتسجيل الدخول
-                  </button>
-
-                  <button
-                    onClick={this.handleResetApp}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-red-200 px-6 py-2.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 active:bg-red-100 transition-all duration-200 w-full sm:w-auto"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    إعادة تعيين التطبيق
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Footer branding */}
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              className="text-center text-xs text-gray-400 mt-4"
-            >
-              أتيندو — منصة تعليمية ذكية
-            </motion.p>
-          </motion.div>
-        </div>
+        <DashboardErrorUI
+          tooManyRetries={tooManyRetries}
+          retryCount={this.state.retryCount}
+          autoRetrying={this.state.autoRetrying}
+          error={this.state.error}
+          errorInfo={this.state.errorInfo}
+          onRetry={this.handleRetry}
+          onGoToLogin={this.handleGoToLogin}
+          onResetApp={this.handleResetApp}
+        />
       );
     }
 

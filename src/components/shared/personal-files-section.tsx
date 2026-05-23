@@ -49,6 +49,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { UserProfile, UserFile, FileShare, Subject } from '@/lib/types';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useI18n } from '@/lib/i18n/context';
 import UserAvatar, { getRoleLabel, getTitleLabel, formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
 
@@ -233,6 +234,7 @@ interface PendingUpload {
 // Main Component
 // -------------------------------------------------------
 export default function PersonalFilesSection({ profile, role }: PersonalFilesSectionProps) {
+  const { t, dir } = useI18n();
   const { openProfile } = useAppStore();
   const isMobile = useIsMobile();
 
@@ -2100,7 +2102,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
         <div>
-          <h2 className="text-2xl font-bold text-foreground">ملفاتي</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('files.title')}</h2>
           <p className="text-muted-foreground mt-1">إدارة ملفاتك الشخصية ومشاركتها</p>
         </div>
         <div className="flex items-center gap-2">
@@ -2109,7 +2111,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 active:bg-sky-900 touch-manipulation"
           >
             <Upload className="h-4 w-4" />
-            رفع ملف
+            {t('files.uploadFile')}
           </button>
         </div>
       </motion.div>
@@ -3709,7 +3711,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Main Render
   // -------------------------------------------------------
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       {/* Tabs: My Files / Shared with me */}
       <div className="flex items-center gap-2">
         <button

@@ -28,6 +28,7 @@ import { waitForSession } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import type { UserProfile, Assignment, Submission, Subject, UserFile } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -158,6 +159,7 @@ interface SubmissionWithStudent extends Submission {
 // Main Component
 // -------------------------------------------------------
 export default function AssignmentsSection({ profile, role }: AssignmentsSectionProps) {
+  const { t, dir } = useI18n();
   // ─── Data state ───
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -952,7 +954,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">المهام</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('assignments.title')}</h2>
           <p className="text-muted-foreground mt-1">
             {role === 'teacher' ? 'إدارة مهامك وتقييم التسليمات' : 'جميع مهامك مرتبة حسب الوقت المتبقي'}
           </p>
@@ -963,7 +965,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
-            إنشاء مهمة
+            {t('assignments.newAssignment')}
           </button>
         )}
       </motion.div>
@@ -1150,7 +1152,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     {role === 'teacher' ? (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Users className="h-3 w-3" />
-                        <span>{submissionCounts[assignment.id] || 0} تسليم</span>
+                        <span>{submissionCounts[assignment.id] || 0} {t('assignments.submit')}</span>
                       </div>
                     ) : (
                       getStudentStatusBadge(assignment)

@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useI18n } from '@/lib/i18n/context';
 
 export default function ThemeToggle() {
+  const { t } = useI18n();
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -44,7 +46,7 @@ export default function ThemeToggle() {
     <button
       onClick={toggle}
       className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 active:bg-muted/80 transition-colors rounded-lg"
-      aria-label={dark ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الداكن'}
+      aria-label={dark ? t('theme.lightMode') : t('theme.darkMode')}
     >
       <motion.div
         initial={false}
@@ -57,7 +59,7 @@ export default function ThemeToggle() {
           <Moon className="h-4 w-4 text-sky-600" />
         )}
       </motion.div>
-      <span>{dark ? 'الوضع الفاتح' : 'الوضع الداكن'}</span>
+      <span>{dark ? t('theme.lightMode') : t('theme.darkMode')}</span>
     </button>
   );
 }

@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
+import { useI18n } from '@/lib/i18n/context';
 import { toast } from 'sonner';
 
 // ─── Types ───
@@ -112,6 +113,7 @@ function StepIndicator({ currentStep, showMigration }: { currentStep: WizardStep
 // ─── Main Component ───
 
 export default function SetupWizard({ onComplete, onStart, onError }: SetupWizardProps) {
+  const { t, dir } = useI18n();
   const [step, setStep] = useState<WizardStep>('admin-account');
   const [tableExists, setTableExists] = useState(true); // assume table exists until proven otherwise
 
@@ -928,7 +930,7 @@ $$;`;
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-800 via-teal-800 to-sky-900" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-800 via-teal-800 to-sky-900" dir={dir}>
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />

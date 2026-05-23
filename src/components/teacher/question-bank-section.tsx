@@ -30,6 +30,7 @@ import { useAppStore } from '@/stores/app-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { extractTextFromFile } from '@/lib/pdf-client';
 import type { UserProfile, Subject, QuestionBank, BankQuestion, QuizQuestion, SubjectFile } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // fetchWithRetry — resilient fetch with automatic retry on network errors
@@ -136,6 +137,7 @@ function difficultyColor(d?: string | null): string {
 // Main Component
 // -------------------------------------------------------
 export default function QuestionBankSection({ profile, onNavigateToCourse }: QuestionBankSectionProps) {
+  const { t, dir } = useI18n();
   const { setSelectedSubjectId, setCourseTab } = useAppStore();
 
   // ─── Data ───
@@ -1076,7 +1078,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         <div>
           <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Database className="h-6 w-6 text-sky-700 dark:text-sky-300" />
-            بنك الأسئلة
+            {t('nav.questionBank')}
           </h2>
           <p className="text-muted-foreground mt-1">إدارة بنوك الأسئلة المرتبطة بالمقررات</p>
         </div>

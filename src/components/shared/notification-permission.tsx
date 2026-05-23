@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Bell, BellOff, BellRing } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
+import { useI18n } from '@/lib/i18n/context';
 
 // VAPID key hardcoded as fallback (must match web-push.ts fallback pair)
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
@@ -33,6 +34,7 @@ async function waitForServiceWorker(timeoutMs = 4000): Promise<ServiceWorkerRegi
  * 2. In-app notifications fallback (iframe/embedded) — just requests Notification permission for in-app alerts
  */
 export default function NotificationPermission() {
+  const { t, dir } = useI18n();
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [pushDisabled, setPushDisabled] = useState(false); // Tracks user preference (separate from browser permission)
   const [loading, setLoading] = useState(false);
@@ -191,8 +193,8 @@ export default function NotificationPermission() {
         } : handleEnable}
         disabled={loading}
         className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground/40 hover:bg-muted/30 transition-colors touch-manipulation"
-        aria-label={isDenied ? 'الإشعارات محظورة' : 'الإشعارات متوقفة - اضغط للتفعيل'}
-        title={isDenied ? 'الإشعارات محظورة - فعّلها من إعدادات المتصفح' : 'الإشعارات متوقفة'}
+        aria-label={isDenied ? t('notifications.blocked') : t('notifications.disabledTap')}
+        title={isDenied ? t('notifications.blockedBrowser') : t('notifications.disabled')}
       >
         {loading ? (
           <span className="h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
@@ -210,8 +212,8 @@ export default function NotificationPermission() {
         onClick={handleDisable}
         disabled={loading}
         className="relative flex h-9 w-9 items-center justify-center rounded-lg text-sky-700 dark:text-sky-300 hover:bg-sky-50 active:bg-sky-100 transition-colors touch-manipulation"
-        aria-label="الإشعارات مفعّلة - اضغط لإيقافها"
-        title="الإشعارات مفعّلة"
+        aria-label={t('notifications.enabledTap')}
+        title={t('notifications.enabled')}
       >
         {loading ? <span className="h-4 w-4 border-2 border-sky-700 border-t-transparent rounded-full animate-spin" /> : <BellRing className="h-5 w-5" />}
       </button>
@@ -224,8 +226,8 @@ export default function NotificationPermission() {
       onClick={handleEnable}
       disabled={loading}
       className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
-      aria-label="تفعيل الإشعارات"
-      title="فعّل الإشعارات لتصلك حتى عند إغلاق المتصفح"
+      aria-label={t('notifications.enable')}
+      title={t('notifications.enableHint')}
     >
       {loading ? (
         <span className="h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />

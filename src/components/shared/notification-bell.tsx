@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle, ShieldAlert } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
+import { useI18n } from '@/lib/i18n/context';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import type { CourseTab, NotificationType } from '@/lib/types';
@@ -105,6 +106,7 @@ function getNotifIcon(type: string, title?: string) {
 }
 
 export default function NotificationBell() {
+  const { t, dir } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -568,7 +570,7 @@ export default function NotificationBell() {
             if (!isOpen) refetchNotifications();
           }}
           className="relative touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
-          aria-label="الإشعارات"
+          aria-label={t('notifications.title')}
         >
           <Bell className="h-5 w-5" />
           <AnimatePresence>
@@ -595,11 +597,11 @@ export default function NotificationBell() {
               exit={{ opacity: 0, pointerEvents: 'none' as const }}
               transition={{ duration: 0.1 }}
               className="fixed top-14 inset-x-2 sm:absolute sm:top-full sm:mt-2 sm:inset-x-auto sm:start-auto sm:end-0 sm:w-[360px] w-auto z-50 rounded-xl border bg-background shadow-lg overflow-hidden"
-              dir="rtl"
+              dir={dir}
             >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-3">
-              <h3 className="text-sm font-bold text-foreground">الإشعارات</h3>
+              <h3 className="text-sm font-bold text-foreground">{t('notifications.title')}</h3>
               <div className="flex items-center gap-1">
                 {bellUnreadCount > 0 && (
                   <button
@@ -712,7 +714,7 @@ export default function NotificationBell() {
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex flex-col items-center text-center">
                 {linkRequestModal.loading ? (

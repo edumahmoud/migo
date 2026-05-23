@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import type { UserProfile, Subject, ChatMessage } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -73,6 +74,7 @@ function relativeTime(dateStr: string): string {
 // Main Component
 // -------------------------------------------------------
 export default function ChatTab({ profile, role, subjectId, subject }: ChatTabProps) {
+  const { t, dir } = useI18n();
   const { openProfile } = useAppStore();
   // State
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -893,7 +895,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                   if (e.key === 'Escape') handleCancelEdit();
                 }}
                 className="rounded-xl border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                dir="rtl"
+                dir={dir}
                 autoFocus
               />
               <div className="flex items-center gap-1.5">
@@ -1019,7 +1021,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 dark:bg-sky-950/30 border border-sky-100 mb-5">
             <MessageCircle className="h-10 w-10 text-sky-400" />
           </div>
-          <h3 className="text-lg font-bold text-foreground mb-2">المحادثة الجماعية</h3>
+          <h3 className="text-lg font-bold text-foreground mb-2">{t('chat.title')}</h3>
           <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
             محادثة جماعية لكل المسجلين في مقرر &quot;{subject.name}&quot;
           </p>
@@ -1165,9 +1167,9 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                 handleSend();
               }
             }}
-            placeholder="اكتب رسالتك..."
+            placeholder={t('chat.placeholder')}
             className="w-full rounded-xl border bg-background px-4 py-3 pr-4 pl-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-            dir="rtl"
+            dir={dir}
             disabled={sending}
           />
         </div>

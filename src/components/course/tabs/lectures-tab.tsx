@@ -38,6 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, Lecture, AttendanceSession, LectureWithAttendance, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
 import LectureModal from '@/components/course/tabs/lecture-modal';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -337,6 +338,7 @@ function LectureTimer({ startedAt }: { startedAt: string }) {
 // Main Component
 // -------------------------------------------------------
 export default function LecturesTab({ profile, role, subjectId, subject, teacherName }: LecturesTabProps) {
+  const { t, dir } = useI18n();
   // ─── Data state ───
   const [lectures, setLectures] = useState<LectureWithAttendance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2117,13 +2119,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="text-xl font-bold text-foreground">المحاضرات</h3>
+          <h3 className="text-xl font-bold text-foreground">{t('course.lectures')}</h3>
           <p className="text-muted-foreground text-sm mt-1">{lectures.length} محاضرة</p>
         </div>
         {role === 'teacher' && (
           <button onClick={() => { setCreateOpen(true); setCreatedLectureId(null); fetchExistingSubjectFileNames(); }} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]">
             <Plus className="h-4 w-4" />
-            محاضرة جديدة
+            {t('course.newLecture')}
           </button>
         )}
       </motion.div>
@@ -2136,7 +2138,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-5">
             <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-bold text-foreground mb-1">لا توجد محاضرات بعد</p>
+          <p className="text-lg font-bold text-foreground mb-1">{t('course.noLectures')}</p>
           <p className="text-sm text-muted-foreground">{role === 'teacher' ? 'ابدأ بإضافة محاضرة جديدة' : 'لم يتم إضافة محاضرات بعد'}</p>
         </motion.div>
       ) : (
@@ -2471,7 +2473,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             >
             <div
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl pointer-events-auto"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -2503,11 +2505,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <div className="p-5 space-y-4">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المحاضرة <span className="text-rose-500">*</span></label>
-                  <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="مثال: المحاضرة الأولى" className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="rtl" disabled={creating} />
+                  <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="مثال: المحاضرة الأولى" className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir={dir} disabled={creating} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
-                  <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir="rtl" disabled={creating} />
+                  <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir={dir} disabled={creating} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -2641,7 +2643,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 onChange={(e) => setNewPendingFiles(prev => prev.map((p, i) => (i === idx ? { ...p, customName: e.target.value, error: undefined, errorCode: undefined, status: 'pending' as const } : p)))}
                                 placeholder="اسم الملف (بدون الامتداد)"
                                 className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                                dir="rtl"
+                                dir={dir}
                                 disabled={pf.status === 'uploading'}
                               />
                               {pf.fileName.includes('.') && (
@@ -2747,11 +2749,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <div className="p-5 space-y-4">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المحاضرة <span className="text-rose-500">*</span></label>
-                  <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="rtl" disabled={savingEdit} />
+                  <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir={dir} disabled={savingEdit} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
-                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir="rtl" disabled={savingEdit} />
+                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir={dir} disabled={savingEdit} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -2791,7 +2793,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="relative w-full max-w-lg rounded-3xl bg-background shadow-2xl p-8 text-center pointer-events-auto"
-              dir="rtl"
+              dir={dir}
             >
               {/* Close */}
               <button
@@ -2871,7 +2873,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.9, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center pointer-events-auto"
-              dir="rtl"
+              dir={dir}
             >
               <div className="flex justify-center mb-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50">
@@ -2921,7 +2923,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.9, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl overflow-hidden pointer-events-auto"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">
@@ -2979,7 +2981,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden pointer-events-auto"
-              dir="rtl"
+              dir={dir}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">

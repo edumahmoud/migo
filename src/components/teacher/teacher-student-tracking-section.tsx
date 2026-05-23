@@ -29,6 +29,7 @@ import { Progress } from '@/components/ui/progress';
 import type { UserProfile, Score, Quiz, Subject } from '@/lib/types';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
+import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Props
@@ -344,6 +345,7 @@ export default function TeacherStudentTrackingSection({
   teacherAttendanceRecords,
   subjects = [],
 }: TeacherStudentTrackingSectionProps) {
+  const { t, dir } = useI18n();
   // ─── Local state ───
   const [filterLevel, setFilterLevel] = useState<PerformanceLevel | 'all'>('all');
   const [filterRange, setFilterRange] = useState<PercentageRange | 'all'>('all');
@@ -694,7 +696,7 @@ export default function TeacherStudentTrackingSection({
             <Activity className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">تتبع الطلاب</h1>
+            <h1 className="text-2xl font-bold text-gray-900">{t('nav.studentTracking')}</h1>
             <p className="text-sm text-muted-foreground">متابعة أداء وحضور وتقدم وكفاءة الطلاب</p>
           </div>
         </div>
