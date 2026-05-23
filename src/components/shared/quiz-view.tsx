@@ -166,10 +166,6 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
   const [alreadyTaken, setAlreadyTaken] = useState(false);
   const [quizCompleted, setQuizCompleted] = useState(false);
 
-  // ─── Explain wrong answer state ───
-  const [explainingIdx, setExplainingIdx] = useState<number | null>(null);
-  const [explanations, setExplanations] = useState<Record<number, string>>({});
-
   // ─── Shuffle question order state (Feature 8) ───
   const [shuffledOrder, setShuffledOrder] = useState<number[]>([]);
 
@@ -1369,81 +1365,6 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                     </motion.div>
                   </>
                 )}
-
-                {/* Explain wrong answer button — always visible when wrong regardless of show_results */}
-                {answered && !isCorrect && (
-                      <>
-                        <button
-                          onClick={async () => {
-                            if (explainingIdx === currentIdx) return;
-                            setExplainingIdx(currentIdx);
-                            try {
-                              const answerStr = currentQuestion.type === 'matching' ? JSON.stringify(matchedPairs) : (currentQuestion.type === 'completion' ? completionInput : selectedOption || '');
-
-                              // Build correctAnswer — for matching, derive from pairs
-                              let correctAnswerStr = currentQuestion.correctAnswer || '';
-                              if (currentQuestion.type === 'matching' && currentQuestion.pairs && currentQuestion.pairs.length > 0) {
-                                correctAnswerStr = currentQuestion.pairs
-                                  .map(p => `${p.key} → ${p.value}`)
-                                  .join('، ');
-                              }
-
-                              // Use getCachedAuthHeaders for reliable mobile auth + retry with backoff
-                              let res: Response | null = null;
-                              let lastError: string | null = null;
-                              for (let attempt = 0; attempt < 3; attempt++) {
-                                try {
-                                  const headers = await getCachedAuthHeaders();
-                                  res = await fetch('/api/gemini/explain', {
-                                    method: 'POST',
-                                    headers,
-                                    body: JSON.stringify({ question: currentQuestion.question, correctAnswer: correctAnswerStr, studentAnswer: answerStr, questionType: currentQuestion.type }),
-                                  });
-                                  if (res.ok || res.status === 400) break; // Success or validation error — don't retry
-                                  if (res.status === 429) {
-                                    // Rate limited — wait and retry
-                                    const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10) * 1000;
-                                    lastError = 'طلبات كثيرة، جاري إعادة المحاولة...';
-                                    if (attempt < 2) await new Promise(r => setTimeout(r, Math.min(retryAfter, 5000 * (attempt + 1))));
-                                    continue;
-                                  }
-                                  break; // Other errors — don't retry
-                                } catch (fetchErr) {
-                                  lastError = 'خطأ في الاتصال، جاري إعادة المحاولة...';
-                                  if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-                                  continue;
-                                }
-                              }
-
-                              if (!res) {
-                                toast.error(lastError || 'فشل الاتصال بالخادم');
-                                return;
-                              }
-
-                              const data = await res.json();
-                              if (data.success && data.data?.explanation) {
-                                setExplanations(prev => ({ ...prev, [currentIdx]: data.data.explanation }));
-                              } else if (res.status === 429) {
-                                toast.error('طلبات كثيرة جداً. يرجى الانتظار قليلاً ثم المحاولة مرة أخرى');
-                              } else {
-                                toast.error(data.error || 'فشل الحصول على الشرح');
-                              }
-                            } catch {
-                              toast.error('حدث خطأ أثناء الحصول على الشرح');
-                            } finally { setExplainingIdx(null); }
-                          }}
-                          className="mt-2 flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 hover:underline"
-                        >
-                          {explainingIdx === currentIdx ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lightbulb className="h-3 w-3" />}
-                          لماذا خطأ؟
-                        </button>
-                        {explanations[currentIdx] && (
-                          <div className="mt-2 rounded-lg bg-rose-50/50 border border-rose-100 p-3 text-sm text-rose-800 leading-relaxed">
-                            {explanations[currentIdx]}
-                          </div>
-                        )}
-                      </>
-                    )}
 
                 {/* Navigation buttons */}
                 <div className="flex flex-wrap items-center gap-2">

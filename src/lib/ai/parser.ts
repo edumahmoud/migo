@@ -126,14 +126,31 @@ export function parseQuizResponse(text: string): Array<{
   }
 
   // Normalize each question: map snake_case fields to camelCase
+  // Also validate that completion/mcq/boolean questions have a correctAnswer
   return questions.map((q: any) => {
     const normalized: any = {
       type: q.type || 'mcq',
       question: q.question || '',
       options: q.options || undefined,
-      correctAnswer: q.correctAnswer || q.correct_answer || undefined,
+      correctAnswer: q.correctAnswer ?? q.correct_answer ?? undefined,
       pairs: q.pairs || undefined,
     };
+
+    // Validate: completion, mcq, and boolean questions MUST have a correctAnswer
+    // Without it, the student can never answer correctly
+    if ((normalized.type === 'completion' || normalized.type === 'mcq' || normalized.type === 'boolean') && !normalized.correctAnswer) {
+      console.warn('[Parser] Question missing correctAnswer:', normalized.type, normalized.question?.substring(0, 60));
+      // For completion questions, try to extract from the question text if it contains ____
+      if (normalized.type === 'completion' && normalized.question?.includes('____')) {
+        // AI sometimes puts the answer in parentheses after the blank
+        const answerHint = normalized.question.match(/____\s*(?:\(?\s*([^\s()]+)\s*\)?)?\s*$/);
+        if (answerHint?.[1]) {
+          normalized.correctAnswer = answerHint[1];
+          console.warn('[Parser] Recovered correctAnswer from question text:', normalized.correctAnswer);
+        }
+      }
+    }
+
     return normalized;
   }) as Array<{
     type: 'mcq' | 'boolean' | 'completion' | 'matching';

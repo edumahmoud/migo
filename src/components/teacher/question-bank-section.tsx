@@ -79,6 +79,7 @@ async function fetchWithRetry(
 // -------------------------------------------------------
 interface QuestionBankSectionProps {
   profile: UserProfile;
+  onNavigateToCourse?: () => void;
 }
 
 // -------------------------------------------------------
@@ -134,7 +135,7 @@ function difficultyColor(d?: string | null): string {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function QuestionBankSection({ profile }: QuestionBankSectionProps) {
+export default function QuestionBankSection({ profile, onNavigateToCourse }: QuestionBankSectionProps) {
   const { setSelectedSubjectId, setCourseTab } = useAppStore();
 
   // ─── Data ───
@@ -693,7 +694,7 @@ export default function QuestionBankSection({ profile }: QuestionBankSectionProp
         type: q.type,
         question: q.question,
         options: q.options || null,
-        correct_answer: q.correctAnswer || null,
+        correct_answer: q.correctAnswer ?? null,
         pairs: q.pairs || null,
       }));
 
@@ -853,6 +854,7 @@ export default function QuestionBankSection({ profile }: QuestionBankSectionProp
   const handleGoToCourse = (subjectId: string) => {
     setSelectedSubjectId(subjectId);
     setCourseTab('exams');
+    onNavigateToCourse?.();
   };
 
   // -------------------------------------------------------

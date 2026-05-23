@@ -612,6 +612,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               body: JSON.stringify({
                 url: capturedExistingFile.file_url,
                 fileName: capturedExistingFile.file_name,
+                ...(capturedExistingFile.storage_path ? { storagePath: capturedExistingFile.storage_path } : {}),
               }),
               signal: extractController.signal,
             });

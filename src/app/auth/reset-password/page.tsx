@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createBrowserClient, SupabaseClient } from '@supabase/ssr';
+import { createBrowserClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { Lock, Loader2, CheckCircle2, Eye, EyeOff, ShieldCheck, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 

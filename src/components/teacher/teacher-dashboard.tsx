@@ -1178,138 +1178,220 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         />
       </motion.div>
 
-      {/* Two columns */}
+      {/* Performance Overview & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Student overview table (2/3) */}
+        {/* Performance Overview Charts (2/3) */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Users className="h-4 w-4 text-sky-700" />
-                نظرة عامة على الطلاب
+                <TrendingUp className="h-4 w-4 text-sky-700" />
+                نظرة عامة على الأداء
               </h3>
               <button
-                onClick={() => setActiveSection('students')}
+                onClick={() => setActiveSection('analytics')}
                 className="text-xs text-sky-700 hover:text-sky-800 font-medium flex items-center gap-1"
               >
-                عرض الكل
+                تحليل مفصّل
                 <ChevronLeft className="h-3 w-3" />
               </button>
             </div>
-            <div className="max-h-96 overflow-y-auto custom-scrollbar">
-              {students.length === 0 ? (
-                <div className="p-6 text-center text-muted-foreground text-sm">
-                  لا يوجد طلاب مسجلين بعد
+            <div className="p-4">
+              {scores.length === 0 && teacherSubmissions.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground text-sm">
+                  <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  لا توجد بيانات أداء بعد
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-muted/50 sticky top-0">
-                    <tr className="text-xs text-muted-foreground">
-                      <th className="text-right font-medium p-3">اسم الطالب</th>
-                      <th className="text-right font-medium p-3">آخر نتيجة</th>
-                      <th className="text-right font-medium p-3">تفاصيل</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {students.slice(0, 8).map((student) => {
-                      const lastScore = getStudentLastScore(student.id);
-                      const pct = lastScore ? scorePercentage(lastScore.score, lastScore.total) : null;
-                      return (
-                        <tr key={student.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-3">
-                            <UserLink
-                              userId={student.id}
-                              name={student.name}
-                              avatarUrl={student.avatar_url}
-                              role="student"
-                              gender={student.gender}
-                              size="xs"
-                              showAvatar={true}
-                              showUsername={false}
-                            />
-                          </td>
-                          <td className="p-3">
-                            {pct !== null ? (
-                              <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${pctColorClass(pct)}`}>
-                                {pct}%
-                              </span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            <button
-                              onClick={() => {
-                                setSelectedStudent(student);
-                                setStudentDetailOpen(true);
-                              }}
-                              className="flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 font-medium"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              عرض
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Bar chart: avg performance per quiz */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-3">متوسط الأداء لكل اختبار</p>
+                    {barChartData.length === 0 ? (
+                      <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">لا توجد اختبارات بعد</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={barChartData.slice(-6)} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                          <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
+                          <Tooltip
+                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+                            formatter={(value) => [`${value}%`, 'المتوسط']}
+                          />
+                          <Bar dataKey="avg" fill="#0284c7" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                  {/* Pie chart: grade distribution */}
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-3">توزيع الدرجات</p>
+                    {pieChartData.length === 0 ? (
+                      <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">لا توجد نتائج بعد</div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie
+                            data={pieChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={45}
+                            outerRadius={75}
+                            paddingAngle={3}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {pieChartData.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+                            formatter={(value, name) => [value, name]}
+                          />
+                          <Legend
+                            iconType="circle"
+                            iconSize={8}
+                            wrapperStyle={{ fontSize: 11, paddingTop: 6 }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+              )}
+              {/* Performance breakdown mini-stats */}
+              {scores.length > 0 && (
+                <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t">
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-teal-600 dark:text-teal-400">
+                      {scores.filter((s) => scorePercentage(s.score, s.total) >= 75).length}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">ناجح (75%+)</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                      {scores.filter((s) => { const p = scorePercentage(s.score, s.total); return p >= 60 && p < 75; }).length}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">مقبول (60-74%)</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-rose-600 dark:text-rose-400">
+                      {scores.filter((s) => scorePercentage(s.score, s.total) < 60).length}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">راسب (أقل من 60%)</p>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         </motion.div>
 
-        {/* Performance alerts (1/3) */}
+        {/* Recent Activity (1/3) */}
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                تنبيهات الأداء
+                <ListChecks className="h-4 w-4 text-violet-600" />
+                آخر النشاطات
               </h3>
-              <button
-                onClick={() => setActiveSection('analytics')}
-                className="text-xs text-sky-700 hover:text-sky-800 font-medium flex items-center gap-1"
-              >
-                عرض الكل
-                <ChevronLeft className="h-3 w-3" />
-              </button>
             </div>
-            <div className="max-h-96 overflow-y-auto custom-scrollbar">
-              {scores.length === 0 ? (
-                <div className="p-6 text-center text-muted-foreground text-sm">
-                  لا توجد نتائج بعد
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {scores.slice(0, 6).map((score) => {
-                    const pct = scorePercentage(score.score, score.total);
-                    const student = students.find((s) => s.id === score.student_id);
-                    return (
-                      <div key={score.id} className="flex items-center gap-3 p-3">
-                        <div
-                          className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                            pct >= 90 ? 'bg-teal-500' : pct >= 75 ? 'bg-teal-500' : pct >= 60 ? 'bg-amber-500' : 'bg-rose-500'
-                          }`}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {student?.name || 'طالب'}
-                          </p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {score.quiz_title}
-                          </p>
+            <div className="max-h-[420px] overflow-y-auto custom-scrollbar">
+              {(() => {
+                // Build a unified activity feed from scores, quizzes, submissions
+                type ActivityItem = {
+                  id: string;
+                  type: 'quiz_completed' | 'quiz_created' | 'assignment_graded';
+                  title: string;
+                  subtitle: string;
+                  pct?: number;
+                  date: string;
+                  icon: React.ReactNode;
+                };
+                const activities: ActivityItem[] = [];
+
+                // Recent quiz completions (scores)
+                scores.slice(0, 8).forEach((score) => {
+                  const pct = scorePercentage(score.score, score.total);
+                  const student = students.find((s) => s.id === score.student_id);
+                  activities.push({
+                    id: `score-${score.id}`,
+                    type: 'quiz_completed',
+                    title: score.quiz_title,
+                    subtitle: student?.name || 'طالب',
+                    pct,
+                    date: score.completed_at,
+                    icon: <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />,
+                  });
+                });
+
+                // Recent quizzes created
+                quizzes.slice(0, 5).forEach((quiz) => {
+                  activities.push({
+                    id: `quiz-${quiz.id}`,
+                    type: 'quiz_created',
+                    title: quiz.title,
+                    subtitle: 'اختبار جديد',
+                    date: quiz.created_at,
+                    icon: <ClipboardList className="h-3.5 w-3.5 text-sky-500" />,
+                  });
+                });
+
+                // Recent graded submissions
+                teacherSubmissions.filter(s => s.score !== null).slice(0, 5).forEach((sub) => {
+                  const student = students.find((s) => s.id === sub.student_id);
+                  const assignment = teacherAssignments.find((a) => a.id === sub.assignment_id);
+                  const subPct = assignment && assignment.max_score > 0 ? Math.round((sub.score! / assignment.max_score) * 100) : undefined;
+                  activities.push({
+                    id: `sub-${sub.id}`,
+                    type: 'assignment_graded',
+                    title: assignment ? `تقييم مهمة` : 'تقييم',
+                    subtitle: student?.name || 'طالب',
+                    pct: subPct,
+                    date: '',
+                    icon: <Award className="h-3.5 w-3.5 text-amber-500" />,
+                  });
+                });
+
+                // Sort by date descending
+                activities.sort((a, b) => {
+                  if (!a.date && !b.date) return 0;
+                  if (!a.date) return 1;
+                  if (!b.date) return -1;
+                  return new Date(b.date).getTime() - new Date(a.date).getTime();
+                });
+
+                if (activities.length === 0) {
+                  return (
+                    <div className="py-12 text-center text-muted-foreground text-sm">
+                      <ListChecks className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                      لا توجد نشاطات بعد
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="divide-y">
+                    {activities.slice(0, 10).map((activity) => (
+                      <div key={activity.id} className="flex items-center gap-3 p-3 hover:bg-muted/30 transition-colors">
+                        <div className="shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-muted/50">
+                          {activity.icon}
                         </div>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${pctColorClass(pct)}`}>
-                          {pct}%
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground truncate">{activity.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">{activity.subtitle}</p>
+                        </div>
+                        {activity.pct !== undefined && (
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${pctColorClass(activity.pct)}`}>
+                            {activity.pct}%
+                          </span>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </motion.div>
@@ -2131,7 +2213,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   ? <CoursePage profile={profile} role="teacher" />
                   : <SubjectsSection profile={profile} role="teacher" />)}
                 {activeSection === 'summaries' && <TeacherSummariesSection profile={profile} />}
-                {activeSection === 'questionBank' && <QuestionBankSection profile={profile} />}
+                {activeSection === 'questionBank' && <QuestionBankSection profile={profile} onNavigateToCourse={() => setActiveSection('subjects')} />}
                 {activeSection === 'students' && renderStudents()}
                 {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
                 {activeSection === 'videos' && <AllVideosSection profile={profile} role="teacher" />}

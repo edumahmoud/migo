@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
 import { checkRateLimit } from '@/lib/api-security';
+import { supabaseServer } from '@/lib/supabase-server';
 
 // Server-side text extraction from a Supabase Storage URL
 // Supports both PDF and DOCX (Word) files.
@@ -67,46 +68,108 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build the full URL
-    let fileUrl = url;
-    if (!fileUrl && storagePath) {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-      fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
+    // Extract storage path from URL or use the provided storagePath
+    // The file_url stored in DB looks like: https://<supabase-url>/storage/v1/object/public/user-files/<path>
+    // We need just the <path> part for supabaseServer.storage.download()
+    let resolvedStoragePath = storagePath || '';
+
+    if (!resolvedStoragePath && url) {
+      // Try to extract the storage path from the URL
+      // Pattern 1: /object/public/user-files/<path>
+      const pathMatch = url.match(/\/storage\/v1\/object\/public\/user-files\/(.+)$/);
+      if (pathMatch) {
+        resolvedStoragePath = pathMatch[1];
+      }
+      // Pattern 2: /object/sign/user-files/<path>
+      if (!resolvedStoragePath) {
+        const signMatch = url.match(/\/storage\/v1\/object\/sign\/user-files\/(.+)$/);
+        if (signMatch) {
+          resolvedStoragePath = signMatch[1];
+        }
+      }
+      // Pattern 3: /object/authenticated/user-files/<path>
+      if (!resolvedStoragePath) {
+        const authMatch = url.match(/\/storage\/v1\/object\/authenticated\/user-files\/(.+)$/);
+        if (authMatch) {
+          resolvedStoragePath = authMatch[1];
+        }
+      }
     }
 
-    if (!fileUrl) {
+    if (!resolvedStoragePath && !url) {
       return NextResponse.json(
-        { success: false, error: 'رابط الملف غير صالح' },
+        { success: false, error: 'رابط الملف مطلوب' },
         { status: 400 }
       );
     }
 
-    // Detect file type from URL or fileName
-    const nameToCheck = fileName || fileUrl;
+    // Detect file type from fileName or URL
+    const nameToCheck = fileName || url || '';
     const isDocx = /\.(docx|doc)$/i.test(nameToCheck);
     const isPdf = /\.pdf$/i.test(nameToCheck);
 
-    console.log('[Extract URL API] Downloading from:', fileUrl, 'user:', authResult.user.id, 'type:', isDocx ? 'docx' : isPdf ? 'pdf' : 'unknown');
+    console.log('[Extract URL API] user:', authResult.user.id, 'type:', isDocx ? 'docx' : isPdf ? 'pdf' : 'unknown', 'storagePath:', resolvedStoragePath || 'N/A');
 
-    // Download the file from Supabase Storage (server-to-server, no body size limit)
-    const downloadRes = await fetch(fileUrl, {
-      headers: {
-        // Use service role for authentication if it's a private bucket
-        ...(process.env.SUPABASE_SERVICE_ROLE_KEY ? {
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-        } : {}),
-      },
-    });
+    // ─── Download strategy: SDK first (works with private buckets), HTTP fallback ───
+    let arrayBuffer: ArrayBuffer = new ArrayBuffer(0);
+    let downloadSucceeded = false;
 
-    if (!downloadRes.ok) {
-      console.error('[Extract URL API] Download failed:', downloadRes.status, downloadRes.statusText);
+    // Strategy A: Use Supabase SDK with service role key (works with BOTH public and private buckets)
+    if (resolvedStoragePath) {
+      try {
+        const { data: fileData, error: downloadError } = await supabaseServer.storage
+          .from('user-files')
+          .download(resolvedStoragePath);
+
+        if (!downloadError && fileData) {
+          arrayBuffer = await fileData.arrayBuffer();
+          downloadSucceeded = true;
+          console.log('[Extract URL API] SDK download succeeded, size:', arrayBuffer.byteLength, 'bytes');
+        } else {
+          console.warn('[Extract URL API] SDK download failed:', downloadError?.message || 'unknown error', '— trying HTTP fallback');
+        }
+      } catch (sdkErr) {
+        console.warn('[Extract URL API] SDK download error:', sdkErr instanceof Error ? sdkErr.message : sdkErr, '— trying HTTP fallback');
+      }
+    }
+
+    // Strategy B: HTTP fetch fallback (works with public buckets, or public/signed URLs)
+    if (!downloadSucceeded && url) {
+      try {
+        const downloadRes = await fetch(url, {
+          headers: {
+            ...(process.env.SUPABASE_SERVICE_ROLE_KEY ? {
+              'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+            } : {}),
+          },
+        });
+
+        if (downloadRes.ok) {
+          arrayBuffer = await downloadRes.arrayBuffer();
+          downloadSucceeded = true;
+          console.log('[Extract URL API] HTTP download succeeded, size:', arrayBuffer.byteLength, 'bytes');
+        } else {
+          console.error('[Extract URL API] HTTP download failed:', downloadRes.status, downloadRes.statusText);
+          return NextResponse.json(
+            { success: false, error: `فشل في تحميل الملف من التخزين (${downloadRes.status})` },
+            { status: 400 }
+          );
+        }
+      } catch (httpErr) {
+        console.error('[Extract URL API] HTTP download error:', httpErr instanceof Error ? httpErr.message : httpErr);
+        return NextResponse.json(
+          { success: false, error: 'فشل في تحميل الملف من التخزين' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (!downloadSucceeded) {
       return NextResponse.json(
-        { success: false, error: `فشل في تحميل الملف من التخزين (${downloadRes.status})` },
+        { success: false, error: 'فشل في تحميل الملف — لا يمكن الوصول للتخزين' },
         { status: 400 }
       );
     }
-
-    const arrayBuffer = await downloadRes.arrayBuffer();
 
     // Validate file size (10MB max)
     const MAX_FILE_SIZE = 10 * 1024 * 1024;

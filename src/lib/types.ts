@@ -161,6 +161,7 @@ export interface UserFile {
   file_type: string;
   file_size: number;
   file_url: string;
+  storage_path?: string; // Supabase Storage path for direct SDK access (more reliable than public URL)
   assignment_id?: string;
   visibility?: 'public' | 'private';
   created_at: string;
