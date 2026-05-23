@@ -194,62 +194,27 @@ export default function SettingsModal({
       toast.error('كلمة المرور الجديدة يجب أن تكون مختلفة عن الحالية');
       return;
     }
-    if (!profile.email) {
-      toast.error('لا يمكن تغيير كلمة المرور — البريد الإلكتروني غير متوفر');
-      console.error('[SettingsModal] Cannot change password: profile.email is empty');
-      return;
-    }
 
     setIsChangingPassword(true);
     try {
-      // ── Step 1: Reauthenticate with current password ──
-      // Supabase requires a recent session to update the password.
-      // We must verify the current password by signing in again.
-      const { error: reauthError } = await supabase.auth.signInWithPassword({
-        email: profile.email,
-        password: currentPassword,
+      // ── Use server-side API for reliable password change ──
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
 
-      if (reauthError) {
-        console.error('[SettingsModal] Reauthentication failed:', reauthError.message, 'Status:', (reauthError as any).status);
-        const rMsg = reauthError.message?.toLowerCase() || '';
-        if (rMsg.includes('invalid login') || rMsg.includes('invalid credentials') || rMsg.includes('wrong password') || rMsg.includes('incorrect')) {
-          toast.error('كلمة المرور الحالية غير صحيحة');
-        } else if (rMsg.includes('email not confirmed') || rMsg.includes('not confirmed')) {
-          toast.error('البريد الإلكتروني غير مؤكد. يرجى تأكيد بريدك الإلكتروني أولاً');
-        } else if (rMsg.includes('rate limit') || rMsg.includes('too many')) {
-          toast.error('طلبات كثيرة جداً. يرجى الانتظار ثم المحاولة مرة أخرى');
-        } else if (rMsg.includes('network') || rMsg.includes('failed to fetch')) {
-          toast.error('فشل الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى');
-        } else {
-          toast.error(`خطأ في التحقق: ${reauthError.message}`);
-        }
-        setIsChangingPassword(false);
-        return;
-      }
+      const data = await res.json();
 
-      // ── Step 2: Update password (now the session is fresh) ──
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) {
-        console.error('[SettingsModal] Password update error:', error.message, 'Status:', error.status, 'Code:', (error as any).code);
-        const msg = error.message?.toLowerCase() || '';
-
-        if (msg.includes('same') || msg.includes('different') || msg.includes('old password')) {
-          toast.error('كلمة المرور الجديدة يجب أن تكون مختلفة عن الحالية');
-        } else if (msg.includes('session') || msg.includes('unauthenticated') || msg.includes('jwt') || msg.includes('token')) {
-          toast.error('انتهت صلاحية الجلسة. يرجى تسجيل الخروج والدخول مرة أخرى ثم تغيير كلمة المرور');
-        } else if (msg.includes('password') && (msg.includes('weak') || msg.includes('require') || msg.includes('strength') || msg.includes('policy'))) {
-          toast.error('كلمة المرور لا تلبي متطلبات الأمان. تأكد من أن كلمة المرور تحتوي على أحرف كبيرة وصغيرة وأرقام');
-        } else if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
-          toast.error('طلبات كثيرة جداً. يرجى الانتظار ثم المحاولة مرة أخرى');
-        } else if (msg.includes('network') || msg.includes('failed to fetch')) {
-          toast.error('فشل الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى');
-        } else {
-          const displayMsg = error.message?.length > 100
-            ? error.message.substring(0, 100) + '...'
-            : error.message;
-          toast.error(`خطأ: ${displayMsg}`);
-        }
+      if (!res.ok || data.error) {
+        console.error('[SettingsModal] Password change failed:', data.error, 'Status:', res.status);
+        toast.error(data.error || 'فشل في تغيير كلمة المرور');
         return;
       }
 
@@ -259,7 +224,11 @@ export default function SettingsModal({
       setConfirmPassword('');
     } catch (err: any) {
       console.error('[SettingsModal] Password change unexpected error:', err);
-      toast.error(`خطأ غير متوقع: ${err?.message || 'يرجى المحاولة مرة أخرى'}`);
+      if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
+        toast.error('فشل الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى');
+      } else {
+        toast.error(`خطأ غير متوقع: ${err?.message || 'يرجى المحاولة مرة أخرى'}`);
+      }
     } finally {
       setIsChangingPassword(false);
     }

@@ -1,12 +1,12 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'atendo-v5';
-const STATIC_CACHE = 'atendo-static-v5';
-const DYNAMIC_CACHE = 'atendo-dynamic-v5';
-const API_CACHE = 'atendo-api-v5';
+const CACHE_NAME = 'atendo-v6';
+const STATIC_CACHE = 'atendo-static-v6';
+const DYNAMIC_CACHE = 'atendo-dynamic-v6';
+const API_CACHE = 'atendo-api-v6';
 
 // Build version — update this comment to force SW cache bust
-// BUILD_VERSION: 2.0.0
+// BUILD_VERSION: 2.1.0
 
 // Static assets to precache
 // NOTE: /manifest.json is removed — the app uses the dynamic manifest at /api/manifest
