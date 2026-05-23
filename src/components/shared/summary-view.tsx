@@ -416,7 +416,7 @@ function StepProgress({
 interface SummaryViewProps {
   summaryId: string;
   onBack: () => void;
-  onViewQuiz?: (quizId: string) => void;
+  onViewQuiz?: (quizId: string, reviewMode?: boolean) => void;
   /** If true, show quiz creation with subject_id (teacher mode) */
   teacherMode?: boolean;
 }
@@ -1774,7 +1774,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 </div>
                 {relatedQuiz && (
                 <Button
-                  onClick={() => onViewQuiz?.(relatedQuiz.id)}
+                  onClick={() => onViewQuiz?.(relatedQuiz.id, true)}
                   className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white w-full sm:w-auto"
                   size="sm"
                 >

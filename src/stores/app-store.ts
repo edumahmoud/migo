@@ -28,6 +28,10 @@ interface AppState {
   viewingQuizId: string | null;
   setViewingQuizId: (id: string | null) => void;
   
+  /** If true, QuizView should open in review mode (show answers, not retake) */
+  quizReviewMode: boolean;
+  setQuizReviewMode: (mode: boolean) => void;
+  
   viewingSummaryId: string | null;
   setViewingSummaryId: (id: string | null) => void;
   
@@ -76,6 +80,7 @@ const initialState = {
   teacherSection: 'dashboard' as TeacherSection,
   adminSection: 'dashboard' as AdminSection,
   viewingQuizId: null as string | null,
+  quizReviewMode: false,
   viewingSummaryId: null as string | null,
   previousStudentSection: null as StudentSection | null,
   selectedSubjectId: null as string | null,
@@ -102,7 +107,10 @@ export const useAppStore = create<AppState>()(
       setViewingQuizId: (id) => set((state) => ({
         viewingQuizId: id,
         currentPage: id ? 'quiz' : (state.currentPage === 'quiz' ? 'student-dashboard' : state.currentPage),
+        // Clear review mode when navigating away from quiz
+        quizReviewMode: id ? state.quizReviewMode : false,
       })),
+      setQuizReviewMode: (mode) => set({ quizReviewMode: mode }),
       setViewingSummaryId: (id) => set((state) => {
         if (id) {
           // Navigating TO a summary: save current student section so we can restore it on back
@@ -153,6 +161,7 @@ export const useAppStore = create<AppState>()(
         // lands on an orphaned 'summary' currentPage with no summary to show.
         viewingSummaryId: state.viewingSummaryId,
         viewingQuizId: state.viewingQuizId,
+        quizReviewMode: state.quizReviewMode,
         // Persist previousStudentSection so back navigation works after refresh
         previousStudentSection: state.previousStudentSection,
       }),

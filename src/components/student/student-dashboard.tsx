@@ -133,7 +133,7 @@ function scorePercentage(score: number, total: number): number {
 // -------------------------------------------------------
 export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
   // ─── App store ───
-  const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setQuizReviewMode } = useAppStore();
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<StudentSection>(storedStudentSection || 'dashboard');
@@ -4219,7 +4219,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         <SummaryView
           summaryId={viewingSummaryId}
           onBack={() => setViewingSummaryId(null)}
-          onViewQuiz={(quizId) => setViewingQuizId(quizId)}
+          onViewQuiz={(quizId, reviewMode) => {
+            if (reviewMode) setQuizReviewMode(true);
+            setViewingQuizId(quizId);
+          }}
         />
       );
     }

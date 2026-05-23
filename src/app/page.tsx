@@ -187,7 +187,7 @@ const studentNavItems = [
 
 function HomeContent() {
   const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo, passwordRecoveryMode, clearPasswordRecovery } = useAuthStore();
-  const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, setViewingQuizId, setViewingSummaryId, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection } = useAppStore();
+  const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, setViewingQuizId, setViewingSummaryId, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection, quizReviewMode } = useAppStore();
   const { cleanup: cleanupStatusStore, init: initStatusStore } = useStatusStore();
   const { cleanup: cleanupNotifications } = useNotificationStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
@@ -760,6 +760,7 @@ function HomeContent() {
               setCurrentPage(user.role === 'superadmin' || user.role === 'admin' ? 'admin-dashboard' : user.role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard');
             }}
             profile={user}
+            reviewMode={quizReviewMode}
           />
         </AppErrorBoundary>
       </div>

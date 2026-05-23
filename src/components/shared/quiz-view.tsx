@@ -32,7 +32,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import type { UserProfile, Quiz, QuizQuestion, UserAnswer } from '@/lib/types';
+import type { UserProfile, Quiz, QuizQuestion, UserAnswer, Score } from '@/lib/types';
 
 // -------------------------------------------------------
 // Quiz Progress Persistence (localStorage)
@@ -87,6 +87,8 @@ interface QuizViewProps {
   quizId: string;
   onBack: () => void;
   profile: UserProfile;
+  /** If true, skip the quiz-taking flow and show results + review from saved score */
+  reviewMode?: boolean;
 }
 
 // -------------------------------------------------------
@@ -128,7 +130,7 @@ const staggerContainer = {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
+export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizViewProps) {
   // ─── App store ───
   const { setCurrentPage } = useAppStore();
 
@@ -213,6 +215,31 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
       setQuiz(quizData);
       hasValidDataRef.current = true;
 
+      // ─── Review mode: load saved score and show results + review directly ───
+      if (reviewMode) {
+        const { data: savedScore } = await supabase
+          .from('scores')
+          .select('*')
+          .eq('student_id', profile.id)
+          .eq('quiz_id', quizId)
+          .order('completed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (savedScore) {
+          const scoreData = savedScore as Score;
+          // Restore user answers from the saved score
+          if (scoreData.user_answers && Array.isArray(scoreData.user_answers)) {
+            setUserAnswers(scoreData.user_answers as UserAnswer[]);
+          }
+          setShowResults(true);
+          setShowReview(true); // Auto-open review section
+          return; // Skip the quiz-taking flow entirely
+        }
+        // No saved score found in review mode — fall through to normal flow
+        // (edge case: score was deleted but review was requested)
+      }
+
       // Check if student already completed this quiz
       const { data: existingScore } = await supabase
         .from('scores')
@@ -238,7 +265,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
     } finally {
       setLoading(false);
     }
-  }, [quizId, profile.id]);
+  }, [quizId, profile.id, reviewMode]);
 
   // ─── Auth re-hydration for mobile ───
   // CRITICAL: Only reset to loading if we don't already have data.
@@ -1183,6 +1210,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
 
         {/* Action buttons */}
         <motion.div variants={fadeInUp} className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+          {!showReview && (
           <Button
             onClick={() => setShowReview(true)}
             variant="outline"
@@ -1191,6 +1219,8 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             <Eye className="h-4 w-4" />
             مراجعة الإجابات
           </Button>
+          )}
+          {!reviewMode && (
           <Button
             onClick={handleRetry}
             variant="outline"
@@ -1200,12 +1230,13 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
             <RotateCcw className="h-4 w-4" />
             إعادة الاختبار
           </Button>
+          )}
           <Button
             onClick={onBack}
             className="gap-2 bg-sky-700 text-white hover:bg-sky-800"
           >
-            <Home className="h-4 w-4" />
-            العودة للرئيسية
+            <ChevronRight className="h-4 w-4" />
+            {reviewMode ? 'العودة' : 'العودة للرئيسية'}
           </Button>
         </motion.div>
 
