@@ -133,7 +133,7 @@ function scorePercentage(score: number, total: number): number {
 // -------------------------------------------------------
 export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
   // ─── App store ───
-  const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, setQuizReviewMode } = useAppStore();
+  const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<StudentSection>(storedStudentSection || 'dashboard');
@@ -3348,7 +3348,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                             {isCompleted ? (
                               <>
                                 <button
-                                  onClick={() => setViewingQuizId(quiz.id)}
+                                  onClick={() => setViewingQuizId(quiz.id, true)}
                                   className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 transition-colors hover:bg-sky-100"
                                 >
                                   <Eye className="h-3.5 w-3.5" />
@@ -3438,7 +3438,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                             </div>
                             <div className="mt-4 flex items-center gap-2">
                               <button
-                                onClick={() => setViewingQuizId(quiz.id)}
+                                onClick={() => setViewingQuizId(quiz.id, true)}
                                 className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 transition-colors hover:bg-sky-100"
                               >
                                 <Eye className="h-3.5 w-3.5" />
@@ -4219,10 +4219,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         <SummaryView
           summaryId={viewingSummaryId}
           onBack={() => setViewingSummaryId(null)}
-          onViewQuiz={(quizId, reviewMode) => {
-            if (reviewMode) setQuizReviewMode(true);
-            setViewingQuizId(quizId);
-          }}
+          onViewQuiz={(quizId, reviewMode) => setViewingQuizId(quizId, reviewMode)}
         />
       );
     }

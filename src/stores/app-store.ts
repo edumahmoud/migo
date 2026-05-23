@@ -26,7 +26,7 @@ interface AppState {
   
   // Quiz/Summary viewing
   viewingQuizId: string | null;
-  setViewingQuizId: (id: string | null) => void;
+  setViewingQuizId: (id: string | null, reviewMode?: boolean) => void;
   
   /** If true, QuizView should open in review mode (show answers, not retake) */
   quizReviewMode: boolean;
@@ -104,11 +104,10 @@ export const useAppStore = create<AppState>()(
       setStudentSection: (section) => set({ studentSection: section }),
       setTeacherSection: (section) => set({ teacherSection: section }),
       setAdminSection: (section) => set({ adminSection: section }),
-      setViewingQuizId: (id) => set((state) => ({
+      setViewingQuizId: (id, reviewMode?: boolean) => set((state) => ({
         viewingQuizId: id,
         currentPage: id ? 'quiz' : (state.currentPage === 'quiz' ? 'student-dashboard' : state.currentPage),
-        // Clear review mode when navigating away from quiz
-        quizReviewMode: id ? state.quizReviewMode : false,
+        quizReviewMode: reviewMode ?? false,
       })),
       setQuizReviewMode: (mode) => set({ quizReviewMode: mode }),
       setViewingSummaryId: (id) => set((state) => {

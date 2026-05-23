@@ -267,6 +267,52 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     }
   }, [quizId, profile.id, reviewMode]);
 
+  // ─── Review mode: ensure score is loaded when quiz + reviewMode are both ready ───
+  // This is a safety net that handles the case where fetchQuiz completes but
+  // the review mode score loading didn't trigger (e.g., due to timing issues).
+  // It only runs once when both quiz data and reviewMode are available.
+  const reviewLoadedRef = useRef(false);
+  // Reset review loaded flag when quizId changes
+  useEffect(() => {
+    reviewLoadedRef.current = false;
+  }, [quizId]);
+  useEffect(() => {
+    if (!reviewMode || !quiz || !profile.id || reviewLoadedRef.current) return;
+    reviewLoadedRef.current = true;
+
+    // If we already have results showing, no need to reload
+    if (showResults) return;
+
+    console.log('[QuizView] Review mode safety net: loading saved score');
+    (async () => {
+      try {
+        const { data: savedScore } = await supabase
+          .from('scores')
+          .select('*')
+          .eq('student_id', profile.id)
+          .eq('quiz_id', quiz.id)
+          .order('completed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (savedScore) {
+          const scoreData = savedScore as Score;
+          if (scoreData.user_answers && Array.isArray(scoreData.user_answers)) {
+            setUserAnswers(scoreData.user_answers as UserAnswer[]);
+          }
+          setShowResults(true);
+          setShowReview(true);
+        } else {
+          // No score found — student hasn't taken the quiz
+          // Just show the quiz normally (they can take it)
+          console.warn('[QuizView] Review mode: no saved score found, showing quiz normally');
+        }
+      } catch (err) {
+        console.error('[QuizView] Review mode: failed to load score:', err);
+      }
+    })();
+  }, [reviewMode, quiz, profile.id, showResults]);
+
   // ─── Auth re-hydration for mobile ───
   // CRITICAL: Only reset to loading if we don't already have data.
   // On mobile, returning from background triggers INITIAL_SESSION, which previously

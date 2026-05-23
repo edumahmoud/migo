@@ -1992,7 +1992,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           {/* View quiz (student completed / finished) */}
           {myScore && (
             <button
-              onClick={() => setViewingQuizId(quiz.id)}
+              onClick={() => setViewingQuizId(quiz.id, true)}
               className="flex items-center gap-1.5 rounded-lg border px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors mt-3 w-full justify-center"
             >
               <Eye className="h-3.5 w-3.5" />
