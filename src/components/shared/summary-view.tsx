@@ -510,6 +510,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // ─── Related quiz ───
   const [relatedQuiz, setRelatedQuiz] = useState<Quiz | null>(null);
 
+  // ─── Student's score for the related quiz (determines completion) ───
+  const [studentScore, setStudentScore] = useState<Score | null>(null);
+
   // -------------------------------------------------------
   // Fetch summary — with robust retry for mobile/PWA
   // -------------------------------------------------------
@@ -630,6 +633,50 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       // Non-critical
     }
   }, [summaryId]);
+
+  // -------------------------------------------------------
+  // Fetch student's score for the related quiz
+  // This is the CORRECT way to check completion (vs. is_finished
+  // which is a teacher-set flag meaning "quiz is closed")
+  // -------------------------------------------------------
+  const fetchStudentScore = useCallback(async () => {
+    if (!relatedQuiz) {
+      setStudentScore(null);
+      return;
+    }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) {
+        setStudentScore(null);
+        return;
+      }
+      const { data } = await supabase
+        .from('scores')
+        .select('*')
+        .eq('student_id', userId)
+        .eq('quiz_id', relatedQuiz.id)
+        .order('completed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      setStudentScore((data as Score) ?? null);
+    } catch {
+      setStudentScore(null);
+    }
+  }, [relatedQuiz?.id]);
+
+  // Fetch student score whenever the related quiz changes
+  useEffect(() => {
+    fetchStudentScore();
+  }, [fetchStudentScore]);
+
+  // Refresh student score when user switches to the "completed" tab
+  // (they may have just finished a quiz and returned)
+  useEffect(() => {
+    if (summaryTab === 'completed' && relatedQuiz) {
+      fetchStudentScore();
+    }
+  }, [summaryTab, relatedQuiz, fetchStudentScore]);
 
   useEffect(() => {
     fetchSummary();
@@ -1695,14 +1742,14 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
               <div>
                 <h2 className="text-sm font-bold text-violet-700">اختبارات مكتملة</h2>
                 <p className="text-xs text-violet-600/70">
-                  {relatedQuiz?.is_finished
+                  {studentScore
                     ? 'اختبار مكتمل'
                     : 'لم يتم إكمال اختبارات بعد'}
                 </p>
               </div>
             </div>
 
-            {relatedQuiz?.is_finished ? (
+            {studentScore ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-lg border border-violet-100 bg-violet-50/30 p-3">
                   <div className="flex items-center gap-3">
@@ -1711,20 +1758,21 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                     </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        {relatedQuiz.title || 'اختبار الملخص'}
+                        {relatedQuiz?.title || studentScore.quiz_title || 'اختبار الملخص'}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {relatedQuiz.questions?.length || 0} سؤال
+                        {studentScore.score} / {studentScore.total} — {Math.round((studentScore.score / studentScore.total) * 100)}%
                       </p>
                     </div>
                   </div>
                   <div className="text-start">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2.5 py-1 text-xs font-medium text-teal-700">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${studentScore.score / studentScore.total >= 0.5 ? 'bg-teal-100 text-teal-700' : 'bg-red-100 text-red-700'}`}>
                       <CheckCircle2 className="h-3 w-3" />
                       مكتمل
                     </span>
                   </div>
                 </div>
+                {relatedQuiz && (
                 <Button
                   onClick={() => onViewQuiz?.(relatedQuiz.id)}
                   className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white w-full sm:w-auto"
@@ -1733,12 +1781,13 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   <Eye className="h-4 w-4" />
                   مراجعة الاختبار
                 </Button>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <CheckCircle2 className="h-12 w-12 text-violet-200 mb-3" />
                 <p className="text-sm text-muted-foreground">لم يتم إكمال اختبارات بعد</p>
-                {relatedQuiz && !relatedQuiz.is_finished && (
+                {relatedQuiz && !studentScore && (
                   <Button
                     onClick={() => setSummaryTab('quiz')}
                     variant="outline"
