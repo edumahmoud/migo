@@ -95,6 +95,11 @@ function tryFixJson(jsonStr: string): unknown | null {
 
 /**
  * Parse quiz JSON from AI response with deduplication.
+ *
+ * IMPORTANT: Normalizes field names because AI models may return
+ * either camelCase (correctAnswer) or snake_case (correct_answer).
+ * Without normalization, completion questions lose their correct answer
+ * when mapped to bank_questions (which uses correct_answer).
  */
 export function parseQuizResponse(text: string): Array<{
   type: 'mcq' | 'boolean' | 'completion' | 'matching';
@@ -120,7 +125,17 @@ export function parseQuizResponse(text: string): Array<{
     throw new Error('تنسيق الأسئلة غير صحيح');
   }
 
-  return questions as Array<{
+  // Normalize each question: map snake_case fields to camelCase
+  return questions.map((q: any) => {
+    const normalized: any = {
+      type: q.type || 'mcq',
+      question: q.question || '',
+      options: q.options || undefined,
+      correctAnswer: q.correctAnswer || q.correct_answer || undefined,
+      pairs: q.pairs || undefined,
+    };
+    return normalized;
+  }) as Array<{
     type: 'mcq' | 'boolean' | 'completion' | 'matching';
     question: string;
     options?: string[];

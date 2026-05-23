@@ -1380,6 +1380,14 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                             try {
                               const answerStr = currentQuestion.type === 'matching' ? JSON.stringify(matchedPairs) : (currentQuestion.type === 'completion' ? completionInput : selectedOption || '');
 
+                              // Build correctAnswer — for matching, derive from pairs
+                              let correctAnswerStr = currentQuestion.correctAnswer || '';
+                              if (currentQuestion.type === 'matching' && currentQuestion.pairs && currentQuestion.pairs.length > 0) {
+                                correctAnswerStr = currentQuestion.pairs
+                                  .map(p => `${p.key} → ${p.value}`)
+                                  .join('، ');
+                              }
+
                               // Use getCachedAuthHeaders for reliable mobile auth + retry with backoff
                               let res: Response | null = null;
                               let lastError: string | null = null;
@@ -1389,7 +1397,7 @@ export default function QuizView({ quizId, onBack, profile }: QuizViewProps) {
                                   res = await fetch('/api/gemini/explain', {
                                     method: 'POST',
                                     headers,
-                                    body: JSON.stringify({ question: currentQuestion.question, correctAnswer: currentQuestion.correctAnswer || '', studentAnswer: answerStr, questionType: currentQuestion.type }),
+                                    body: JSON.stringify({ question: currentQuestion.question, correctAnswer: correctAnswerStr, studentAnswer: answerStr, questionType: currentQuestion.type }),
                                   });
                                   if (res.ok || res.status === 400) break; // Success or validation error — don't retry
                                   if (res.status === 429) {
@@ -2206,6 +2214,14 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                       ? JSON.stringify(userAnswer.answer)
                       : String(userAnswer.answer || '');
 
+                    // Build correctAnswer — for matching, derive from pairs
+                    let correctAnswerStr = question.correctAnswer || '';
+                    if (question.type === 'matching' && question.pairs && question.pairs.length > 0) {
+                      correctAnswerStr = question.pairs
+                        .map(p => `${p.key} → ${p.value}`)
+                        .join('، ');
+                    }
+
                     // Use getCachedAuthHeaders for reliable mobile auth + retry with backoff
                     let res: Response | null = null;
                     let lastError: string | null = null;
@@ -2217,7 +2233,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                           headers,
                           body: JSON.stringify({
                             question: question.question,
-                            correctAnswer: question.correctAnswer || '',
+                            correctAnswer: correctAnswerStr,
                             studentAnswer: answerStr,
                             questionType: question.type,
                           }),

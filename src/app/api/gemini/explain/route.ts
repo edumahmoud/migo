@@ -44,15 +44,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { question, correctAnswer, studentAnswer, questionType } = body;
 
-    if (!question || !correctAnswer || !studentAnswer) {
+    if (!question || !studentAnswer) {
       return NextResponse.json(
-        { success: false, error: 'جميع الحقول مطلوبة' },
+        { success: false, error: 'السؤال وإجابة الطالب مطلوبان' },
         { status: 400 }
       );
     }
 
+    // Allow missing correctAnswer — the AI can still explain based on the question alone.
+    // This is important for matching and completion questions where the client may not
+    // always have the correctAnswer readily available.
+    const effectiveCorrectAnswer = correctAnswer || 'غير محدد';
+
     const sanitizedQuestion = sanitizeString(question, 2000);
-    const sanitizedCorrectAnswer = sanitizeString(correctAnswer, 1000);
+    const sanitizedCorrectAnswer = sanitizeString(effectiveCorrectAnswer, 1000);
     const sanitizedStudentAnswer = sanitizeString(studentAnswer, 1000);
     const sanitizedType = sanitizeString(questionType || 'mcq', 50);
 
