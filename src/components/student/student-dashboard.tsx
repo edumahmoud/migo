@@ -1383,7 +1383,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         let originalContent = '';
         let summaryContent = '';
         let savedSummaryId = '';
-        let sourceFileType: 'pdf' | 'docx' | null = null;
+        let sourceFileType: 'pdf' | 'docx' | 'pptx' | 'txt' | null = null;
         let sourceFileUrl: string | null = null;
 
         // Step 1: Get content (text or extract from PDF/DOCX)
@@ -1447,7 +1447,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
               // Detect file type from filename for sourceFileType tracking
               if (!sourceFileType && capturedFileName) {
-                sourceFileType = /\.(docx|doc)$/i.test(capturedFileName) ? 'docx' : 'pdf';
+                sourceFileType = /\.(docx|doc)$/i.test(capturedFileName) ? 'docx' : /\.pptx$/i.test(capturedFileName) ? 'pptx' : /\.(txt|md|csv)$/i.test(capturedFileName) ? 'txt' : 'pdf';
               }
 
               // Send with correct MIME type so the server can handle both PDF and DOCX
@@ -1582,7 +1582,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
           // Detect file type for sourceFileType tracking
           if (!sourceFileType && capturedExistingFile.file_name) {
-            sourceFileType = /\.(docx|doc)$/i.test(capturedExistingFile.file_name) ? 'docx' : 'pdf';
+            sourceFileType = /\.(docx|doc)$/i.test(capturedExistingFile.file_name) ? 'docx' : /\.pptx$/i.test(capturedExistingFile.file_name) ? 'pptx' : /\.(txt|md|csv)$/i.test(capturedExistingFile.file_name) ? 'txt' : 'pdf';
           }
 
           let extractionSucceeded = false;
@@ -3096,9 +3096,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                             .order('created_at', { ascending: false })
                             .then(({ data, error }) => {
                               if (!error && data) {
-                                // Filter to only supported document files (PDF, Word)
+                                // Filter to only supported document files (PDF, Word, PowerPoint, text)
                                 const docFiles = (data as UserFile[]).filter(f =>
-                                  /\.(pdf|docx?)$/i.test(f.file_name)
+                                  /\.(pdf|docx?|pptx|txt|md|csv)$/i.test(f.file_name)
                                 );
                                 setExistingFiles(docFiles);
                               }
@@ -3196,7 +3196,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".pdf,.docx,.doc"
+                      accept=".pdf,.docx,.doc,.pptx,.txt,.md,.csv"
                       onChange={handleSummaryFileChange}
                       className="hidden"
 

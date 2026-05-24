@@ -38,7 +38,7 @@ export interface Summary {
   original_content: string;
   summary_content: string;
   subject_id?: string | null; // FIX #5: Optional link to subject
-  source_file_type?: 'pdf' | 'docx' | null; // Source file type: 'pdf' or 'docx'
+  source_file_type?: 'pdf' | 'docx' | 'pptx' | 'txt' | null; // Source file type
   source_file_url?: string | null; // URL to the uploaded source file in Supabase Storage
   created_at: string;
 }

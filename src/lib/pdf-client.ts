@@ -17,8 +17,8 @@
 export interface PdfExtractionResult {
   text: string;
   pages: number;
-  /** Source file type: 'pdf' or 'docx' */
-  sourceFileType?: 'pdf' | 'docx';
+  /** Source file type: 'pdf' or 'docx' or 'pptx' or 'txt' */
+  sourceFileType?: 'pdf' | 'docx' | 'pptx' | 'txt';
 }
 
 /** Max chars to send to the AI (matches server-side sanitizeString limit) */
@@ -114,7 +114,8 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
     let fullText = textParts.join('\n\n');
 
     if (!fullText.trim()) {
-      throw new Error('NO_TEXT_EXTRACTED');
+      // This typically happens with scanned/image-only PDFs
+      throw new Error('SCANNED_PDF_NO_TEXT');
     }
 
     // Truncate to max length
@@ -125,8 +126,8 @@ export async function extractPdfTextClient(source: File | ArrayBuffer): Promise<
 
     return { text: fullText, pages: numPages, sourceFileType: 'pdf' };
   } catch (err) {
-    if (err instanceof Error && err.message === 'NO_TEXT_EXTRACTED') {
-      throw err;
+    if (err instanceof Error && (err.message === 'NO_TEXT_EXTRACTED' || err.message === 'SCANNED_PDF_NO_TEXT')) {
+      throw new Error('الملف يبدو أنه ملف PDF ممسوح ضوئياً (صور فقط). لا يمكن استخراج نص من الصور. يرجى رفع ملف يحتوي على نص قابل للتحديد أو نسخ المحتوى يدوياً');
     }
 
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -293,7 +294,7 @@ export async function extractDocxTextClient(source: File | ArrayBuffer): Promise
     let fullText = htmlToMarkdown(htmlContent);
 
     if (!fullText.trim()) {
-      throw new Error('NO_TEXT_EXTRACTED');
+      throw new Error('DOCX_NO_TEXT_EXTRACTED');
     }
 
     // Truncate to max length with indicator
@@ -312,8 +313,8 @@ export async function extractDocxTextClient(source: File | ArrayBuffer): Promise
 
     return { text: fullText, sourceFileType: 'docx' };
   } catch (err) {
-    if (err instanceof Error && err.message === 'NO_TEXT_EXTRACTED') {
-      throw err;
+    if (err instanceof Error && err.message === 'DOCX_NO_TEXT_EXTRACTED') {
+      throw new Error('ملف Word فارغ أو لا يحتوي على نص قابل للاستخراج');
     }
 
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -332,21 +333,137 @@ export async function extractDocxTextClient(source: File | ArrayBuffer): Promise
 
 /**
  * Detect file type from a File object and extract text accordingly.
- * Supports PDF and Word (.docx) files.
+ * Supports PDF, Word (.docx), PowerPoint (.pptx), and plain text (.txt) files.
  *
  * @param source - The File object OR a pre-read ArrayBuffer
  * @param fileName - The file name (used to detect type when source is ArrayBuffer)
- * @returns Extracted text and page count (pages is 0 for docx)
+ * @returns Extracted text and page count (pages is 0 for non-PDF files)
  */
 export async function extractTextFromFile(source: File | ArrayBuffer, fileName?: string): Promise<PdfExtractionResult> {
   const name = source instanceof File ? source.name : (fileName || '');
-  const isDocx = /\.(docx|doc)$/i.test(name);
 
-  if (isDocx) {
+  // Word documents (.docx, .doc)
+  if (/\.(docx|doc)$/i.test(name)) {
     const result = await extractDocxTextClient(source);
     return { text: result.text, pages: 0, sourceFileType: 'docx' };
   }
 
+  // Plain text files (.txt, .csv, .md)
+  if (/\.(txt|csv|md)$/i.test(name)) {
+    const arrayBuffer = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
+    const text = new TextDecoder('utf-8').decode(arrayBuffer);
+    if (!text.trim()) {
+      throw new Error('الملف النصي فارغ');
+    }
+    const truncated = text.length > MAX_TEXT_LENGTH ? text.substring(0, MAX_TEXT_LENGTH) : text;
+    return { text: truncated, pages: 0, sourceFileType: 'txt' };
+  }
+
+  // PowerPoint files (.pptx) — extract text from XML slides
+  if (/\.pptx$/i.test(name)) {
+    const result = await extractPptxTextClient(source);
+    return { text: result.text, pages: result.slides, sourceFileType: 'pptx' };
+  }
+
+  // Unsupported file types with clear error messages
+  if (/\.(ppt|xls|xlsx|rtf|odt|ods|odp)$/i.test(name)) {
+    const ext = name.split('.').pop()?.toUpperCase() || '';
+    throw new Error(`نوع الملف ${ext} غير مدعوم حالياً. الأنواع المدعومة: PDF، Word (DOCX)، PowerPoint (PPTX)، والملفات النصية (TXT)`);
+  }
+
   // Default: treat as PDF
   return extractPdfTextClient(source);
+}
+
+// -------------------------------------------------------
+// PPTX (PowerPoint) text extraction
+// -------------------------------------------------------
+
+export interface PptxExtractionResult {
+  text: string;
+  slides: number;
+  sourceFileType: 'pptx';
+}
+
+/**
+ * Extract text from a PowerPoint (.pptx) file.
+ * PPTX files are ZIP archives containing XML slides.
+ * We parse the XML to extract text from each slide.
+ */
+async function extractPptxTextClient(source: File | ArrayBuffer): Promise<PptxExtractionResult> {
+  if (typeof window === 'undefined') {
+    throw new Error('PPTX extraction is only available in the browser');
+  }
+
+  try {
+    // Dynamic import of JSZip for reading the PPTX archive
+    const JSZip = (await import('jszip')).default;
+
+    const arrayBuffer = source instanceof ArrayBuffer ? source : await source.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+
+    // Find all slide files (ppt/slides/slide1.xml, slide2.xml, etc.)
+    const slideFiles = Object.keys(zip.files)
+      .filter(name => /^ppt\/slides\/slide\d+\.xml$/i.test(name))
+      .sort((a, b) => {
+        const numA = parseInt(a.match(/slide(\d+)/i)?.[1] || '0');
+        const numB = parseInt(b.match(/slide(\d+)/i)?.[1] || '0');
+        return numA - numB;
+      });
+
+    if (slideFiles.length === 0) {
+      throw new Error('لا تحتوي ملفات شرائح في العرض التقديمي');
+    }
+
+    const slideTexts: string[] = [];
+
+    for (const slidePath of slideFiles) {
+      const xmlContent = await zip.files[slidePath].async('text');
+      // Extract text from <a:t> tags in the XML
+      const textMatches = xmlContent.match(/<a:t[^>]*>([\s\S]*?)<\/a:t>/gi) || [];
+      const slideText = textMatches
+        .map(match => match.replace(/<\/?a:t[^>]*>/gi, '').trim())
+        .filter(text => text.length > 0)
+        .join('\n');
+
+      if (slideText.trim()) {
+        slideTexts.push(`--- شريحة ---\n${slideText}`);
+      }
+    }
+
+    let fullText = slideTexts.join('\n\n');
+
+    if (!fullText.trim()) {
+      throw new Error('العرض التقديمي لا يحتوي على نص قابل للاستخراج. قد يحتوي على صور فقط');
+    }
+
+    // Truncate to max length
+    if (fullText.length > MAX_TEXT_LENGTH) {
+      console.log(`[PPTX Client] Text truncated from ${fullText.length} to ${MAX_TEXT_LENGTH} chars`);
+      fullText = fullText.substring(0, MAX_TEXT_LENGTH);
+    }
+
+    return { text: fullText, slides: slideFiles.length, sourceFileType: 'pptx' };
+  } catch (err) {
+    // Re-throw user-friendly errors
+    if (err instanceof Error && (
+      err.message.includes('لا تحتوي') ||
+      err.message.includes('لا يحتوي') ||
+      err.message.includes('غير مدعوم')
+    )) {
+      throw err;
+    }
+
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('[PPTX Client] Extraction failed:', errMsg);
+
+    if (errMsg.includes('password') || errMsg.includes('encrypted') || errMsg.includes('encrypted')) {
+      throw new Error('الملف محمي بكلمة مرور. يرجى رفع ملف غير محمي');
+    }
+    if (errMsg.includes('Corrupted') || errMsg.includes('Invalid') || errMsg.includes('not a valid zip')) {
+      throw new Error('الملف تالف أو ليس ملف PowerPoint صالح');
+    }
+
+    throw new Error(`فشل في قراءة ملف PowerPoint: ${errMsg}`);
+  }
 }

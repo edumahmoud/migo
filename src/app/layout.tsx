@@ -73,10 +73,9 @@ export default function RootLayout({
                   var theme = localStorage.getItem('attendo-theme');
                   if (theme === 'dark') {
                     document.documentElement.classList.add('dark');
-                  } else if (theme === 'light') {
+                  } else {
+                    // Default to light mode when no preference is stored
                     document.documentElement.classList.remove('dark');
-                  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                    document.documentElement.classList.add('dark');
                   }
                 } catch(e) {}
               })();

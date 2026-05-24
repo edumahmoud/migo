@@ -78,6 +78,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
   // ─── Data state ───
   const [summaries, setSummaries] = useState<Summary[]>([]);
+  // Ref to access current summaries in callbacks without creating dependency cycles
+  const summariesRef = useRef<Summary[]>(summaries);
+  useEffect(() => { summariesRef.current = summaries; }, [summaries]);
   const [loadingSummaries, setLoadingSummaries] = useState(true);
 
   // ─── Ref to track recently added summary IDs (protect from stale fetch overwrites) ───
@@ -171,12 +174,13 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         const filtered = fetched.filter(s => !recentlyDeletedIdsRef.current.has(s.id));
 
         // Protect recently added summaries from being overwritten by stale fetches
+        // Uses summariesRef to avoid depending on summaries state (prevents infinite loop)
         const now = Date.now();
         if (recentlyAddedSummaryIdsRef.current.size > 0) {
           const fetchedIds = new Set(filtered.map(s => s.id));
           for (const [id, addedAt] of recentlyAddedSummaryIdsRef.current) {
             if (now - addedAt < RECENTLY_ADDED_PROTECTION_MS && !fetchedIds.has(id)) {
-              const existingInLocal = summaries.find(s => s.id === id);
+              const existingInLocal = summariesRef.current.find(s => s.id === id);
               if (existingInLocal) {
                 console.log('[fetchSummaries] Preserving recently added summary:', id);
                 filtered.unshift(existingInLocal);
@@ -213,7 +217,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       }
     }
     setLoadingSummaries(false);
-  }, [profile.id, summaries]);
+  }, [profile.id]);
 
   // -------------------------------------------------------
   // Fetch teacher subjects
@@ -272,17 +276,29 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     };
   }, [profile.id, fetchSummaries, fetchSubjects]);
 
-  // ─── Auth re-hydration for mobile (fix: no INITIAL_SESSION handling) ───
-  // FIX: Also clear loading state and re-trigger fetch on session ready.
-  // This prevents the page from appearing stuck/hung when returning to the app on mobile.
+  // ─── Auth re-hydration for mobile ───
+  // FIX: Only re-fetch on SIGNED_IN and TOKEN_REFRESHED (not INITIAL_SESSION)
+  // to prevent infinite loading loop. INITIAL_SESSION fires on every subscription,
+  // causing setLoadingSummaries(true) → fetchSummaries → setSummaries →
+  // fetchSummaries reference changes (old bug) → effect re-runs → resubscribes →
+  // INITIAL_SESSION fires again → infinite loop.
+  // Now that fetchSummaries doesn't depend on summaries state, the loop is broken,
+  // but we still avoid resetting loading on INITIAL_SESSION to prevent UI flicker.
   useEffect(() => {
     let cancelled = false;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
-      if ((event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') && session?.access_token) {
-        console.log('[TeacherSummaries] Session ready (event:', event, '), re-fetching...');
-        // Reset loading state so user sees a spinner instead of stale data/error
-        setLoadingSummaries(true);
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
+        console.log('[TeacherSummaries] Session event:', event, ', re-fetching...');
+        // Only show loading spinner if we don't already have data
+        if (summariesRef.current.length === 0) {
+          setLoadingSummaries(true);
+        }
+        fetchSummaries();
+        fetchSubjects();
+      } else if (event === 'INITIAL_SESSION' && session?.access_token && summariesRef.current.length === 0) {
+        // INITIAL_SESSION: only fetch if we have no data yet (first load or refresh)
+        console.log('[TeacherSummaries] INITIAL_SESSION with no data, fetching...');
         fetchSummaries();
         fetchSubjects();
       }
@@ -479,7 +495,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         let originalContent = '';
         let summaryContent = '';
         let savedSummaryId = '';
-        let sourceFileType: 'pdf' | 'docx' | null = null;
+        let sourceFileType: 'pdf' | 'docx' | 'pptx' | 'txt' | null = null;
         let sourceFileUrl: string | null = null;
 
         // ─── Upload source file to Supabase Storage (parallel with text extraction) ───
@@ -543,7 +559,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               if (!sourceBuffer) throw new Error('لم يتم العثور على بيانات الملف');
 
               if (!sourceFileType && capturedFileName) {
-                sourceFileType = /\.(docx|doc)$/i.test(capturedFileName) ? 'docx' : 'pdf';
+                sourceFileType = /\.(docx|doc)$/i.test(capturedFileName) ? 'docx' : /\.pptx$/i.test(capturedFileName) ? 'pptx' : /\.(txt|md|csv)$/i.test(capturedFileName) ? 'txt' : 'pdf';
               }
 
               // Send with correct MIME type so the server can handle both PDF and DOCX
@@ -642,7 +658,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           setPendingSummaries(prev => prev.map(s => s.id === pendingId ? { ...s, status: 'extracting' } : s));
 
           if (!sourceFileType && capturedExistingFile.file_name) {
-            sourceFileType = /\.(docx|doc)$/i.test(capturedExistingFile.file_name) ? 'docx' : 'pdf';
+            sourceFileType = /\.(docx|doc)$/i.test(capturedExistingFile.file_name) ? 'docx' : /\.pptx$/i.test(capturedExistingFile.file_name) ? 'pptx' : /\.(txt|md|csv)$/i.test(capturedExistingFile.file_name) ? 'txt' : 'pdf';
           }
 
           let extractionSucceeded = false;
@@ -1136,7 +1152,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                             .then(({ data, error }) => {
                               if (!error && data) {
                                 const docFiles = (data as UserFile[]).filter(f =>
-                                  /\.(pdf|docx?)$/i.test(f.file_name)
+                                  /\.(pdf|docx?|pptx|txt|md|csv)$/i.test(f.file_name)
                                 );
                                 setExistingFiles(docFiles);
                               }
@@ -1218,11 +1234,11 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 {/* File upload - shown for both 'file' and 'transcribe' modes */}
                 {(summaryInputMode === 'file' || summaryInputMode === 'transcribe') && (
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">ملف PDF أو Word</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">ملف PDF أو Word أو PowerPoint</label>
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".pdf,.docx,.doc"
+                      accept=".pdf,.docx,.doc,.pptx,.txt,.md,.csv"
                       onChange={handleSummaryFileChange}
                       className="hidden"
                     />
@@ -1244,7 +1260,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                         <>
                           <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-sky-400'}`} />
                           <span className="text-sm text-muted-foreground">اضغط لاختيار ملف</span>
-                          <span className="text-xs text-muted-foreground/60">PDF أو Word (بحد أقصى 10 MB)</span>
+                          <span className="text-xs text-muted-foreground/60">PDF أو Word أو PowerPoint (بحد أقصى 10 MB)</span>
                         </>
                       )}
                     </button>
