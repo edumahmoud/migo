@@ -1022,7 +1022,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                     )}
                     {/* Duration badge */}
                     {video.duration && (
-                      <div className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white">
+                      <div className="absolute bottom-2 start-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white">
                         {formatDuration(video.duration)}
                       </div>
                     )}
@@ -1493,7 +1493,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                         const files = e.target.files;
                         if (files) setVideoFiles(Array.from(files));
                       }}
-                      className="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-3 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-sky-700 file:text-white file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-sky-800 file:cursor-pointer file:transition-colors"
+                      className="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-3 text-sm text-foreground file:me-3 file:rounded-md file:border-0 file:bg-sky-700 file:text-white file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-sky-800 file:cursor-pointer file:transition-colors"
                     />
                   </div>
                   {videoFiles.length > 0 && (
@@ -1535,7 +1535,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                         const file = e.target.files?.[0];
                         setThumbnailFile(file || null);
                       }}
-                      className="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-3 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-sky-700 file:text-white file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-sky-800 file:cursor-pointer file:transition-colors"
+                      className="w-full rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-3 text-sm text-foreground file:me-3 file:rounded-md file:border-0 file:bg-sky-700 file:text-white file:px-3 file:py-1.5 file:text-xs file:font-medium hover:file:bg-sky-800 file:cursor-pointer file:transition-colors"
                     />
                   </div>
                   {thumbnailFile && (

@@ -928,13 +928,13 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                   onClick={() => { setSelectedAssignment(assignment); setGradingId(null); setSubmitContent(''); setSubmitFile(null); setSelectedExistingFile(null); setSubmitMode('text'); }}
                 >
                   {/* Top accent bar - color based on status */}
-                  <div className={`absolute top-0 right-0 left-0 h-1.5 rounded-t-2xl ${
+                  <div className={`absolute top-0 end-0 start-0 h-1.5 rounded-t-2xl ${
                     pastDue ? 'bg-rose-500' : countdown?.urgent ? 'bg-amber-500' : 'bg-sky-600'
                   }`} />
 
                   {/* Teacher actions */}
                   {role === 'teacher' && (
-                    <div className="absolute top-3 left-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-3 start-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); openEditModal(assignment); }}
                         className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700"
@@ -1383,7 +1383,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                 {submitFile ? (
                   <div className="flex items-center gap-3 justify-center">
                     <FileText className="h-8 w-8 text-sky-700 dark:text-sky-300" />
-                    <div className="text-right">
+                    <div className="text-end">
                       <p className="text-sm font-medium text-foreground">{submitFile.name}</p>
                       <p className="text-xs text-muted-foreground">{(submitFile.size / 1024).toFixed(1)} KB</p>
                     </div>
@@ -1436,7 +1436,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                     <button
                       key={file.id}
                       onClick={() => setSelectedExistingFile(selectedExistingFile?.id === file.id ? null : file)}
-                      className={`w-full flex items-center gap-3 rounded-lg border p-3 text-right transition-all ${
+                      className={`w-full flex items-center gap-3 rounded-lg border p-3 text-end transition-all ${
                         selectedExistingFile?.id === file.id
                           ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30'
                           : 'hover:bg-muted/50'

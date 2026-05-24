@@ -102,7 +102,7 @@ class AppErrorBoundary extends React.Component<
       // Auto-recovery spinner
       if (this.state.autoRetrying) {
         return (
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -111,7 +111,7 @@ class AppErrorBoundary extends React.Component<
               </div>
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
-                <span className="text-sm font-medium text-sky-800">{t('common.retrying')}</span>
+                <span className="text-sm font-medium text-sky-800 dark:text-sky-300">{t('common.retrying')}</span>
               </div>
             </div>
           </div>
@@ -119,20 +119,20 @@ class AppErrorBoundary extends React.Component<
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
-          <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center max-w-md mx-auto">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
+          <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center max-w-md mx-auto">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50">
               <AlertTriangle className="h-8 w-8 text-amber-500" />
             </div>
-            <h1 className="text-lg font-bold text-gray-900 mb-2">{t('common.appError')}</h1>
-            <p className="text-sm text-gray-500 mb-4">{t('common.errorUnexpected')}</p>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-foreground mb-2">{t('common.appError')}</h1>
+            <p className="text-sm text-gray-500 dark:text-muted-foreground mb-4">{t('common.errorUnexpected')}</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <button onClick={this.handleRetry} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 w-full sm:w-auto">
                 <RefreshCw className="h-4 w-4" />
                 {t('common.retry')}
               </button>
               {this.props.onFallbackToLogin && (
-                <button onClick={this.props.onFallbackToLogin} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 w-full sm:w-auto">
+                <button onClick={this.props.onFallbackToLogin} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-gray-200 dark:border-border px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-foreground shadow-sm hover:bg-gray-50 dark:hover:bg-muted/50 w-full sm:w-auto">
                   <LogOut className="h-4 w-4" />
                   {t('common.backToLogin')}
                 </button>

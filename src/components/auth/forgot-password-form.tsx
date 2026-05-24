@@ -220,12 +220,12 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' as const }}
       >
-        <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
+        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
           <CardHeader className="text-center pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6">
-            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">
               {t('auth.forgotPassword.title')}
             </CardTitle>
-            <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
+            <CardDescription className="text-gray-500 dark:text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm">
               {emailSent
                 ? t('auth.forgotPassword.successSent')
                 : t('auth.forgotPassword.subtitle')
@@ -243,10 +243,10 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                 <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-sky-100 mx-auto">
                   <CheckCircle2 className="h-8 w-8 text-sky-600" />
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">
                   تم إرسال رابط إعادة تعيين كلمة المرور إلى <span className="font-semibold">{email}</span>
                 </p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 dark:text-muted-foreground">
                   يرجى التحقق من صندوق الوارد والبريد غير المرغوب فيه
                 </p>
 
@@ -264,9 +264,9 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                       }}
                       variant="outline"
                       disabled
-                      className="w-full h-10 text-sm font-medium border-gray-200 opacity-50"
+                      className="w-full h-10 text-sm font-medium border-gray-200 dark:border-border opacity-50"
                     >
-                      <Clock className="h-4 w-4 ml-1" />
+                      <Clock className="h-4 w-4 ms-1" />
                       إعادة الإرسال ({formatCooldown(cooldownRemaining)})
                     </Button>
                   </div>
@@ -277,7 +277,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                       setEmailSent(false);
                     }}
                     variant="outline"
-                    className="w-full h-10 text-sm font-medium border-gray-200 hover:bg-gray-50"
+                    className="w-full h-10 text-sm font-medium border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/50"
                   >
                     إعادة إرسال الرابط
                   </Button>
@@ -287,7 +287,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   type="button"
                   onClick={onBackToLogin}
                   variant="outline"
-                  className="w-full h-11 text-base font-medium border-gray-200 hover:bg-gray-50"
+                  className="w-full h-11 text-base font-medium border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/50"
                 >
                   {t('auth.forgotPassword.backToLogin')}
                 </Button>
@@ -300,7 +300,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   transition={{ delay: 0.3 }}
                   className="space-y-2"
                 >
-                  <Label htmlFor="reset-email" className="text-gray-700 font-medium text-xs sm:text-sm">
+                  <Label htmlFor="reset-email" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
                     {t('auth.forgotPassword.emailLabel')}
                   </Label>
                   <div className="relative">
@@ -310,12 +310,12 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                       placeholder={t('auth.forgotPassword.emailPlaceholder')}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
+                      className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
                       disabled={isLoading || cooldownRemaining > 0}
                       dir="ltr"
                       maxLength={254}
                     />
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
                   </div>
                 </motion.div>
 
@@ -335,7 +335,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   <Button
                     type="submit"
                     disabled={!canResend}
-                    className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 disabled:opacity-50"
+                    className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 disabled:opacity-50 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
                   >
                     {isLoading ? (
                       <>
@@ -344,7 +344,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                       </>
                     ) : cooldownRemaining > 0 ? (
                       <>
-                        <Clock className="h-4 w-4 ml-1" />
+                        <Clock className="h-4 w-4 ms-1" />
                         انتظر {formatCooldown(cooldownRemaining)}
                       </>
                     ) : (

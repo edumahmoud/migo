@@ -979,7 +979,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       handleDeleteSummary(summary.id);
                     }}
                     disabled={deletingSummaryId === summary.id}
-                    className="absolute top-3 left-3 rounded-md p-1.5 text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                    className="absolute top-3 start-3 rounded-md p-1.5 text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
                   >
                     {deletingSummaryId === summary.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1274,7 +1274,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                             <button
                               key={file.id}
                               onClick={() => setSelectedExistingFile(file)}
-                              className={`flex items-center gap-3 w-full rounded-lg border p-3 text-right transition-all ${
+                              className={`flex items-center gap-3 w-full rounded-lg border p-3 text-end transition-all ${
                                 selectedExistingFile?.id === file.id
                                   ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30'
                                   : 'border-border hover:bg-muted/50'

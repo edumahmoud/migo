@@ -111,7 +111,7 @@ export default function ErrorPage({
   // Auto-retry UI
   if (autoRetrying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -120,7 +120,7 @@ export default function ErrorPage({
           </div>
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
-            <span className="text-sm font-medium text-sky-800">{t('error.recovering')}</span>
+            <span className="text-sm font-medium text-sky-800 dark:text-sky-300">{t('error.recovering')}</span>
           </div>
         </div>
       </div>
@@ -128,11 +128,11 @@ export default function ErrorPage({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 dark:bg-teal-900/20 rounded-full blur-3xl" />
       </div>
 
       <motion.div
@@ -141,7 +141,7 @@ export default function ErrorPage({
         transition={{ duration: 0.5, ease: 'easeOut' as const }}
         className="relative z-10 w-full max-w-md mx-auto"
       >
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center">
+        <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center">
           {/* Brand icon */}
           <motion.div
             initial={{ scale: 0 }}
@@ -167,7 +167,7 @@ export default function ErrorPage({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="text-xl font-bold text-gray-900 mb-2"
+            className="text-xl font-bold text-gray-900 dark:text-foreground mb-2"
           >
             {t('error.unexpected')}
           </motion.h1>
@@ -177,7 +177,7 @@ export default function ErrorPage({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="text-sm text-gray-500 mb-4 leading-relaxed"
+            className="text-sm text-gray-500 dark:text-muted-foreground mb-4 leading-relaxed"
           >
             {t('error.description')}
           </motion.p>
@@ -188,7 +188,7 @@ export default function ErrorPage({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.55 }}
-              className="text-xs text-gray-400 mb-5 font-mono"
+              className="text-xs text-gray-400 dark:text-muted-foreground mb-5 font-mono"
             >
               {t('common.referenceCode', { code: error.digest })}
             </motion.p>
@@ -211,7 +211,7 @@ export default function ErrorPage({
 
             <button
               onClick={handleReload}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-gray-200 dark:border-border px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-foreground shadow-sm hover:bg-gray-50 dark:hover:bg-muted/50 active:bg-gray-100 dark:active:bg-muted transition-all duration-200 w-full sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" />
               {t('common.refreshPage')}
@@ -242,7 +242,7 @@ export default function ErrorPage({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
-          className="text-center text-xs text-gray-400 mt-4"
+          className="text-center text-xs text-gray-400 dark:text-muted-foreground mt-4"
         >
           {t('error.brandTagline')}
         </motion.p>

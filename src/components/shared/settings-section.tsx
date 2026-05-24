@@ -889,7 +889,7 @@ export default function SettingsSection({
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder={t('settings.profile.namePlaceholder')}
-                        className="text-right h-9 text-sm"
+                        className="h-9 text-sm"
                         disabled={isSaving}
                       />
                     </div>
@@ -898,17 +898,17 @@ export default function SettingsSection({
                         {t('settings.profile.usernameLabel')}
                       </Label>
                       <div className="relative">
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">@</div>
+                        <div className="absolute end-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium">@</div>
                         <Input
                           id="settings-username"
                           value={username}
                           onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase())}
                           placeholder="username"
-                          className="text-left pl-9 pr-8 h-9 text-sm"
+                          className="text-start ps-9 pe-8 h-9 text-sm"
                           disabled={isSaving}
                           dir="ltr"
                         />
-                        <div className="absolute left-2.5 top-1/2 -translate-y-1/2">
+                        <div className="absolute start-2.5 top-1/2 -translate-y-1/2">
                           {isCheckingUsername && (
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                           )}
@@ -1130,7 +1130,7 @@ export default function SettingsSection({
                       <button
                         key={option.value}
                         onClick={() => handleStatusChange(option.value)}
-                        className={`relative flex items-center gap-2.5 rounded-lg border px-3 py-2.5 transition-all duration-200 text-right cursor-pointer ${
+                        className={`relative flex items-center gap-2.5 rounded-lg border px-3 py-2.5 transition-all duration-200 text-end cursor-pointer ${
                           isSelected
                             ? `${option.borderColor} ${option.bgColor} shadow-sm`
                             : 'border-border hover:bg-muted/50 hover:border-muted-foreground/20'
@@ -1364,14 +1364,14 @@ export default function SettingsSection({
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder={t('settings.password.currentPlaceholder')}
-                    className="text-left pr-10 h-9 text-sm"
+                    className="text-start pe-10 h-9 text-sm"
                     disabled={isChangingPassword}
                     dir="ltr"
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     {showCurrentPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
@@ -1390,14 +1390,14 @@ export default function SettingsSection({
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder={t('settings.password.newPlaceholder')}
-                    className="text-left pr-10 h-9 text-sm"
+                    className="text-start pe-10 h-9 text-sm"
                     disabled={isChangingPassword}
                     dir="ltr"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     {showNewPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
@@ -1416,14 +1416,14 @@ export default function SettingsSection({
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder={t('settings.password.confirmPlaceholder')}
-                    className="text-left pr-10 h-9 text-sm"
+                    className="text-start pe-10 h-9 text-sm"
                     disabled={isChangingPassword}
                     dir="ltr"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
@@ -1493,12 +1493,12 @@ export default function SettingsSection({
                 if (!open) setDeleteConfirmText('');
               }}>
                 <AlertDialogContent dir={dir}>
-                  <AlertDialogHeader className="text-right">
-                    <AlertDialogTitle className="text-right flex items-center gap-2">
+                  <AlertDialogHeader className="text-end">
+                    <AlertDialogTitle className="text-end flex items-center gap-2">
                       <AlertTriangle className="h-5 w-5 text-rose-500" />
                       {t('settings.danger.confirmTitle')}
                     </AlertDialogTitle>
-                    <AlertDialogDescription className="text-right">
+                    <AlertDialogDescription className="text-end">
                       {t('settings.danger.confirmDesc')}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -1511,7 +1511,7 @@ export default function SettingsSection({
                       value={deleteConfirmText}
                       onChange={(e) => setDeleteConfirmText(e.target.value)}
                       placeholder={t('settings.profile.deletePlaceholder')}
-                      className="text-right"
+                      className="text-end"
                       dir={dir}
                     />
                   </div>
@@ -1557,7 +1557,7 @@ export default function SettingsSection({
             {/* Close button */}
             <button
               onClick={() => setAvatarPreviewOpen(false)}
-              className="absolute top-3 left-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+              className="absolute top-3 start-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1567,7 +1567,7 @@ export default function SettingsSection({
               download
               target="_blank"
               rel="noopener noreferrer"
-              className="absolute bottom-3 left-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+              className="absolute bottom-3 start-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
             >
               <Download className="h-4 w-4" />
             </a>
@@ -1577,7 +1577,7 @@ export default function SettingsSection({
                 setAvatarPreviewOpen(false);
                 setTimeout(() => avatarInputRef.current?.click(), 200);
               }}
-              className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-white hover:bg-black/80 transition-colors text-xs"
+              className="absolute bottom-3 end-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-white hover:bg-black/80 transition-colors text-xs"
             >
               <Camera className="h-3.5 w-3.5" />
               {t('settings.profile.changePhoto')}

@@ -593,12 +593,12 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
                     </div>
                     {/* Duration badge */}
                     {video.duration && (
-                      <div className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white">
+                      <div className="absolute bottom-2 start-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white">
                         {formatDuration(video.duration)}
                       </div>
                     )}
                     {/* Subject badge on thumbnail */}
-                    <div className="absolute top-2 right-2">
+                    <div className="absolute top-2 end-2">
                       <span
                         className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-white bg-black/50 backdrop-blur-sm"
                       >

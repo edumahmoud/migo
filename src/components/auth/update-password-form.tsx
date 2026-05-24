@@ -187,10 +187,10 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   if (verifying) {
     return (
       <div dir={dir} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
-        <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
+        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
-            <p className="text-sm text-gray-500">{t('auth.updatePassword.verifying')}</p>
+            <p className="text-sm text-gray-500 dark:text-muted-foreground">{t('auth.updatePassword.verifying')}</p>
           </CardContent>
         </Card>
       </div>
@@ -206,15 +206,15 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: 'easeOut' as const }}
         >
-          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
+          <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm">
             <CardHeader className="text-center pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100">
                 <ShieldCheck className="h-7 w-7 text-rose-600" />
               </div>
-              <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+              <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">
                 {t('auth.updatePassword.invalidLinkTitle')}
               </CardTitle>
-              <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
+              <CardDescription className="text-gray-500 dark:text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm">
                 {t('auth.updatePassword.invalidLinkDesc')}
               </CardDescription>
             </CardHeader>
@@ -223,7 +223,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 type="button"
                 onClick={onSuccess}
                 variant="outline"
-                className="w-full h-11 text-base font-medium border-gray-200 hover:bg-gray-50"
+                className="w-full h-11 text-base font-medium border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/50"
               >
                 {t('auth.updatePassword.backToLogin')}
               </Button>
@@ -242,13 +242,13 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
+          <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm">
             <CardContent className="flex flex-col items-center justify-center py-12 gap-4">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
                 <CheckCircle2 className="h-9 w-9 text-emerald-600" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">{t('auth.updatePassword.successTitle')}</h3>
-              <p className="text-sm text-gray-500">{t('auth.updatePassword.successDesc')}</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-foreground">{t('auth.updatePassword.successTitle')}</h3>
+              <p className="text-sm text-gray-500 dark:text-muted-foreground">{t('auth.updatePassword.successDesc')}</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -264,15 +264,15 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' as const }}
       >
-        <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
+        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
           <CardHeader className="text-center pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-sky-100">
               <Lock className="h-6 w-6 text-sky-600" />
             </div>
-            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">
               {t('auth.updatePassword.title')}
             </CardTitle>
-            <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
+            <CardDescription className="text-gray-500 dark:text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm">
               {t('auth.updatePassword.subtitle')}
             </CardDescription>
           </CardHeader>
@@ -286,7 +286,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 transition={{ delay: 0.2 }}
                 className="space-y-2"
               >
-                <Label htmlFor="new-password" className="text-gray-700 font-medium text-xs sm:text-sm">
+                <Label htmlFor="new-password" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
                   {t('auth.updatePassword.newPasswordLabel')}
                 </Label>
                 <div className="relative">
@@ -296,7 +296,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                     placeholder={t('auth.updatePassword.newPasswordPlaceholder')}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
+                    className="pe-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
                     disabled={isLoading}
                     dir="ltr"
                     maxLength={128}
@@ -305,8 +305,9 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground transition-colors touch-target flex items-center justify-center"
                     tabIndex={-1}
+                    aria-label={showPassword ? t('auth.login.hidePassword') : t('auth.login.showPassword')}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -319,12 +320,12 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                         <div
                           key={level}
                           className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
-                            strength > level ? strengthColors[strength - 1] : 'bg-gray-200'
+                            strength > level ? strengthColors[strength - 1] : 'bg-gray-200 dark:bg-gray-700'
                           }`}
                         />
                       ))}
                     </div>
-                    <p className={`text-xs font-medium ${strengthTextColors[strength - 1] || 'text-gray-400'}`}>
+                    <p className={`text-xs font-medium ${strengthTextColors[strength - 1] || 'text-gray-400 dark:text-muted-foreground'}`}>
                       {strength > 0 ? strengthLabel : 'ضعيفة جداً'}
                     </p>
                   </div>
@@ -338,7 +339,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 transition={{ delay: 0.3 }}
                 className="space-y-2"
               >
-                <Label htmlFor="confirm-password" className="text-gray-700 font-medium text-xs sm:text-sm">
+                <Label htmlFor="confirm-password" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
                   {t('auth.updatePassword.confirmPasswordLabel')}
                 </Label>
                 <div className="relative">
@@ -348,10 +349,10 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                     placeholder={t('auth.updatePassword.confirmPasswordPlaceholder')}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`pr-10 h-10 sm:h-11 bg-gray-50/50 text-right ${
+                    className={`pe-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 ${
                       mismatch ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20' 
                       : passwordsMatch ? 'border-emerald-400 focus:border-emerald-500 focus:ring-emerald-500/20'
-                      : 'border-gray-200 focus:border-sky-500 focus:ring-sky-500/20'
+                      : 'border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20'
                     }`}
                     disabled={isLoading}
                     dir="ltr"
@@ -360,8 +361,9 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                   <button
                     type="button"
                     onClick={() => setShowConfirm(!showConfirm)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground transition-colors touch-target flex items-center justify-center"
                     tabIndex={-1}
+                    aria-label={showConfirm ? t('auth.login.hidePassword') : t('auth.login.showPassword')}
                   >
                     {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -383,7 +385,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 <Button
                   type="submit"
                   disabled={!canSubmit}
-                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300"
+                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
                 >
                   {isLoading ? (
                     <>

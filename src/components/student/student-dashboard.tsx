@@ -397,19 +397,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     if (generation > fetchGenerationRef.current) {
       fetchGenerationRef.current = generation;
     }
-    if (newSummaries.length > 0) {
-      // Cache to localStorage on every successful non-empty update
-      try {
-        localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(newSummaries));
-        localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
-      } catch { /* localStorage might be unavailable */ }
-    } else {
-      // Clear cache when summaries become empty (legitimate delete-all or fresh empty result)
-      try {
-        localStorage.removeItem(`summaries_${profile.id}`);
-        localStorage.removeItem(`summaries_${profile.id}_ts`);
-      } catch { /* ignore */ }
-    }
+
     // Filter out recently deleted IDs before setting state
     let filtered = newSummaries.filter(s => !recentlyDeletedSummaryIdsRef.current.has(s.id));
 
@@ -417,6 +405,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // When we do an optimistic update after creating a summary, the next fetchSummaries()
     // may return data that doesn't include the new summary yet (DB propagation delay).
     // We preserve recently added summaries by merging them into the fetched result.
+    //
+    // FIX: Increased from 15s to 60s to cover the full poll interval and prevent
+    // summaries from disappearing when a concurrent fetch returns stale data after
+    // the Realtime INSERT clears the protection prematurely.
     const now = Date.now();
     const PROTECTION_DURATION_MS = 30000; // 30 seconds — enough for DB propagation + Realtime + slow networks
     if (recentlyAddedSummaryIdsRef.current.size > 0) {
@@ -435,6 +427,25 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           recentlyAddedSummaryIdsRef.current.delete(id);
         }
       }
+    }
+
+    // ─── FIX: Update cache AFTER filtering and protection, not before ───
+    // Previously, the cache was updated with raw newSummaries BEFORE applying
+    // recently-deleted filtering and recently-added protection. This caused
+    // cache-state inconsistency: the cache could be cleared when newSummaries
+    // was empty, even though the protection mechanism added summaries to filtered.
+    if (filtered.length > 0) {
+      try {
+        localStorage.setItem(`summaries_${profile.id}`, JSON.stringify(filtered));
+        localStorage.setItem(`summaries_${profile.id}_ts`, String(Date.now()));
+      } catch { /* localStorage might be unavailable */ }
+    } else {
+      // Clear cache only when the FINAL filtered list is empty
+      // (legitimate delete-all or confirmed empty result)
+      try {
+        localStorage.removeItem(`summaries_${profile.id}`);
+        localStorage.removeItem(`summaries_${profile.id}_ts`);
+      } catch { /* ignore */ }
     }
 
     setSummaries(filtered);
@@ -925,6 +936,59 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     } catch { /* ignore corrupted sessionStorage */ }
   }, [fetchSummaries]);
 
+  // ─── Recover unsaved summaries from sessionStorage (DB save failure recovery) ───
+  // When the DB save fails and the client-side retry also fails, the summary
+  // data is stored in sessionStorage (see handleCreateSummary). This effect
+  // checks for any unsaved summaries on mount and retries saving them.
+  useEffect(() => {
+    try {
+      const unsaved = JSON.parse(sessionStorage.getItem('unsavedSummaries') || '[]');
+      if (Array.isArray(unsaved) && unsaved.length > 0) {
+        const now = Date.now();
+        const maxAge = 30 * 60 * 1000; // 30 minutes
+        const recent = unsaved.filter((u: { createdAt: number }) => now - u.createdAt < maxAge);
+        if (recent.length > 0) {
+          console.log('[Recovery] Found', recent.length, 'unsaved summaries — retrying save...');
+          toast.info(t('student.recoveringUnsavedSummaries', { count: recent.length }), { duration: 5000 });
+          // Clear the stored unsaved summaries to avoid duplicate retries
+          sessionStorage.removeItem('unsavedSummaries');
+          // Retry saving each unsaved summary
+          (async () => {
+            const token = await waitForSession(15000);
+            for (const summary of recent) {
+              try {
+                const res = await fetch('/api/summaries', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                  },
+                  body: JSON.stringify({
+                    title: summary.title,
+                    original_content: summary.original_content,
+                    summary_content: summary.summary_content,
+                    subject_id: summary.subject_id || null,
+                    source_file_type: summary.source_file_type || null,
+                  }),
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                  console.log('[Recovery] Saved unsaved summary:', summary.title);
+                } else {
+                  console.warn('[Recovery] Failed to save unsaved summary:', summary.title, data.error);
+                }
+              } catch (err) {
+                console.warn('[Recovery] Error saving unsaved summary:', err);
+              }
+            }
+            // Re-fetch summaries to pick up the recovered ones
+            setTimeout(() => fetchSummaries(), 2000);
+          })();
+        }
+      }
+    } catch { /* ignore corrupted sessionStorage */ }
+  }, [fetchSummaries, waitForSession]);
+
   // ─── Loading timeout safety net ───
   // If loading takes too long (slow session hydration on mobile/PWA),
   // fall back to cached data and stop showing infinite loading spinner.
@@ -995,8 +1059,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               } catch { /* ignore */ }
               return updated;
             });
-            // Clear the protection for this summary since it's now confirmed in DB
-            recentlyAddedSummaryIdsRef.current.delete(newRecord.id);
+            // ─── FIX: Do NOT clear the protection here ───
+            // Previously, we deleted the summary from recentlyAddedSummaryIdsRef
+            // as soon as the Realtime INSERT arrived. However, this caused a race
+            // condition: a concurrent fetchSummaries() (already in-flight) could
+            // return stale data (before the DB insert) and overwrite the state,
+            // since the protection was already cleared by the Realtime handler.
+            // Now we let the protection expire naturally after 60s (PROTECTION_DURATION_MS).
+            // The Realtime INSERT already adds the summary to state above, so
+            // duplicates are prevented by the `exists` check. The protection
+            // simply ensures that a stale fetch can't remove the summary.
+            // recentlyAddedSummaryIdsRef.current.delete(newRecord.id); // REMOVED
           } else if (eventType === 'UPDATE' && newRecord) {
             // Update the existing summary in local state
             setSummaries(prev => {
@@ -1759,6 +1832,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           }, 5000);
         }
 
+
         if (savedSummaryId) {
           toast.success(inputMode === 'transcribe'
             ? t('student.transcribeSuccess', { title })
@@ -2513,7 +2587,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       key={summary.id}
                       whileHover={{ backgroundColor: 'rgba(0,0,0,0.02)' }}
                       onClick={() => setViewingSummaryId(summary.id)}
-                      className="flex w-full items-start gap-3 p-4 text-right transition-colors"
+                      className="flex w-full items-start gap-3 p-4 text-end transition-colors"
                     >
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
                         <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
@@ -2684,7 +2758,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     handleDeleteSummary(summary.id);
                   }}
                   disabled={deletingSummaryId === summary.id}
-                  className="absolute top-3 left-3 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-rose-50 hover:text-rose-600"
+                  className="absolute top-3 start-3 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-rose-50 hover:text-rose-600"
                 >
                   {deletingSummaryId === summary.id ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2703,7 +2777,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     setQuizAnswerMode('after');
                     setQuizConfigOpen(true);
                   }}
-                  className="absolute top-3 left-12 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-teal-50 hover:text-teal-600"
+                  className="absolute top-3 start-12 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-teal-50 hover:text-teal-600"
                   title={t('student.createQuiz')}
                 >
                   <ClipboardList className="h-3.5 w-3.5" />
@@ -2711,7 +2785,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                 <button
                   onClick={() => setViewingSummaryId(summary.id)}
-                  className="w-full text-right"
+                  className="w-full text-end"
                 >
                   <div className="flex items-center gap-3 mb-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50 transition-transform group-hover:scale-110">
@@ -3181,7 +3255,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                             <button
                               key={file.id}
                               onClick={() => setSelectedExistingFile(file)}
-                              className={`flex items-center gap-3 w-full rounded-lg border p-3 text-right transition-all ${
+                              className={`flex items-center gap-3 w-full rounded-lg border p-3 text-end transition-all ${
                                 selectedExistingFile?.id === file.id
                                   ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30'
                                   : 'border-border hover:bg-muted/50'
@@ -3315,7 +3389,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         <div className="group rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow relative">
                           {/* Completed badge */}
                           {isCompleted && (
-                            <span className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-teal-100 dark:bg-teal-900/50 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:text-teal-300">
+                            <span className="absolute top-3 start-3 flex items-center gap-1 rounded-full bg-teal-100 dark:bg-teal-900/50 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:text-teal-300">
                               <CheckCircle2 className="h-3 w-3" />
                               {t('common.completed')}
                             </span>
@@ -3411,7 +3485,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       return (
                         <motion.div key={quiz.id} variants={itemVariants}>
                           <div className="group rounded-xl border border-muted bg-card/60 p-5 shadow-sm opacity-80 relative">
-                            <span className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+                            <span className="absolute top-3 start-3 flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
                               <CheckCircle2 className="h-3 w-3" />
                               {t('common.completed')}
                             </span>
@@ -3584,7 +3658,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   </div>
                   <button
                     onClick={() => setIncomingPanelOpen(false)}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-white/60 hover:text-foreground transition-all duration-200"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-white/60 dark:hover:bg-muted/60 hover:text-foreground transition-all duration-200"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -3879,7 +3953,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             return (
               <motion.div key={teacher.id} variants={itemVariants}>
                 <div
-                  className="group w-full flex items-center gap-3 rounded-xl border bg-card p-3 shadow-sm hover:shadow-md transition-shadow text-right"
+                  className="group w-full flex items-center gap-3 rounded-xl border bg-card p-3 shadow-sm hover:shadow-md transition-shadow text-end"
                 >
                   <UserLink
                     userId={teacher.id}

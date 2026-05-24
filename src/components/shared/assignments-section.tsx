@@ -896,7 +896,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         );
       case 'graded':
         return (
-          <span className={`inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-medium ${sizeClasses}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 font-medium ${sizeClasses}`}>
             <CheckCircle2 className={size === 'sm' ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
             تم التقييم
           </span>
@@ -942,9 +942,9 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
   // -------------------------------------------------------
   const getScoreColor = (score: number, maxScore: number) => {
     const pct = (score / maxScore) * 100;
-    if (pct >= 80) return 'text-sky-700';
-    if (pct >= 60) return 'text-amber-600';
-    return 'text-rose-600';
+    if (pct >= 80) return 'text-sky-700 dark:text-sky-300';
+    if (pct >= 60) return 'text-amber-600 dark:text-amber-400';
+    return 'text-rose-600 dark:text-rose-400';
   };
 
   // -------------------------------------------------------
@@ -1035,15 +1035,15 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       {/* Assignments grid */}
       {loadingAssignments ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
         </div>
       ) : displayAssignments.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
-            <ClipboardList className="h-8 w-8 text-sky-700" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
+            <ClipboardList className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
             {submissionFilter !== 'all'
@@ -1082,16 +1082,16 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   }}
                 >
                   {/* Top accent bar */}
-                  <div className={`absolute top-0 right-0 left-0 h-1.5 rounded-t-xl ${
+                  <div className={`absolute top-0 end-0 start-0 h-1.5 rounded-t-xl ${
                     pastDue ? 'bg-rose-500' : countdown?.urgent ? 'bg-amber-500' : 'bg-sky-600'
                   }`} />
 
                   {/* Teacher actions */}
                   {role === 'teacher' && (
-                    <div className="absolute top-3 left-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-3 start-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); openEditModal(assignment); }}
-                        className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700"
+                        className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:text-sky-700 dark:hover:text-sky-300"
                         title="تعديل"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -1099,7 +1099,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                       <button
                         onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(assignment.id); }}
                         disabled={deletingId === assignment.id}
-                        className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
+                        className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600"
                         title="حذف"
                       >
                         {deletingId === assignment.id ? (
@@ -1113,10 +1113,10 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
 
                   <div className="flex items-center gap-3 mb-3 mt-1">
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                      pastDue ? 'bg-rose-100' : countdown?.urgent ? 'bg-amber-100' : 'bg-sky-100'
+                      pastDue ? 'bg-rose-100 dark:bg-rose-900/50' : countdown?.urgent ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-sky-100 dark:bg-sky-900/50'
                     }`}>
                       <ClipboardList className={`h-5 w-5 ${
-                        pastDue ? 'text-rose-600' : countdown?.urgent ? 'text-amber-600' : 'text-sky-700'
+                        pastDue ? 'text-rose-600 dark:text-rose-400' : countdown?.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'
                       }`} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -1143,7 +1143,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                         <Calendar className="h-3 w-3" />
                         {formatDateTime(assignment.due_date)}
                         {!pastDue && countdown && (
-                          <span className={`font-medium ${countdown.urgent ? 'text-amber-600' : 'text-sky-700'}`}>
+                          <span className={`font-medium ${countdown.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}`}>
                             ({countdown.text})
                           </span>
                         )}
@@ -1248,7 +1248,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         </div>
         <button
           onClick={() => openEditModal(selectedAssignment!)}
-          className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
         >
           <Pencil className="h-3 w-3" />
           تعديل المهمة
@@ -1265,15 +1265,15 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         )}
         <div className="flex items-center gap-4 flex-wrap text-sm">
           <div className="flex items-center gap-1.5">
-            <Award className="h-4 w-4 text-sky-700" />
+            <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
             <span className="text-muted-foreground">الدرجة القصوى:</span>
             <span className="font-semibold text-foreground">{selectedAssignment!.max_score}</span>
           </div>
           <div className="flex items-center gap-1.5">
             {selectedAssignment!.allow_file_submission ? (
               <>
-                <FileText className="h-4 w-4 text-sky-700" />
-                <span className="text-sky-700 font-medium">يسمح برفع ملفات</span>
+                <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                <span className="text-sky-700 dark:text-sky-300 font-medium">يسمح برفع ملفات</span>
               </>
             ) : (
               <>
@@ -1288,7 +1288,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       {/* Submissions list */}
       <motion.div variants={itemVariants}>
         <h3 className="text-lg font-bold text-foreground flex items-center gap-2 mb-4">
-          <Users className="h-5 w-5 text-sky-700" />
+          <Users className="h-5 w-5 text-sky-700 dark:text-sky-300" />
           التسليمات
           {submissions.length > 0 && (
             <span className="text-xs font-normal text-muted-foreground bg-muted rounded-full px-2 py-0.5">
@@ -1299,12 +1299,12 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
 
         {loadingSubmissions ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+            <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
           </div>
         ) : submissions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-12">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 mb-3">
-              <Users className="h-7 w-7 text-sky-700" />
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-12">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-3">
+              <Users className="h-7 w-7 text-sky-700 dark:text-sky-300" />
             </div>
             <p className="text-base font-semibold text-foreground mb-1">لا توجد تسليمات بعد</p>
             <p className="text-sm text-muted-foreground">سيظهر تسليمات الطلاب هنا</p>
@@ -1379,7 +1379,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                           const { data } = await supabase.from('user_files').select('file_url, file_name').eq('id', sub.file_id!).single();
                           if (data) window.open((data as { file_url: string }).file_url, '_blank');
                         }}
-                        className="flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 transition-colors"
+                        className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
                       >
                         <FileText className="h-3 w-3" />
                         معاينة الملف
@@ -1390,7 +1390,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   {gradingSubmissionId === sub.id && (
                     <div className="col-span-12 mt-2 rounded-lg border bg-muted/30 p-3 space-y-3">
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <Award className="h-4 w-4 text-sky-700" />
+                        <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                         تقييم تسليم {sub.student_name}
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1492,7 +1492,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     {formatDateTime(selectedAssignment!.due_date)}
                     {pastDue && <span className="font-medium">(انتهى)</span>}
                     {!pastDue && countdown && (
-                      <span className={`font-medium ${countdown.urgent ? 'text-amber-600' : 'text-sky-700'}`}>
+                      <span className={`font-medium ${countdown.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}`}>
                         ({countdown.text} متبقي)
                       </span>
                     )}
@@ -1517,15 +1517,15 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           )}
           <div className="flex items-center gap-4 flex-wrap text-sm">
             <div className="flex items-center gap-1.5">
-              <Award className="h-4 w-4 text-sky-700" />
+              <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               <span className="text-muted-foreground">الدرجة القصوى:</span>
               <span className="font-semibold text-foreground">{selectedAssignment!.max_score}</span>
             </div>
             <div className="flex items-center gap-1.5">
               {selectedAssignment!.allow_file_submission ? (
                 <>
-                  <FileText className="h-4 w-4 text-sky-700" />
-                  <span className="text-sky-700 font-medium">يسمح برفع ملفات</span>
+                  <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <span className="text-sky-700 dark:text-sky-300 font-medium">يسمح برفع ملفات</span>
                 </>
               ) : (
                 <>
@@ -1559,19 +1559,19 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   const { data } = await supabase.from('user_files').select('file_url, file_name').eq('id', mySub.file_id!).single();
                   if (data) window.open((data as { file_url: string }).file_url, '_blank');
                 }}
-                className="flex items-center gap-1.5 text-xs text-sky-700 bg-sky-50 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
               >
                 <FileText className="h-3 w-3" />
                 معاينة الملف
               </button>
             )}
             {mySub.score !== undefined && mySub.score !== null && selectedAssignment!.show_grade !== false && (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-sky-50">
-                <Award className="h-4 w-4 text-sky-700" />
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-sky-50 dark:bg-sky-950/30">
+                <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                 <span className={`text-sm font-bold ${getScoreColor(mySub.score, selectedAssignment!.max_score)}`}>
                   {mySub.score} / {selectedAssignment!.max_score}
                 </span>
-                <span className="text-xs text-sky-700">
+                <span className="text-xs text-sky-700 dark:text-sky-300">
                   ({Math.round((mySub.score / selectedAssignment!.max_score) * 100)}%)
                 </span>
               </div>
@@ -1596,7 +1596,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 onClick={() => setSubmitMode('text')}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                   submitMode === 'text'
-                    ? 'border-sky-600 bg-sky-50 text-sky-800'
+                    ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                     : 'border-border text-muted-foreground hover:bg-muted/50'
                 }`}
               >
@@ -1609,7 +1609,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     onClick={() => setSubmitMode('upload')}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                       submitMode === 'upload'
-                        ? 'border-sky-600 bg-sky-50 text-sky-800'
+                        ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1620,7 +1620,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     onClick={() => { setSubmitMode('existing'); fetchMyFiles(); }}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                       submitMode === 'existing'
-                        ? 'border-sky-600 bg-sky-50 text-sky-800'
+                        ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1651,19 +1651,19 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
-                  isDragOver ? 'border-sky-600 bg-sky-50/50' : 'border-muted-foreground/20 hover:border-sky-300'
+                  isDragOver ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/30' : 'border-muted-foreground/20 hover:border-sky-300 dark:hover:border-sky-800'
                 }`}
               >
                 {submitFile ? (
                   <div className="flex items-center gap-3 justify-center">
-                    <FileText className="h-8 w-8 text-sky-700" />
-                    <div className="text-right">
+                    <FileText className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+                    <div className="text-end">
                       <p className="text-sm font-medium text-foreground">{submitFile.name}</p>
                       <p className="text-xs text-muted-foreground">{(submitFile.size / 1024).toFixed(1)} KB</p>
                     </div>
                     <button
                       onClick={() => { setSubmitFile(null); setSubmitFileBuffer(null); }}
-                      className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1674,7 +1674,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     <p className="text-sm text-muted-foreground">اسحب الملف هنا أو</p>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="mt-2 text-sm font-medium text-sky-700 hover:text-sky-800"
+                      className="mt-2 text-sm font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200"
                     >
                       اختر ملف
                     </button>
@@ -1709,21 +1709,21 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     <button
                       key={file.id}
                       onClick={() => setSelectedExistingFile(selectedExistingFile?.id === file.id ? null : file)}
-                      className={`w-full flex items-center gap-3 rounded-lg border p-3 text-right transition-all ${
+                      className={`w-full flex items-center gap-3 rounded-lg border p-3 text-end transition-all ${
                         selectedExistingFile?.id === file.id
-                          ? 'border-sky-600 bg-sky-50'
+                          ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30'
                           : 'hover:bg-muted/50'
                       }`}
                     >
                       <FileText className={`h-5 w-5 shrink-0 ${
-                        selectedExistingFile?.id === file.id ? 'text-sky-700' : 'text-muted-foreground'
+                        selectedExistingFile?.id === file.id ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'
                       }`} />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
                         <p className="text-xs text-muted-foreground">{(file.file_size / 1024).toFixed(1)} KB</p>
                       </div>
                       {selectedExistingFile?.id === file.id && (
-                        <CheckCircle2 className="h-4 w-4 text-sky-700 shrink-0" />
+                        <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
                       )}
                     </button>
                   ))
@@ -1785,7 +1785,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-sky-700" />
+                  <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                   {mode === 'create' ? 'إنشاء مهمة جديدة' : 'تعديل المهمة'}
                 </h3>
                 <button onClick={() => { if (!isProcessing) setIsOpen(false); }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
@@ -1820,7 +1820,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-sky-700" />
+                    <Calendar className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
                     الموعد النهائي (التاريخ والوقت)
                   </label>
                   <input type="datetime-local" value={dueDatetime} onChange={(e) => setDueDatetime(e.target.value)} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir="ltr" disabled={isProcessing} required />
@@ -1832,7 +1832,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   </div>
                   <div className="flex items-end">
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" checked={allowFile} onChange={(e) => setAllowFile(e.target.checked)} className="h-4 w-4 rounded border-sky-300 text-sky-700 focus:ring-sky-600" disabled={isProcessing} />
+                      <input type="checkbox" checked={allowFile} onChange={(e) => setAllowFile(e.target.checked)} className="h-4 w-4 rounded border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 focus:ring-sky-600" disabled={isProcessing} />
                       <span className="text-sm font-medium text-foreground">السماح برفع ملفات</span>
                     </label>
                   </div>

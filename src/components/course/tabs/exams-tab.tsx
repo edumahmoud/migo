@@ -1353,7 +1353,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     type="button"
                     onClick={() => setQuizShowResults(!quizShowResults)}
                     disabled={savingQuiz || generatingFromAi}
-                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-right ${
+                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-end ${
                       quizShowResults
                         ? 'border-teal-400 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
@@ -1367,7 +1367,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     type="button"
                     onClick={() => setQuizAllowRetake(!quizAllowRetake)}
                     disabled={savingQuiz || generatingFromAi}
-                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-right ${
+                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-end ${
                       quizAllowRetake
                         ? 'border-teal-400 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
@@ -1381,7 +1381,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     type="button"
                     onClick={() => setQuizShuffleQuestions(!quizShuffleQuestions)}
                     disabled={savingQuiz || generatingFromAi}
-                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-right ${
+                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-end ${
                       quizShuffleQuestions
                         ? 'border-teal-400 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
@@ -1516,7 +1516,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                               key={file.id}
                               onClick={() => setSelectedCourseFile(file)}
                               disabled={generatingFromAi}
-                              className={`flex items-center gap-3 w-full rounded-lg border p-3 text-right transition-all ${
+                              className={`flex items-center gap-3 w-full rounded-lg border p-3 text-end transition-all ${
                                 selectedCourseFile?.id === file.id
                                   ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30'
                                   : 'border-border hover:bg-muted/50'
@@ -1603,7 +1603,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                           key={bank.id}
                           onClick={() => handleSelectBank(bank)}
                           disabled={importingFromBank}
-                          className={`flex items-center gap-3 w-full rounded-lg border p-3 text-right transition-all ${
+                          className={`flex items-center gap-3 w-full rounded-lg border p-3 text-end transition-all ${
                             'border-border hover:bg-violet-50 dark:hover:bg-violet-950/20'
                           }`}
                         >
@@ -1657,7 +1657,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                                 key={q.id}
                                 onClick={() => toggleBankQuestion(q.id)}
                                 disabled={importingFromBank}
-                                className={`w-full flex items-start gap-2.5 rounded-lg border p-2.5 text-right transition-all ${
+                                className={`w-full flex items-start gap-2.5 rounded-lg border p-2.5 text-end transition-all ${
                                   isSelected
                                     ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/30'
                                     : 'border-border hover:bg-muted/50'
@@ -1770,7 +1770,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       <motion.div key={quiz.id} variants={itemVariants}>
         <div className="group relative rounded-xl border bg-card p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
           {/* Teacher action buttons — prominent on mobile, hover-reveal on desktop */}
-          <div className="flex items-center gap-2 mb-3 sm:absolute sm:top-3 sm:left-3 sm:mb-0 sm:gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-2 mb-3 sm:absolute sm:top-3 sm:start-3 sm:mb-0 sm:gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             {/* Settings */}
             <button
               onClick={() => setSettingsQuiz(quiz)}

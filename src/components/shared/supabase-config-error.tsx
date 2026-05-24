@@ -53,13 +53,13 @@ export default function SupabaseConfigError() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4"
+      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4"
       dir={dir}
     >
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -end-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -start-40 w-80 h-80 bg-teal-100/40 dark:bg-teal-900/20 rounded-full blur-3xl" />
       </div>
 
       <motion.div
@@ -68,7 +68,7 @@ export default function SupabaseConfigError() {
         transition={{ duration: 0.5, ease: 'easeOut' as const }}
         className="relative z-10 w-full max-w-md mx-auto"
       >
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center">
+        <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center">
           {/* Brand icon */}
           <motion.div
             initial={{ scale: 0 }}
@@ -94,7 +94,7 @@ export default function SupabaseConfigError() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="text-xl font-bold text-gray-900 mb-2"
+            className="text-xl font-bold text-gray-900 dark:text-foreground mb-2"
           >
             خطأ في الاتصال بقاعدة البيانات
           </motion.h1>
@@ -104,7 +104,7 @@ export default function SupabaseConfigError() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="text-sm text-gray-500 mb-5 leading-relaxed"
+            className="text-sm text-gray-500 dark:text-muted-foreground mb-5 leading-relaxed"
           >
             لم يتمكن التطبيق من الاتصال بقاعدة البيانات. يرجى التحقق من إعدادات Supabase أو الاتصال بالإنترنت.
           </motion.p>
@@ -115,7 +115,7 @@ export default function SupabaseConfigError() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-right"
+              className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-end"
             >
               <div className="flex items-center gap-2 mb-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
@@ -145,7 +145,7 @@ export default function SupabaseConfigError() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4 text-right"
+              className="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4 text-end"
             >
               <p className="text-sm text-sky-900 leading-relaxed">
                 متغيرات البيئة مضبوطات، لكن يبدو أن هناك مشكلة في الاتصال بخادم Supabase. تحقق من اتصالك بالإنترنت أو صحة عنوان URL والمفتاح.
@@ -170,7 +170,7 @@ export default function SupabaseConfigError() {
 
             <button
               onClick={handleExit}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-gray-200 dark:border-border px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-foreground shadow-sm hover:bg-gray-50 dark:hover:bg-muted/50 active:bg-gray-100 dark:active:bg-muted transition-all duration-200 w-full sm:w-auto"
             >
               <X className="h-4 w-4" />
               الخروج
@@ -183,7 +183,7 @@ export default function SupabaseConfigError() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
-          className="text-center text-xs text-gray-400 mt-4"
+          className="text-center text-xs text-gray-400 dark:text-muted-foreground mt-4"
         >
           أتيندو — منصة تعليمية ذكية
         </motion.p>

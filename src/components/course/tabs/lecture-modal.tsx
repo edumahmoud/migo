@@ -1325,7 +1325,7 @@ export default function LectureModal({
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={() => setPreviewFile({ url: fileRef.url, name: fileRef.name })}
-                                    className="flex items-center gap-2 rounded-lg bg-sky-700/10 border border-sky-200 dark:border-sky-800 px-3 py-2 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors flex-1 text-right"
+                                    className="flex items-center gap-2 rounded-lg bg-sky-700/10 border border-sky-200 dark:border-sky-800 px-3 py-2 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors flex-1 text-end"
                                   >
                                     <Eye className="h-4 w-4 shrink-0" />
                                     <span className="truncate">{fileRef.name}</span>
@@ -1374,7 +1374,7 @@ export default function LectureModal({
                               <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
                               <button
                                 onClick={() => setPreviewFile({ url: fileRef.url, name: fileRef.name })}
-                                className="flex items-center gap-2 flex-1 text-right text-sm font-medium text-sky-800 dark:text-sky-200 hover:text-sky-900 transition-colors min-w-0"
+                                className="flex items-center gap-2 flex-1 text-end text-sm font-medium text-sky-800 dark:text-sky-200 hover:text-sky-900 transition-colors min-w-0"
                               >
                                 <Eye className="h-4 w-4 shrink-0" />
                                 <span className="truncate">{fileRef.name}</span>
@@ -1597,13 +1597,13 @@ export default function LectureModal({
               {/* Search */}
               <div className="px-5 py-3 border-b">
                 <div className="relative">
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <input
                     type="text"
                     value={manualSearchQuery}
                     onChange={(e) => setManualSearchQuery(e.target.value)}
                     placeholder={t('lecture.searchByName')}
-                    className="w-full rounded-xl border bg-background pr-10 pl-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
+                    className="w-full rounded-xl border bg-background pe-10 ps-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
                     dir={dir}
                     autoFocus
                   />

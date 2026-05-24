@@ -2798,7 +2798,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               {/* Close */}
               <button
                 onClick={() => { setQrModalOpen(false); setQrLecture(null); setQrDataUrl(''); }}
-                className="absolute top-4 left-4 flex h-10 w-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="absolute top-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2810,10 +2810,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               {/* QR Code with auto-refresh */}
               <div className="flex justify-center mb-4">
                 {qrDataUrl ? (
-                  <div className="relative rounded-2xl border-2 border-sky-200 dark:border-sky-800 bg-white p-4 shadow-lg">
+                  <div className="relative rounded-2xl border-2 border-sky-200 dark:border-sky-800 bg-white dark:bg-card p-4 shadow-lg">
                     <img src={qrDataUrl} alt="QR Code" className="w-64 h-64 rounded-lg" />
                     {/* Refresh countdown ring */}
-                    <div className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-sky-700 text-white text-xs font-bold shadow-lg">
+                    <div className="absolute -top-2 -end-2 flex h-8 w-8 items-center justify-center rounded-full bg-sky-700 text-white text-xs font-bold shadow-lg">
                       <QrRefreshTimer />
                     </div>
                   </div>

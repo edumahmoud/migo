@@ -439,7 +439,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           variant="ghost"
           size="sm"
           onClick={onBack}
-          className="absolute top-4 right-4 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm z-10"
+          className="absolute top-4 end-4 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm z-10"
         >
           <ArrowRight className="h-4 w-4" />
           <span className="hidden sm:inline">العودة</span>
@@ -450,7 +450,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           {/* Decorative patterns */}
           <div className="absolute inset-0 opacity-10">
             <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
-            <div className="absolute bottom-0 right-0 w-48 h-48 bg-white rounded-full translate-x-1/4 translate-y-1/4" />
+            <div className="absolute bottom-0 end-0 w-48 h-48 bg-white rounded-full translate-x-1/4 translate-y-1/4" />
             <div className="absolute top-1/2 left-1/2 w-32 h-32 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
           </div>
           {/* Subtle grid pattern */}
@@ -461,7 +461,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         </div>
 
         {/* Avatar - overlapping the banner */}
-        <div className="absolute -bottom-16 right-6 sm:right-10 sm:-bottom-20">
+        <div className="absolute -bottom-16 end-6 sm:end-10 sm:-bottom-20">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -484,7 +484,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
               </div>
             )}
             {/* Status indicator */}
-            <span className={`absolute bottom-2 left-2 h-5 w-5 rounded-full ring-3 ring-white dark:ring-gray-900 ${
+            <span className={`absolute bottom-2 start-2 h-5 w-5 rounded-full ring-3 ring-white dark:ring-gray-900 ${
               getStatusColor(profileUserStatus)
             } ${profileUserStatus === 'online' ? 'animate-pulse' : ''}`} />
           </motion.div>
@@ -772,7 +772,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                     </DialogTrigger>
                                     <DialogContent dir={dir} className="sm:max-w-md">
                                       <DialogHeader>
-                                        <DialogTitle className="flex items-center gap-2 text-right">
+                                        <DialogTitle className="flex items-center gap-2 text-end">
                                           <MessageSquare className="h-5 w-5 text-sky-700" />
                                           طلب ملف
                                         </DialogTitle>
@@ -1040,7 +1040,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
             />
             <button
               onClick={() => setPhotoEnlarged(false)}
-              className="absolute top-2 left-2 h-8 w-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
+              className="absolute top-2 start-2 h-8 w-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
             >
               <X className="h-4 w-4" />
             </button>

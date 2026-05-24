@@ -105,7 +105,7 @@ const fallbackI18n: I18nContextValue = {
   config: LOCALES[DEFAULT_LOCALE],
   t: (key: string) => key,
   setLocale: () => {},
-  isRTL: true,
+  isRTL: LOCALES[DEFAULT_LOCALE].dir === 'rtl',
 };
 
 // ─── Hook ───

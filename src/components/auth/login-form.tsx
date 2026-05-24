@@ -104,7 +104,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' as const }}
       >
-        <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
+        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
           <CardHeader className="text-center pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6">
             {displayLogo && (
               <motion.div
@@ -116,10 +116,10 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
               </motion.div>
             )}
-            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">
               {displayName ? t('auth.login.welcomeWithInstitution', { displayName }) : t('auth.login.welcome')}
             </CardTitle>
-            <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
+            <CardDescription className="text-gray-500 dark:text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm">
               {t('auth.login.subtitle')}
             </CardDescription>
           </CardHeader>
@@ -133,7 +133,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 transition={{ delay: 0.3 }}
                 className="space-y-2"
               >
-                <Label htmlFor="email" className="text-gray-700 font-medium text-xs sm:text-sm">
+                <Label htmlFor="email" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
                   {t('auth.login.emailLabel')}
                 </Label>
                 <div className="relative">
@@ -143,12 +143,12 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                     placeholder={t('auth.login.emailPlaceholder')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
+                    className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
                     disabled={isLoading}
                     dir="ltr"
                     maxLength={254}
                   />
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
                 </div>
               </motion.div>
 
@@ -159,7 +159,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 transition={{ delay: 0.4 }}
                 className="space-y-2"
               >
-                <Label htmlFor="password" className="text-gray-700 font-medium text-xs sm:text-sm">
+                <Label htmlFor="password" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
                   {t('auth.login.passwordLabel')}
                 </Label>
                 <div className="relative">
@@ -169,16 +169,17 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                     placeholder={t('auth.login.passwordPlaceholder')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pr-10 pl-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
+                    className="ps-10 pe-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
                     disabled={isLoading}
                     dir="ltr"
                   />
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Lock className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-muted-foreground" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground transition-colors touch-target flex items-center justify-center"
                     tabIndex={-1}
+                    aria-label={showPassword ? t('auth.login.hidePassword') : t('auth.login.showPassword')}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -195,7 +196,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.45 }}
-                  className="flex justify-end"
+                  className="flex ms-auto w-fit"
                 >
                   <button
                     type="button"
@@ -216,7 +217,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 <Button
                   type="submit"
                   disabled={isLoading || isGoogleLoading}
-                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 hover:shadow-sky-500/40"
+                  className="w-full h-11 text-base font-semibold bg-gradient-to-l from-sky-700 to-teal-600 hover:from-sky-800 hover:to-teal-700 shadow-lg shadow-sky-500/25 transition-all duration-300 hover:shadow-sky-500/40 dark:from-sky-600 dark:to-teal-500 dark:hover:from-sky-700 dark:hover:to-teal-600"
                 >
                   {isLoading ? (
                     <>
@@ -238,10 +239,10 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
               className="relative my-3 sm:my-6"
             >
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
+                <div className="w-full border-t border-gray-200 dark:border-border" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-white px-4 text-gray-400">{t('auth.login.or')}</span>
+                <span className="bg-white dark:bg-card px-4 text-gray-400 dark:text-muted-foreground">{t('auth.login.or')}</span>
               </div>
             </motion.div>
 
@@ -256,10 +257,10 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 variant="outline"
                 disabled={isLoading || isGoogleLoading}
                 onClick={handleGoogleSignIn}
-                className="w-full h-11 text-base font-medium border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200"
+                className="w-full h-11 text-base font-medium border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/50 hover:border-gray-300 dark:hover:border-border transition-all duration-200"
               >
                 {isGoogleLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-500 dark:text-muted-foreground" />
                 ) : (
                   <svg className="h-5 w-5 me-2" viewBox="0 0 24 24">
                     <path
@@ -292,7 +293,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 transition={{ delay: 0.8 }}
                 className="mt-3 sm:mt-6 text-center"
               >
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-muted-foreground">
                   {t('auth.login.noAccount')}{' '}
                   <button
                     type="button"

@@ -575,7 +575,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
         <span className="ms-3 text-muted-foreground">جاري تحميل المجموعات...</span>
       </div>
     );
@@ -702,7 +702,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                       handleAddMember(addMemberTeamId, student.id);
                     }
                   }}
-                  className="text-sky-700 hover:text-sky-800"
+                  className="text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200"
                 >
                   <UserPlus className="h-4 w-4 me-1" />
                   إضافة
@@ -823,7 +823,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Users className="h-5 w-5 text-sky-700" />
+            <Users className="h-5 w-5 text-sky-700 dark:text-sky-300" />
             {t('course.teams')}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -954,7 +954,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         <DialogContent className="sm:max-w-md" dir={dir}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-sky-700" />
+              <FileSpreadsheet className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               تحديد مجموعات للتنزيل
             </DialogTitle>
           </DialogHeader>
@@ -965,7 +965,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               className="flex items-center gap-2 w-full rounded-lg border p-3 hover:bg-muted/50 transition-colors text-sm font-medium"
             >
               {selectedTeamIds.size === teams.length ? (
-                <CheckSquare className="h-4 w-4 text-sky-700 shrink-0" />
+                <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
               ) : (
                 <Square className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
@@ -984,12 +984,12 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                   >
                     <div className="flex items-center gap-3">
                       {isSelected ? (
-                        <CheckSquare className="h-4 w-4 text-sky-700 shrink-0" />
+                        <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
                       ) : (
                         <Square className="h-4 w-4 text-muted-foreground shrink-0" />
                       )}
                       <div className="w-3 h-8 rounded-full" style={{ backgroundColor: team.color }} />
-                      <div className="text-right">
+                      <div className="text-end">
                         <p className="text-sm font-medium">{team.name}</p>
                         {team.level && <p className="text-xs text-muted-foreground">{team.level}</p>}
                       </div>
@@ -1028,7 +1028,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         <DialogContent className="sm:max-w-sm" dir={dir}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-sky-700" />
+              <BarChart3 className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               تقسيم حسب الأداء
             </DialogTitle>
           </DialogHeader>

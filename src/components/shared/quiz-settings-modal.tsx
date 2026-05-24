@@ -166,12 +166,12 @@ export default function QuizSettingsModal({
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }} key={quiz.id}>
       <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir={dir}>
-        <DialogHeader className="text-right">
-          <DialogTitle className="flex items-center gap-2 text-right">
+        <DialogHeader className="text-end">
+          <DialogTitle className="flex items-center gap-2 text-end">
             <Settings className="h-5 w-5 text-teal-600" />
             {t('quizSettings.title')}
           </DialogTitle>
-          <DialogDescription className="text-right">
+          <DialogDescription className="text-end">
             {t('quizSettings.editQuizSettings', { title: quiz.title })}
           </DialogDescription>
         </DialogHeader>

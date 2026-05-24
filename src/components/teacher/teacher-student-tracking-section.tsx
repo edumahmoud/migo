@@ -698,7 +698,7 @@ export default function TeacherStudentTrackingSection({
             <Activity className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t('nav.studentTracking')}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-foreground">{t('nav.studentTracking')}</h1>
             <p className="text-sm text-muted-foreground">{t('teacher.trackingSubtitle')}</p>
           </div>
         </div>
@@ -810,7 +810,7 @@ export default function TeacherStudentTrackingSection({
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                     activeFilterTab === 'level'
                       ? 'bg-white dark:bg-card text-gray-900 dark:text-gray-100 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                      : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:text-foreground'
                   }`}
                 >
                   {t('teacher.trackingByLevel')}
@@ -820,7 +820,7 @@ export default function TeacherStudentTrackingSection({
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                     activeFilterTab === 'range'
                       ? 'bg-white dark:bg-card text-gray-900 dark:text-gray-100 shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
+                      : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:text-foreground'
                   }`}
                 >
                   {t('teacher.trackingByPercentage')}
@@ -851,16 +851,16 @@ export default function TeacherStudentTrackingSection({
                           className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${
                             isActive
                               ? `${level.bgColor} ${level.ringColor} ring-2 border-current ${level.textColor}`
-                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-gray-300'
+                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-muted-foreground dark:text-gray-300'
                           }`}
                         >
-                          <span className={`text-3xl font-bold ${isActive ? level.textColor : 'text-gray-400'}`}>
+                          <span className={`text-3xl font-bold ${isActive ? level.textColor : 'text-gray-400 dark:text-muted-foreground'}`}>
                             {count}
                           </span>
-                          <span className={`text-sm font-medium ${isActive ? level.textColor : 'text-gray-500 dark:text-gray-400'}`}>
+                          <span className={`text-sm font-medium ${isActive ? level.textColor : 'text-gray-500 dark:text-muted-foreground'}`}>
                             {t(level.label)}
                           </span>
-                          <span className={`text-xs ${isActive ? level.textColor : 'text-gray-400'}`}>
+                          <span className={`text-xs ${isActive ? level.textColor : 'text-gray-400 dark:text-muted-foreground'}`}>
                             {level.key === 'excellent' ? '85%+' : level.key === 'good' ? '70-84%' : level.key === 'average' ? '50-69%' : '<50%'}
                           </span>
                           {isActive && (
@@ -897,16 +897,16 @@ export default function TeacherStudentTrackingSection({
                           className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200 ${
                             isActive
                               ? `${range.bgColor} ${range.borderColor} border-current ${range.textColor}`
-                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-gray-300'
+                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-muted-foreground dark:text-gray-300'
                           }`}
                         >
-                          <span className={`text-2xl font-bold ${isActive ? range.textColor : 'text-gray-400'}`}>
+                          <span className={`text-2xl font-bold ${isActive ? range.textColor : 'text-gray-400 dark:text-muted-foreground'}`}>
                             {count}
                           </span>
-                          <span className={`text-xs font-medium ${isActive ? range.textColor : 'text-gray-500 dark:text-gray-400'}`}>
+                          <span className={`text-xs font-medium ${isActive ? range.textColor : 'text-gray-500 dark:text-muted-foreground'}`}>
                             {t(range.label)}
                           </span>
-                          <span className={`text-[10px] ${isActive ? range.textColor : 'text-gray-400'}`}>
+                          <span className={`text-[10px] ${isActive ? range.textColor : 'text-gray-400 dark:text-muted-foreground'}`}>
                             {range.key === 'below-60' ? t(range.range) : range.range}
                           </span>
                         </motion.button>
@@ -918,7 +918,7 @@ export default function TeacherStudentTrackingSection({
                   <div className="mt-2 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 dark:from-gray-800/50 to-white dark:to-card border border-gray-100/80 dark:border-gray-700">
                     <div className="flex items-center gap-2 mb-3">
                       <BarChart3 className="h-4 w-4 text-sky-600" />
-                      <span className="text-sm font-medium text-gray-900">{t('teacher.trackingPerformanceDistribution')}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingPerformanceDistribution')}</span>
                     </div>
                     <div className="space-y-2.5">
                       {PERCENTAGE_RANGES.map(range => {
@@ -926,7 +926,7 @@ export default function TeacherStudentTrackingSection({
                         const percentage = students.length > 0 ? (count / students.length) * 100 : 0;
                         return (
                           <div key={range.key} className="flex items-center gap-3">
-                            <span className="text-[11px] font-medium text-gray-600 min-w-[70px] text-left">
+                            <span className="text-[11px] font-medium text-gray-600 dark:text-muted-foreground min-w-[70px] text-start">
                               {range.key === 'below-60' ? t(range.range) : range.range}
                             </span>
                             <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
@@ -937,10 +937,10 @@ export default function TeacherStudentTrackingSection({
                                 className={`h-full ${range.color} rounded-full`}
                               />
                             </div>
-                            <span className="text-xs font-bold text-gray-700 min-w-[30px] text-center">
+                            <span className="text-xs font-bold text-gray-700 dark:text-foreground min-w-[30px] text-center">
                               {count}
                             </span>
-                            <span className="text-[10px] text-gray-400 min-w-[35px] text-center">
+                            <span className="text-[10px] text-gray-400 dark:text-muted-foreground min-w-[35px] text-center">
                               {Math.round(percentage)}%
                             </span>
                           </div>
@@ -982,7 +982,7 @@ export default function TeacherStudentTrackingSection({
                 )}
                 <button
                   onClick={() => { setFilterLevel('all'); setFilterRange('all'); }}
-                  className="text-xs text-sky-600 hover:text-sky-700 font-medium"
+                  className="text-xs text-sky-600 hover:text-sky-700 dark:hover:text-sky-300 font-medium"
                 >
                   {t('teacher.trackingViewAll')}
                 </button>
@@ -1008,13 +1008,13 @@ export default function TeacherStudentTrackingSection({
               <div className="flex items-center gap-2">
                 {/* Search */}
                 <div className="relative flex-1 sm:flex-initial">
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <input
                     type="text"
                     placeholder={t('teacher.trackingSearchStudent')}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full sm:w-48 h-9 pr-9 pl-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 transition-all"
+                    className="w-full sm:w-48 h-9 pe-9 ps-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 transition-all"
                     dir={dir}
                   />
                 </div>
@@ -1024,7 +1024,7 @@ export default function TeacherStudentTrackingSection({
                   <select
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value as SortOption)}
-                    className="h-9 pl-3 pr-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 appearance-none cursor-pointer"
+                    className="h-9 ps-3 pe-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 appearance-none cursor-pointer"
                     dir={dir}
                   >
                     {SORT_OPTIONS.map(opt => (
@@ -1033,7 +1033,7 @@ export default function TeacherStudentTrackingSection({
                       </option>
                     ))}
                   </select>
-                  <ArrowUpDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <ArrowUpDown className="absolute end-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                 </div>
               </div>
             </div>
@@ -1107,7 +1107,7 @@ function EfficiencyGauge({
             cy="48"
             r="40"
             fill="none"
-            stroke="#f1f5f9"
+            stroke="var(--muted)"
             strokeWidth="6"
           />
           {/* Class average indicator */}
@@ -1116,7 +1116,7 @@ function EfficiencyGauge({
             cy="48"
             r="40"
             fill="none"
-            stroke="#e2e8f0"
+            stroke="var(--border)"
             strokeWidth="2"
             strokeDasharray={`${classAvgProgress} ${circumference - classAvgProgress}`}
             strokeLinecap="round"
@@ -1141,7 +1141,7 @@ function EfficiencyGauge({
           <span className="text-lg font-bold" style={{ color: strokeColor }}>
             {Math.round(efficiency)}%
           </span>
-          <span className="text-[9px] text-gray-400">{t('teacher.trackingEfficiency')}</span>
+          <span className="text-[9px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingEfficiency')}</span>
         </div>
       </div>
       <Badge
@@ -1151,7 +1151,7 @@ function EfficiencyGauge({
         {t(config.label)}
       </Badge>
       {classAvg > 0 && (
-        <div className="flex items-center gap-1 text-[10px] text-gray-400">
+        <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-muted-foreground">
           <Target className="h-3 w-3" />
           <span>{t('teacher.trackingClassAvg', { value: Math.round(classAvg) })}</span>
         </div>
@@ -1169,12 +1169,12 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
     <div className="p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80 space-y-2">
       <div className="flex items-center gap-2">
         <BookOpen className="h-3.5 w-3.5 text-sky-600 shrink-0" />
-        <span className="text-xs font-medium text-gray-900 truncate">{subject.subjectName}</span>
+        <span className="text-xs font-medium text-gray-900 dark:text-foreground truncate">{subject.subjectName}</span>
       </div>
       <div className="space-y-1.5">
         {/* Quiz avg */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-500 min-w-[50px]">{t('teacher.trackingQuizzes')}</span>
+          <span className="text-[10px] text-gray-500 dark:text-muted-foreground min-w-[50px]">{t('teacher.trackingQuizzes')}</span>
           <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
@@ -1183,13 +1183,13 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
               className="h-full bg-sky-500 rounded-full"
             />
           </div>
-          <span className="text-[10px] font-bold text-sky-700 dark:text-sky-300 min-w-[28px] text-left">
+          <span className="text-[10px] font-bold text-sky-700 dark:text-sky-300 min-w-[28px] text-start">
             {Math.round(subject.quizAvg)}%
           </span>
         </div>
         {/* Attendance */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-500 min-w-[50px]">{t('teacher.trackingAttendance')}</span>
+          <span className="text-[10px] text-gray-500 dark:text-muted-foreground min-w-[50px]">{t('teacher.trackingAttendance')}</span>
           <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
@@ -1198,13 +1198,13 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
               className="h-full bg-teal-500 rounded-full"
             />
           </div>
-          <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 min-w-[28px] text-left">
+          <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 min-w-[28px] text-start">
             {Math.round(subject.attendanceRate)}%
           </span>
         </div>
         {/* Assignments */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-500 min-w-[50px]">{t('teacher.trackingAssignments')}</span>
+          <span className="text-[10px] text-gray-500 dark:text-muted-foreground min-w-[50px]">{t('teacher.trackingAssignments')}</span>
           <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
@@ -1213,7 +1213,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
               className="h-full bg-amber-500 rounded-full"
             />
           </div>
-          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 min-w-[28px] text-left">
+          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 min-w-[28px] text-start">
             {subject.completedAssignments}/{subject.assignmentCount}
           </span>
         </div>
@@ -1259,7 +1259,7 @@ function StudentCard({
       {/* ── Main Row ── */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-3 p-3 sm:p-4 text-right"
+        className="w-full flex items-center gap-3 p-3 sm:p-4 text-end"
       >
         {/* Avatar */}
         <UserAvatar
@@ -1301,7 +1301,7 @@ function StudentCard({
               value={Math.round(data.overallPerformance)}
               className="h-2 flex-1"
             />
-            <span className={`text-xs font-bold min-w-[40px] text-left ${levelConfig.textColor}`}>
+            <span className={`text-xs font-bold min-w-[40px] text-start ${levelConfig.textColor}`}>
               {Math.round(data.overallPerformance)}%
             </span>
           </div>
@@ -1315,7 +1315,7 @@ function StudentCard({
           }`}>
             {Math.round(data.efficiency)}%
           </div>
-          <span className="text-[9px] text-gray-400">{t('teacher.trackingEfficiency')}</span>
+          <span className="text-[9px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingEfficiency')}</span>
         </div>
 
         {/* Expand icon */}
@@ -1340,7 +1340,7 @@ function StudentCard({
                 {/* Quiz average */}
                 <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                    <BarChart3 className="h-4 w-4 text-sky-700" />
+                    <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                   </div>
                   <span className="text-lg font-bold text-sky-800 dark:text-sky-200">{Math.round(data.quizAvg)}%</span>
                   <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingQuizAvg')}</span>
@@ -1375,8 +1375,8 @@ function StudentCard({
               <div className="p-3 rounded-xl bg-gradient-to-l from-violet-50/80 to-white border border-violet-100/50">
                 <div className="flex items-center gap-2 mb-3">
                   <Zap className="h-4 w-4 text-violet-600" />
-                  <span className="text-sm font-medium text-gray-900">{t('teacher.trackingStudentEfficiency')}</span>
-                  <span className="text-[10px] text-gray-400">{t('teacher.trackingFormula')}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingStudentEfficiency')}</span>
+                  <span className="text-[10px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingFormula')}</span>
                 </div>
                 <div className="flex items-center gap-4">
                   {/* Circular gauge */}
@@ -1388,23 +1388,23 @@ function StudentCard({
                   {/* Efficiency breakdown */}
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-700/50">
-                      <span className="text-[11px] text-gray-600 dark:text-gray-400">{t('teacher.trackingEffort')}</span>
+                      <span className="text-[11px] text-gray-600 dark:text-muted-foreground">{t('teacher.trackingEffort')}</span>
                       <div className="flex items-center gap-2">
                         <Progress value={Math.round(data.effortScore)} className="h-1.5 w-16" />
-                        <span className="text-xs font-bold text-gray-700">{Math.round(data.effortScore)}%</span>
+                        <span className="text-xs font-bold text-gray-700 dark:text-foreground">{Math.round(data.effortScore)}%</span>
                       </div>
                     </div>
-                    <div className="text-[9px] text-gray-400 pr-2">
+                    <div className="text-[9px] text-gray-400 dark:text-muted-foreground pe-2">
                       {t('teacher.trackingEffortFormula', { attendance: Math.round(data.attendanceRate), assignments: Math.round(data.assignmentCompletion) })}
                     </div>
                     <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-700/50">
-                      <span className="text-[11px] text-gray-600 dark:text-gray-400">{t('teacher.trackingResults')}</span>
+                      <span className="text-[11px] text-gray-600 dark:text-muted-foreground">{t('teacher.trackingResults')}</span>
                       <div className="flex items-center gap-2">
                         <Progress value={Math.round(data.resultScore)} className="h-1.5 w-16" />
-                        <span className="text-xs font-bold text-gray-700">{Math.round(data.resultScore)}%</span>
+                        <span className="text-xs font-bold text-gray-700 dark:text-foreground">{Math.round(data.resultScore)}%</span>
                       </div>
                     </div>
-                    <div className="text-[9px] text-gray-400 pr-2">
+                    <div className="text-[9px] text-gray-400 dark:text-muted-foreground pe-2">
                       {t('teacher.trackingResultsFormula', { quizAvg: Math.round(data.quizAvg) })}
                     </div>
                     {/* Comparison to class average */}
@@ -1431,7 +1431,7 @@ function StudentCard({
                 <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-white border border-sky-100/50">
                   <div className="flex items-center gap-2 mb-3">
                     <BookOpen className="h-4 w-4 text-sky-600" />
-                    <span className="text-sm font-medium text-gray-900">{t('teacher.trackingPerformanceBySubject')}</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingPerformanceBySubject')}</span>
                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800">
                       {t('teacher.trackingSubjectCount', { count: data.subjectPerformances.length })}
                     </Badge>
@@ -1448,7 +1448,7 @@ function StudentCard({
               <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-teal-50/80 border border-sky-100/50">
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="h-4 w-4 text-sky-600" />
-                  <span className="text-sm font-medium text-gray-900">{t('teacher.trackingOverallPerformanceCalc')}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingOverallPerformanceCalc')}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
@@ -1471,14 +1471,14 @@ function StudentCard({
                 <div className="p-3 rounded-xl bg-gradient-to-l from-teal-50/60 to-white border border-teal-100/50">
                   <div className="flex items-center gap-2 mb-3">
                     <Route className="h-4 w-4 text-teal-600" />
-                    <span className="text-sm font-medium text-gray-900">{t('teacher.trackingStudentPath')}</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingStudentPath')}</span>
                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800">
                       {t('teacher.trackingActivityCount', { count: data.recentActivities.length })}
                     </Badge>
                   </div>
                   <div className="relative space-y-0 max-h-52 overflow-y-auto custom-scrollbar">
                     {/* Timeline line */}
-                    <div className="absolute right-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-teal-200 via-sky-200 to-amber-200" />
+                    <div className="absolute end-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-teal-200 via-sky-200 to-amber-200" />
 
                     {data.recentActivities.map((item, idx) => {
                       const iconMap = {
@@ -1513,11 +1513,11 @@ function StudentCard({
                           <div className={`relative z-10 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full ring-2 ${bgMap[item.type]}`}>
                             {iconMap[item.type]}
                             {/* Pulsing dot */}
-                            <span className={`absolute -top-0.5 -left-0.5 h-2 w-2 rounded-full ${dotColorMap[item.type]} ring-2 ring-white`} />
+                            <span className={`absolute -top-0.5 -start-0.5 h-2 w-2 rounded-full ${dotColorMap[item.type]} ring-2 ring-white`} />
                           </div>
                           <div className="flex-1 min-w-0 pt-0.5">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-xs font-medium text-gray-900">{item.title}</p>
+                              <p className="text-xs font-medium text-gray-900 dark:text-foreground">{item.title}</p>
                               <Badge variant="secondary" className={`text-[9px] px-1 py-0 ${badgeMap[item.type].className}`}>
                                 {badgeMap[item.type].label}
                               </Badge>

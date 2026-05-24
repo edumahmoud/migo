@@ -520,11 +520,11 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
 
         {/* Decorative large faded circle */}
         <div
-          className="absolute -top-16 -left-16 h-64 w-64 rounded-full opacity-[0.07]"
+          className="absolute -top-16 -start-16 h-64 w-64 rounded-full opacity-[0.07]"
           style={{ backgroundColor: 'white' }}
         />
         <div
-          className="absolute -bottom-12 -right-12 h-48 w-48 rounded-full opacity-[0.05]"
+          className="absolute -bottom-12 -end-12 h-48 w-48 rounded-full opacity-[0.05]"
           style={{ backgroundColor: 'white' }}
         />
 

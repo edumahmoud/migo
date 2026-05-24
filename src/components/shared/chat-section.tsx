@@ -90,44 +90,48 @@ const slideInRight = {
 };
 
 // =====================================================
-// Relative time helper (Arabic)
+// Relative time helper (i18n-aware)
 // =====================================================
-function relativeTime(dateStr: string): string {
+function relativeTime(
+  dateStr: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+  locale: string
+): string {
   if (!dateStr) return '';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
   const diff = Date.now() - date.getTime();
-  if (diff < 0) return 'الآن';
+  if (diff < 0) return t('chat.now');
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'الآن';
-  if (mins < 60) return `منذ ${mins} د`;
+  if (mins < 1) return t('chat.now');
+  if (mins < 60) return t('chat.minutesAgo', { count: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `منذ ${hours} س`;
+  if (hours < 24) return t('chat.hoursAgo', { count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `منذ ${days} ي`;
-  return date.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+  if (days < 7) return t('chat.daysAgo', { count: days });
+  return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }
 
 // =====================================================
 // Typing dots animation component
 // =====================================================
-function TypingIndicator({ names }: { names: string[] }) {
+function TypingIndicator({ names, t }: { names: string[]; t: (key: string, params?: Record<string, string | number>) => string }) {
   if (names.length === 0) return null;
   const label =
     names.length === 1
-      ? `${names[0]} يكتب الآن`
+      ? t('chat.typingSingle', { name: names[0] })
       : names.length === 2
-        ? `${names[0]} و ${names[1]} يكتبان الآن`
-        : `${names[0]} وآخرون يكتبون الآن`;
+        ? t('chat.typingDual', { name1: names[0], name2: names[1] })
+        : t('chat.typingMultiple', { name: names[0] });
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50/80 border border-sky-100">
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50/80 border border-sky-100 dark:bg-sky-950/30 dark:border-sky-800">
       <div className="flex items-center gap-1">
         <span className="h-1.5 w-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '0ms' }} />
         <span className="h-1.5 w-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '150ms' }} />
         <span className="h-1.5 w-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '300ms' }} />
       </div>
-      <span className="text-xs text-sky-800 font-medium">{label}...</span>
+      <span className="text-xs text-sky-800 dark:text-sky-300 font-medium">{label}...</span>
     </div>
   );
 }
@@ -136,7 +140,7 @@ function TypingIndicator({ names }: { names: string[] }) {
 // Main Component
 // =====================================================
 export default function ChatSection({ profile, role }: ChatSectionProps) {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   // ─── Shared socket ───
   const { socket, status, isConnected, isRealtimeMode, joinRoom, leaveRoom, joinAllRooms } = useSharedSocket();
   const { openProfile } = useAppStore();
@@ -274,7 +278,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       return data.conversations || [];
     } catch (err) {
       console.error('Fetch conversations error:', err);
-      setConvFetchError('فشل تحميل المحادثات');
+      setConvFetchError(t('chat.loadConversationsFailed'));
       return [];
     } finally {
       setLoading(false);
@@ -416,9 +420,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   debouncedFetchConversations();
                   return;
                 }
-                toast(`رسالة جديدة`, {
+                toast(t('chat.newMessage'), {
                   description: fastMsg.content.substring(0, 60) + (fastMsg.content.length > 60 ? '...' : ''),
-                  icon: <Bell className="h-4 w-4 text-sky-700" />,
+                  icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
                   duration: 5000,
                 });
                 setLocalUnread((prev) => {
@@ -436,9 +440,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       (m: ChatMessage) => m.id === (newMsg.id as string)
                     );
                     if (fullMsg?.sender?.name) {
-                      toast(`رسالة جديدة من ${fullMsg.sender.name}`, {
+                      toast(t('chat.newMessageFrom', { name: fullMsg.sender.name }), {
                         description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
-                        icon: <Bell className="h-4 w-4 text-sky-700" />,
+                        icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
                         duration: 5000,
                         id: `msg-${convId}`,
                       });
@@ -744,11 +748,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         addMessageToList(msg, currentActiveId);
       } else {
         // Show toast and increment unread
-        const senderName = (data.senderName as string) || msg.sender?.name || 'مستخدم';
+        const senderName = (data.senderName as string) || msg.sender?.name || t('common.user');
         const content = (data.content as string) || msg.content || '';
-        toast(`رسالة جديدة من ${senderName}`, {
+        toast(t('chat.newMessageFrom', { name: senderName }), {
           description: content.substring(0, 60) + (content.length > 60 ? '...' : ''),
-          icon: <Bell className="h-4 w-4 text-sky-700" />,
+          icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
           duration: 5000,
         });
         setLocalUnread((prev) => {
@@ -774,9 +778,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     joinRoom(data.conversationId);
     // Only show toast about new conversation, don't increment unread count
     // since there are no messages yet
-    toast(`محادثة جديدة من ${data.fromUser.name}`, {
-      description: 'تم إنشاء محادثة جديدة',
-      icon: <MessageCircle className="h-4 w-4 text-sky-700" />,
+    toast(t('chat.newConversationFrom', { name: data.fromUser.name }), {
+      description: t('chat.newConversationCreated'),
+      icon: <MessageCircle className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
       duration: 5000,
     });
     debouncedFetchConversations();
@@ -798,7 +802,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     setMessages((prev) =>
       prev.map((m) =>
         m.id === data.messageId
-          ? { ...m, content: 'تم حذف هذه الرسالة', is_deleted: true }
+          ? { ...m, content: t('chat.messageDeleted'), is_deleted: true }
           : m
       )
     );
@@ -1050,7 +1054,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       fetchConversations();
     } catch (err) {
       console.error('Open conversation error:', err);
-      toast.error('فشل فتح المحادثة');
+      toast.error(t('chat.openConversationFailed'));
     } finally {
       setMessagesLoading(false);
     }
@@ -1147,7 +1151,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       }
     } catch (err) {
       console.error('Send message error:', err);
-      toast.error('فشل إرسال الرسالة');
+      toast.error(t('chat.toastSendFailed'));
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setNewMessage(content);
     } finally {
@@ -1173,7 +1177,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       }
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === msgId ? { ...m, content: 'تم حذف هذه الرسالة', is_deleted: true } : m
+          m.id === msgId ? { ...m, content: t('chat.messageDeleted'), is_deleted: true } : m
         )
       );
       if (socket?.connected) {
@@ -1184,7 +1188,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       }
     } catch (err) {
       console.error('Delete message error:', err);
-      toast.error('فشل حذف الرسالة');
+      toast.error(t('chat.toastDeleteFailed'));
     }
   };
 
@@ -1233,7 +1237,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       setEditContent('');
     } catch (err) {
       console.error('Edit message error:', err);
-      toast.error('فشل تعديل الرسالة');
+      toast.error(t('chat.toastEditFailed'));
     }
   };
 
@@ -1394,7 +1398,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       const data = await res.json();
 
       if (data.error) {
-        toast.error(data.error || 'فشل بدء المحادثة');
+        toast.error(data.error || t('chat.startChatFailed'));
         return;
       }
 
@@ -1418,11 +1422,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         });
         fetchConversations();
       } else {
-        toast.error('فشل إنشاء المحادثة');
+        toast.error(t('chat.createConversationFailed'));
       }
     } catch (err) {
       console.error('Start chat error:', err);
-      toast.error('فشل بدء المحادثة');
+      toast.error(t('chat.startChatFailed'));
     } finally {
       setCreatingChat(false);
     }
@@ -1435,8 +1439,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     e?.stopPropagation();
     setConfirmDialog({
       open: true,
-      title: 'حذف المحادثة',
-      description: 'هل أنت متأكد من حذف هذه المحادثة؟',
+      title: t('chat.deleteConversation'),
+      description: t('chat.deleteConversationConfirm'),
       onConfirm: async () => {
         try {
           const res = await fetch('/api/chat', {
@@ -1449,7 +1453,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             toast.error(data.error);
             return;
           }
-          toast.success('تم حذف المحادثة');
+          toast.success(t('chat.conversationDeleted'));
           // Track this conversation as locally hidden to suppress notifications
           hiddenConvIdsRef.current.add(convId);
           if (activeConvId === convId) {
@@ -1461,7 +1465,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           fetchConversations();
         } catch (err) {
           console.error('Delete conversation error:', err);
-          toast.error('فشل حذف المحادثة');
+          toast.error(t('chat.deleteConversationFailed'));
         }
       },
     });
@@ -1472,13 +1476,13 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // =====================================================
   const handleDeleteAllConversations = async () => {
     if (conversations.length === 0) {
-      toast.error('لا توجد محادثات لحذفها');
+      toast.error(t('chat.noConversationsToDelete'));
       return;
     }
     setConfirmDialog({
       open: true,
-      title: 'حذف جميع المحادثات',
-      description: 'هل أنت متأكد من حذف جميع المحادثات؟',
+      title: t('chat.deleteAllConversations'),
+      description: t('chat.deleteAllConversationsConfirm'),
       onConfirm: async () => {
         try {
           const res = await fetch('/api/chat', {
@@ -1491,7 +1495,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             toast.error(data.error);
             return;
           }
-          toast.success(`تم حذف ${data.deletedCount || 0} محادثة`);
+          toast.success(t('chat.conversationsDeletedCount', { count: data.deletedCount || 0 }));
           // Track all conversation IDs as locally hidden to suppress notifications
           conversations.forEach(c => hiddenConvIdsRef.current.add(c.id));
           setActiveConvId(null);
@@ -1501,7 +1505,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           fetchConversations();
         } catch (err) {
           console.error('Delete all conversations error:', err);
-          toast.error('فشل حذف المحادثات');
+          toast.error(t('chat.deleteConversationsFailed'));
         }
       },
     });
@@ -1523,7 +1527,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         toast.error(data.error);
         return;
       }
-      toast.success('تم أرشفة المحادثة');
+      toast.success(t('chat.conversationArchived'));
       if (activeConvId === convId) {
         setActiveConvId(null);
         setActiveConvInfo(null);
@@ -1533,7 +1537,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       fetchConversations();
     } catch (err) {
       console.error('Archive conversation error:', err);
-      toast.error('فشل أرشفة المحادثة');
+      toast.error(t('chat.archiveConversationFailed'));
     }
   };
 
@@ -1552,11 +1556,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         toast.error(data.error);
         return;
       }
-      toast.success('تم إلغاء أرشفة المحادثة');
+      toast.success(t('chat.conversationUnarchived'));
       fetchConversations();
     } catch (err) {
       console.error('Unarchive conversation error:', err);
-      toast.error('فشل إلغاء أرشفة المحادثة');
+      toast.error(t('chat.unarchiveConversationFailed'));
     }
   };
 
@@ -1617,8 +1621,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     if (!convFilter.trim()) return true;
     const q = convFilter.toLowerCase();
     const name = conv.type === 'group'
-      ? conv.title || 'محادثة جماعية'
-      : conv.otherParticipant?.name || 'محادثة خاصة';
+      ? conv.title || t('chat.groupChat')
+      : conv.otherParticipant?.name || t('chat.privateChat');
     return name.toLowerCase().includes(q);
   });
 
@@ -1629,7 +1633,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   const renderMessage = (msg: ChatMessage, index: number) => {
     const isOwn = msg.sender_id === profile.id;
     const senderName = formatNameWithTitle(
-      msg.sender?.name || 'مستخدم',
+      msg.sender?.name || t('common.user'),
       msg.sender?.role,
       msg.sender?.title_id,
       msg.sender?.gender,
@@ -1664,7 +1668,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openProfile(msg.sender_id); }}
-              className="text-[10px] text-muted-foreground mb-0.5 font-medium px-1 hover:text-sky-700 transition-colors"
+              className="text-[10px] text-muted-foreground mb-0.5 font-medium px-1 hover:text-sky-700 dark:text-sky-300 transition-colors"
             >
               {senderName}
             </button>
@@ -1713,7 +1717,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 {isDeleted ? (
                   <span className="flex items-center gap-1.5">
                     <Trash2 className="h-3 w-3" />
-                    تم حذف هذه الرسالة
+                    {t('chat.messageDeleted')}
                   </span>
                 ) : (
                   msg.content
@@ -1745,17 +1749,17 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         >
                           <button
                             onClick={() => handleStartEdit(msg)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-right"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-end"
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                            تعديل
+                            {t('common.edit')}
                           </button>
                           <button
                             onClick={() => handleDeleteMessage(msg.id)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-right"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-end"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
-                            حذف
+                            {t('common.delete')}
                           </button>
                         </motion.div>
                       )}
@@ -1776,11 +1780,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           {/* Timestamp & edited indicator */}
           <div className="flex items-center gap-1.5 mt-0.5 px-1">
             <span className="text-[10px] text-muted-foreground/50">
-              {relativeTime(msg.created_at)}
+              {relativeTime(msg.created_at, t, locale)}
             </span>
             {isEdited && !isDeleted && (
               <span className="text-[10px] text-sky-600/60 font-medium">
-                {msg.edited_at ? `(معدّلة ${relativeTime(msg.edited_at)})` : '(معدّلة)'}
+                {msg.edited_at ? t('chat.editedWithTime', { time: relativeTime(msg.edited_at, t, locale) }) : t('chat.edited')}
               </span>
             )}
           </div>
@@ -1795,8 +1799,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
-        <p className="text-sm text-muted-foreground">جاري تحميل المحادثات...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+        <p className="text-sm text-muted-foreground">{t('chat.loadingChat')}</p>
       </div>
     );
   }
@@ -1806,9 +1810,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   // =====================================================
   const chatHeaderName = activeConvInfo
     ? activeConvInfo.type === 'group'
-      ? activeConvInfo.title || 'محادثة جماعية'
+      ? activeConvInfo.title || t('chat.groupChat')
       : formatNameWithTitle(
-          activeConvInfo.otherParticipant?.name || 'محادثة خاصة',
+          activeConvInfo.otherParticipant?.name || t('chat.privateChat'),
           activeConvInfo.otherParticipant?.role,
           activeConvInfo.otherParticipant?.title_id,
           activeConvInfo.otherParticipant?.gender,
@@ -1841,18 +1845,18 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           <div className="shrink-0 p-4 border-b bg-card">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100">
-                  <MessageCircle className="h-4 w-4 text-sky-800" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                  <MessageCircle className="h-4 w-4 text-sky-800 dark:text-sky-200" />
                 </div>
                 <h2 className="text-base font-bold text-foreground">{t('chat.title')}</h2>
               </div>
               <div className="flex items-center gap-2">
                 {/* Connection indicator */}
                 <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted/50" title={
-                  status === 'connected' ? 'متصل عبر Socket.IO'
-                    : status === 'realtime' ? 'متصل عبر Realtime'
-                    : status === 'connecting' ? 'جاري الاتصال...'
-                    : 'غير متصل'
+                  status === 'connected' ? t('chat.connectedViaSocket')
+                    : status === 'realtime' ? t('chat.connectedViaRealtime')
+                    : status === 'connecting' ? t('chat.connecting')
+                    : t('chat.disconnected')
                 }>
                   {status === 'connected' || status === 'realtime' ? (
                     <Wifi className="h-3 w-3 text-sky-600" />
@@ -1862,9 +1866,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     <WifiOff className="h-3 w-3 text-rose-400" />
                   )}
                   <span className="text-[10px] text-muted-foreground">
-                    {status === 'connected' || status === 'realtime' ? 'متصل'
-                      : status === 'connecting' ? 'جاري الاتصال...'
-                      : 'غير متصل'}
+                    {status === 'connected' || status === 'realtime' ? t('chat.connected')
+                      : status === 'connecting' ? t('chat.connecting')
+                      : t('chat.disconnected')}
                   </span>
                 </div>
                 {/* Delete all conversations button */}
@@ -1872,7 +1876,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   <button
                     onClick={handleDeleteAllConversations}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors"
-                    title="حذف جميع المحادثات"
+                    title={t('chat.deleteAllConversations')}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -1881,7 +1885,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 <button
                   onClick={() => setShowNewDM(true)}
                   className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-700 text-white hover:bg-sky-800 transition-colors shadow-sm"
-                  title="محادثة جديدة"
+                  title={t('chat.newConversation')}
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -1895,7 +1899,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 type="text"
                 value={convFilter}
                 onChange={(e) => setConvFilter(e.target.value)}
-                placeholder="بحث في المحادثات..."
+                placeholder={t('chat.searchPlaceholder')}
                 className="w-full rounded-lg border bg-muted/30 ps-9 pe-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/20 focus:border-sky-600 transition-all"
               />
               {convFilter && (
@@ -1916,14 +1920,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 border border-rose-200 mb-3">
                   <WifiOff className="h-7 w-7 text-rose-400" />
                 </div>
-                <p className="text-sm font-semibold text-foreground mb-1">خطأ في التحميل</p>
+                <p className="text-sm font-semibold text-foreground mb-1">{t('chat.loadError')}</p>
                 <p className="text-xs text-muted-foreground mb-3">{convFetchError}</p>
                 <button
                   onClick={() => { setConvFetchError(null); fetchConversations(); }}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-2 text-xs font-medium text-white hover:bg-sky-800 transition-colors"
                 >
                   <RefreshCw className="h-3 w-3" />
-                  إعادة المحاولة
+                  {t('common.retry')}
                 </button>
               </div>
             ) : setupInfo ? (
@@ -1931,10 +1935,10 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 border border-amber-200 mb-3">
                   <MessageCircle className="h-7 w-7 text-amber-500" />
                 </div>
-                <p className="text-sm font-semibold text-foreground mb-1">المحادثات غير مفعلة</p>
-                <p className="text-xs text-muted-foreground mb-3">جداول المحادثات لم يتم إنشاؤها في قاعدة البيانات بعد</p>
+                <p className="text-sm font-semibold text-foreground mb-1">{t('chat.chatTablesNotExist')}</p>
+                <p className="text-xs text-muted-foreground mb-3">{t('chat.chatTablesNotCreated')}</p>
                 {setupInfo.steps && (
-                  <ol className="text-xs text-muted-foreground space-y-1 mb-3 text-right">
+                  <ol className="text-xs text-muted-foreground space-y-1 mb-3 text-end">
                     {setupInfo.steps.map((step, i) => (
                       <li key={i}>{step}</li>
                     ))}
@@ -1947,35 +1951,35 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-xs font-medium text-white hover:bg-amber-700 transition-colors mb-2"
                   >
-                    فتح SQL Editor في Supabase
+                    {t('chat.openSqlEditor')}
                   </a>
                 )}
                 <button
                   onClick={() => { setSetupInfo(null); fetchConversations(); }}
-                  className="text-xs text-sky-700 hover:text-sky-800 font-medium transition-colors"
+                  className="text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 font-medium transition-colors"
                 >
-                  إعادة المحاولة ←
+                  {t('chat.retrySetup')}
                 </button>
               </div>
             ) : conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-50 mb-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-50 dark:bg-sky-950/30 mb-4">
                   <MessageCircle className="h-8 w-8 text-sky-400" />
                 </div>
-                <p className="text-sm font-semibold text-foreground mb-1">لا توجد محادثات</p>
-                <p className="text-xs text-muted-foreground mb-4">ابدأ محادثة جديدة مع زملائك في المقرر</p>
+                <p className="text-sm font-semibold text-foreground mb-1">{t('chat.noConversations')}</p>
+                <p className="text-xs text-muted-foreground mb-4">{t('chat.startNewConversationDesc')}</p>
                 <button
                   onClick={() => setShowNewDM(true)}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-medium text-white hover:bg-sky-800 transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  محادثة جديدة
+                  {t('chat.newConversation')}
                 </button>
               </div>
             ) : filteredConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center px-6">
                 <Search className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                <p className="text-xs text-muted-foreground">لا توجد نتائج للبحث</p>
+                <p className="text-xs text-muted-foreground">{t('chat.noSearchResults')}</p>
               </div>
             ) : (
               <div className="py-1">
@@ -1985,9 +1989,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   const lastMsg = conv.lastMessage;
                   const unread = getUnreadCount(conv);
                   const displayName = isGroup
-                    ? conv.title || 'محادثة جماعية'
+                    ? conv.title || t('chat.groupChat')
                     : formatNameWithTitle(
-                        conv.otherParticipant?.name || 'محادثة خاصة',
+                        conv.otherParticipant?.name || t('chat.privateChat'),
                         conv.otherParticipant?.role,
                         conv.otherParticipant?.title_id,
                         conv.otherParticipant?.gender,
@@ -2020,9 +2024,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                           });
                         }
                       }}
-                      className={`w-full flex items-center gap-3 p-3 text-right transition-all hover:bg-muted/50 cursor-pointer ${
+                      className={`w-full flex items-center gap-3 p-3 text-end transition-all hover:bg-muted/50 cursor-pointer ${
                         isActive
-                          ? 'bg-sky-50 border-s-2 border-sky-600'
+                          ? 'bg-sky-50 dark:bg-sky-950/30 border-s-2 border-sky-600'
                           : 'border-s-2 border-transparent'
                       }`}
                     >
@@ -2056,7 +2060,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                               );
                             }
                             return (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 text-sky-800">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
                                 <Hash className="h-5 w-5" />
                               </div>
                             );
@@ -2075,19 +2079,19 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span className={`text-sm truncate ${isActive ? 'font-bold text-sky-800' : 'font-semibold text-foreground'}`}>
+                          <span className={`text-sm truncate ${isActive ? 'font-bold text-sky-800 dark:text-sky-200' : 'font-semibold text-foreground'}`}>
                             {displayName}
                           </span>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <span className="text-[10px] text-muted-foreground">
-                              {lastMsg ? relativeTime(lastMsg.created_at) : ''}
+                              {lastMsg ? relativeTime(lastMsg.created_at, t, locale) : ''}
                             </span>
                             {/* Conversation actions menu */}
                             <div className="relative" ref={convMenuId === conv.id ? convMenuRef : null}>
                               <button
                                 onClick={(e) => { e.stopPropagation(); setConvMenuId(convMenuId === conv.id ? null : conv.id); }}
                                 className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
-                                title="المزيد"
+                                title={t('common.more')}
                               >
                                 <MoreHorizontal className="h-3 w-3" />
                               </button>
@@ -2103,17 +2107,17 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                                   >
                                     <button
                                       onClick={() => { setConvMenuId(null); handleArchiveConversation(conv.id); }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-right"
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-end"
                                     >
                                       <Archive className="h-3.5 w-3.5" />
-                                      أرشفة
+                                      {t('chat.archive')}
                                     </button>
                                     <button
                                       onClick={() => { setConvMenuId(null); handleDeleteConversation(conv.id); }}
-                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-right"
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-end"
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
-                                      حذف
+                                      {t('common.delete')}
                                     </button>
                                   </motion.div>
                                 )}
@@ -2143,11 +2147,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             {/* ─── Archived conversations section ─── */}
             {archivedConversations.length > 0 && (
               <Collapsible open={archivedOpen} onOpenChange={setArchivedOpen} className="border-t">
-                <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-2.5 text-right hover:bg-muted/30 transition-colors">
+                <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-2.5 text-end hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-2">
                     <Archive className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-xs font-semibold text-muted-foreground">
-                      المؤرشفة ({archivedConversations.length})
+                      {t('chat.archived')} ({archivedConversations.length})
                     </span>
                   </div>
                   {archivedOpen ? (
@@ -2161,9 +2165,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     {archivedConversations.map((conv) => {
                       const isGroup = conv.type === 'group';
                       const displayName = isGroup
-                        ? conv.title || 'محادثة جماعية'
+                        ? conv.title || t('chat.groupChat')
                         : formatNameWithTitle(
-                            conv.otherParticipant?.name || 'محادثة خاصة',
+                            conv.otherParticipant?.name || t('chat.privateChat'),
                             conv.otherParticipant?.role,
                             conv.otherParticipant?.title_id,
                             conv.otherParticipant?.gender,
@@ -2174,11 +2178,11 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       return (
                         <div
                           key={conv.id}
-                          className="flex items-center gap-3 p-3 text-right hover:bg-muted/30 transition-colors opacity-60"
+                          className="flex items-center gap-3 p-3 text-end hover:bg-muted/30 transition-colors opacity-60"
                         >
                           <div className="shrink-0">
                             {isGroup ? (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 text-sky-800">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
                                 <Hash className="h-5 w-5" />
                               </div>
                             ) : (
@@ -2191,13 +2195,13 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                               <div className="flex items-center gap-1 shrink-0">
                                 {lastMsg && (
                                   <span className="text-[10px] text-muted-foreground">
-                                    {relativeTime(lastMsg.created_at)}
+                                    {relativeTime(lastMsg.created_at, t, locale)}
                                   </span>
                                 )}
                                 <button
                                   onClick={() => handleUnarchiveConversation(conv.id)}
-                                  className="flex h-5 w-5 items-center justify-center rounded text-sky-700/60 hover:text-sky-700 hover:bg-sky-50 transition-colors"
-                                  title="إلغاء الأرشفة"
+                                  className="flex h-5 w-5 items-center justify-center rounded text-sky-700 dark:text-sky-300/60 hover:text-sky-700 dark:text-sky-300 dark:hover:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
+                                  title={t('chat.unarchive')}
                                 >
                                   <ArchiveRestore className="h-3 w-3" />
                                 </button>
@@ -2267,7 +2271,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                           );
                         }
                         return (
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 text-sky-800">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
                             <Hash className="h-4 w-4" />
                           </div>
                         );
@@ -2286,12 +2290,12 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     <h3 className="text-sm font-semibold text-foreground truncate">{chatHeaderName}</h3>
                     <div className="flex items-center gap-1.5">
                       {activeConvInfo.type === 'individual' ? (
-                        <span className={`text-[10px] font-medium ${chatHeaderStatus === 'online' ? 'text-sky-700' : chatHeaderStatus === 'busy' ? 'text-amber-600' : chatHeaderStatus === 'away' ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                        <span className={`text-[10px] font-medium ${chatHeaderStatus === 'online' ? 'text-sky-700 dark:text-sky-300' : chatHeaderStatus === 'busy' ? 'text-amber-600' : chatHeaderStatus === 'away' ? 'text-orange-600' : 'text-muted-foreground'}`}>
                           {getStatusLabel(chatHeaderStatus)}
                         </span>
                       ) : (
                         <span className="text-[10px] text-muted-foreground">
-                          {participants.length} مشارك
+                          {t('chat.participantCount', { count: participants.length })}
                         </span>
                       )}
                     </div>
@@ -2305,9 +2309,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   ) : status === 'connecting' ? (
                     <RefreshCw className="h-3.5 w-3.5 text-amber-500 animate-spin" />
                   ) : (
-                    <div className="flex items-center gap-1" title="يتم التحديث تلقائياً">
+                    <div className="flex items-center gap-1" title={t('chat.autoRefreshTitle')}>
                       <WifiOff className="h-3.5 w-3.5 text-rose-400" />
-                      <span className="text-[9px] text-rose-400 hidden sm:inline">تحديث تلقائي</span>
+                      <span className="text-[9px] text-rose-400 hidden sm:inline">{t('chat.autoRefresh')}</span>
                     </div>
                   )}
                 </div>
@@ -2331,17 +2335,17 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       >
                         <button
                           onClick={() => { setHeaderMenuOpen(false); handleArchiveConversation(activeConvId!); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-right"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-end"
                         >
                           <Archive className="h-3.5 w-3.5" />
-                          أرشفة
+                          {t('chat.archive')}
                         </button>
                         <button
                           onClick={() => { setHeaderMenuOpen(false); handleDeleteConversation(activeConvId!); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-right"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-end"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                          حذف
+                          {t('common.delete')}
                         </button>
                       </motion.div>
                     )}
@@ -2357,15 +2361,15 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               >
                 {messagesLoading ? (
                   <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-6 w-6 animate-spin text-sky-700" />
+                    <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-300" />
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/50 mb-3">
                       <MessageCircle className="h-6 w-6 text-muted-foreground/40" />
                     </div>
-                    <p className="text-sm text-muted-foreground">ابدأ المحادثة!</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">أرسل أول رسالة في هذه المحادثة</p>
+                    <p className="text-sm text-muted-foreground">{t('chat.startConversation')}</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">{t('chat.sendFirstMessage')}</p>
                   </div>
                 ) : (
                   <>
@@ -2384,7 +2388,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.15 }}
                   >
-                    <TypingIndicator names={Array.from(typingUsers.values())} />
+                    <TypingIndicator names={Array.from(typingUsers.values())} t={t} />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -2425,19 +2429,19 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             /* ─── Empty state: no conversation selected ─── */
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
               <motion.div variants={slideInRight} className="flex flex-col items-center">
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 mb-4">
+                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 dark:bg-sky-950/30 mb-4">
                   <MessageCircle className="h-10 w-10 text-sky-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-foreground mb-2">مرحباً بك في المحادثات</h3>
+                <h3 className="text-lg font-semibold text-foreground mb-2">{t('chat.welcome')}</h3>
                 <p className="text-sm text-muted-foreground max-w-[280px] mb-4">
-                  اختر محادثة من القائمة أو ابدأ محادثة جديدة مع زملائك
+                  {t('chat.welcomeDesc')}
                 </p>
                 <button
                   onClick={() => setShowNewDM(true)}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-sky-800 transition-colors shadow-sm"
                 >
                   <Plus className="h-4 w-4" />
-                  محادثة جديدة
+                  {t('chat.newConversation')}
                 </button>
               </motion.div>
             </div>
@@ -2468,7 +2472,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             >
               {/* Dialog header */}
               <div className="flex items-center justify-between p-4 border-b">
-                <h3 className="text-base font-bold text-foreground">محادثة جديدة</h3>
+                <h3 className="text-base font-bold text-foreground">{t('chat.newConversation')}</h3>
                 <button
                   onClick={() => { setShowNewDM(false); setSearchQuery(''); setSearchResults([]); }}
                   className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
@@ -2487,8 +2491,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     onChange={(e) => handleSearchUsers(e.target.value)}
                     placeholder={
                       role === 'student'
-                        ? 'ابحث بالاسم (زملاء المقرر) أو البريد الإلكتروني (الجميع)...'
-                        : 'ابحث بالاسم أو البريد الإلكتروني...'
+                        ? t('chat.searchByNameOrEmailStudent')
+                        : t('chat.searchUserPlaceholder')
                     }
                     className="w-full rounded-lg border bg-muted/30 ps-10 pe-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/20 focus:border-sky-600 transition-all"
                     autoFocus
@@ -2499,7 +2503,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 </div>
                 {role === 'student' && (
                   <p className="mt-1.5 text-[10px] text-muted-foreground leading-relaxed">
-                    🔍 البحث بالاسم: زملاء مقرراتك فقط · البحث بالبريد: جميع المستخدمين
+                    {t('chat.searchByNameHint')}
                   </p>
                 )}
               </div>
@@ -2509,7 +2513,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 {searchQuery && !searching && searchResults.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center px-6">
                     <Search className="h-8 w-8 text-muted-foreground/30 mb-2" />
-                    <p className="text-xs text-muted-foreground">لا يوجد مستخدمون مطابقون</p>
+                    <p className="text-xs text-muted-foreground">{t('chat.noMatchingUsers')}</p>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="py-1">
@@ -2518,12 +2522,12 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         key={user.id}
                         onClick={() => startIndividualChat(user)}
                         disabled={creatingChat}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-right disabled:opacity-50"
+                        className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors text-end disabled:opacity-50"
                       >
                         <div className="shrink-0 relative">
                           <UserAvatar name={user.name} avatarUrl={user.avatar_url} size="md" />
                           <div className={`absolute -bottom-0.5 -start-0.5 h-3 w-3 rounded-full border-2 border-card ${
-                            getUserStatus(user.id) === 'online' ? 'bg-sky-600' : 'bg-gray-300'
+                            getUserStatus(user.id) === 'online' ? 'bg-sky-600' : 'bg-gray-300 dark:bg-gray-600'
                           }`} />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2539,7 +2543,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 ) : !searchQuery ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center px-6">
                     <Search className="h-8 w-8 text-muted-foreground/30 mb-2" />
-                    <p className="text-xs text-muted-foreground">اكتب للبحث عن مستخدم</p>
+                    <p className="text-xs text-muted-foreground">{t('chat.typeToSearchUser')}</p>
                   </div>
                 ) : null}
               </div>
@@ -2559,16 +2563,16 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       >
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-right">
+            <AlertDialogTitle className="flex items-center gap-2 text-end">
               <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
               {confirmDialog.title}
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-right">
+            <AlertDialogDescription className="text-end">
               {confirmDialog.description}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2 justify-start">
-            <AlertDialogCancel className="rounded-lg">إلغاء</AlertDialogCancel>
+            <AlertDialogCancel className="rounded-lg">{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 confirmDialog.onConfirm();
@@ -2576,7 +2580,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               }}
               className="rounded-lg bg-red-600 text-white hover:bg-red-700"
             >
-              حذف
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

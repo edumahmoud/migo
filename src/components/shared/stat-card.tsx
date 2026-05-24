@@ -107,7 +107,7 @@ export default function StatCard({ icon, label, value, color }: StatCardProps) {
           </div>
 
           {/* Label & Value */}
-          <div className="flex flex-col gap-0.5 text-right min-w-0">
+          <div className="flex flex-col gap-0.5 text-start min-w-0">
             <span className={`text-xs sm:text-sm font-medium truncate ${colors.labelText}`}>{label}</span>
             <span className={`text-lg sm:text-xl font-bold leading-tight ${colors.valueText}`}>
               {value ?? 0}

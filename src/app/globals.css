@@ -203,13 +203,13 @@
 
 .prose-summary ul {
   list-style-type: none;
-  padding-right: 1.25rem;
+  padding-inline-start: 1.25rem;
   margin: 0.75rem 0;
 }
 
 .prose-summary ul li {
   position: relative;
-  padding-right: 1rem;
+  padding-inline-start: 1rem;
   margin-bottom: 0.5rem;
   font-size: 0.9375rem;
   line-height: 1.8;
@@ -218,7 +218,7 @@
 .prose-summary ul li::before {
   content: "◆";
   position: absolute;
-  right: 0;
+  inset-inline-start: 0;
   color: #0d9488;
   font-size: 0.625rem;
   top: 0.55em;
@@ -227,13 +227,13 @@
 .prose-summary ol {
   list-style-type: none;
   counter-reset: arabic-counter;
-  padding-right: 1.25rem;
+  padding-inline-start: 1.25rem;
   margin: 0.75rem 0;
 }
 
 .prose-summary ol li {
   position: relative;
-  padding-right: 1.5rem;
+  padding-inline-start: 1.5rem;
   margin-bottom: 0.5rem;
   font-size: 0.9375rem;
   line-height: 1.8;
@@ -243,21 +243,20 @@
 .prose-summary ol li::before {
   content: counter(arabic-counter, arabic-indic) ".";
   position: absolute;
-  right: 0;
+  inset-inline-start: 0;
   color: #0369a1;
   font-weight: 700;
   font-size: 0.8125rem;
 }
 
 .prose-summary blockquote {
-  border-right: 4px solid #0d9488;
-  padding-right: 1rem;
+  border-inline-start: 4px solid #0d9488;
+  padding-inline-start: 1rem;
   margin: 1rem 0;
   background: #f0fdfa;
   border-radius: 0.5rem;
   padding-top: 0.75rem;
   padding-bottom: 0.75rem;
-  padding-left: 1rem;
 }
 
 .prose-summary blockquote p {
@@ -347,7 +346,7 @@
 }
 
 .dark .prose-summary blockquote {
-  border-right-color: #0d9488;
+  border-inline-start-color: #0d9488;
   background: oklch(0.20 0.03 175 / 30%);
 }
 
@@ -412,15 +411,17 @@
   background: #f0fdfa;
   color: #075985;
   font-weight: 600;
-  padding: 0.5rem 0.75rem;
+  padding-block: 0.5rem;
+  padding-inline: 0.75rem;
   border: 1px solid #bae6fd;
-  text-align: right;
+  text-align: start;
 }
 
 .prose-summary td {
-  padding: 0.5rem 0.75rem;
+  padding-block: 0.5rem;
+  padding-inline: 0.75rem;
   border: 1px solid #e5e7eb;
-  text-align: right;
+  text-align: start;
 }
 
 /* Custom scrollbar for RTL */
@@ -439,6 +440,14 @@
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 /* Hide scrollbar but keep scroll functionality */

@@ -518,3 +518,504 @@
    - Framer Motion animations (containerVariants, itemVariants, AnimatePresence for expand/collapse, layout animations)
    - Computed performance data via useMemo for efficiency
    - Props interface matches existing teacher dashboard state variables
+
+---
+Task ID: 2-b
+Agent: Chat Hardcoded Strings Fix Agent
+Task: Replace hardcoded Arabic strings in chat-section.tsx with t() translations
+
+Work Log:
+- Replaced 60+ hardcoded Arabic strings with t() calls in chat-section.tsx
+- Modified `relativeTime()` function to accept `t` and `locale` parameters (was hardcoded Arabic + 'ar-SA' locale)
+- Modified `TypingIndicator` component to accept `t` prop and use translation keys
+- Updated all 4 `relativeTime()` call sites to pass `t` and `locale` args
+- Updated `TypingIndicator` usage to pass `t` prop
+- Destructured `locale` from `useI18n()` hook in ChatSection component
+- Added 48 new translation keys to ar.ts and en.ts chat section
+- Fixed dark mode issues on TypingIndicator: added `dark:bg-sky-950/30 dark:border-sky-800` and `dark:text-sky-300`
+- Verified no `right-`/`left-` CSS positioning issues remain (file already uses `start-`/`end-`)
+- Zero remaining Arabic hardcoded strings in chat-section.tsx
+
+Stage Summary:
+- Chat section now fully supports i18n
+- All Arabic strings replaced with translation keys
+- Dark mode support added for typing indicator
+- RTL/LTR positioning already correct
+
+---
+
+Task ID: 5-b
+Agent: RTL/LTR CSS Fix Agent
+Task: Fix RTL/LTR CSS issues in CRITICAL and HIGH priority files — swap physical CSS properties for logical CSS properties
+
+**Summary**: Replaced all physical-direction CSS properties (left/right, pl/pr, text-left, etc.) with logical properties (start/end, ps/pe, text-start, etc.) across 14 component files to ensure correct layout in both Arabic (RTL) and English (LTR) modes.
+
+**Files Modified:**
+
+### PRIORITY 1 — CRITICAL (broken layout in RTL)
+
+1. **`/home/z/migo/src/components/shared/app-header.tsx`**
+   - `fixed top-0 right-0 left-0` → `fixed top-0 end-0 start-0` (header positioning)
+   - `${isRTL ? '-left-0.5' : '-right-0.5'}` → `-end-0.5` (2 instances: desktop + mobile status dots)
+   - `${isRTL ? 'items-end' : 'items-start'}` → `items-start` (name/role column alignment — Tailwind logical properties handle RTL automatically)
+
+2. **`/home/z/migo/src/components/shared/video-upload-indicator.tsx`**
+   - `fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4` → `fixed bottom-20 start-4 end-4 sm:start-auto sm:end-4`
+
+3. **`/home/z/migo/src/components/shared/install-prompt.tsx`**
+   - `fixed bottom-20 left-4 right-4 sm:left-auto sm:right-6` → `fixed bottom-20 start-4 end-4 sm:start-auto sm:end-6`
+   - `pr-2` → `pe-2`
+   - `absolute top-3 left-3` → `absolute top-3 start-3` (close button)
+
+4. **`/home/z/migo/src/components/shared/summary-view.tsx`**
+   - `absolute inset-y-0 right-0` → `absolute inset-y-0 start-0` (progress bar fill — start is correct for progress bars)
+   - `fixed bottom-20 left-4 sm:left-6` → `fixed bottom-20 start-4 sm:start-6` (scroll-to-top button)
+
+### PRIORITY 2 — Input icon positioning + text alignment
+
+5. **`/home/z/migo/src/components/shared/settings-section.tsx`**
+   - `text-left pr-10` → `text-start pe-10` (3 password fields, lines 1367/1393/1419)
+   - `absolute right-3` → `absolute end-3` (3 toggle-eye buttons, lines 1374/1400/1426)
+   - `absolute top-3 left-3` → `absolute top-3 start-3` (avatar preview close button)
+   - `absolute bottom-3 left-3` → `absolute bottom-3 start-3` (avatar preview download button)
+   - `absolute bottom-3 right-3` → `absolute bottom-3 end-3` (avatar preview change button)
+
+6. **`/home/z/migo/src/components/shared/settings-modal.tsx`**
+   - `text-left pr-10` → `text-start pe-10` (3 password fields, lines 398/424/450)
+   - `absolute right-3` → `absolute end-3` (3 toggle-eye buttons, lines 405/431/457)
+
+7. **`/home/z/migo/src/components/shared/personal-files-section.tsx`**
+   - `absolute right-3` → `absolute end-3` (Search + Mail icons, lines 2974/3027/3470/3560)
+   - `pr-10 pl-3` → `pe-10 ps-3` (input padding, lines 2980/3033/3476/3566)
+   - `absolute left-3` → `absolute start-3` (Loader2 spinners, lines 2985/3481)
+
+8. **`/home/z/migo/src/components/teacher/teacher-student-tracking-section.tsx`**
+   - `absolute right-3` → `absolute end-3` (search icon)
+   - `pr-9 pl-3` → `pe-9 ps-3` (search input padding)
+   - `pl-3 pr-8` → `ps-3 pe-8` (sort dropdown padding)
+   - `absolute right-2` → `absolute end-2` (sort arrow icon)
+   - `pr-2` → `pe-2` (2 formula text divs)
+   - `text-left` → `text-start` (5 instances: range distribution, quiz/attendance/assignment scores, overall performance)
+   - `absolute right-[15px]` → `absolute end-[15px]` (timeline line)
+   - `absolute -top-0.5 -left-0.5` → `absolute -top-0.5 -start-0.5` (pulsing dot)
+
+9. **`/home/z/migo/src/components/teacher/question-bank-section.tsx`**
+   - `absolute right-3` → `absolute end-3` (Search + Filter icons)
+   - `pr-10 pl-3` → `pe-10 ps-3` (search input + filter select padding)
+
+10. **`/home/z/migo/src/components/course/tabs/students-tab.tsx`**
+    - `absolute right-3` → `absolute end-3` (2 Search icons)
+    - `pr-9 pl-3` → `pe-9 ps-3` (2 search input paddings)
+
+11. **`/home/z/migo/src/components/course/tabs/lecture-modal.tsx`**
+    - `absolute right-3` → `absolute end-3` (Search icon)
+    - `pr-10 pl-4` → `pe-10 ps-4` (search input padding)
+
+12. **`/home/z/migo/src/components/course/tabs/chat-tab.tsx`**
+    - `pr-4 pl-12` → `pe-4 ps-12` (chat input padding)
+    - `${isOwn ? '-left-1' : '-right-1'}` → `${isOwn ? '-start-1' : '-end-1'}` (message action buttons)
+    - `${isOwn ? 'left-0' : 'right-0'}` → `${isOwn ? 'start-0' : 'end-0'}` (message action dropdown)
+
+13. **`/home/z/migo/src/components/setup/setup-wizard.tsx`**
+    - `pr-10 pl-10` → `pe-10 ps-10` (2 password inputs)
+    - `absolute right-3` → `absolute end-3` (2 password toggle-eye buttons)
+    - `absolute left-3` → `absolute start-3` (12 input icons: User, Mail, Lock×2, Building2, FileText×2, MapPin, Phone, Mail, Globe, Calendar)
+    - `absolute top-2 left-2` → `absolute top-2 start-2` (copy SQL button)
+    - `absolute -top-40 -right-40` → `absolute -top-40 -end-40` (background decoration)
+
+14. **`/home/z/migo/src/components/student/student-tracking-section.tsx`**
+    - `text-left` → `text-start` (attendance rate percentage)
+    - `absolute right-[15px]` → `absolute end-[15px]` (timeline line)
+
+**NOT changed (intentional):**
+- `left-1/2 -translate-x-1/2` patterns: These are CSS centering tricks (position at 50% then translate back 50%). Direction-independent; works correctly in both RTL and LTR. Found in personal-files-section.tsx, teacher-student-tracking-section.tsx, students-tab.tsx.
+- `absolute -bottom-40 -left-40` and `absolute top-1/3 left-1/3` in setup-wizard.tsx: Purely decorative background blurred circles. Physical positioning is intentional.
+
+**Verification:**
+All 14 target files scanned for remaining physical direction properties (`right-`, `left-`, `pr-`, `pl-`, `text-left`). Only acceptable centering patterns and decorative backgrounds remain.
+
+---
+Task ID: 5-a
+Agent: Dark Mode Critical Pages Fix Agent
+Task: Fix dark mode issues in CRITICAL page-level files
+
+Files Modified:
+1. `/home/z/migo/src/app/auth/reset-password/page.tsx`
+2. `/home/z/migo/src/app/error.tsx`
+3. `/home/z/migo/src/app/offline/page.tsx`
+4. `/home/z/migo/src/app/global-error.tsx`
+5. `/home/z/migo/src/app/page.tsx` (AppErrorBoundary error fallback section)
+6. `/home/z/migo/src/components/shared/supabase-config-error.tsx`
+7. `/home/z/migo/src/components/shared/dashboard-error-boundary.tsx`
+8. `/home/z/migo/src/app/globals.css`
+
+Changes Applied (consistent pattern across all 7 TSX files):
+
+**Background gradients:**
+- `bg-gradient-to-br from-sky-50 via-white to-teal-50` → added `dark:from-slate-950 dark:via-card dark:to-teal-950`
+- `bg-gradient-to-b from-slate-50 via-white to-sky-50/30` → added `dark:from-slate-950 dark:via-card dark:to-sky-950/30`
+
+**Background decoration blobs:**
+- `bg-sky-100/40` → added `dark:bg-sky-900/20`
+- `bg-teal-100/40` → added `dark:bg-teal-900/20`
+
+**Card containers:**
+- `bg-white/90` → added `dark:bg-card/90`
+- `bg-white` (standalone) → added `dark:bg-card`
+
+**Borders:**
+- `border-sky-100/50` → added `dark:border-border`
+- `border-gray-200` → added `dark:border-border`
+- `border-red-200` → added `dark:border-red-800`
+- `border-amber-200` (in supabase-config-error) → kept as-is (amber styling)
+
+**Text colors:**
+- `text-gray-900` → added `dark:text-foreground`
+- `text-gray-700` → added `dark:text-foreground`
+- `text-gray-500` → added `dark:text-muted-foreground`
+- `text-gray-400` → added `dark:text-muted-foreground`
+- `text-sky-800` → added `dark:text-sky-300`
+- `text-red-600` → added `dark:text-red-400`
+
+**Input fields:**
+- `bg-gray-50/50` → added `dark:bg-input/50`
+- `border-gray-200` (input) → added `dark:border-border`
+- `bg-gray-200` (strength bar empty) → added `dark:bg-gray-700`
+
+**Interactive states:**
+- `hover:text-gray-600` → added `dark:hover:text-foreground`
+- `hover:bg-gray-50` → added `dark:hover:bg-muted/50`
+- `active:bg-gray-100` → added `dark:active:bg-muted`
+- `hover:bg-red-50` → added `dark:hover:bg-red-950/50`
+- `active:bg-red-100` → added `dark:active:bg-red-950`
+
+**globals.css (scrollbar dark mode):**
+- Added `.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }`
+- Added `.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }`
+
+No functionality changes — only dark: variant Tailwind classes added.
+
+---
+
+Task ID: 6-a
+Agent: Dark Mode Quiz + Files Fix Agent
+Task: Fix dark mode issues in quiz-view.tsx and personal-files-section.tsx
+
+**Files Modified:**
+1. `/home/z/migo/src/components/shared/quiz-view.tsx` (~199 dark: variants added)
+2. `/home/z/migo/src/components/shared/personal-files-section.tsx` (~120 dark: variants added)
+
+**Both files had ZERO `dark:` variants before this fix.**
+
+### quiz-view.tsx Changes:
+
+**Border patterns:**
+- `border-sky-300` → `border-sky-300 dark:border-sky-800` (7 instances)
+- `border-sky-200` → `border-sky-200 dark:border-sky-800` (9 instances)
+- `border-teal-300` → `border-teal-300 dark:border-teal-800` (1 instance)
+- `border-teal-200` → `border-teal-200 dark:border-teal-800` (1 instance)
+- `border-amber-300` → `border-amber-300 dark:border-amber-800` (1 instance)
+- `border-rose-300` → `border-rose-300 dark:border-rose-800` (1 instance)
+- `border-rose-200` → `border-rose-200 dark:border-rose-800` (1 instance)
+- `border-rose-100` → `border-rose-100 dark:border-rose-900` (1 instance)
+- `border-emerald-200` → `border-emerald-200 dark:border-emerald-800` (1 instance)
+- `border-sky-400` → `border-sky-400 dark:border-sky-600` (PAIR_COLORS)
+- `border-teal-400` → `border-teal-400 dark:border-teal-600` (PAIR_COLORS)
+- `border-amber-400` → `border-amber-400 dark:border-amber-600` (PAIR_COLORS)
+- `border-rose-400` → `border-rose-400 dark:border-rose-600` (PAIR_COLORS)
+- `border-cyan-400` → `border-cyan-400 dark:border-cyan-600` (PAIR_COLORS)
+- `hover:border-sky-400` → `hover:border-sky-400 dark:hover:border-sky-600` (3 btnClass instances)
+- `hover:border-teal-400` → `hover:border-teal-400 dark:hover:border-teal-600` (1 btnClass instance)
+
+**Background patterns:**
+- `bg-sky-100` → `bg-sky-100 dark:bg-sky-900/50` (11 instances, including PAIR_COLORS and scoreBg)
+- `bg-sky-50` → `bg-sky-50 dark:bg-sky-950/30` (12 instances, including btnClass, pulse animations, badges)
+- `bg-sky-50/50` → `hover:bg-sky-50/50 dark:hover:bg-sky-950/30` (3 btnClass instances)
+- `bg-teal-100` → `bg-teal-100 dark:bg-teal-900/50` (2 instances + PAIR_COLORS)
+- `bg-teal-50` → `bg-teal-50 dark:bg-teal-950/30` (2 btnClass instances)
+- `hover:bg-teal-50/50` → `hover:bg-teal-50/50 dark:hover:bg-teal-950/30` (1 instance)
+- `bg-amber-100` → `bg-amber-100 dark:bg-amber-900/50` (3 instances + PAIR_COLORS + scoreBg)
+- `hover:bg-amber-50` → `hover:bg-amber-50 dark:hover:bg-amber-950/30` (1 instance)
+- `bg-rose-100` → `bg-rose-100 dark:bg-rose-900/50` (5 instances + PAIR_COLORS + scoreBg)
+- `bg-rose-50` → `bg-rose-50 dark:bg-rose-950/30` (5 instances)
+- `bg-rose-50/50` → `bg-rose-50/50 dark:bg-rose-950/20` (1 instance)
+- `bg-rose-200` → `bg-rose-200 dark:bg-rose-800` (1 instance)
+- `bg-sky-200` → `bg-sky-200 dark:bg-sky-800` (1 instance)
+- `bg-emerald-50` → `bg-emerald-50 dark:bg-emerald-950/30` (1 instance)
+- `bg-white` → `bg-white dark:bg-card` (8 instances: cards, btnClass, matching items)
+- `bg-sky-700` → `bg-sky-700 dark:bg-sky-600` (3 button instances)
+
+**Text color patterns:**
+- `text-sky-800` → `text-sky-800 dark:text-sky-200` (26 instances: buttons, labels, scores, matching items)
+- `text-sky-700` → `text-sky-700 dark:text-sky-300` (5 instances: icons, labels)
+- `text-sky-600` → kept as-is (badge colors, fine in dark)
+- `text-teal-700` → `text-teal-700 dark:text-teal-300` (6 instances + PAIR_COLORS)
+- `text-amber-700` → `text-amber-700 dark:text-amber-300` (3 instances + PAIR_COLORS)
+- `text-amber-600` → `text-amber-600 dark:text-amber-400` (2 instances: icons)
+- `text-rose-700` → `text-rose-700 dark:text-rose-300` (9 instances)
+- `text-rose-600` → `text-rose-600 dark:text-rose-400` (7 instances: icons, error text)
+- `text-rose-800` → `text-rose-800 dark:text-rose-200` (1 instance: explanation text)
+- `text-emerald-700` → `text-emerald-700 dark:text-emerald-300` (1 instance)
+
+**Ring patterns:**
+- `ring-sky-300` → `ring-sky-300 dark:ring-sky-700` (3 instances + PAIR_COLORS)
+- `ring-teal-300` → `ring-teal-300 dark:ring-teal-700` (1 instance + PAIR_COLORS)
+- `ring-amber-300` → `ring-amber-300 dark:ring-amber-700` (PAIR_COLORS)
+- `ring-rose-300` → `ring-rose-300 dark:ring-rose-700` (PAIR_COLORS)
+- `ring-cyan-300` → `ring-cyan-300 dark:ring-cyan-700` (PAIR_COLORS)
+- `ring-sky-200` → `ring-sky-200 dark:ring-sky-800` (scoreRing)
+- `ring-amber-200` → `ring-amber-200 dark:ring-amber-800` (scoreRing)
+- `ring-rose-200` → `ring-rose-200 dark:ring-rose-800` (scoreRing)
+
+**Hover/interactive patterns:**
+- `hover:bg-sky-50` → `hover:bg-sky-50 dark:hover:bg-sky-950/30` (5 button instances)
+- `hover:bg-rose-200` → `hover:bg-rose-200 dark:hover:bg-rose-900/50` (2 remove-button instances)
+- `hover:bg-sky-800` → `hover:bg-sky-800 dark:hover:bg-sky-500` (3 primary button instances)
+
+**PAIR_COLORS constant (line 1878-1885):**
+- Added dark variants to all 6 color entries: bg, border, text, ring properties all received appropriate `dark:` variants
+
+**Progress bar:**
+- `bg-sky-100 [&>div]:bg-sky-700` → `bg-sky-100 dark:bg-sky-900/50 [&>div]:bg-sky-700 dark:[&>div]:bg-sky-500`
+
+**Focus ring:**
+- `focus:border-sky-600 focus:ring-sky-600/20` → `focus:border-sky-600 dark:focus:border-sky-500 focus:ring-sky-600/20`
+
+### personal-files-section.tsx Changes:
+
+**Border patterns:**
+- `border-sky-300` → `border-sky-300 dark:border-sky-800` (3 instances: dashed borders)
+- `border-sky-200` → `border-sky-200 dark:border-sky-800` (1 instance)
+- `border-gray-300` → `border-gray-300 dark:border-border` (2 instances: select dropdowns)
+- `border-amber-300` → `border-amber-300 dark:border-amber-800` (2 instances: upload items)
+- `border-rose-200` → `border-rose-200 dark:border-rose-800` (1 instance)
+- `hover:border-sky-400` → `hover:border-sky-400 dark:hover:border-sky-600` (1 instance)
+
+**Background patterns:**
+- `bg-sky-50` → `bg-sky-50 dark:bg-sky-950/30` (8 instances: buttons, badges, selected items)
+- `bg-sky-50/30` → `bg-sky-50/30 dark:bg-sky-950/20` (3 instances: dashed border areas)
+- `bg-sky-50/50` → `hover:bg-sky-50/50 dark:hover:bg-sky-950/30` (1 instance)
+- `bg-sky-50/70` → `active:bg-sky-50/70 dark:active:bg-sky-950/40` (1 instance)
+- `bg-sky-100` → `bg-sky-100 dark:bg-sky-900/50` (4 instances: icon circles, filter badges)
+- `hover:bg-sky-100` → `hover:bg-sky-100 dark:hover:bg-sky-900/50` (1 instance)
+- `bg-amber-50` → `bg-amber-50 dark:bg-amber-950/30` (2 instances: private filter, review state)
+- `bg-amber-50/40` → `bg-amber-50/40 dark:bg-amber-950/30` (1 instance: duplicate upload)
+- `bg-amber-50/50` → `bg-amber-50/50 dark:bg-amber-950/30` (1 instance: error input)
+- `bg-rose-50/30` → `bg-rose-50/30 dark:bg-rose-950/20` (1 instance: failed upload)
+- `hover:bg-rose-50` → `hover:bg-rose-50 dark:hover:bg-rose-950/30` (3 instances: remove buttons)
+- `focus:bg-rose-50` → `focus:bg-rose-50 dark:focus:bg-rose-950/30` (2 instances)
+- `bg-white/20` → `bg-white/20 dark:bg-muted/20` (1 instance)
+
+**Text color patterns:**
+- `text-sky-800` → `text-sky-800 dark:text-sky-200` (8 instances)
+- `text-sky-700` → `text-sky-700 dark:text-sky-300` (18 instances: icons, labels, focus rings)
+- `text-sky-600` → `text-sky-600 dark:text-sky-400` (4 instances: icons)
+- `hover:text-sky-700` → `hover:text-sky-700 dark:hover:text-sky-300` (3 instances)
+- `text-amber-700` → `text-amber-700 dark:text-amber-300` (2 instances: filter badges)
+- `text-amber-600` → `text-amber-600 dark:text-amber-400` (3 instances: duplicate name errors)
+- `text-amber-500` → `text-amber-500 dark:text-amber-400` (3 instances: warning icons)
+- `text-rose-600` → `text-rose-600 dark:text-rose-400` (2 instances: delete button, filter)
+- `text-rose-500` → `text-rose-500 dark:text-rose-400` (3 instances: remove icons)
+- `hover:text-rose-500` → `hover:text-rose-500 dark:hover:text-rose-400` (2 instances)
+
+**Focus patterns:**
+- `focus:ring-sky-600` → `focus:ring-sky-600 dark:focus:ring-sky-500` (2 instances)
+- `focus:ring-amber-500 focus:border-amber-500` → `focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-amber-500 dark:focus:border-amber-400` (1 instance)
+
+**Verification:**
+- TypeScript compilation: 0 errors in modified files
+- ESLint: 0 new errors in modified files (5 pre-existing warnings in quiz-view.tsx)
+- No functionality changes — only `dark:` variant Tailwind classes added
+
+---
+
+Task ID: 6-b
+Agent: Dark Mode Assignments+Attendance+Chat+Tracking Fix Agent
+Task: Fix dark mode issues in multiple component files — add missing `dark:` variants for scattered light-only Tailwind classes
+
+**Summary**: Added missing `dark:` variant Tailwind classes across 6 component files to ensure proper appearance in dark mode. All changes are CSS-only — no logic or functionality changes.
+
+**Files Modified:**
+
+### 1. `/home/z/migo/src/components/shared/assignments-section.tsx` (~25 fixes)
+
+- `text-sky-700` → `text-sky-700 dark:text-sky-300` (icons, labels, conditional classes)
+- `text-amber-600` → `text-amber-600 dark:text-amber-400` (conditional countdown color)
+- `text-rose-600` → `text-rose-600 dark:text-rose-400` (conditional countdown color)
+- `bg-sky-100` → `bg-sky-100 dark:bg-sky-900/50` (icon backgrounds)
+- `bg-sky-50` → `bg-sky-50 dark:bg-sky-950/30` (tab active state, file selection, drag-drop)
+- `bg-sky-50/50` → `bg-sky-50/50 dark:bg-sky-950/30` (drag-drop area)
+- `bg-sky-50/30` → `bg-sky-50/30 dark:bg-sky-950/30` (empty states)
+- `text-sky-800` → `text-sky-800 dark:text-sky-200` (tab text, selected files)
+- `hover:bg-sky-50` → `hover:bg-sky-50 dark:hover:bg-sky-950/30` (edit button)
+- `hover:bg-rose-50` → `hover:bg-rose-50 dark:hover:bg-rose-950/30` (delete/remove buttons)
+- `hover:text-sky-800` → `hover:text-sky-800 dark:hover:text-sky-200` (links)
+- `hover:border-sky-300` → `hover:border-sky-300 dark:hover:border-sky-800` (drag-drop border)
+- `border-sky-300` → `border-sky-300 dark:border-sky-800` (checkbox, empty states)
+
+### 2. `/home/z/migo/src/components/shared/attendance-section.tsx` (~20 fixes)
+
+- `text-sky-700` → `text-sky-700 dark:text-sky-300` (icons, labels)
+- `text-sky-800` → `text-sky-800 dark:text-sky-200` (session titles, counts)
+- `text-sky-700/80` → `text-sky-700/80 dark:text-sky-300/80` (check-in time)
+- `bg-sky-100` → `bg-sky-100 dark:bg-sky-900/50` (icon circles, badge backgrounds)
+- `bg-sky-100 text-sky-800` → `bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200` (count badges)
+- `bg-sky-50/50` → `bg-sky-50/50 dark:bg-sky-950/30` (active session panels)
+- `bg-sky-50/30` → `bg-sky-50/30 dark:bg-sky-950/30` (empty states)
+- `hover:bg-sky-50` → `hover:bg-sky-50 dark:hover:bg-sky-950/30` (action buttons)
+- `hover:text-sky-700` → `hover:text-sky-700 dark:hover:text-sky-300` (action buttons)
+- `hover:text-sky-800` → `hover:text-sky-800 dark:hover:text-sky-200` (export link)
+- `border-sky-300` → `border-sky-300 dark:border-sky-800` (session panels, empty states)
+- `border-sky-200` → `border-sky-200 dark:border-sky-800` (check-in success card)
+
+### 3. `/home/z/migo/src/components/shared/chat-section.tsx` (~15 fixes)
+
+- `text-sky-700` → `text-sky-700 dark:text-sky-300` (icons, links, status text)
+- `text-sky-800` → `text-sky-800 dark:text-sky-200` (group avatars, conversation titles)
+- `hover:text-sky-800` → `hover:text-sky-800 dark:hover:text-sky-200` (retry link)
+- `bg-sky-50` → `bg-sky-50 dark:bg-sky-950/30` (empty states, active conversation)
+- `bg-sky-100` → `bg-sky-100 dark:bg-sky-900/50` (avatar backgrounds)
+- `bg-sky-100 text-sky-800` → `bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200` (avatar circles)
+- `hover:bg-sky-50` → `hover:bg-sky-50 dark:hover:bg-sky-950/30` (unarchive button)
+- `hover:text-sky-700` → `hover:text-sky-700 dark:hover:text-sky-300` (unarchive button)
+- `bg-gray-300` → `bg-gray-300 dark:bg-gray-600` (offline status dot)
+
+### 4. `/home/z/migo/src/components/teacher/teacher-student-tracking-section.tsx` (~25 fixes)
+
+- `text-gray-900` → `text-gray-900 dark:text-foreground` (headings, labels)
+- `text-gray-700` → `text-gray-700 dark:text-foreground` (bold values)
+- `text-gray-600` → `text-gray-600 dark:text-muted-foreground` (labels)
+- `text-gray-500` → `text-gray-500 dark:text-muted-foreground` (tab labels, sub-labels)
+- `text-gray-400` → `text-gray-400 dark:text-muted-foreground` (inactive counts, efficiency labels)
+- `text-sky-700` → `text-sky-700 dark:text-sky-300` (BarChart icon, quiz labels)
+- `hover:text-sky-700` → `hover:text-sky-700 dark:hover:text-sky-300` (view all link)
+- `stroke="#f1f5f9"` → `stroke="var(--muted)"` (SVG background circle)
+- `stroke="#e2e8f0"` → `stroke="var(--border)"` (SVG class average indicator)
+- Fixed duplicate `dark:` variants introduced during bulk replace (e.g., `dark:text-foreground dark:text-gray-100` → `dark:text-gray-100`)
+
+### 5. `/home/z/migo/src/components/student/student-tracking-section.tsx` (~15 fixes)
+
+- `text-gray-900` → `text-gray-900 dark:text-foreground` (headings, labels)
+- `text-sky-800` → `text-sky-800 dark:text-sky-200` (circular progress, stat values)
+- `text-sky-700` → `text-sky-700 dark:text-sky-300` (icon, progress percentages)
+- `bg-sky-50/50` → `bg-sky-50/50 dark:bg-sky-950/30` (stat card backgrounds)
+- `bg-sky-50` → `bg-sky-50 dark:bg-sky-950/30` (timeline icon bg, quiz badge)
+- `ring-sky-100` → `ring-sky-100 dark:ring-sky-800` (timeline icon ring)
+- `border-sky-100` → `border-sky-100 dark:border-sky-800` (quiz badge border)
+
+### 6. `/home/z/migo/src/components/teacher/teacher-dashboard.tsx` (~15 fixes)
+
+- `text-sky-700` → `text-sky-700 dark:text-sky-300` (icons, links)
+- `hover:text-sky-800` → `hover:text-sky-800 dark:hover:text-sky-200` (links)
+- `hover:bg-sky-50` → `hover:bg-sky-50 dark:hover:bg-sky-950/30` (view answers button)
+- `hover:bg-white/60` → `hover:bg-white/60 dark:hover:bg-muted/60` (close panel button)
+- Fixed duplicate `dark:text-sky-300 dark:text-sky-300` in `pctColorClass` → `dark:text-sky-300`
+
+**Verification**: After all changes, used `rg --pcre2` to verify zero remaining light-only patterns (text-sky-700, text-sky-800, bg-sky-100, bg-sky-50, text-gray-900, etc.) without corresponding `dark:` variants across all 6 files. All instances now have proper dark mode counterparts.
+
+---
+
+Task ID: 6-c
+Agent: Dark Mode + RTL Miscellaneous Fix Agent
+Task: Fix dark mode and RTL issues in miscellaneous component files
+
+**Summary**: Added dark mode variants to 9 component files and replaced `text-right` with `text-end` in 22 files, plus fixed ~30 RTL positioning issues (left/right → start/end, mr/ml → me/ms, file:mr → file:me).
+
+## Part A: Dark Mode Fixes
+
+### 1. `shared/subjects-section.tsx` (6 violations fixed)
+- `text-sky-700` → `text-sky-700 dark:text-sky-300` (Loader2 icon, BookOpen icon, Check icon)
+- `border-dashed border-sky-200 bg-sky-50/50` → added `dark:border-sky-800 dark:from-sky-950/30`
+- `bg-sky-100` → `bg-sky-100 dark:bg-sky-900/50`
+- `bg-sky-50 border-sky-200 text-sky-800` → added `dark:bg-sky-950/30 dark:border-sky-800 dark:text-sky-200`
+- `bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100` → added `dark:bg-muted/50 dark:border-border dark:text-muted-foreground dark:hover:bg-muted`
+
+### 2. `shared/notification-bell.tsx` (4+ violations fixed)
+- `text-sky-700` (Info icon) → `text-sky-700 dark:text-sky-300`
+- `text-sky-700 hover:bg-sky-50` → added `dark:text-sky-300 dark:hover:bg-sky-950/30`
+- `text-rose-600 hover:bg-rose-50` → added `dark:text-rose-400 dark:hover:bg-rose-950/30`
+- `bg-sky-50/30` → `bg-sky-50/30 dark:bg-sky-950/20`
+- `bg-sky-100` → `bg-sky-100 dark:bg-sky-900/50`
+
+### 3. `shared/announcements-banner.tsx` (6 violations fixed)
+- Info type: `bg-gray-50 border-gray-200` → added `dark:bg-muted/50 dark:border-border`
+- Info icon: `text-gray-600` → added `dark:text-gray-400`
+- Info title: `text-gray-700` → added `dark:text-gray-300`
+- Sky type: `bg-sky-50 border-sky-200` → added `dark:bg-sky-950/30 dark:border-sky-800`
+- Sky title: `text-sky-700` → added `dark:text-sky-300`
+- `hover:bg-white/50` → added `dark:hover:bg-white/10`
+
+### 4. `shared/user-avatar.tsx` (1 violation fixed)
+- `bg-gradient-to-br from-sky-100 to-teal-100 text-sky-800` → added `dark:from-sky-900/50 dark:to-teal-900/50 dark:text-sky-200`
+
+### 5. `shared/settings-modal.tsx` (2 instances fixed)
+- `bg-sky-100 text-sky-800 border-sky-200` → added `dark:bg-sky-900/50 dark:text-sky-200 dark:border-sky-800` (role badge + avatar fallback)
+
+### 6. `course/tabs/student-profile-modal.tsx` (~12 violations fixed)
+- `text-sky-700` → added `dark:text-sky-300` (4 instances: User, Loader2, Award×2, CheckCircle2)
+- `bg-sky-50/50` → added `dark:bg-sky-950/30`
+- `text-sky-800` → added `dark:text-sky-200` (percentage, score, submission score)
+- `bg-sky-100 text-sky-800` → added `dark:bg-sky-900/50 dark:text-sky-200` (2 badge instances)
+
+### 7. `course/tabs/teams-tab.tsx` (~6 violations fixed)
+- `text-sky-700` → added `dark:text-sky-300` (7 instances: Loader2, Users, FileSpreadsheet, CheckSquare×2, BarChart3)
+- `text-sky-700 hover:text-sky-800` → added `dark:text-sky-300 dark:hover:text-sky-200`
+
+### 8. `admin/admin-dashboard.tsx` (key violations fixed)
+- `bg-sky-50/30` already had `dark:bg-sky-950/30` (2 instances)
+- Inline styles with `#f0f9ff` and `#0369a1` — added TODO comments (2 instances)
+- `stroke="#e5e7eb"` (CartesianGrid) → `stroke="var(--border)"` (2 instances)
+- `fill: '#6b7280'` (tick text) → `fill: 'var(--muted-foreground)'` (4 instances)
+- `border: '1px solid #e5e7eb'` (Tooltip) → `border: '1px solid var(--border)'` (2 instances)
+
+### 9. `student/student-dashboard.tsx` (1 violation fixed)
+- `hover:bg-white/60` → added `dark:hover:bg-muted/60`
+
+## Part B: RTL/LTR Fixes
+
+### `text-right` → `text-end` (22 files, ~58 instances)
+All instances of `text-right` replaced with `text-end` in:
+1. `shared/chat-section.tsx` (~13 instances)
+2. `teacher/teacher-dashboard.tsx` (~8 instances)
+3. `student/student-dashboard.tsx` (~4 instances)
+4. `admin/admin-dashboard.tsx` (~5 instances)
+5. `course/tabs/exams-tab.tsx` (~6 instances)
+6. `shared/assignments-section.tsx` (~2 instances)
+7. `shared/settings-section.tsx` (~5 instances)
+8. `shared/settings-modal.tsx` (~7 instances)
+9. `shared/quiz-settings-modal.tsx` (~3 instances)
+10. `course/tabs/chat-tab.tsx` (~3 instances)
+11. `course/tabs/assignments-tab.tsx` (~2 instances)
+12. `course/tabs/lecture-modal.tsx` (~2 instances)
+13. `course/tabs/teams-tab.tsx` (~1 instance)
+14. `teacher/teacher-summaries-section.tsx` (~1 instance)
+15. `teacher/question-bank-section.tsx` (~1 instance)
+16. `shared/quiz-view.tsx` (~1 instance)
+17. `shared/personal-files-section.tsx` (~2 instances)
+18. `shared/user-profile-page.tsx` (~1 instance)
+19. `shared/video-upload-indicator.tsx` (~1 instance)
+20. `shared/supabase-config-error.tsx` (~2 instances)
+21. `shared/section-error-boundary.tsx` (~1 instance)
+22. `teacher/teacher-student-tracking-section.tsx` (~1 instance)
+
+### Additional RTL Positioning Fixes
+
+- `course/tabs/videos-tab.tsx`: `file:mr-3` → `file:me-3` (2 instances); `bottom-2 left-2` → `bottom-2 start-2`
+- `shared/subjects-section.tsx`: `file:mr-3` → `file:me-3`
+- `reports/reports-section.tsx`: `ml-1.5` → `ms-1.5` (3 instances); `absolute top-0.5 left-0.5` → `absolute top-0.5 start-0.5`
+- `reports/report-button.tsx`: `absolute top-0.5 left-0.5` → `absolute top-0.5 start-0.5`
+- `student/student-dashboard.tsx`: `absolute top-3 left-3` → `absolute top-3 start-3` (4 instances); `left-12` → `start-12`
+- `teacher/teacher-summaries-section.tsx`: `absolute top-3 left-3` → `absolute top-3 start-3`
+- `shared/all-videos-section.tsx`: `bottom-2 left-2` → `bottom-2 start-2`; `top-2 right-2` → `top-2 end-2`
+- `course/tabs/assignments-tab.tsx`: `top-0 right-0 left-0` → `top-0 end-0 start-0`; `top-3 left-3` → `top-3 start-3`
+- `shared/assignments-section.tsx`: same pattern (2 instances)
+- `course/tabs/lectures-tab.tsx`: `top-4 left-4` → `top-4 start-4`; `-top-2 -right-2` → `-top-2 -end-2`; `bg-white` → `bg-white dark:bg-card`
+- `course/tabs/exams-tab.tsx`: `sm:absolute sm:top-3 sm:left-3` → `sm:absolute sm:top-3 sm:start-3`
+- `shared/notification-bell.tsx`: `absolute -top-0.5 -right-0.5` → `absolute -top-0.5 -end-0.5`
+- `shared/notification-permission.tsx`: same pattern
+- `shared/quiz-view.tsx`: `absolute -top-1.5 -right-1.5` → `-end-1.5`; `absolute -top-1.5 -left-1.5` → `-start-1.5`
+- `shared/user-profile-page.tsx`: `top-4 right-4` → `end-4`; `bottom-0 right-0` → `bottom-0 end-0`; `-bottom-16 right-6` → `-bottom-16 end-6` (+ `sm:right-10` → `sm:end-10`); `bottom-2 left-2` → `bottom-2 start-2`; `top-2 left-2` → `top-2 start-2`
+- `shared/dashboard-error-boundary.tsx`: `-right-40` → `-end-40`; `-left-40` → `-start-40`
+- `shared/supabase-config-error.tsx`: same pattern
+
+**Verification**: Zero `text-right` instances remain in the 22 target files.

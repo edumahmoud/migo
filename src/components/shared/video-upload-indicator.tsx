@@ -49,7 +49,7 @@ export default function VideoUploadIndicator() {
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 50 }}
-        className="fixed bottom-20 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 sm:bottom-6 z-[60] pointer-events-none"
+        className="fixed bottom-20 start-4 end-4 sm:start-auto sm:end-4 sm:w-80 sm:bottom-6 z-[60] pointer-events-none"
         dir={dir}
       >
         <div className="pointer-events-auto rounded-xl border bg-background/95 backdrop-blur-md shadow-xl overflow-hidden">
@@ -72,7 +72,7 @@ export default function VideoUploadIndicator() {
             </div>
 
             {/* Summary */}
-            <div className="flex-1 min-w-0 text-right">
+            <div className="flex-1 min-w-0 text-end">
               <p className="text-sm font-medium text-foreground">
                 {statusText}
               </p>

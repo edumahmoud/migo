@@ -948,7 +948,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
 
           {/* Message actions for own messages */}
           {isOwn && !isDeleted && !isEditing && (
-            <div className={`absolute ${isOwn ? '-left-1' : '-right-1'} top-0 opacity-0 group-hover:opacity-100 transition-opacity`}>
+            <div className={`absolute ${isOwn ? '-start-1' : '-end-1'} top-0 opacity-0 group-hover:opacity-100 transition-opacity`}>
               <div className="relative" ref={isMenuOpen ? messageMenuRef : null}>
                 <button
                   onClick={(e) => {
@@ -967,18 +967,18 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9, pointerEvents: 'none' as const }}
                       transition={{ duration: 0.15 }}
-                      className={`absolute ${isOwn ? 'left-0' : 'right-0'} top-7 z-20 bg-card border rounded-xl shadow-lg py-1 min-w-[120px]`}
+                      className={`absolute ${isOwn ? 'start-0' : 'end-0'} top-7 z-20 bg-card border rounded-xl shadow-lg py-1 min-w-[120px]`}
                     >
                       <button
                         onClick={() => handleStartEdit(msg)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-right"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-end"
                       >
                         <Pencil className="h-3.5 w-3.5" />
                         {t('common.edit')}
                       </button>
                       <button
                         onClick={() => handleDeleteMessage(msg.id)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-right"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-end"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                         {t('common.delete')}
@@ -1027,7 +1027,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           </p>
           {setupInfo ? (
             <div className="mt-5 max-w-sm w-full space-y-3">
-              <div className="rounded-xl border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 p-4 text-right">
+              <div className="rounded-xl border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 p-4 text-end">
                 <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">{t('chat.chatTablesNotExist')}</p>
                 <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">{t('chat.chatTablesHint')}</p>
                 {setupInfo.steps && (
@@ -1168,7 +1168,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               }
             }}
             placeholder={t('chat.placeholder')}
-            className="w-full rounded-xl border bg-background px-4 py-3 pr-4 pl-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
+            className="w-full rounded-xl border bg-background px-4 py-3 pe-4 ps-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
             dir={dir}
             disabled={sending}
           />

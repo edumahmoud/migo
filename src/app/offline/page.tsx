@@ -15,11 +15,11 @@ export default function OfflinePage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={dir}>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/20 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 dark:bg-teal-900/20 rounded-full blur-3xl" />
       </div>
 
       <motion.div
@@ -28,7 +28,7 @@ export default function OfflinePage() {
         transition={{ duration: 0.5, ease: 'easeOut' as const }}
         className="relative z-10 w-full max-w-md mx-auto"
       >
-        <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center">
+        <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center">
           {/* Brand icon */}
           <motion.div
             initial={{ scale: 0 }}
@@ -54,7 +54,7 @@ export default function OfflinePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
-            className="text-xl font-bold text-gray-900 mb-2"
+            className="text-xl font-bold text-gray-900 dark:text-foreground mb-2"
           >
             {t('offline.noConnection')}
           </motion.h1>
@@ -64,7 +64,7 @@ export default function OfflinePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="text-sm text-gray-500 mb-6 leading-relaxed"
+            className="text-sm text-gray-500 dark:text-muted-foreground mb-6 leading-relaxed"
           >
             {t('offline.description')}
           </motion.p>
@@ -86,7 +86,7 @@ export default function OfflinePage() {
 
             <button
               onClick={handleExit}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-red-200 px-6 py-2.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 active:bg-red-100 transition-all duration-200 w-full sm:w-auto"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-red-200 dark:border-red-800 px-6 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 shadow-sm hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-950 transition-all duration-200 w-full sm:w-auto"
             >
               <X className="h-4 w-4" />
               {t('common.exitApp')}
@@ -99,7 +99,7 @@ export default function OfflinePage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
-          className="text-center text-xs text-gray-400 mt-4"
+          className="text-center text-xs text-gray-400 dark:text-muted-foreground mt-4"
         >
           {t('offline.brandTagline')}
         </motion.p>

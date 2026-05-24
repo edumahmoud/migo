@@ -243,7 +243,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
                             <img src={att.url} alt={att.name} className="h-full w-full object-cover" />
                             <button
                               onClick={() => removeAttachment(i)}
-                              className="absolute top-0.5 left-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute top-0.5 start-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>

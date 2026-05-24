@@ -261,12 +261,12 @@ export default function SettingsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir={dir}>
-        <DialogHeader className="text-right">
-          <DialogTitle className="flex items-center gap-2 text-right">
+        <DialogHeader className="text-end">
+          <DialogTitle className="flex items-center gap-2 text-end">
             <Settings className="h-5 w-5 text-sky-700" />
             الإعدادات
           </DialogTitle>
-          <DialogDescription className="text-right">
+          <DialogDescription className="text-end">
             إدارة الملف الشخصي وإعدادات الحساب
           </DialogDescription>
         </DialogHeader>
@@ -297,7 +297,7 @@ export default function SettingsModal({
                       className="h-16 w-16 rounded-full object-cover border-2 border-sky-200"
                     />
                   ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-sky-800 font-bold text-lg border-2 border-sky-200">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 font-bold text-lg border-2 border-sky-200 dark:border-sky-800">
                       {initials || 'م'}
                     </div>
                   )}
@@ -341,7 +341,7 @@ export default function SettingsModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="أدخل اسمك"
-                className="text-right"
+                className="text-end"
                 disabled={isUpdating}
               />
             </div>
@@ -361,7 +361,7 @@ export default function SettingsModal({
             <div className="space-y-2">
               <Label className="text-sm text-muted-foreground">الدور</Label>
               <div>
-                <Badge className="bg-sky-100 text-sky-800 border-sky-200">
+                <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800">
                   {roleLabel}
                 </Badge>
               </div>
@@ -395,14 +395,14 @@ export default function SettingsModal({
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="أدخل كلمة المرور الحالية"
-                  className="text-left pr-10"
+                  className="text-start pe-10"
                   disabled={isChangingPassword}
                   dir="ltr"
                 />
                 <button
                   type="button"
                   onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -421,14 +421,14 @@ export default function SettingsModal({
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="أدخل كلمة المرور الجديدة"
-                  className="text-left pr-10"
+                  className="text-start pe-10"
                   disabled={isChangingPassword}
                   dir="ltr"
                 />
                 <button
                   type="button"
                   onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -447,14 +447,14 @@ export default function SettingsModal({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="أعد إدخال كلمة المرور الجديدة"
-                  className="text-left pr-10"
+                  className="text-start pe-10"
                   disabled={isChangingPassword}
                   dir="ltr"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -514,11 +514,11 @@ export default function SettingsModal({
                 </AlertDialogTrigger>
 
                 <AlertDialogContent dir={dir}>
-                  <AlertDialogHeader className="text-right">
-                    <AlertDialogTitle className="text-right">
+                  <AlertDialogHeader className="text-end">
+                    <AlertDialogTitle className="text-end">
                       تأكيد حذف الحساب
                     </AlertDialogTitle>
-                    <AlertDialogDescription className="text-right">
+                    <AlertDialogDescription className="text-end">
                       هل أنت متأكد من حذف حسابك؟ سيتم حذف جميع بياناتك بشكل نهائي ولا يمكن استرجاعها.
                     </AlertDialogDescription>
                   </AlertDialogHeader>

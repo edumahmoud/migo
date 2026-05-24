@@ -452,7 +452,7 @@ $$;`;
               navigator.clipboard.writeText(migrationSQL);
               toast.success('تم نسخ كود SQL');
             }}
-            className="absolute top-2 left-2 bg-white/20 hover:bg-white/30 text-white border-0 text-xs"
+            className="absolute top-2 start-2 bg-white/20 hover:bg-white/30 text-white border-0 text-xs"
           >
             نسخ
           </Button>
@@ -510,7 +510,7 @@ $$;`;
             disabled={creatingAccount}
             maxLength={100}
           />
-          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+          <User className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
         </div>
       </div>
 
@@ -528,7 +528,7 @@ $$;`;
             dir="ltr"
             maxLength={254}
           />
-          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+          <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
         </div>
       </div>
 
@@ -541,15 +541,15 @@ $$;`;
             placeholder="أنشئ كلمة مرور قوية"
             value={adminPassword}
             onChange={(e) => setAdminPassword(e.target.value)}
-            className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20 pr-10 pl-10"
+            className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20 pe-10 ps-10"
             disabled={creatingAccount}
             dir="ltr"
           />
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+          <Lock className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+            className="absolute end-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -578,15 +578,15 @@ $$;`;
             placeholder="أعد إدخال كلمة المرور"
             value={adminConfirmPassword}
             onChange={(e) => setAdminConfirmPassword(e.target.value)}
-            className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20 pr-10 pl-10"
+            className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20 pe-10 ps-10"
             disabled={creatingAccount}
             dir="ltr"
           />
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+          <Lock className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
           <button
             type="button"
             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
+            className="absolute end-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
           >
             {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
@@ -679,7 +679,7 @@ $$;`;
               className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
               disabled={savingInstitution}
             />
-            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+            <Building2 className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
           </div>
         </div>
 
@@ -696,7 +696,7 @@ $$;`;
               disabled={savingInstitution}
               dir="ltr"
             />
-            <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+            <FileText className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
           </div>
         </div>
 
@@ -713,7 +713,7 @@ $$;`;
               disabled={savingInstitution}
               maxLength={200}
             />
-            <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+            <FileText className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
           </div>
           <p className="text-[10px] text-sky-200/60">عبارة وصفية قصيرة تظهر بجانب اسم المؤسسة</p>
         </div>
@@ -731,7 +731,7 @@ $$;`;
                 className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
                 disabled={savingInstitution}
               />
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <MapPin className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -778,7 +778,7 @@ $$;`;
                 disabled={savingInstitution}
                 dir="ltr"
               />
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <Phone className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -793,7 +793,7 @@ $$;`;
                 disabled={savingInstitution}
                 dir="ltr"
               />
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <Mail className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             </div>
           </div>
         </div>
@@ -812,7 +812,7 @@ $$;`;
                 disabled={savingInstitution}
                 dir="ltr"
               />
-              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <Globe className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -827,7 +827,7 @@ $$;`;
                 disabled={savingInstitution}
                 dir="ltr"
               />
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+              <Calendar className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             </div>
           </div>
         </div>
@@ -933,7 +933,7 @@ $$;`;
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-800 via-teal-800 to-sky-900" dir={dir}>
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -end-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-400/10 rounded-full blur-3xl" />
         <div className="absolute top-1/3 left-1/3 w-72 h-72 bg-sky-400/10 rounded-full blur-2xl" />
       </div>

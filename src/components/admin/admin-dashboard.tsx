@@ -1398,10 +1398,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <table className="w-full">
                     <thead className="bg-muted/50 sticky top-0">
                       <tr className="text-xs text-muted-foreground">
-                        <th className="text-right font-medium p-3">{t('common.name')}</th>
-                        <th className="text-right font-medium p-3 hidden sm:table-cell">{t('common.email')}</th>
-                        <th className="text-right font-medium p-3">{t('common.role')}</th>
-                        <th className="text-right font-medium p-3 hidden md:table-cell">{t('admin.registrationDateLabel')}</th>
+                        <th className="text-end font-medium p-3">{t('common.name')}</th>
+                        <th className="text-end font-medium p-3 hidden sm:table-cell">{t('common.email')}</th>
+                        <th className="text-end font-medium p-3">{t('common.role')}</th>
+                        <th className="text-end font-medium p-3 hidden md:table-cell">{t('admin.registrationDateLabel')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -1571,13 +1571,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* Search and filter */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
             value={userSearch}
             onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
             placeholder={t("admin.searchUsers")}
-            className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
+            className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir={dir}
           />
         </div>
@@ -1646,7 +1646,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {filteredUsers.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 dark:bg-sky-950/30 py-16"
         >
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <Users className="h-8 w-8 text-sky-700 dark:text-sky-300" />
@@ -2156,23 +2156,23 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="flex flex-col sm:flex-row gap-3">
             {/* Search input */}
             <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 value={subjectSearch}
                 onChange={(e) => setSubjectSearch(e.target.value)}
                 placeholder={t("admin.searchSubjects")}
-                className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors"
+                className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors"
                 dir={dir}
               />
             </div>
             {/* Level filter */}
             <div className="relative">
-              <GraduationCap className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <GraduationCap className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <select
                 value={subjectLevelFilter}
                 onChange={(e) => setSubjectLevelFilter(e.target.value)}
-                className="w-full sm:w-auto appearance-none rounded-lg border bg-background pr-10 pl-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
+                className="w-full sm:w-auto appearance-none rounded-lg border bg-background pe-10 ps-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
                 dir={dir}
               >
                 <option value="">{t('admin.allLevels')}</option>
@@ -2183,11 +2183,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             </div>
             {/* Sub-level filter */}
             <div className="relative">
-              <Calendar className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <Calendar className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <select
                 value={subjectSubLevelFilter}
                 onChange={(e) => setSubjectSubLevelFilter(e.target.value)}
-                className="w-full sm:w-auto appearance-none rounded-lg border bg-background pr-10 pl-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
+                className="w-full sm:w-auto appearance-none rounded-lg border bg-background pe-10 ps-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
                 dir={dir}
               >
                 <option value="">{t('admin.allSublevels')}</option>
@@ -2280,7 +2280,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="flex items-start gap-3 mb-3">
                     <div
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-110"
-                      style={{ backgroundColor: subject.color ? `${subject.color}20` : '#f0f9ff', color: subject.color || '#0369a1' }}
+                      style={{ backgroundColor: subject.color ? `${subject.color}20` : '#f0f9ff', color: subject.color || '#0369a1' }} // TODO: Replace #f0f9ff and #0369a1 with CSS variables for dark mode
                     >
                       <BookOpen className="h-5 w-5" />
                     </div>
@@ -2389,7 +2389,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <div className="flex items-center gap-3">
                   <div
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-                    style={{ backgroundColor: selectedSubject.color ? `${selectedSubject.color}20` : '#f0f9ff', color: selectedSubject.color || '#0369a1' }}
+                    style={{ backgroundColor: selectedSubject.color ? `${selectedSubject.color}20` : '#f0f9ff', color: selectedSubject.color || '#0369a1' }} // TODO: Replace #f0f9ff and #0369a1 with CSS variables for dark mode
                   >
                     <BookOpen className="h-5 w-5" />
                   </div>
@@ -2904,7 +2904,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {announcements.length === 0 ? (
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 py-16"
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 bg-sky-50/30 dark:bg-sky-950/30 py-16"
           >
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
               <Megaphone className="h-8 w-8 text-sky-700 dark:text-sky-300" />
@@ -3119,7 +3119,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Active Lectures */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-sky-500 to-sky-700" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-sky-500 to-sky-700" />
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
                 <Radio className="h-5 w-5 text-sky-700 dark:text-sky-300" />
@@ -3143,7 +3143,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Active Users */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-teal-400 to-teal-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-teal-400 to-teal-600" />
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 dark:bg-teal-900/50">
                 <Activity className="h-5 w-5 text-teal-600 dark:text-teal-400" />
@@ -3169,7 +3169,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* New Registrations */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-amber-400 to-amber-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-amber-400 to-amber-600" />
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/50">
                 <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -3195,7 +3195,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Attendance Sessions */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-700" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-700" />
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
                 <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
@@ -3221,7 +3221,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Quizzes Taken */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-rose-400 to-rose-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-rose-400 to-rose-600" />
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-900/50">
                 <Award className="h-5 w-5 text-rose-600 dark:text-rose-400" />
@@ -3247,7 +3247,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Lectures Created */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-600" />
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
                 <ClipboardList className="h-5 w-5 text-sky-600 dark:text-sky-400" />
@@ -3273,7 +3273,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Assignments Created */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-orange-400 to-orange-600" />
+            <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-orange-400 to-orange-600" />
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100">
                 <ClipboardList className="h-5 w-5 text-orange-600" />
@@ -3331,10 +3331,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <div className="h-72 min-h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsBarChart data={usageStats.chartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis
                       dataKey="date"
-                      tick={{ fontSize: 10, fill: '#6b7280' }}
+                      tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                       tickLine={false}
                       tickFormatter={(val: string) => {
                         const d = new Date(val);
@@ -3343,14 +3343,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       interval={4}
                     />
                     <YAxis
-                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                       tickLine={false}
                       allowDecimals={false}
                     />
                     <Tooltip
                       contentStyle={{
                         borderRadius: '8px',
-                        border: '1px solid #e5e7eb',
+                        border: '1px solid var(--border)',
                         fontSize: '12px',
                         direction: 'rtl',
                       }}
@@ -3389,22 +3389,22 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <div className="h-72 min-h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={usageStats.registrationTrends} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis
                       dataKey="label"
-                      tick={{ fontSize: 10, fill: '#6b7280' }}
+                      tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                       tickLine={false}
                       interval={1}
                     />
                     <YAxis
-                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                       tickLine={false}
                       allowDecimals={false}
                     />
                     <Tooltip
                       contentStyle={{
                         borderRadius: '8px',
-                        border: '1px solid #e5e7eb',
+                        border: '1px solid var(--border)',
                         fontSize: '12px',
                         direction: 'rtl',
                       }}
@@ -3592,7 +3592,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <table className="w-full">
               <thead className="bg-muted/50 sticky top-0">
                 <tr className="text-xs text-muted-foreground">
-                  <th className="text-right font-medium p-3">{t('admin.indicator')}</th>
+                  <th className="text-end font-medium p-3">{t('admin.indicator')}</th>
                   <th className="text-center font-medium p-3">{t('admin.currentCount')}</th>
                   <th className="text-center font-medium p-3">{t('admin.previousPeriod')}</th>
                   <th className="text-center font-medium p-3">{t('admin.change')}</th>
@@ -3850,8 +3850,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
-      <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 pl-0 ${
-        sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
+      <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ps-0 ${
+        sidebarOpen ? 'md:pe-64' : 'md:pe-[68px]'
       }`}>
         <div className="mx-auto max-w-6xl p-3 md:p-8">
           {loadingData ? renderLoading() : (

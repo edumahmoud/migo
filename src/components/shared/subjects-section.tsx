@@ -1007,7 +1007,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {/* ─── Loading State ─── */}
       {loadingSubjects && (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
           <p className="mt-3 text-sm text-muted-foreground">{t('subjects.loading')}</p>
         </div>
       )}
@@ -1016,10 +1016,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {!loadingSubjects && subjects.length === 0 && (
         <motion.div
           variants={cardVariants}
-          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 bg-gradient-to-b from-sky-50/50 to-transparent py-20"
+          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-800 bg-gradient-to-b from-sky-50/50 dark:from-sky-950/30 to-transparent py-20"
         >
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 mb-5">
-            <BookOpen className="h-10 w-10 text-sky-700" />
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-5">
+            <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1.5">
             {role === 'teacher' ? t('subjects.noSubjects') : t('subjects.noStudentSubjects')}
@@ -1162,7 +1162,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 {subject.join_code}
                               </span>
                               {copiedCodeId === subject.id ? (
-                                <Check className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                                <Check className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300 shrink-0" />
                               ) : (
                                 <Copy
                                   className="h-3.5 w-3.5 shrink-0 opacity-50"
@@ -1182,7 +1182,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 </div>
                               )}
                               {subject.sub_level && (
-                                <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 border border-sky-200 px-2.5 py-1 text-xs text-sky-800">
+                                <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 px-2.5 py-1 text-xs text-sky-800 dark:text-sky-200">
                                   <Calendar className="h-3 w-3 shrink-0" />
                                   <span className="font-medium">{subject.sub_level}</span>
                                 </div>
@@ -1356,7 +1356,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleSubjectAction(subject.id, 'dismiss'); }}
                                 disabled={leavingSubjectId === subject.id}
-                                className="inline-flex items-center gap-1 rounded-full bg-gray-50 border border-gray-200 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-full bg-gray-50 dark:bg-muted/50 border border-gray-200 dark:border-border px-2.5 py-1 text-xs text-gray-600 dark:text-muted-foreground hover:bg-gray-100 dark:hover:bg-muted transition-colors disabled:opacity-50"
                               >
                                 {leavingSubjectId === subject.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
                                 {t('subjects.dismiss')}
@@ -1490,7 +1490,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       const file = e.target.files?.[0];
                       setNewSubjectThumb(file || null);
                     }}
-                    className="w-full rounded-xl border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2.5 text-sm text-foreground file:mr-3 file:rounded-lg file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-medium file:cursor-pointer file:transition-colors"
+                    className="w-full rounded-xl border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2.5 text-sm text-foreground file:me-3 file:rounded-lg file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-medium file:cursor-pointer file:transition-colors"
                     style={{
                       // @ts-expect-error — file button color style
                       '--file-bg': newSubjectColor,

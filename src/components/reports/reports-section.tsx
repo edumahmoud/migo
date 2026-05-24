@@ -1880,7 +1880,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <img src={att.url} alt={att.name} className="h-full w-full object-cover" />
                           <button
                             onClick={() => setReplyAttachments((prev) => prev.filter((_, idx) => idx !== i))}
-                            className="absolute top-0.5 left-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-0.5 start-0.5 p-0.5 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             <Trash2 className="h-2.5 w-2.5" />
                           </button>
@@ -2166,7 +2166,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
-                <ShieldAlert className="h-4 w-4 inline-block ml-1.5" />
+                <ShieldAlert className="h-4 w-4 inline-block ms-1.5" />
                 {t('reports.tabs.reports')}
               </button>
               <button
@@ -2177,7 +2177,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
-                <Inbox className="h-4 w-4 inline-block ml-1.5" />
+                <Inbox className="h-4 w-4 inline-block ms-1.5" />
                 {t('reports.tabs.inbox')}
               </button>
               <button
@@ -2188,7 +2188,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                     : 'text-muted-foreground hover:bg-muted'
                 }`}
               >
-                <Flag className="h-4 w-4 inline-block ml-1.5" />
+                <Flag className="h-4 w-4 inline-block ms-1.5" />
                 {t('reports.tabs.against')}
               </button>
             </div>

@@ -689,13 +689,13 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 </button>
               </div>
               <div className="relative">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
                   value={addSearchQuery}
                   onChange={(e) => handleAddSearch(e.target.value)}
                   placeholder={t('studentsTab.searchStudent')}
-                  className="w-full rounded-lg border bg-background pr-9 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
+                  className="w-full rounded-lg border bg-background pe-9 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                   dir={dir}
                   autoFocus
                 />
@@ -745,13 +745,13 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       {/* Enrolled students search */}
       {students.length > 0 && (
         <motion.div variants={itemVariants} className="relative">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             value={enrolledSearchQuery}
             onChange={(e) => setEnrolledSearchQuery(e.target.value)}
             placeholder={t('studentsTab.searchEnrolled')}
-            className="w-full rounded-lg border bg-background pr-9 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
+            className="w-full rounded-lg border bg-background pe-9 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir={dir}
           />
         </motion.div>

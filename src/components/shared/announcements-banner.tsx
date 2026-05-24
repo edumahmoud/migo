@@ -41,15 +41,15 @@ function getPriorityStyle(priority: string) {
       };
     case 'low':
       return {
-        bg: 'bg-gray-50 border-gray-200',
-        icon: <Info className="h-4 w-4 text-gray-600 shrink-0" />,
-        title: 'text-gray-700',
+        bg: 'bg-gray-50 dark:bg-muted/50 border-gray-200 dark:border-border',
+        icon: <Info className="h-4 w-4 text-gray-600 dark:text-gray-400 shrink-0" />,
+        title: 'text-gray-700 dark:text-gray-300',
       };
     default:
       return {
-        bg: 'bg-sky-50 border-sky-200',
+        bg: 'bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800',
         icon: <Megaphone className="h-4 w-4 text-sky-600 shrink-0" />,
-        title: 'text-sky-700',
+        title: 'text-sky-700 dark:text-sky-300',
       };
   }
 }
@@ -151,7 +151,7 @@ export default function AnnouncementsBanner({ userId }: AnnouncementsBannerProps
           </div>
           <button
             onClick={() => handleDismiss(current.id)}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-white/50 transition-colors"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-white/50 dark:hover:bg-white/10 transition-colors"
             aria-label="إغلاق"
           >
             <X className="h-3.5 w-3.5" />

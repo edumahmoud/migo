@@ -1165,7 +1165,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           {pendingStudents.length > 0 && (
             <button
               onClick={() => setActiveSection('students')}
-              className="absolute -top-2 -left-2 flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white shadow-sm hover:bg-amber-600 transition-colors"
+              className="absolute -top-2 -start-2 flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white shadow-sm hover:bg-amber-600 transition-colors"
             >
               <UserPlus className="h-3 w-3" />
               {pendingStudents.length}
@@ -1199,12 +1199,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-sky-700" />
+                <TrendingUp className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                 {t('teacher.performanceOverview')}
               </h3>
               <button
                 onClick={() => setActiveSection('analytics')}
-                className="text-xs text-sky-700 hover:text-sky-800 font-medium flex items-center gap-1"
+                className="text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 font-medium flex items-center gap-1"
               >
                 {t('teacher.detailedAnalysis')}
                 <ChevronLeft className="h-3 w-3" />
@@ -1450,13 +1450,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             {t('teacher.sendRequestToStudent')}
           </button>
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               value={studentSearch}
               onChange={(e) => setStudentSearch(e.target.value)}
               placeholder={t('teacher.searchStudent')}
-              className="w-full sm:w-48 rounded-lg border bg-background pr-10 pl-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
+              className="w-full sm:w-48 rounded-lg border bg-background pe-10 ps-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
               dir={dir}
             />
           </div>
@@ -1530,7 +1530,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-teal-100 shadow-sm shadow-sky-200/50">
-                      <UserPlus className="h-5 w-5 text-sky-700" />
+                      <UserPlus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-foreground">{t('teacher.linkRequests')}</h3>
@@ -1543,7 +1543,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   </div>
                   <button
                     onClick={() => setPendingPanelOpen(false)}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-white/60 hover:text-foreground transition-all duration-200"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-white/60 dark:hover:bg-muted/60 hover:text-foreground transition-all duration-200"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1769,14 +1769,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     setStudentEmailInput('');
                   }
                 }}
-                className="absolute left-4 top-4 text-muted-foreground hover:text-foreground transition-colors"
+                className="absolute start-4 top-4 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="h-4 w-4" />
               </button>
 
               <div className="flex flex-col items-center text-center mb-6">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-3">
-                  <UserPlus className="h-6 w-6 text-sky-700" />
+                  <UserPlus className="h-6 w-6 text-sky-700 dark:text-sky-300" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground">{t('teacher.sendLinkRequestTitle')}</h3>
                 <p className="text-xs text-muted-foreground mt-1">{t('teacher.sendLinkRequestDesc')}</p>
@@ -1786,7 +1786,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 /* Step 1: Enter email */
                 <div className="space-y-4">
                   <div className="relative">
-                    <Mail className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Mail className="absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <input
                       type="email"
                       value={studentEmailInput}
@@ -1795,7 +1795,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                         if (e.key === 'Enter') handleSearchStudent();
                       }}
                       placeholder={t('teacher.studentEmailPlaceholder')}
-                      className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
+                      className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
                       dir="ltr"
                     />
                   </div>
@@ -1876,7 +1876,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
         >
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <Users className="h-8 w-8 text-sky-700" />
+            <Users className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
             {studentSearch ? t('teacher.noSearchResults') : t('teacher.noRegisteredStudents')}
@@ -1934,10 +1934,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               <table className="w-full">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr className="text-xs text-muted-foreground">
-                    <th className="text-right font-medium p-3">{t('common.name')}</th>
-                    <th className="text-right font-medium p-3 hidden sm:table-cell">{t('common.email')}</th>
-                    <th className="text-right font-medium p-3">{t('teacher.lastResult')}</th>
-                    <th className="text-right font-medium p-3">{t('common.actions')}</th>
+                    <th className="text-end font-medium p-3">{t('common.name')}</th>
+                    <th className="text-end font-medium p-3 hidden sm:table-cell">{t('common.email')}</th>
+                    <th className="text-end font-medium p-3">{t('teacher.lastResult')}</th>
+                    <th className="text-end font-medium p-3">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -1976,7 +1976,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                               setSelectedStudent(student);
                               setStudentDetailOpen(true);
                             }}
-                            className="flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 font-medium"
+                            className="flex items-center gap-1 text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 font-medium"
                           >
                             <Eye className="h-3.5 w-3.5" />
                             {t('common.view')}
@@ -2021,7 +2021,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card p-4 sm:p-5 shadow-sm">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-sky-700" />
+              <TrendingUp className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               {t('teacher.avgPerQuiz')}
             </h3>
             {barChartData.length === 0 ? (
@@ -2124,10 +2124,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               <table className="w-full">
                 <thead className="bg-muted/50">
                   <tr className="text-xs text-muted-foreground">
-                    <th className="text-right font-medium p-3">{t('teacher.tableQuizName')}</th>
-                    <th className="text-right font-medium p-3">{t('teacher.tableStudentCount')}</th>
-                    <th className="text-right font-medium p-3">{t('teacher.tableAvgPerformance')}</th>
-                    <th className="text-right font-medium p-3">{t('teacher.tableDownload')}</th>
+                    <th className="text-end font-medium p-3">{t('teacher.tableQuizName')}</th>
+                    <th className="text-end font-medium p-3">{t('teacher.tableStudentCount')}</th>
+                    <th className="text-end font-medium p-3">{t('teacher.tableAvgPerformance')}</th>
+                    <th className="text-end font-medium p-3">{t('teacher.tableDownload')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -2158,7 +2158,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           <button
                             onClick={() => handleExportQuizData(quiz)}
                             disabled={qScores.length === 0}
-                            className="flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="flex items-center gap-1 text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <Download className="h-3.5 w-3.5" />
                             Excel
@@ -2210,7 +2210,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <AnnouncementsBanner userId={profile.id} />
           {loadingData ? (
             <div className="flex flex-col items-center justify-center py-32">
-              <Loader2 className="h-10 w-10 animate-spin text-sky-700 mb-4" />
+              <Loader2 className="h-10 w-10 animate-spin text-sky-700 dark:text-sky-300 mb-4" />
               <p className="text-muted-foreground text-sm">{t('teacher.loadingData')}</p>
             </div>
           ) : (
@@ -2288,7 +2288,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   {/* Back to scores list */}
                   <button
                     onClick={() => { setViewingScore(null); setViewingQuiz(null); setAiGradingResults({}); }}
-                    className="flex items-center gap-1.5 text-xs font-medium text-sky-700 hover:text-sky-800 mb-2"
+                    className="flex items-center gap-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 mb-2"
                   >
                     <ChevronRight className="h-3.5 w-3.5" />
                     {t('teacher.backToResults')}
@@ -2530,7 +2530,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                 const quiz = quizzes.find(q => q.id === score.quiz_id);
                                 setViewingQuiz(quiz || null);
                               }}
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:text-sky-700 dark:text-sky-300 transition-colors"
                               title={t('teacher.viewAnswers')}
                             >
                               <Eye className="h-3.5 w-3.5" />

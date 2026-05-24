@@ -90,19 +90,19 @@ export default function InstallPrompt() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 80, pointerEvents: 'none' as const }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className="fixed bottom-20 left-4 right-4 z-50 mx-auto max-w-md sm:bottom-6 sm:left-auto sm:right-6"
+          className="fixed bottom-20 start-4 end-4 z-50 mx-auto max-w-md sm:bottom-6 sm:start-auto sm:end-6"
           dir={dir}
         >
           <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-xl sm:p-5">
             <button
               onClick={handleDismiss}
-              className="absolute top-3 left-3 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/50 transition-colors"
+              className="absolute top-3 start-3 flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted/50 transition-colors"
               aria-label={t('common.close')}
             >
               <X className="h-4 w-4" />
             </button>
 
-            <div className="flex items-start gap-3 pr-2">
+            <div className="flex items-start gap-3 pe-2">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-100">
                 <Smartphone className="h-6 w-6 text-sky-700" />
               </div>

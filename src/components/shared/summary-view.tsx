@@ -345,7 +345,7 @@ function StepProgress({
       {/* Gradient progress bar */}
       <div className="relative h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: c.barBg }}>
         <div
-          className="absolute inset-y-0 right-0 rounded-full"
+          className="absolute inset-y-0 start-0 rounded-full"
           style={{
             width: `${Math.max(percent, 2)}%`,
             background: c.barGradient,
@@ -455,7 +455,7 @@ function ScrollToTopButton() {
   return (
     <motion.button
       onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      className="fixed bottom-20 left-4 z-50 h-11 w-11 rounded-full bg-sky-600 text-white shadow-lg shadow-sky-600/30 flex items-center justify-center hover:bg-sky-700 active:scale-95 transition-all print:hidden sm:bottom-6 sm:left-6"
+      className="fixed bottom-20 start-4 z-50 h-11 w-11 rounded-full bg-sky-600 text-white shadow-lg shadow-sky-600/30 flex items-center justify-center hover:bg-sky-700 active:scale-95 transition-all print:hidden sm:bottom-6 sm:start-6"
       initial={{ opacity: 0, scale: 0.5, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.5, y: 20 }}

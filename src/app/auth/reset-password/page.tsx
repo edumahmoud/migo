@@ -206,7 +206,7 @@ export default function ResetPasswordPage() {
   return (
     <div
       dir={dir}
-      className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 via-white to-sky-50/30 px-4 py-8"
+      className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 via-white to-sky-50/30 dark:from-slate-950 dark:via-card dark:to-sky-950/30 px-4 py-8"
     >
       <div className="w-full max-w-md">
         {/* ── Loading ── */}
@@ -217,7 +217,7 @@ export default function ResetPasswordPage() {
             className="flex flex-col items-center justify-center gap-4 py-16"
           >
             <Loader2 className="h-10 w-10 animate-spin text-sky-600" />
-            <p className="text-sm text-gray-500">جارٍ التحقق من الرابط...</p>
+            <p className="text-sm text-gray-500 dark:text-muted-foreground">جارٍ التحقق من الرابط...</p>
           </motion.div>
         )}
 
@@ -228,15 +228,15 @@ export default function ResetPasswordPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="bg-white rounded-2xl shadow-2xl border-0 overflow-hidden">
+            <div className="bg-white dark:bg-card rounded-2xl shadow-2xl border-0 overflow-hidden">
               <div className="flex flex-col items-center py-10 px-6 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 mb-4">
-                  <ShieldCheck className="h-8 w-8 text-rose-600" />
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30 mb-4">
+                  <ShieldCheck className="h-8 w-8 text-rose-600 dark:text-rose-400" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-foreground mb-2">
                   {pageState === 'invalid' ? 'الرابط غير صالح أو منتهي' : 'حدث خطأ'}
                 </h2>
-                <p className="text-sm text-gray-500 mb-6">
+                <p className="text-sm text-gray-500 dark:text-muted-foreground mb-6">
                   {errorMessage || 'رابط إعادة تعيين كلمة المرور غير صالح أو انتهت صلاحيته. يرجى طلب رابط جديد.'}
                 </p>
                 <a
@@ -257,13 +257,13 @@ export default function ResetPasswordPage() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
           >
-            <div className="bg-white rounded-2xl shadow-2xl border-0 overflow-hidden">
+            <div className="bg-white dark:bg-card rounded-2xl shadow-2xl border-0 overflow-hidden">
               <div className="flex flex-col items-center py-10 px-6 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 mb-4">
-                  <CheckCircle2 className="h-9 w-9 text-emerald-600" />
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 mb-4">
+                  <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">تم تحديث كلمة المرور</h2>
-                <p className="text-sm text-gray-500">سيتم تحويلك لصفحة تسجيل الدخول...</p>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-foreground mb-2">تم تحديث كلمة المرور</h2>
+                <p className="text-sm text-gray-500 dark:text-muted-foreground">سيتم تحويلك لصفحة تسجيل الدخول...</p>
               </div>
             </div>
           </motion.div>
@@ -276,16 +276,16 @@ export default function ResetPasswordPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <div className="bg-white rounded-2xl shadow-2xl border-0 overflow-hidden">
+            <div className="bg-white dark:bg-card rounded-2xl shadow-2xl border-0 overflow-hidden">
               {/* Header */}
               <div className="text-center pt-6 pb-2 px-6">
                 <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-sky-100">
                   <Lock className="h-6 w-6 text-sky-600" />
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">
                   تعيين كلمة مرور جديدة
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 dark:text-muted-foreground mt-1">
                   أدخل كلمة المرور الجديدة لحسابك
                 </p>
               </div>
@@ -305,7 +305,7 @@ export default function ResetPasswordPage() {
 
                 {/* New Password */}
                 <div className="space-y-2">
-                  <label htmlFor="new-password" className="text-gray-700 font-medium text-sm">
+                  <label htmlFor="new-password" className="text-gray-700 dark:text-foreground font-medium text-sm">
                     كلمة المرور الجديدة
                   </label>
                   <div className="relative">
@@ -315,7 +315,7 @@ export default function ResetPasswordPage() {
                       placeholder="أدخل كلمة المرور الجديدة"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full pr-4 pl-10 h-11 rounded-xl bg-gray-50/50 border border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none text-right transition-colors"
+                      className="w-full pr-4 pl-10 h-11 rounded-xl bg-gray-50/50 dark:bg-input/50 border border-gray-200 dark:border-border focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none text-right transition-colors"
                       disabled={isSubmitting}
                       dir="ltr"
                       maxLength={128}
@@ -324,7 +324,7 @@ export default function ResetPasswordPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground"
                       tabIndex={-1}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -338,12 +338,12 @@ export default function ResetPasswordPage() {
                           <div
                             key={level}
                             className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
-                              strength > level ? strengthColors[strength - 1] : 'bg-gray-200'
+                              strength > level ? strengthColors[strength - 1] : 'bg-gray-200 dark:bg-gray-700'
                             }`}
                           />
                         ))}
                       </div>
-                      <p className={`text-xs font-medium ${strengthTextColors[strength - 1] || 'text-gray-400'}`}>
+                      <p className={`text-xs font-medium ${strengthTextColors[strength - 1] || 'text-gray-400 dark:text-muted-foreground'}`}>
                         {strength > 0 ? strengthLabels[strength - 1] : 'ضعيفة جداً'}
                       </p>
                     </div>
@@ -352,7 +352,7 @@ export default function ResetPasswordPage() {
 
                 {/* Confirm Password */}
                 <div className="space-y-2">
-                  <label htmlFor="confirm-password" className="text-gray-700 font-medium text-sm">
+                  <label htmlFor="confirm-password" className="text-gray-700 dark:text-foreground font-medium text-sm">
                     تأكيد كلمة المرور
                   </label>
                   <div className="relative">
@@ -362,10 +362,10 @@ export default function ResetPasswordPage() {
                       placeholder="أعد إدخال كلمة المرور"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className={`w-full pr-4 pl-10 h-11 rounded-xl bg-gray-50/50 outline-none text-right transition-colors ${
+                      className={`w-full pr-4 pl-10 h-11 rounded-xl bg-gray-50/50 dark:bg-input/50 outline-none text-right transition-colors ${
                         mismatch ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
                         : passwordsMatch ? 'border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'
-                        : 'border-gray-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20'
+                        : 'border-gray-200 dark:border-border focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20'
                       }`}
                       disabled={isSubmitting}
                       dir="ltr"
@@ -374,7 +374,7 @@ export default function ResetPasswordPage() {
                     <button
                       type="button"
                       onClick={() => setShowConfirm(!showConfirm)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground"
                       tabIndex={-1}
                     >
                       {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

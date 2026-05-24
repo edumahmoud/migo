@@ -1094,22 +1094,22 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       {/* Search & Filter */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder={t('questionBank.searchBanksPlaceholder')}
-            className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
+            className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir={dir}
           />
         </div>
         <div className="relative">
-          <Filter className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Filter className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <select
             value={filterSubjectId}
             onChange={e => setFilterSubjectId(e.target.value)}
-            className="rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors appearance-none cursor-pointer min-w-[160px]"
+            className="rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors appearance-none cursor-pointer min-w-[160px]"
             dir={dir}
           >
             <option value="all">{t('questionBank.allSubjects')}</option>
@@ -1603,7 +1603,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                       <button
                         key={file.id}
                         onClick={() => setSelectedCourseFile(file)}
-                        className={`w-full flex items-center gap-2 rounded-lg border p-2.5 text-right transition-all ${
+                        className={`w-full flex items-center gap-2 rounded-lg border p-2.5 text-end transition-all ${
                           selectedCourseFile?.id === file.id
                             ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30'
                             : 'border-border hover:bg-muted/50'
