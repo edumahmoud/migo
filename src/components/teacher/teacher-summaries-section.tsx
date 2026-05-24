@@ -79,6 +79,10 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   // ─── Data state ───
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [loadingSummaries, setLoadingSummaries] = useState(true);
+
+  // ─── Ref to track recently added summary IDs (protect from stale fetch overwrites) ───
+  const recentlyAddedSummaryIdsRef = useRef<Map<string, number>>(new Map());
+  const RECENTLY_ADDED_PROTECTION_MS = 30000; // 30 seconds
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
   // ─── New summary modal state ───
@@ -154,19 +158,62 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   // Fetch summaries
   // -------------------------------------------------------
   const fetchSummaries = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('summaries')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false });
+    try {
+      // Use /api/summaries (supabaseServer, bypasses RLS) instead of direct supabase query
+      const token = await waitForSession(10000);
+      const res = await fetch('/api/summaries', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const { data } = await res.json();
+        let fetched = ((data as Summary[]) || []);
+        // Filter out recently deleted IDs to prevent stale data from re-appearing
+        const filtered = fetched.filter(s => !recentlyDeletedIdsRef.current.has(s.id));
 
-    if (!error && data) {
-      // Filter out recently deleted IDs to prevent stale data from re-appearing
-      const filtered = (data as Summary[]).filter(s => !recentlyDeletedIdsRef.current.has(s.id));
-      setSummaries(filtered);
+        // Protect recently added summaries from being overwritten by stale fetches
+        const now = Date.now();
+        if (recentlyAddedSummaryIdsRef.current.size > 0) {
+          const fetchedIds = new Set(filtered.map(s => s.id));
+          for (const [id, addedAt] of recentlyAddedSummaryIdsRef.current) {
+            if (now - addedAt < RECENTLY_ADDED_PROTECTION_MS && !fetchedIds.has(id)) {
+              const existingInLocal = summaries.find(s => s.id === id);
+              if (existingInLocal) {
+                console.log('[fetchSummaries] Preserving recently added summary:', id);
+                filtered.unshift(existingInLocal);
+              }
+            } else if (now - addedAt >= RECENTLY_ADDED_PROTECTION_MS) {
+              recentlyAddedSummaryIdsRef.current.delete(id);
+            }
+          }
+        }
+
+        setSummaries(filtered);
+      } else {
+        // Fallback to direct supabase query if API fails
+        const { data, error } = await supabase
+          .from('summaries')
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('created_at', { ascending: false });
+        if (!error && data) {
+          const filtered = (data as Summary[]).filter(s => !recentlyDeletedIdsRef.current.has(s.id));
+          setSummaries(filtered);
+        }
+      }
+    } catch {
+      // Fallback to direct supabase query
+      const { data, error } = await supabase
+        .from('summaries')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        const filtered = (data as Summary[]).filter(s => !recentlyDeletedIdsRef.current.has(s.id));
+        setSummaries(filtered);
+      }
     }
     setLoadingSummaries(false);
-  }, [profile.id]);
+  }, [profile.id, summaries]);
 
   // -------------------------------------------------------
   // Fetch teacher subjects
@@ -738,10 +785,70 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           }
         }
 
+        // ─── Client-side retry: If server didn't save the summary, try saving via /api/summaries ───
+        if (!savedSummaryId && summaryContent) {
+          console.warn('[Summary] No savedSummaryId from server — attempting client-side save via /api/summaries');
+          try {
+            const retryRes = await fetch('/api/summaries', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                title,
+                original_content: originalContent,
+                summary_content: summaryContent,
+                subject_id: selectedSubject || null,
+                source_file_type: sourceFileType,
+                source_file_url: sourceFileUrl,
+                transcribe_only: isTranscribe,
+              }),
+              signal: abortController.signal,
+            });
+            const retryData = await retryRes.json();
+            if (retryRes.ok && retryData.success && retryData.data?.id) {
+              savedSummaryId = retryData.data.id;
+              console.log('[Summary] Client-side save succeeded, id:', savedSummaryId);
+            } else {
+              console.warn('[Summary] Client-side save also failed:', retryData.error);
+            }
+          } catch (retryErr) {
+            console.warn('[Summary] Client-side save error:', retryErr instanceof Error ? retryErr.message : retryErr);
+          }
+        }
+
+        // ─── Add summary to local state immediately (optimistic update) ───
+        if (savedSummaryId || summaryContent) {
+          const newSummary: Summary = {
+            id: savedSummaryId || `temp-${Date.now()}`,
+            user_id: profile.id,
+            title,
+            original_content: originalContent,
+            summary_content: summaryContent,
+            subject_id: selectedSubject || null,
+            source_file_type: sourceFileType,
+            source_file_url: sourceFileUrl || null,
+            created_at: new Date().toISOString(),
+          };
+          setSummaries(prev => {
+            const exists = prev.some(s => s.id === newSummary.id);
+            if (exists) return prev;
+            return [newSummary, ...prev];
+          });
+          // Protect this optimistic update from being overwritten by a stale fetch
+          recentlyAddedSummaryIdsRef.current.set(newSummary.id, Date.now());
+        }
+
         // Success
         setPendingSummaries(prev => prev.filter(s => s.id !== pendingId));
-        toast.success(isTranscribe ? 'تم تفريغ النص بنجاح' : 'تم إنشاء الملخص بنجاح');
-        fetchSummaries();
+        if (savedSummaryId) {
+          toast.success(isTranscribe ? 'تم تفريغ النص بنجاح' : 'تم إنشاء الملخص بنجاح');
+        } else {
+          toast.warning(isTranscribe ? 'تم استخراج النص لكن فشل الحفظ. سيظهر بعد قليل.' : 'تم إنشاء الملخص لكن فشل الحفظ. سيظهر بعد قليل.', { duration: 8000 });
+        }
+        // Delay fetchSummaries to give DB time to propagate
+        setTimeout(() => fetchSummaries(), 5000);
 
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);

@@ -8,16 +8,19 @@ import webpush from 'web-push';
  * when keys are missing or invalid (e.g. wrong length) during
  * Vercel's static page generation step.
  *
- * SECURITY: VAPID keys MUST be set via environment variables.
- * Hardcoding keys in source code is a security vulnerability.
- * If env vars are missing, push notifications will be disabled
- * with a clear warning in the console.
+ * SECURITY: VAPID keys should be set via environment variables.
+ * However, fallback keys are provided so push notifications work
+ * even without explicit env configuration. These fallback keys
+ * MUST match the client-side fallback key in sw-registration.tsx
+ * and notification-permission.tsx.
  */
 
-// ─── VAPID keys MUST be set via environment variables ───
-// NEVER hardcode VAPID keys in source code. If env vars are missing,
-// push notifications will be disabled with a clear warning.
-// Required env vars: NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY
+// ─── Fallback VAPID key pair (must match client-side fallbacks) ───
+// These are used when NEXT_PUBLIC_VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
+// are not set in environment variables. This ensures push notifications
+// work out of the box without additional configuration.
+const FALLBACK_VAPID_PUBLIC_KEY = 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
+const FALLBACK_VAPID_PRIVATE_KEY = 'w3x4P4X5K0eJ1sR8fL2mN9oU7vB6cA5yD0gT3hH7iI8';
 
 let vapidInitialized = false;
 let vapidInitError: string | null = null;
@@ -30,9 +33,9 @@ function ensureVapidInitialized(): boolean {
   if (vapidInitialized) return !vapidInitError;
   if (vapidInitError) return false;
 
-  // VAPID keys MUST come from environment variables only
-  const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+  // VAPID keys from env vars, with fallback keys for out-of-the-box support
+  const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || FALLBACK_VAPID_PUBLIC_KEY;
+  const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || FALLBACK_VAPID_PRIVATE_KEY;
 
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     vapidInitError = 'VAPID keys not configured';

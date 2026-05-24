@@ -418,7 +418,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // may return data that doesn't include the new summary yet (DB propagation delay).
     // We preserve recently added summaries by merging them into the fetched result.
     const now = Date.now();
-    const PROTECTION_DURATION_MS = 15000; // 15 seconds — enough for DB propagation + Realtime
+    const PROTECTION_DURATION_MS = 30000; // 30 seconds — enough for DB propagation + Realtime + slow networks
     if (recentlyAddedSummaryIdsRef.current.size > 0) {
       const fetchedIds = new Set(filtered.map(s => s.id));
       const currentSummaries = summariesRef.current;
@@ -1311,6 +1311,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         let summaryContent = '';
         let savedSummaryId = '';
         let sourceFileType: 'pdf' | 'docx' | null = null;
+        let sourceFileUrl: string | null = null;
 
         // Step 1: Get content (text or extract from PDF/DOCX)
         if ((inputMode === 'file' || inputMode === 'transcribe') && (preReadFileData || capturedFile)) {
@@ -1714,6 +1715,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 summary_content: summaryContent,
                 subject_id: selectedSubjectId || null,
                 source_file_type: sourceFileType,
+                source_file_url: sourceFileUrl || undefined,
                 transcribe_only: inputMode === 'transcribe',
               }),
               signal: abortController.signal,
@@ -1757,10 +1759,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           }, 5000);
         }
 
-        toast.success(inputMode === 'transcribe'
-          ? t('student.transcribeSuccess', { title })
-          : t('student.summaryCreateSuccess', { title })
-        );
+        if (savedSummaryId) {
+          toast.success(inputMode === 'transcribe'
+            ? t('student.transcribeSuccess', { title })
+            : t('student.summaryCreateSuccess', { title })
+          );
+        } else {
+          toast.warning(inputMode === 'transcribe'
+            ? t('student.transcribePartialSuccess', { title }) || `${t('student.transcribeSuccess', { title })} (${t('common.saveFailed') || 'لم يتم الحفظ بعد'})`
+            : t('student.summaryCreatePartialSuccess', { title }) || `${t('student.summaryCreateSuccess', { title })} (${t('common.saveFailed') || 'لم يتم الحفظ بعد'})`
+          , { duration: 8000 });
+        }
         // Delay fetchSummaries to avoid race condition with optimistic update
         // The optimistic update above uses generation=0, but fetchSummaries
         // increments the generation counter. If we call fetchSummaries immediately,
