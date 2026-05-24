@@ -8,12 +8,18 @@ import { type Locale, defaultLocale } from './config';
 
 // Statically import default locale messages so they're available during SSR.
 // This prevents the "Missing NextIntlClientProvider" crash during static prerendering.
-import defaultMessages from './messages/ar.json';
+import arMessages from './messages/ar.json';
+import enMessages from './messages/en.json';
 
-// Dynamic message loading
+const staticMessages: Record<Locale, Record<string, string>> = {
+  ar: arMessages as unknown as Record<string, string>,
+  en: enMessages as unknown as Record<string, string>,
+};
+
+// Dynamic message loading (for cache invalidation if needed)
 const messagesCache: Record<Locale, Record<string, string>> = {
-  ar: defaultMessages as unknown as Record<string, string>,
-  en: {},
+  ar: staticMessages.ar,
+  en: staticMessages.en,
 };
 
 async function loadMessages(locale: Locale): Promise<Record<string, string>> {
@@ -26,15 +32,13 @@ async function loadMessages(locale: Locale): Promise<Record<string, string>> {
     return messagesCache[locale];
   } catch (error) {
     console.error(`Failed to load messages for locale "${locale}":`, error);
-    return {};
+    return staticMessages[locale];
   }
 }
 
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const { locale } = useLocaleStore();
-  const [messages, setMessages] = useState<Record<string, string>>(
-    defaultMessages as unknown as Record<string, string>
-  );
+  const [messages, setMessages] = useState<Record<string, string>>(staticMessages[defaultLocale]);
   const [loaded, setLoaded] = useState(false);
 
   // Initialize locale on mount
@@ -45,9 +49,8 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   // Load messages when locale changes
   useEffect(() => {
-    if (!loaded) return;
     loadMessages(locale).then(setMessages);
-  }, [locale, loaded]);
+  }, [locale]);
 
   // Set document direction
   useEffect(() => {

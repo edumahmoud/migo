@@ -22,8 +22,9 @@ export default function ThemeToggle() {
 
   useEffect(() => {
     setMounted(true);
-    // READ the current theme state — do NOT apply/modify the DOM on mount.
-    // The theme is already initialized by the inline script in layout.tsx.
+    // Only READ the current DOM state — do NOT apply/modify the theme.
+    // Theme initialization is handled by the inline script in layout.tsx
+    // so it's already correct before React hydrates.
     const isDark = document.documentElement.classList.contains('dark');
     setDark(isDark);
   }, []);
