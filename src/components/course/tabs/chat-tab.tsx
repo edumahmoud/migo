@@ -844,7 +844,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   // -------------------------------------------------------
   const renderMessage = (msg: ChatMessage, index: number) => {
     const isOwn = msg.sender_id === profile.id;
-    const senderName = formatNameWithTitle(msg.sender?.name || 'مستخدم', msg.sender?.role, msg.sender?.title_id, msg.sender?.gender);
+    const senderName = formatNameWithTitle(msg.sender?.name || 'مستخدم', msg.sender?.role, msg.sender?.title_id, msg.sender?.gender, t);
     const showAvatar = !isOwn && (index === 0 || messages[index - 1]?.sender_id !== msg.sender_id);
     const isDeleted = (msg as unknown as Record<string, unknown>).is_deleted as boolean;
     const isEdited = (msg as unknown as Record<string, unknown>).is_edited as boolean;

@@ -1117,7 +1117,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
     >
       <div>
-        <h2 className="text-2xl font-bold text-foreground">أهلاً بك، {formatNameWithTitle(profile.name, profile.role, profile.title_id, profile.gender)}</h2>
+        <h2 className="text-2xl font-bold text-foreground">أهلاً بك، {formatNameWithTitle(profile.name, profile.role, profile.title_id, profile.gender, t)}</h2>
         <p className="text-muted-foreground mt-1">{t('teacher.dashboardLabel')}</p>
       </div>
       {profile.teacher_code && (

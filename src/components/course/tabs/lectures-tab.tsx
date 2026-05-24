@@ -2047,7 +2047,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         } catch {}
         setExpandedNotes(notesList.map((n) => {
           const author = authorMap.get(n.user_id);
-          return { ...n, author_name: author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender) : 'معلم' };
+          return { ...n, author_name: author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender, t) : 'معلم' };
         }) as LectureNoteWithAuthor[]);
       } else {
         setExpandedNotes([]);
@@ -2083,7 +2083,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             if (res.ok) {
               const { users } = await res.json();
               const author = users?.[0];
-              if (author) authorName = formatNameWithTitle(author.name, author.role, author.title_id, author.gender);
+              if (author) authorName = formatNameWithTitle(author.name, author.role, author.title_id, author.gender, t);
             }
           } catch {}
           const enriched: LectureNoteWithAuthor = { ...newNote, author_name: authorName };

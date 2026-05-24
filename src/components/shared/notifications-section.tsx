@@ -529,7 +529,7 @@ export default function NotificationsSection() {
                     <h3 className="text-lg font-bold text-foreground mb-1">طلب ارتباط</h3>
                     <p className="text-sm text-muted-foreground mb-6">
                       أرسل {linkRequestModal.teacher?.gender === 'female' ? 'المعلمة' : 'المعلم'}{' '}
-                      <span className="font-semibold text-foreground">{formatNameWithTitle(linkRequestModal.teacher?.name || 'معلم', 'teacher', linkRequestModal.teacher?.title_id, linkRequestModal.teacher?.gender)}</span>{' '}
+                      <span className="font-semibold text-foreground">{formatNameWithTitle(linkRequestModal.teacher?.name || 'معلم', 'teacher', linkRequestModal.teacher?.title_id, linkRequestModal.teacher?.gender, t)}</span>{' '}
                       طلب ارتباط بك
                     </p>
                     <div className="flex items-center gap-3 w-full">

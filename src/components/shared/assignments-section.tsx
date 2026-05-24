@@ -308,7 +308,8 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               studentData?.name || 'طالب',
               studentData?.role,
               studentData?.title_id,
-              studentData?.gender
+              studentData?.gender,
+              t
             ),
             student_email: studentData?.email || '',
           });

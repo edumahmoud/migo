@@ -398,8 +398,8 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
   const isOwnProfile = userId === currentUser.id;
 
   // ─── Role & title labels ──────────────────────────────
-  const roleLabel = profile ? getRoleLabel(profile.role, profile.gender, profile.title_id) : '';
-  const titleLabel = profile?.role === 'teacher' ? getTitleLabel(profile.title_id, profile.gender) : null;
+  const roleLabel = profile ? getRoleLabel(profile.role, profile.gender, profile.title_id, t) : '';
+  const titleLabel = profile?.role === 'teacher' ? getTitleLabel(profile.title_id, profile.gender, t) : null;
 
   // ─── Loading state ────────────────────────────────────
   if (loading) {

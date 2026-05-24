@@ -1,35 +1,45 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useI18n } from '@/lib/i18n/context';
 
 export default function ThemeToggle() {
   const { t } = useI18n();
-  const [dark, setDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  // Use lazy state initialization to read the actual DOM state immediately.
+  // This avoids the two-step render (false → useEffect → true) that could
+  // cause a flash or, in edge cases, an unintended theme toggle on first mount.
+  const [dark, setDark] = useState(() => {
+    if (typeof document === 'undefined') return false;
+    return document.documentElement.classList.contains('dark');
+  });
 
+  // Keep a ref in sync so the toggle callback always reads the latest value
+  // without needing `dark` in its dependency array (prevents stale closure).
+  const darkRef = useRef(dark);
+  darkRef.current = dark;
+
+  // Listen for theme changes from OTHER instances (e.g. settings page) so
+  // the icon stays in sync when the user toggles dark mode elsewhere.
   useEffect(() => {
-    setMounted(true);
-    // Check localStorage or system preference
-    const stored = localStorage.getItem('attendo-theme');
-    if (stored === 'dark') {
-      setDark(true);
-      document.documentElement.classList.add('dark');
-    } else if (stored === 'light') {
-      setDark(false);
-      document.documentElement.classList.remove('dark');
-    } else {
-      // System preference
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setDark(prefersDark);
-      if (prefersDark) document.documentElement.classList.add('dark');
-    }
+    const observer = new MutationObserver(() => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setDark(isDark);
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    return () => observer.disconnect();
   }, []);
 
-  const toggle = () => {
-    const newDark = !dark;
+  const toggle = useCallback((e: React.MouseEvent) => {
+    // Prevent the click from propagating to the dropdown's outside-click handler
+    // or any parent element that might interfere.
+    e.stopPropagation();
+
+    const newDark = !darkRef.current;
     setDark(newDark);
     if (newDark) {
       document.documentElement.classList.add('dark');
@@ -38,9 +48,7 @@ export default function ThemeToggle() {
       document.documentElement.classList.remove('dark');
       localStorage.setItem('attendo-theme', 'light');
     }
-  };
-
-  if (!mounted) return null;
+  }, []);
 
   return (
     <button

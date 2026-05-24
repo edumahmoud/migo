@@ -229,7 +229,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
           const uploader = uploaderMap.get(f.uploaded_by);
           return {
             ...f,
-            uploader_name: uploader ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender) : 'مستخدم',
+            uploader_name: uploader ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender, t) : 'مستخدم',
           };
         });
 

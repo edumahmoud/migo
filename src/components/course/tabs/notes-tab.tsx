@@ -227,7 +227,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           const author = authorMap.get(n.user_id);
           return {
             ...n,
-            author_name: author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender) : 'مستخدم',
+            author_name: author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender, t) : 'مستخدم',
           };
         }));
       } else {
@@ -574,7 +574,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           <div className="flex items-center justify-between mt-3 pt-2 border-t border-muted/50">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <User className="h-3 w-3" />
-              <span>{note.author_name || (role === 'teacher' ? 'أنت' : formatNameWithTitle(teacherName))}</span>
+              <span>{note.author_name || (role === 'teacher' ? t('common.user') : teacherName)}</span>
             </div>
             <div className="flex items-center gap-1 text-xs text-muted-foreground" title={formatFullDate(note.created_at)}>
               <Clock className="h-3 w-3" />

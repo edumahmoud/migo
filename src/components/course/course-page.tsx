@@ -251,8 +251,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               .single()
               .then(({ data: teacher }) => {
                 if (teacher) {
-                  const t = teacher as { name: string; title_id?: string | null; gender?: string | null; role?: string | null };
-                  setTeacherName(formatNameWithTitle(t.name, t.role, t.title_id, t.gender));
+                  const teacherData = teacher as { name: string; title_id?: string | null; gender?: string | null; role?: string | null };
+                  setTeacherName(formatNameWithTitle(teacherData.name, teacherData.role, teacherData.title_id, teacherData.gender, t));
                 }
               }, () => {});
           }
@@ -622,7 +622,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       ct.teacher_name || 'معلم',
                       'teacher',
                       ct.teacher_title_id,
-                      ct.teacher_gender
+                      ct.teacher_gender,
+                      t
                     );
                     return (
                       <button

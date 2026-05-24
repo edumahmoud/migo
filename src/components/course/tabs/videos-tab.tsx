@@ -252,7 +252,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           return {
             ...v,
             uploader_name: uploader
-              ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender)
+              ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender, t)
               : 'مستخدم',
             comment_count: commentCountMap.get(v.id) || 0,
           };
@@ -341,7 +341,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         return {
           ...video,
           uploader_name: uploader
-            ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender)
+            ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender, t)
             : 'مستخدم',
           comment_count: count || 0,
         };
@@ -464,7 +464,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           return {
             ...c,
             user_name: user
-              ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender)
+              ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t)
               : 'مستخدم',
             user_role: user?.role ?? undefined,
             user_title_id: user?.title_id ?? undefined,
@@ -508,7 +508,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         return {
           ...comment,
           user_name: user
-            ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender)
+            ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t)
             : 'مستخدم',
           user_role: user?.role ?? undefined,
           user_title_id: user?.title_id ?? undefined,
@@ -638,7 +638,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         comments_enabled: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        uploader_name: formatNameWithTitle(profile.name, profile.role, profile.title_id, profile.gender),
+        uploader_name: formatNameWithTitle(profile.name, profile.role, profile.title_id, profile.gender, t),
         comment_count: 0,
       } as unknown as SubjectVideoWithUploader;
       optimisticVideos.push(optimisticVideo);

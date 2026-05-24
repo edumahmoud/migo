@@ -5,7 +5,7 @@ import { WifiOff, RefreshCw, X, GraduationCap } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/context';
 
 export default function OfflinePage() {
-  const { dir } = useI18n();
+  const { t, dir } = useI18n();
   const handleExit = () => {
     try {
       window.close();
@@ -56,7 +56,7 @@ export default function OfflinePage() {
             transition={{ delay: 0.4 }}
             className="text-xl font-bold text-gray-900 mb-2"
           >
-            لا يوجد اتصال
+            {t('offline.noConnection')}
           </motion.h1>
 
           {/* Description */}
@@ -66,7 +66,7 @@ export default function OfflinePage() {
             transition={{ delay: 0.5 }}
             className="text-sm text-gray-500 mb-6 leading-relaxed"
           >
-            يبدو أنك غير متصل بالإنترنت. تحقق من اتصالك وحاول مرة أخرى.
+            {t('offline.description')}
           </motion.p>
 
           {/* Action buttons */}
@@ -81,7 +81,7 @@ export default function OfflinePage() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" />
-              إعادة المحاولة
+              {t('common.retry')}
             </button>
 
             <button
@@ -89,7 +89,7 @@ export default function OfflinePage() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-red-200 px-6 py-2.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 active:bg-red-100 transition-all duration-200 w-full sm:w-auto"
             >
               <X className="h-4 w-4" />
-              الخروج من التطبيق
+              {t('common.exitApp')}
             </button>
           </motion.div>
         </div>
@@ -101,7 +101,7 @@ export default function OfflinePage() {
           transition={{ delay: 1 }}
           className="text-center text-xs text-gray-400 mt-4"
         >
-          أتيندو — منصة تعليمية ذكية
+          {t('offline.brandTagline')}
         </motion.p>
       </motion.div>
     </div>

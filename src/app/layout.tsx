@@ -62,6 +62,27 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/api/icon/180" data-dynamic-apple />
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* Theme initialization: MUST run before React hydrates to prevent flash.
+            Reads 'attendo-theme' from localStorage and applies 'dark' class immediately.
+            This prevents the ThemeToggle component from re-initializing on mount. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('attendo-theme');
+                  if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  } else if (theme === 'light') {
+                    document.documentElement.classList.remove('dark');
+                  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.classList.add('dark');
+                  }
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
         {/* White screen detection: reload once if body stays empty after 12s.
             FIX v2: Uses localStorage instead of sessionStorage (survives process kills).
             Also checks localStorage _attendo_busy flag — Android process kills lose the

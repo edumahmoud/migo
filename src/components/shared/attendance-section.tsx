@@ -303,7 +303,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                 studentData?.name || 'طالب',
                 studentData?.role,
                 studentData?.title_id,
-                studentData?.gender
+                studentData?.gender,
+                t
               ),
               student_email: studentData?.email || '',
             };
@@ -769,7 +770,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                 studentData?.name || 'طالب',
                 studentData?.role,
                 studentData?.title_id,
-                studentData?.gender
+                studentData?.gender,
+                t
               ),
               student_email: studentData?.email || '',
             };
@@ -1125,7 +1127,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                     >
                       <UserAvatar name={student.name} avatarUrl={student.avatar_url} size="sm" />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">{formatNameWithTitle(student.name, student.role, student.title_id, student.gender)}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{formatNameWithTitle(student.name, student.role, student.title_id, student.gender, t)}</p>
                         <p className="text-xs text-muted-foreground truncate">{student.email}</p>
                       </div>
                       <div className="shrink-0">

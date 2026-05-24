@@ -12,7 +12,7 @@ import { useI18n } from '@/lib/i18n/context';
  * It should ONLY be reached if ALL inner error boundaries fail.
  *
  * Previous issue: SocketErrorBoundary was catching errors but re-rendering
- * the same children, causing errors to propagate here and show "حدث خطأ غير متوقع"
+ * the same children, causing errors to propagate here and show the error UI
  * even for recoverable dashboard errors.
  *
  * This page now includes:
@@ -27,7 +27,7 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const { dir } = useI18n();
+  const { t, dir } = useI18n();
   const [autoRetrying, setAutoRetrying] = useState(true);
   const [hasActiveSession, setHasActiveSession] = useState(false);
 
@@ -120,7 +120,7 @@ export default function ErrorPage({
           </div>
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
-            <span className="text-sm font-medium text-sky-800">جاري محاولة الاسترجاع...</span>
+            <span className="text-sm font-medium text-sky-800">{t('error.recovering')}</span>
           </div>
         </div>
       </div>
@@ -169,7 +169,7 @@ export default function ErrorPage({
             transition={{ delay: 0.4 }}
             className="text-xl font-bold text-gray-900 mb-2"
           >
-            حدث خطأ غير متوقع
+            {t('error.unexpected')}
           </motion.h1>
 
           {/* Description */}
@@ -179,7 +179,7 @@ export default function ErrorPage({
             transition={{ delay: 0.5 }}
             className="text-sm text-gray-500 mb-4 leading-relaxed"
           >
-            نأسف لذلك! حدثت مشكلة أثناء تحميل التطبيق. يمكنك المحاولة مرة أخرى أو إعادة تعيين التطبيق.
+            {t('error.description')}
           </motion.p>
 
           {/* Error digest for debugging */}
@@ -190,7 +190,7 @@ export default function ErrorPage({
               transition={{ delay: 0.55 }}
               className="text-xs text-gray-400 mb-5 font-mono"
             >
-              كود المرجع: {error.digest}
+              {t('common.referenceCode', { code: error.digest })}
             </motion.p>
           )}
 
@@ -206,7 +206,7 @@ export default function ErrorPage({
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
             >
               <RotateCcw className="h-4 w-4" />
-              إعادة المحاولة
+              {t('common.retry')}
             </button>
 
             <button
@@ -214,7 +214,7 @@ export default function ErrorPage({
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" />
-              تحديث الصفحة
+              {t('common.refreshPage')}
             </button>
 
             {hasActiveSession && (
@@ -223,7 +223,7 @@ export default function ErrorPage({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-teal-200 px-6 py-2.5 text-sm font-semibold text-teal-700 shadow-sm hover:bg-teal-50 active:bg-teal-100 transition-all duration-200 w-full sm:w-auto"
               >
                 <GraduationCap className="h-4 w-4" />
-                العودة للتطبيق
+                {t('common.backToApp')}
               </button>
             )}
 
@@ -232,7 +232,7 @@ export default function ErrorPage({
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-amber-200 px-6 py-2.5 text-sm font-semibold text-amber-700 shadow-sm hover:bg-amber-50 active:bg-amber-100 transition-all duration-200 w-full sm:w-auto"
             >
               <AlertTriangle className="h-4 w-4" />
-              إعادة تعيين التطبيق
+              {t('common.resetApp')}
             </button>
           </motion.div>
         </div>
@@ -244,7 +244,7 @@ export default function ErrorPage({
           transition={{ delay: 1 }}
           className="text-center text-xs text-gray-400 mt-4"
         >
-          أتيندو — منصة تعليمية ذكية
+          {t('error.brandTagline')}
         </motion.p>
       </motion.div>
     </div>

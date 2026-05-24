@@ -3,44 +3,54 @@
 import { useMemo } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User } from 'lucide-react';
+import { useI18n } from '@/lib/i18n/context';
 
-// Academic titles for teachers
+// Academic titles for teachers — labels are i18n keys resolved via t()
 export const ACADEMIC_TITLES = [
-  { value: 'teacher', label: 'معلم', femaleLabel: 'معلمة' },
-  { value: 'dr', label: 'دكتور', femaleLabel: 'دكتورة' },
-  { value: 'prof', label: 'أستاذ', femaleLabel: 'أستاذة' },
-  { value: 'assoc_prof', label: 'أستاذ مشارك', femaleLabel: 'أستاذة مشاركة' },
-  { value: 'assist_prof', label: 'أستاذ مساعد', femaleLabel: 'أستاذة مساعدة' },
-  { value: 'lecturer', label: 'محاضر', femaleLabel: 'محاضرة' },
-  { value: 'teaching_assist', label: 'معيد', femaleLabel: 'معيدة' },
+  { value: 'teacher', label: 'titles.teacher', femaleLabel: 'titles.teacherFemale' },
+  { value: 'dr', label: 'titles.dr', femaleLabel: 'titles.drFemale' },
+  { value: 'prof', label: 'titles.prof', femaleLabel: 'titles.profFemale' },
+  { value: 'assoc_prof', label: 'titles.assocProf', femaleLabel: 'titles.assocProfFemale' },
+  { value: 'assist_prof', label: 'titles.assistProf', femaleLabel: 'titles.assistProfFemale' },
+  { value: 'lecturer', label: 'titles.lecturer', femaleLabel: 'titles.lecturerFemale' },
+  { value: 'teaching_assist', label: 'titles.teachingAssist', femaleLabel: 'titles.teachingAssistFemale' },
 ] as const;
 
-export function getTitleLabel(titleId?: string | null, gender?: string | null): string | null {
+/**
+ * Get the translated title label.
+ * Requires a `t` function from useI18n().
+ */
+export function getTitleLabel(titleId: string | null | undefined, gender: string | null | undefined, t: (key: string) => string): string | null {
   if (!titleId) return null;
-  const title = ACADEMIC_TITLES.find(t => t.value === titleId);
+  const title = ACADEMIC_TITLES.find(at => at.value === titleId);
   if (!title) return null;
-  return gender === 'female' ? title.femaleLabel : title.label;
+  return gender === 'female' ? t(title.femaleLabel) : t(title.label);
 }
 
-export function getRoleLabel(role: string, gender?: string | null, titleId?: string | null): string {
+/**
+ * Get the translated role label.
+ * Requires a `t` function from useI18n().
+ */
+export function getRoleLabel(role: string, gender: string | null | undefined, titleId: string | null | undefined, t: (key: string) => string): string {
   const isFemale = gender === 'female';
-  if (role === 'student') return isFemale ? 'طالبة' : 'طالب';
-  if (role === 'superadmin') return isFemale ? 'مديرة المنصة' : 'مدير المنصة';
-  if (role === 'admin') return isFemale ? 'مشرفة' : 'مشرف';
+  if (role === 'student') return isFemale ? t('roles.studentFemale') : t('roles.student');
+  if (role === 'superadmin') return isFemale ? t('roles.superadminFemale') : t('roles.superadmin');
+  if (role === 'admin') return isFemale ? t('roles.adminFemale') : t('roles.admin');
   // For teachers, show academic title if available
-  const title = getTitleLabel(titleId, gender);
-  return title || (isFemale ? 'معلمة' : 'معلم');
+  const title = getTitleLabel(titleId, gender, t);
+  return title || (isFemale ? t('titles.teacherFemale') : t('titles.teacher'));
 }
 
 /**
  * Format a user's name with their academic title prefix.
- * E.g. "دكتور أحمد", "أستاذة سارة", "محمد" (no title for students)
+ * Requires a `t` function from useI18n().
+ * E.g. "Dr. Ahmed", "Prof. Sarah", "Mohamed" (no title for students)
  */
-export function formatNameWithTitle(name: string, role?: string | null, titleId?: string | null, gender?: string | null): string {
+export function formatNameWithTitle(name: string, role: string | null | undefined, titleId: string | null | undefined, gender: string | null | undefined, t: (key: string) => string): string {
   if (!name) return name;
   // Only teachers have academic titles
   if (role !== 'teacher') return name;
-  const title = getTitleLabel(titleId, gender);
+  const title = getTitleLabel(titleId, gender, t);
   if (!title) return name;
   return `${title} ${name}`;
 }

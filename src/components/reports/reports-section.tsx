@@ -116,7 +116,7 @@ interface ReportsSectionProps {
 // Main Component
 // -------------------------------------------------------
 export default function ReportsSection({ profile, role }: ReportsSectionProps) {
-  const { dir } = useI18n();
+  const { t, dir } = useI18n();
   const { setReportsUnreadCount, openProfile, pendingReportId, setPendingReportId } = useAppStore();
 
   // Whether the current user has staff privileges (not student)
@@ -1035,7 +1035,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <UserAvatar name={tu.name} avatarUrl={tu.avatar_url} size="md" />
           <div>
             <p className="text-sm font-semibold text-foreground">
-              <UserLink userId={tu.id} name={formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender)} />
+              <UserLink userId={tu.id} name={formatNameWithTitle(tu.name, tu.role, tu.title_id, tu.gender, t)} />
             </p>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
               <Mail className="h-3 w-3" />
@@ -1185,7 +1185,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <div className="flex items-center gap-2">
                             {resp.responder && <UserAvatar name={resp.responder.name} avatarUrl={resp.responder.avatar_url} size="sm" />}
                             <span className="text-sm font-medium">
-                              {resp.responder ? <UserLink userId={resp.responder.id} name={formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender)} /> : 'مستخدم'}
+                              {resp.responder ? <UserLink userId={resp.responder.id} name={formatNameWithTitle(resp.responder.name, resp.responder.role, resp.responder.title_id, resp.responder.gender, t)} /> : 'مستخدم'}
                             </span>
                             <span className={`inline-flex items-center gap-1 text-xs font-medium ${getActionColor(resp.action)}`}>
                               {getActionIcon(resp.action)}
@@ -1200,7 +1200,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         {resp.forwarded_to_user && (
                           <div className="flex items-center gap-2 mt-2 ms-10 text-xs text-amber-600 dark:text-amber-400">
                             <ArrowRightLeft className="h-3.5 w-3.5" />
-                            <span>حوّل إلى: {formatNameWithTitle(resp.forwarded_to_user.name, resp.forwarded_to_user.role, resp.forwarded_to_user.title_id, resp.forwarded_to_user.gender)}</span>
+                            <span>حوّل إلى: {formatNameWithTitle(resp.forwarded_to_user.name, resp.forwarded_to_user.role, resp.forwarded_to_user.title_id, resp.forwarded_to_user.gender, t)}</span>
                           </div>
                         )}
                       </div>
@@ -1227,7 +1227,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                               <UserAvatar name={msg.sender.name} avatarUrl={msg.sender.avatar_url} size="sm" />
                             ) : null}
                             <span className="text-sm font-medium">
-                              {isWarning ? 'تحذير رسمي' : msg.sender ? <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender)} /> : 'مستخدم'}
+                              {isWarning ? 'تحذير رسمي' : msg.sender ? <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender, t)} /> : 'مستخدم'}
                             </span>
                             <span className={`inline-flex items-center gap-1 text-xs font-medium ${
                               isWarning
@@ -1329,7 +1329,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">الشاكي:</span>
                 <UserAvatar name={selectedReport.reporter.name} avatarUrl={selectedReport.reporter.avatar_url} size="sm" />
-                <UserLink userId={selectedReport.reporter.id} name={formatNameWithTitle(selectedReport.reporter.name, selectedReport.reporter.role, selectedReport.reporter.title_id, selectedReport.reporter.gender)} />
+                <UserLink userId={selectedReport.reporter.id} name={formatNameWithTitle(selectedReport.reporter.name, selectedReport.reporter.role, selectedReport.reporter.title_id, selectedReport.reporter.gender, t)} />
               </div>
             ) : (
               <span>الشاكي: غير معروف</span>
@@ -1340,7 +1340,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-rose-600 dark:text-rose-400">ضد</span>
                   <UserAvatar name={selectedReport.target_user.name} avatarUrl={selectedReport.target_user.avatar_url} size="sm" />
-                  <UserLink userId={selectedReport.target_user.id} name={formatNameWithTitle(selectedReport.target_user.name, selectedReport.target_user.role, selectedReport.target_user.title_id, selectedReport.target_user.gender)} />
+                  <UserLink userId={selectedReport.target_user.id} name={formatNameWithTitle(selectedReport.target_user.name, selectedReport.target_user.role, selectedReport.target_user.title_id, selectedReport.target_user.gender, t)} />
                 </div>
               </>
             )}
@@ -1349,7 +1349,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">المعين:</span>
                 <UserAvatar name={selectedReport.assigned_user.name} avatarUrl={selectedReport.assigned_user.avatar_url} size="sm" />
-                <UserLink userId={selectedReport.assigned_user.id} name={formatNameWithTitle(selectedReport.assigned_user.name, selectedReport.assigned_user.role, selectedReport.assigned_user.title_id, selectedReport.assigned_user.gender)} />
+                <UserLink userId={selectedReport.assigned_user.id} name={formatNameWithTitle(selectedReport.assigned_user.name, selectedReport.assigned_user.role, selectedReport.assigned_user.title_id, selectedReport.assigned_user.gender, t)} />
               </div>
             ) : (
               <span>غير معين</span>
@@ -1750,7 +1750,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                       {isWarning ? (
                         'تحذير رسمي'
                       ) : msg.sender ? (
-                        <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender)} />
+                        <UserLink userId={msg.sender.id} name={formatNameWithTitle(msg.sender.name, msg.sender.role, msg.sender.title_id, msg.sender.gender, t)} />
                       ) : 'مستخدم'}
                     </span>
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${

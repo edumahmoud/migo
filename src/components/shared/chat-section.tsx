@@ -1632,7 +1632,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       msg.sender?.name || 'مستخدم',
       msg.sender?.role,
       msg.sender?.title_id,
-      msg.sender?.gender
+      msg.sender?.gender,
+      t
     );
     const showAvatar = !isOwn && (index === 0 || messages[index - 1]?.sender_id !== msg.sender_id);
     const isDeleted = (msg as unknown as Record<string, unknown>).is_deleted as boolean;
@@ -1810,7 +1811,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           activeConvInfo.otherParticipant?.name || 'محادثة خاصة',
           activeConvInfo.otherParticipant?.role,
           activeConvInfo.otherParticipant?.title_id,
-          activeConvInfo.otherParticipant?.gender
+          activeConvInfo.otherParticipant?.gender,
+          t
         )
     : '';
 
@@ -1988,7 +1990,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         conv.otherParticipant?.name || 'محادثة خاصة',
                         conv.otherParticipant?.role,
                         conv.otherParticipant?.title_id,
-                        conv.otherParticipant?.gender
+                        conv.otherParticipant?.gender,
+                        t
                       );
                   const otherUserId = !isGroup ? conv.otherParticipant?.id : null;
                   const otherUserStatus: UserStatus = otherUserId ? getUserStatus(otherUserId) : 'offline';
@@ -2163,7 +2166,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                             conv.otherParticipant?.name || 'محادثة خاصة',
                             conv.otherParticipant?.role,
                             conv.otherParticipant?.title_id,
-                            conv.otherParticipant?.gender
+                            conv.otherParticipant?.gender,
+                            t
                           );
                       const lastMsg = conv.lastMessage;
 
@@ -2523,7 +2527,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                           }`} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">{formatNameWithTitle(user.name, user.role, user.title_id, user.gender)}</p>
+                          <p className="text-sm font-semibold text-foreground truncate">{formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t)}</p>
                           <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                         </div>
                         {creatingChat && (

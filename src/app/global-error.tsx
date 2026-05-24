@@ -4,6 +4,11 @@ import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, X, GraduationCap } from 'lucide-react';
 
+/**
+ * Global Error Boundary — renders OUTSIDE the normal React tree
+ * (has its own <html>/<body>), so it CANNOT use i18n context.
+ * Instead, it reads the language from localStorage directly.
+ */
 export default function GlobalError({
   error,
   reset,
@@ -15,9 +20,46 @@ export default function GlobalError({
     console.error('[Global Error]', error);
   }, [error]);
 
+  // Read language from localStorage (same key as Zustand persist)
+  let lang = 'ar';
+  let dir = 'rtl';
+  try {
+    const raw = localStorage.getItem('attendo-app-store');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.state?.language === 'en') {
+        lang = 'en';
+        dir = 'ltr';
+      }
+    }
+  } catch {}
+
+  // Minimal inline translations (cannot import i18n context here)
+  const strings: Record<string, Record<string, string>> = {
+    ar: {
+      critical: 'خطأ حرج في التطبيق',
+      criticalDesc: 'حدث خطأ فادح يمنع تشغيل التطبيق. يرجى تحديث الصفحة أو المحاولة لاحقاً.',
+      retry: 'إعادة المحاولة',
+      refreshPage: 'تحديث الصفحة',
+      exitApp: 'الخروج من التطبيق',
+      brandTagline: 'أتيندو — منصة تعليمية ذكية',
+      referenceCode: 'كود المرجع: {code}',
+    },
+    en: {
+      critical: 'Critical Application Error',
+      criticalDesc: 'A fatal error occurred that prevents the app from running. Please refresh the page or try again later.',
+      retry: 'Retry',
+      refreshPage: 'Refresh Page',
+      exitApp: 'Exit App',
+      brandTagline: 'Attendo — Smart Educational Platform',
+      referenceCode: 'Reference code: {code}',
+    },
+  };
+
+  const s = strings[lang] || strings.ar;
+
   const handleReload = () => {
     if (typeof window !== 'undefined') {
-      // Clear potentially corrupted state before reloading
       try {
         localStorage.removeItem('attendo-app-store');
         localStorage.removeItem('_wsr');
@@ -37,7 +79,7 @@ export default function GlobalError({
   };
 
   return (
-    <html lang="ar" dir="rtl">
+    <html lang={lang} dir={dir}>
       <body className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -80,7 +122,7 @@ export default function GlobalError({
               transition={{ delay: 0.4 }}
               className="text-xl font-bold text-gray-900 mb-2"
             >
-              خطأ حرج في التطبيق
+              {s.critical}
             </motion.h1>
 
             {/* Description */}
@@ -90,7 +132,7 @@ export default function GlobalError({
               transition={{ delay: 0.5 }}
               className="text-sm text-gray-500 mb-4 leading-relaxed"
             >
-              حدث خطأ فادح يمنع تشغيل التطبيق. يرجى تحديث الصفحة أو المحاولة لاحقاً.
+              {s.criticalDesc}
             </motion.p>
 
             {/* Error digest */}
@@ -101,7 +143,7 @@ export default function GlobalError({
                 transition={{ delay: 0.55 }}
                 className="text-xs text-gray-400 mb-5 font-mono"
               >
-                كود المرجع: {error.digest}
+                {s.referenceCode.replace('{code}', error.digest)}
               </motion.p>
             )}
 
@@ -117,7 +159,7 @@ export default function GlobalError({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
               >
                 <RefreshCw className="h-4 w-4" />
-                إعادة المحاولة
+                {s.retry}
               </button>
 
               <button
@@ -125,7 +167,7 @@ export default function GlobalError({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
               >
                 <RefreshCw className="h-4 w-4" />
-                تحديث الصفحة
+                {s.refreshPage}
               </button>
 
               <button
@@ -133,7 +175,7 @@ export default function GlobalError({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-red-200 px-6 py-2.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 active:bg-red-100 transition-all duration-200 w-full sm:w-auto"
               >
                 <X className="h-4 w-4" />
-                الخروج من التطبيق
+                {s.exitApp}
               </button>
             </motion.div>
           </div>
@@ -145,7 +187,7 @@ export default function GlobalError({
             transition={{ delay: 1 }}
             className="text-center text-xs text-gray-400 mt-4"
           >
-            أتيندو — منصة تعليمية ذكية
+            {s.brandTagline}
           </motion.p>
         </motion.div>
       </body>

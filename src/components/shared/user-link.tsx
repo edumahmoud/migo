@@ -2,6 +2,7 @@
 
 import UserAvatar, { getRoleLabel, getTitleLabel } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
+import { useI18n } from '@/lib/i18n/context';
 
 interface UserLinkProps {
   userId: string;
@@ -48,6 +49,7 @@ export default function UserLink({
   className = '',
 }: UserLinkProps) {
   const { openProfile } = useAppStore();
+  const { t } = useI18n();
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -55,8 +57,8 @@ export default function UserLink({
     openProfile(userId);
   };
 
-  const roleLabel = role ? getRoleLabel(role, gender, titleId) : null;
-  const titleLabel = role === 'teacher' ? getTitleLabel(titleId, gender) : null;
+  const roleLabel = role ? getRoleLabel(role, gender, titleId, t) : null;
+  const titleLabel = role === 'teacher' ? getTitleLabel(titleId, gender, t) : null;
 
   return (
     <button

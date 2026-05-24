@@ -48,9 +48,9 @@ interface VideoWithMeta extends SubjectVideo {
 // -------------------------------------------------------
 // Helpers
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string = 'ar-SA'): string {
   try {
-    return new Date(dateStr).toLocaleDateString('ar-SA', {
+    return new Date(dateStr).toLocaleDateString(locale, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -204,10 +204,10 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
           return {
             ...v,
             uploader_name: uploader
-              ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender)
-              : 'مستخدم',
+              ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender, t)
+              : t('videos.user'),
             comment_count: commentCountMap.get(v.id) || 0,
-            subject_name: subject?.name || 'مقرر غير معروف',
+            subject_name: subject?.name || t('videos.unknownSubject'),
             subject_color: subject?.color,
           };
         });
@@ -235,7 +235,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
     } finally {
       setLoading(false);
     }
-  }, [profile.id, role]);
+  }, [profile.id, role, t]);
 
   useEffect(() => {
     fetchVideos();
@@ -269,7 +269,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
             const user = userMap.get(c.user_id);
             return {
               ...c,
-              user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender) : 'مستخدم',
+              user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t) : t('videos.user'),
               user_role: user?.role ?? undefined,
               user_title_id: user?.title_id ?? undefined,
               user_gender: user?.gender ?? undefined,
@@ -284,7 +284,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
     } finally {
       setCommentsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   // -------------------------------------------------------
   // Record unique view
@@ -349,7 +349,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronLeft className="h-4 w-4" />
-          العودة للقائمة
+          {t('videos.backToList')}
         </button>
 
         <div className="overflow-hidden rounded-xl border bg-black">
@@ -363,7 +363,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
             onPlay={() => handleVideoPlay(selectedVideo.id)}
           >
             <source src={selectedVideo.video_url} type={selectedVideo.video_type} />
-            متصفحك لا يدعم تشغيل الفيديو.
+            {t('videos.videoNotSupported')}
           </video>
         </div>
 
@@ -389,16 +389,16 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
             </span>
             <span className="flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" />
-              {formatDate(selectedVideo.created_at)}
+              {formatDate(selectedVideo.created_at, dir === 'rtl' ? 'ar-SA' : 'en-US')}
             </span>
             <span className="flex items-center gap-1.5">
               <Eye className="h-3.5 w-3.5" />
-              {selectedVideo.view_count} مشاهدة
+              {selectedVideo.view_count} {t('videos.views')}
             </span>
             {selectedVideo.comment_count !== undefined && selectedVideo.comment_count > 0 && (
               <span className="flex items-center gap-1.5">
                 <MessageSquare className="h-3.5 w-3.5" />
-                {selectedVideo.comment_count} تعليق
+                {selectedVideo.comment_count} {t('videos.comment')}
               </span>
             )}
           </div>
@@ -409,7 +409,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-              <h3 className="text-base font-bold text-foreground">التعليقات</h3>
+              <h3 className="text-base font-bold text-foreground">{t('videos.comments')}</h3>
               {comments.length > 0 && (
                 <span className="rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2 py-0.5 text-[11px] font-medium">
                   {comments.length}
@@ -424,7 +424,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
             ) : comments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <MessageSquare className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                <p className="text-sm text-muted-foreground">لا توجد تعليقات بعد</p>
+                <p className="text-sm text-muted-foreground">{t('videos.noComments')}</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
@@ -441,7 +441,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-sm font-medium text-foreground">
-                              {comment.user_name || 'مستخدم'}
+                              {comment.user_name || t('videos.user')}
                             </span>
                           </div>
                           <p className="text-sm text-foreground/90 whitespace-pre-wrap break-words">
@@ -470,10 +470,10 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
         <div>
           <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Video className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-            كل الفيديوهات
+            {t('videos.title')}
           </h3>
           <p className="text-muted-foreground text-sm mt-1 mb-3">
-            {filteredVideos.length} فيديو من {subjects.length} مقرر
+            {t('videos.videoCount', { count: filteredVideos.length, subjects: subjects.length })}
           </p>
         </div>
       </motion.div>
@@ -482,13 +482,13 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
       <motion.div variants={itemVariants} className="space-y-3">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث في الفيديوهات..."
-              className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+              placeholder={t('videos.searchPlaceholder')}
+              className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40"
               dir={dir}
             />
           </div>
@@ -520,7 +520,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
                       : 'bg-muted text-muted-foreground hover:bg-muted/80'
                   }`}
                 >
-                  الكل
+                  {t('videos.all')}
                 </button>
                 {subjects.map((subject) => (
                   <button
@@ -557,10 +557,10 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
             <FileVideo className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
-            {searchQuery || selectedSubjectId ? 'لا توجد نتائج' : 'لا توجد فيديوهات'}
+            {searchQuery || selectedSubjectId ? t('videos.noResults') : t('videos.noVideos')}
           </p>
           <p className="text-sm text-muted-foreground">
-            {searchQuery || selectedSubjectId ? 'جرّب تغيير معايير البحث' : 'لم يتم رفع فيديوهات بعد في مقرراتك'}
+            {searchQuery || selectedSubjectId ? t('videos.tryDifferentSearch') : t('videos.noVideosDesc')}
           </p>
         </motion.div>
       ) : (
@@ -623,7 +623,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        {formatDate(video.created_at)}
+                        {formatDate(video.created_at, dir === 'rtl' ? 'ar-SA' : 'en-US')}
                       </span>
                       <span className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />

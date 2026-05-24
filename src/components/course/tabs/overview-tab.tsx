@@ -440,7 +440,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
               ) : (
                 <div className="space-y-2">
                   {coTeachers.map((ct) => {
-                    const titleLabel = getTitleLabel(ct.teacher_title_id, ct.teacher_gender);
+                    const titleLabel = getTitleLabel(ct.teacher_title_id, ct.teacher_gender, t);
                     return (
                       <div
                         key={ct.id}

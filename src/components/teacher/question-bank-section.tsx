@@ -105,22 +105,22 @@ function formatDate(dateStr: string): string {
   } catch { return dateStr; }
 }
 
-function questionTypeLabel(type: string): string {
+function questionTypeLabel(type: string, t: (key: string) => string): string {
   switch (type) {
-    case 'mcq': return 'اختيار متعدد';
-    case 'boolean': return 'صح/خطأ';
-    case 'completion': return 'إكمال';
-    case 'matching': return 'مطابقة';
+    case 'mcq': return t('quiz.typeMcq');
+    case 'boolean': return t('quiz.typeBoolean');
+    case 'completion': return t('quiz.typeCompletion');
+    case 'matching': return t('quiz.typeMatching');
     default: return type;
   }
 }
 
-function difficultyLabel(d?: string | null): string {
+function difficultyLabel(d: string | null | undefined, t: (key: string) => string): string {
   switch (d) {
-    case 'easy': return 'سهل';
-    case 'medium': return 'متوسط';
-    case 'hard': return 'صعب';
-    default: return 'غير محدد';
+    case 'easy': return t('questionBank.difficultyEasy');
+    case 'medium': return t('questionBank.difficultyMedium');
+    case 'hard': return t('questionBank.difficultyHard');
+    default: return t('questionBank.difficultyUnspecified');
   }
 }
 
@@ -281,11 +281,11 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   // -------------------------------------------------------
   const handleCreateBank = async () => {
     if (!bankName.trim()) {
-      toast.error('يرجى إدخال اسم بنك الأسئلة');
+      toast.error(t('questionBank.toastEnterBankName'));
       return;
     }
     if (!bankSubjectId) {
-      toast.error('يرجى اختيار المقرر');
+      toast.error(t('questionBank.toastSelectSubject'));
       return;
     }
 
@@ -309,17 +309,17 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
       const data = await res.json();
       if (data.success) {
-        toast.success('تم إنشاء بنك الأسئلة بنجاح');
+        toast.success(t('questionBank.toastBankCreated'));
         setCreateModalOpen(false);
         setBankName('');
         setBankDescription('');
         setBankSubjectId('');
         fetchBanks();
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء إنشاء بنك الأسئلة');
+        toast.error(data.error || t('questionBank.toastBankCreateError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setCreatingBank(false);
     }
@@ -341,17 +341,17 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
       const data = await res.json();
       if (data.success) {
-        toast.success('تم حذف بنك الأسئلة بنجاح');
+        toast.success(t('questionBank.toastBankDeleted'));
         fetchBanks();
         if (selectedBank?.id === bankId) {
           setSelectedBank(null);
           setView('list');
         }
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء حذف بنك الأسئلة');
+        toast.error(data.error || t('questionBank.toastBankDeleteError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setDeletingBankId(null);
     }
@@ -389,15 +389,15 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
       const data = await res.json();
       if (data.success) {
-        toast.success('تم تحديث بنك الأسئلة بنجاح');
+        toast.success(t('questionBank.toastBankUpdated'));
         setEditModalOpen(false);
         fetchBankDetail(selectedBank.id);
         fetchBanks();
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء التحديث');
+        toast.error(data.error || t('questionBank.toastBankUpdateError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setEditingBank(false);
     }
@@ -419,7 +419,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
   const handleAddQuestion = async () => {
     if (!currentQuestionText.trim()) {
-      toast.error('يرجى إدخال نص السؤال');
+      toast.error(t('questionBank.toastEnterQuestionText'));
       return;
     }
     if (!selectedBank) return;
@@ -430,11 +430,11 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       case 'mcq': {
         const filledOptions = mcqOptions.filter(o => o.trim());
         if (filledOptions.length < 2) {
-          toast.error('يرجى إدخال خيارين على الأقل');
+          toast.error(t('questionBank.toastEnterTwoOptions'));
           return;
         }
         if (!mcqOptions[mcqCorrect]?.trim()) {
-          toast.error('يرجى التأكد من أن الإجابة الصحيحة ليست فارغة');
+          toast.error(t('questionBank.toastCorrectAnswerEmpty'));
           return;
         }
         questionData = {
@@ -455,7 +455,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       }
       case 'completion': {
         if (!completionAnswer.trim()) {
-          toast.error('يرجى إدخال الإجابة الصحيحة');
+          toast.error(t('questionBank.toastEnterCorrectAnswer'));
           return;
         }
         questionData = {
@@ -468,7 +468,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       case 'matching': {
         const validPairs = matchingPairs.filter(p => p.key.trim() && p.value.trim());
         if (validPairs.length < 2) {
-          toast.error('يرجى إدخال زوجين على الأقل');
+          toast.error(t('questionBank.toastEnterTwoPairs'));
           return;
         }
         questionData = {
@@ -504,16 +504,16 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
       const data = await res.json();
       if (data.success) {
-        toast.success('تم إضافة السؤال بنجاح');
+        toast.success(t('questionBank.toastQuestionAdded'));
         setAddQuestionModalOpen(false);
         resetQuestionForm();
         fetchBankDetail(selectedBank.id);
         fetchBanks();
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء إضافة السؤال');
+        toast.error(data.error || t('questionBank.toastQuestionAddError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setAddingQuestion(false);
     }
@@ -543,14 +543,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
       const data = await res.json();
       if (data.success) {
-        toast.success('تم حذف السؤال بنجاح');
+        toast.success(t('questionBank.toastQuestionDeleted'));
         fetchBankDetail(selectedBank.id);
         fetchBanks();
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء حذف السؤال');
+        toast.error(data.error || t('questionBank.toastQuestionDeleteError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setDeletingQuestionId(null);
     }
@@ -581,7 +581,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   // -------------------------------------------------------
   const handleGenerateFromAiFile = async () => {
     if (!selectedCourseFile || !selectedBank) {
-      toast.error('يرجى اختيار ملف');
+      toast.error(t('questionBank.selectFile'));
       return;
     }
 
@@ -647,7 +647,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       }
 
       if (!content || content.trim().length < 50) {
-        toast.error('فشل استخراج النص من الملف. تأكد أن الملف ليس ممسوحاً ضوئياً أو محمياً');
+        toast.error(t('questionBank.toastExtractionFailed'));
         setGeneratingFromAi(false);
         return;
       }
@@ -679,14 +679,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
       const quizData = await quizRes.json();
       if (!quizRes.ok || !quizData.success) {
-        toast.error(quizData.error || 'فشل إنشاء الأسئلة');
+        toast.error(quizData.error || t('questionBank.toastGenerationFailed'));
         setGeneratingFromAi(false);
         return;
       }
 
       const questions = quizData.data.questions as QuizQuestion[];
       if (!questions || questions.length === 0) {
-        toast.error('لم يتم إنشاء أي أسئلة');
+        toast.error(t('questionBank.toastNoQuestionsGenerated'));
         setGeneratingFromAi(false);
         return;
       }
@@ -715,20 +715,20 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         const result = await saveRes.json();
         saveSucceeded = result.success === true;
         if (!saveSucceeded) {
-          toast.error(result.error || 'حدث خطأ أثناء إضافة الأسئلة');
+          toast.error(result.error || t('questionBank.toastAddQuestionsError'));
         }
       } catch (saveErr) {
         console.warn('[QB AI] Save request failed, attempting recovery:', saveErr);
         // Error recovery: re-fetch bank detail — the save may have succeeded on the server
         // even though the HTTP response was lost (network drop, timeout, etc.)
         await fetchBankDetail(selectedBank.id);
-        toast.error('حدث خطأ أثناء حفظ الأسئلة. قد تكون تم إضافتها — يرجى التحقق من البنك');
+        toast.error(t('questionBank.toastSaveQuestionsError'));
         setGeneratingFromAi(false);
         return;
       }
 
       if (saveSucceeded) {
-        toast.success(`تم إنشاء ${questions.length} سؤال وإضافتهم للبنك بنجاح`);
+        toast.success(t('questionBank.generatedCount', { count: questions.length }));
         setAiModalOpen(false);
         setSelectedCourseFile(null);
         setCourseFiles([]);
@@ -738,11 +738,11 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes('abort') || errMsg.includes('AbortError') || errMsg.includes('TIMEOUT')) {
-        toast.error('انتهت مهلة العملية. يرجى المحاولة مرة أخرى');
+        toast.error(t('questionBank.toastOperationTimeout'));
         // Recovery: re-fetch in case operation completed on server
         if (selectedBank) await fetchBankDetail(selectedBank.id);
       } else {
-        toast.error('حدث خطأ أثناء إنشاء الأسئلة من الملف');
+        toast.error(t('questionBank.toastAiGenerateError'));
       }
     } finally {
       setGeneratingFromAi(false);
@@ -754,7 +754,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   // -------------------------------------------------------
   const handleExportBank = (bank: QuestionBank & { questions?: BankQuestion[] }) => {
     if (!bank.questions || bank.questions.length === 0) {
-      toast.error('لا توجد أسئلة للتصدير');
+      toast.error(t('questionBank.noExportQuestions'));
       return;
     }
 
@@ -781,7 +781,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success('تم تصدير الأسئلة بنجاح');
+    toast.success(t('questionBank.exportSuccess'));
   };
 
   // -------------------------------------------------------
@@ -797,7 +797,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       const imported = JSON.parse(text);
 
       if (!imported.questions || !Array.isArray(imported.questions)) {
-        toast.error('صيغة الملف غير صحيحة');
+        toast.error(t('questionBank.importInvalidFormat'));
         return;
       }
 
@@ -828,14 +828,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
       const data = await res.json();
       if (data.success) {
-        toast.success(`تم استيراد ${questions.length} سؤال بنجاح`);
+        toast.success(t('questionBank.importSuccess', { count: questions.length }));
         fetchBankDetail(selectedBank.id);
         fetchBanks();
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء الاستيراد');
+        toast.error(data.error || t('common.errorUnexpected'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء قراءة الملف. تأكد من صيغة JSON');
+      toast.error(t('questionBank.importReadError'));
     }
 
     // Reset file input
@@ -898,13 +898,13 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
     <div className="space-y-4">
       {/* Question type selector */}
       <div>
-        <label className="text-sm font-medium text-foreground mb-1.5 block">نوع السؤال</label>
+        <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.questionType')}</label>
         <div className="flex flex-wrap gap-2">
           {[
-            { type: 'mcq' as const, label: 'اختيار متعدد' },
-            { type: 'boolean' as const, label: 'صح/خطأ' },
-            { type: 'completion' as const, label: 'إكمال' },
-            { type: 'matching' as const, label: 'مطابقة' },
+            { type: 'mcq' as const, label: t('quiz.typeMcq') },
+            { type: 'boolean' as const, label: t('quiz.typeBoolean') },
+            { type: 'completion' as const, label: t('quiz.typeCompletion') },
+            { type: 'matching' as const, label: t('quiz.typeMatching') },
           ].map(opt => (
             <button
               key={opt.type}
@@ -923,12 +923,12 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
       {/* Question text */}
       <div>
-        <label className="text-sm font-medium text-foreground mb-1.5 block">نص السؤال</label>
+        <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.questionText')}</label>
         <input
           type="text"
           value={currentQuestionText}
           onChange={e => setCurrentQuestionText(e.target.value)}
-          placeholder={currentQuestionType === 'completion' ? 'أدخل النص مع ____ مكان الفراغ' : 'أدخل نص السؤال'}
+          placeholder={currentQuestionType === 'completion' ? t('questionBank.completionPlaceholder') : t('questionBank.questionTextPlaceholder')}
           className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
           dir={dir}
         />
@@ -937,7 +937,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       {/* MCQ options */}
       {currentQuestionType === 'mcq' && (
         <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground mb-1.5 block">الخيارات</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.options')}</label>
           {mcqOptions.map((opt, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <button
@@ -953,33 +953,33 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 type="text"
                 value={opt}
                 onChange={e => { const n = [...mcqOptions]; n[idx] = e.target.value; setMcqOptions(n); }}
-                placeholder={`الخيار ${idx + 1}`}
+                placeholder={t('questionBank.optionLabel') + ' ' + (idx + 1)}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 dir={dir}
               />
             </div>
           ))}
-          <p className="text-xs text-muted-foreground">اضغط على الدائرة لتحديد الإجابة الصحيحة</p>
+          <p className="text-xs text-muted-foreground">{t('questionBank.selectCorrectAnswer')}</p>
         </div>
       )}
 
       {/* Boolean */}
       {currentQuestionType === 'boolean' && (
         <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">الإجابة الصحيحة</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.correctAnswer')}</label>
           <div className="flex gap-2">
             <button
               onClick={() => setBooleanCorrect(true)}
               className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-all ${
                 booleanCorrect ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200' : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
-            >صح</button>
+            >{t('quiz.booleanTrue')}</button>
             <button
               onClick={() => setBooleanCorrect(false)}
               className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-all ${
                 !booleanCorrect ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300' : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
-            >خطأ</button>
+            >{t('quiz.booleanFalse')}</button>
           </div>
         </div>
       )}
@@ -987,12 +987,12 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       {/* Completion */}
       {currentQuestionType === 'completion' && (
         <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">الإجابة الصحيحة</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.correctAnswer')}</label>
           <input
             type="text"
             value={completionAnswer}
             onChange={e => setCompletionAnswer(e.target.value)}
-            placeholder="أدخل الإجابة الصحيحة للفراغ"
+            placeholder={t('questionBank.correctAnswerPlaceholder')}
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir={dir}
           />
@@ -1002,7 +1002,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       {/* Matching */}
       {currentQuestionType === 'matching' && (
         <div className="space-y-3">
-          <label className="text-sm font-medium text-foreground mb-1.5 block">أزواج المطابقة</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.matchingPairs')}</label>
           {matchingPairs.map((pair, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -1010,7 +1010,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 type="text"
                 value={pair.key}
                 onChange={e => { const n = [...matchingPairs]; n[idx] = { ...n[idx], key: e.target.value }; setMatchingPairs(n); }}
-                placeholder="العنصر"
+                placeholder={t('questionBank.itemPlaceholder')}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 dir={dir}
               />
@@ -1019,7 +1019,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 type="text"
                 value={pair.value}
                 onChange={e => { const n = [...matchingPairs]; n[idx] = { ...n[idx], value: e.target.value }; setMatchingPairs(n); }}
-                placeholder="المطابق"
+                placeholder={t('questionBank.matchPlaceholder')}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 dir={dir}
               />
@@ -1032,7 +1032,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           ))}
           <button onClick={() => setMatchingPairs([...matchingPairs, { key: '', value: '' }])} className="flex items-center gap-1 text-xs font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800 transition-colors">
             <Plus className="h-3.5 w-3.5" />
-            إضافة زوج آخر
+            {t('questionBank.addPair')}
           </button>
         </div>
       )}
@@ -1040,26 +1040,26 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       {/* Difficulty & Category */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">الصعوبة</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.difficulty')}</label>
           <select
             value={questionDifficulty}
             onChange={e => setQuestionDifficulty(e.target.value as '' | 'easy' | 'medium' | 'hard')}
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors appearance-none cursor-pointer"
             dir={dir}
           >
-            <option value="">بدون تحديد</option>
-            <option value="easy">سهل</option>
-            <option value="medium">متوسط</option>
-            <option value="hard">صعب</option>
+            <option value="">{t('questionBank.difficultyNone')}</option>
+            <option value="easy">{t('questionBank.difficultyEasy')}</option>
+            <option value="medium">{t('questionBank.difficultyMedium')}</option>
+            <option value="hard">{t('questionBank.difficultyHard')}</option>
           </select>
         </div>
         <div>
-          <label className="text-sm font-medium text-foreground mb-1.5 block">التصنيف</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.category')}</label>
           <input
             type="text"
             value={questionCategory}
             onChange={e => setQuestionCategory(e.target.value)}
-            placeholder="مثال: الفصل الأول"
+            placeholder={t('questionBank.categoryPlaceholder')}
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir={dir}
           />
@@ -1335,11 +1335,11 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                     <p className="text-sm font-medium text-foreground">{q.question}</p>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800">
-                        {questionTypeLabel(q.type)}
+                        {questionTypeLabel(q.type, t)}
                       </span>
                       {q.difficulty && (
                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${difficultyColor(q.difficulty)}`}>
-                          {difficultyLabel(q.difficulty)}
+                          {difficultyLabel(q.difficulty, t)}
                         </span>
                       )}
                       {q.category && (
@@ -1622,10 +1622,10 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 <label className="text-sm font-medium text-foreground mb-2 block">عدد الأسئلة حسب النوع</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { key: 'mcq' as const, label: 'اختيار متعدد' },
-                    { key: 'boolean' as const, label: 'صح/خطأ' },
-                    { key: 'completion' as const, label: 'إكمال' },
-                    { key: 'matching' as const, label: 'مطابقة' },
+                    { key: 'mcq' as const, label: t('quiz.typeMcq') },
+                    { key: 'boolean' as const, label: t('quiz.typeBoolean') },
+                    { key: 'completion' as const, label: t('quiz.typeCompletion') },
+                    { key: 'matching' as const, label: t('quiz.typeMatching') },
                   ].map(item => (
                     <div key={item.key} className="flex items-center justify-between rounded-lg border p-2">
                       <span className="text-xs text-foreground">{item.label}</span>

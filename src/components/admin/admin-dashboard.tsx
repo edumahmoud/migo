@@ -1676,7 +1676,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <UserAvatar name={user.name} avatarUrl={user.avatar_url} size="sm" />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-foreground truncate block">
-                        {formatNameWithTitle(user.name, user.role, user.gender, user.title_id)}
+                        {formatNameWithTitle(user.name, user.role, user.gender, user.title_id, t)}
                       </span>
                       <span className="text-xs text-muted-foreground truncate block mt-0.5">{user.email}</span>
                     </div>
@@ -1762,7 +1762,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <UserAvatar name={selectedUser.name} avatarUrl={selectedUser.avatar_url} size="lg" />
                   <div>
                     <span className="text-base font-semibold text-foreground block">
-                      {formatNameWithTitle(selectedUser.name, selectedUser.role, selectedUser.gender, selectedUser.title_id)}
+                      {formatNameWithTitle(selectedUser.name, selectedUser.role, selectedUser.gender, selectedUser.title_id, t)}
                     </span>
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border ${getRoleBadgeClass(selectedUser.role)}`}>
                       {getRoleLabel(selectedUser.role)}
@@ -2444,7 +2444,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                             <div key={student.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/30">
                               <UserAvatar name={student.name} avatarUrl={student.avatar_url} size="xs" />
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-medium text-foreground truncate">{formatNameWithTitle(student.name, student.role, student.title_id, student.gender)}</p>
+                                <p className="text-sm font-medium text-foreground truncate">{formatNameWithTitle(student.name, student.role, student.title_id, student.gender, t)}</p>
                                 <p className="text-xs text-muted-foreground truncate">{student.email}</p>
                               </div>
                             </div>
@@ -2524,7 +2524,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             const user = userMap.get(c.user_id);
             return {
               ...c,
-              user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender) : 'مستخدم',
+              user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t) : 'مستخدم',
             };
           });
           setFlaggedComments(enriched);

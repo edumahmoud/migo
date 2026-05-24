@@ -724,7 +724,7 @@ export default function NotificationBell() {
                     <UserAvatar name={linkRequestModal.teacher?.name || 'معلم'} avatarUrl={linkRequestModal.teacher?.avatar_url} size="lg" />
                     <h3 className="text-lg font-bold text-foreground mt-3 mb-1">طلب ارتباط</h3>
                     <p className="text-sm text-muted-foreground mb-6">
-                      أرسل {linkRequestModal.teacher?.gender === 'female' ? 'المعلمة' : 'المعلم'} <span className="font-semibold text-foreground">{formatNameWithTitle(linkRequestModal.teacher?.name || 'معلم', 'teacher', linkRequestModal.teacher?.title_id, linkRequestModal.teacher?.gender)}</span> طلب ارتباط بك
+                      أرسل {linkRequestModal.teacher?.gender === 'female' ? 'المعلمة' : 'المعلم'} <span className="font-semibold text-foreground">{formatNameWithTitle(linkRequestModal.teacher?.name || 'معلم', 'teacher', linkRequestModal.teacher?.title_id, linkRequestModal.teacher?.gender, t)}</span> طلب ارتباط بك
                     </p>
                     <div className="flex items-center gap-3 w-full">
                       <button
