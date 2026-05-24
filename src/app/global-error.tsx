@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, X, GraduationCap } from 'lucide-react';
+import { useTranslations } from '@/i18n/use-translations';
+import { useLocaleStore } from '@/i18n/locale-store';
 
 /**
  * Global Error Boundary — renders OUTSIDE the normal React tree
@@ -16,6 +18,10 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t, isRTL } = useTranslations();
+  const locale = useLocaleStore((s) => s.locale);
+  const direction = useLocaleStore((s) => s.direction);
+
   useEffect(() => {
     console.error('[Global Error]', error);
   }, [error]);
@@ -79,8 +85,8 @@ export default function GlobalError({
   };
 
   return (
-    <html lang={lang} dir={dir}>
-      <body className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4">
+    <html lang={locale} dir={direction}>
+      <body className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/20 rounded-full blur-3xl" />
@@ -122,7 +128,7 @@ export default function GlobalError({
               transition={{ delay: 0.4 }}
               className="text-xl font-bold text-gray-900 dark:text-foreground mb-2"
             >
-              {s.critical}
+              {t('globalError.criticalError')}
             </motion.h1>
 
             {/* Description */}
@@ -132,7 +138,7 @@ export default function GlobalError({
               transition={{ delay: 0.5 }}
               className="text-sm text-gray-500 dark:text-muted-foreground mb-4 leading-relaxed"
             >
-              {s.criticalDesc}
+              {t('globalError.criticalErrorDesc')}
             </motion.p>
 
             {/* Error digest */}
@@ -143,7 +149,7 @@ export default function GlobalError({
                 transition={{ delay: 0.55 }}
                 className="text-xs text-gray-400 dark:text-muted-foreground mb-5 font-mono"
               >
-                {s.referenceCode.replace('{code}', error.digest)}
+                {t('common.referenceCode')} {error.digest}
               </motion.p>
             )}
 
@@ -159,7 +165,7 @@ export default function GlobalError({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
               >
                 <RefreshCw className="h-4 w-4" />
-                {s.retry}
+                {t('globalError.retry')}
               </button>
 
               <button
@@ -167,7 +173,7 @@ export default function GlobalError({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-gray-200 dark:border-border px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-foreground shadow-sm hover:bg-gray-50 dark:hover:bg-muted/50 active:bg-gray-100 dark:active:bg-muted transition-all duration-200 w-full sm:w-auto"
               >
                 <RefreshCw className="h-4 w-4" />
-                {s.refreshPage}
+                {t('globalError.refreshPage')}
               </button>
 
               <button
@@ -175,7 +181,7 @@ export default function GlobalError({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-red-200 dark:border-red-800 px-6 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 shadow-sm hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-950 transition-all duration-200 w-full sm:w-auto"
               >
                 <X className="h-4 w-4" />
-                {s.exitApp}
+                {t('globalError.exitApp')}
               </button>
             </motion.div>
           </div>
@@ -187,7 +193,7 @@ export default function GlobalError({
             transition={{ delay: 1 }}
             className="text-center text-xs text-gray-400 dark:text-muted-foreground mt-4"
           >
-            {s.brandTagline}
+            {t('globalError.branding')}
           </motion.p>
         </motion.div>
       </body>

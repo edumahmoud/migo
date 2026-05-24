@@ -58,7 +58,8 @@ import { useSharedSocket, useSocketEvent, setSocketAuth } from '@/lib/socket';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import type { UserProfile, UserStatus } from '@/lib/types';
 import ThemeToggle from '@/components/shared/theme-toggle';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
+import { useLocaleStore } from '@/i18n/locale-store';
 
 // -------------------------------------------------------
 // Types
@@ -166,6 +167,8 @@ export default function SettingsSection({
   onUpdateProfile,
   onDeleteAccount,
 }: SettingsSectionProps) {
+  const { t, isRTL, direction } = useTranslations();
+  const { locale, setLocale } = useLocaleStore();
   const { refreshProfile } = useAuthStore();
 
   // ─── i18n ───
@@ -1302,33 +1305,33 @@ export default function SettingsSection({
               <div className="border-t" />
 
               {/* Language Switcher */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300">
-                    <Globe className="h-4 w-4" />
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30">
+                    <Globe className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                   </div>
-                  <div className="min-w-0">
+                  <div>
                     <p className="text-sm font-medium text-foreground">{t('settings.language')}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{t('settings.languageDesc')}</p>
+                    <p className="text-xs text-muted-foreground">{locale === 'ar' ? 'العربية' : 'English'}</p>
                   </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex gap-1.5">
                   <button
                     onClick={() => setLocale('ar')}
-                    className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       locale === 'ar'
-                        ? 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-700 dark:bg-sky-950/30 dark:text-sky-300'
-                        : 'border-border text-muted-foreground hover:bg-muted'
+                        ? 'bg-sky-600 text-white shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
                     }`}
                   >
                     العربية
                   </button>
                   <button
                     onClick={() => setLocale('en')}
-                    className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       locale === 'en'
-                        ? 'border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-700 dark:bg-sky-950/30 dark:text-sky-300'
-                        : 'border-border text-muted-foreground hover:bg-muted'
+                        ? 'bg-sky-600 text-white shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
                     }`}
                   >
                     English

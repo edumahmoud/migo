@@ -2,10 +2,11 @@
 
 import { motion } from 'framer-motion';
 import { WifiOff, RefreshCw, X, GraduationCap } from 'lucide-react';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 export default function OfflinePage() {
-  const { t, dir } = useI18n();
+  const { t, isRTL } = useTranslations();
+
   const handleExit = () => {
     try {
       window.close();
@@ -15,7 +16,7 @@ export default function OfflinePage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/20 rounded-full blur-3xl" />
@@ -66,7 +67,7 @@ export default function OfflinePage() {
             transition={{ delay: 0.5 }}
             className="text-sm text-gray-500 dark:text-muted-foreground mb-6 leading-relaxed"
           >
-            {t('offline.description')}
+            {t('offline.noConnectionDesc')}
           </motion.p>
 
           {/* Action buttons */}
@@ -81,7 +82,7 @@ export default function OfflinePage() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" />
-              {t('common.retry')}
+              {t('offline.retry')}
             </button>
 
             <button
@@ -89,7 +90,7 @@ export default function OfflinePage() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-red-200 dark:border-red-800 px-6 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 shadow-sm hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-950 transition-all duration-200 w-full sm:w-auto"
             >
               <X className="h-4 w-4" />
-              {t('common.exitApp')}
+              {t('offline.exit')}
             </button>
           </motion.div>
         </div>
@@ -101,7 +102,7 @@ export default function OfflinePage() {
           transition={{ delay: 1 }}
           className="text-center text-xs text-gray-400 dark:text-muted-foreground mt-4"
         >
-          {t('offline.brandTagline')}
+          {t('offline.branding')}
         </motion.p>
       </motion.div>
     </div>

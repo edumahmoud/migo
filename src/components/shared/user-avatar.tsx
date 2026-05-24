@@ -3,47 +3,62 @@
 import { useMemo } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User } from 'lucide-react';
-import { useI18n } from '@/lib/i18n/context';
+import { useLocaleStore } from '@/i18n/locale-store';
 
-// Academic titles for teachers — labels are i18n keys resolved via t()
-export const ACADEMIC_TITLES = [
-  { value: 'teacher', label: 'titles.teacher', femaleLabel: 'titles.teacherFemale' },
-  { value: 'dr', label: 'titles.dr', femaleLabel: 'titles.drFemale' },
-  { value: 'prof', label: 'titles.prof', femaleLabel: 'titles.profFemale' },
-  { value: 'assoc_prof', label: 'titles.assocProf', femaleLabel: 'titles.assocProfFemale' },
-  { value: 'assist_prof', label: 'titles.assistProf', femaleLabel: 'titles.assistProfFemale' },
-  { value: 'lecturer', label: 'titles.lecturer', femaleLabel: 'titles.lecturerFemale' },
-  { value: 'teaching_assist', label: 'titles.teachingAssist', femaleLabel: 'titles.teachingAssistFemale' },
+// Academic titles for teachers - bilingual
+const ACADEMIC_TITLES_AR = [
+  { value: 'teacher', label: 'معلم', femaleLabel: 'معلمة' },
+  { value: 'dr', label: 'دكتور', femaleLabel: 'دكتورة' },
+  { value: 'prof', label: 'أستاذ', femaleLabel: 'أستاذة' },
+  { value: 'assoc_prof', label: 'أستاذ مشارك', femaleLabel: 'أستاذة مشاركة' },
+  { value: 'assist_prof', label: 'أستاذ مساعد', femaleLabel: 'أستاذة مساعدة' },
+  { value: 'lecturer', label: 'محاضر', femaleLabel: 'محاضرة' },
+  { value: 'teaching_assist', label: 'معيد', femaleLabel: 'معيدة' },
 ] as const;
 
-/**
- * Get the translated title label.
- * Requires a `t` function from useI18n().
- */
-export function getTitleLabel(titleId: string | null | undefined, gender: string | null | undefined, t: (key: string) => string): string | null {
+const ACADEMIC_TITLES_EN = [
+  { value: 'teacher', label: 'Teacher', femaleLabel: 'Teacher' },
+  { value: 'dr', label: 'Dr.', femaleLabel: 'Dr.' },
+  { value: 'prof', label: 'Prof.', femaleLabel: 'Prof.' },
+  { value: 'assoc_prof', label: 'Assoc. Prof.', femaleLabel: 'Assoc. Prof.' },
+  { value: 'assist_prof', label: 'Asst. Prof.', femaleLabel: 'Asst. Prof.' },
+  { value: 'lecturer', label: 'Lecturer', femaleLabel: 'Lecturer' },
+  { value: 'teaching_assist', label: 'Teaching Asst.', femaleLabel: 'Teaching Asst.' },
+] as const;
+
+export function getAcademicTitles() {
+  const locale = useLocaleStore.getState().locale;
+  return locale === 'ar' ? ACADEMIC_TITLES_AR : ACADEMIC_TITLES_EN;
+}
+
+// Keep the old export for backward compatibility, defaults to Arabic
+export const ACADEMIC_TITLES = ACADEMIC_TITLES_AR;
+
+export function getTitleLabel(titleId?: string | null, gender?: string | null): string | null {
   if (!titleId) return null;
-  const title = ACADEMIC_TITLES.find(at => at.value === titleId);
+  const locale = useLocaleStore.getState().locale;
+  const titles = locale === 'ar' ? ACADEMIC_TITLES_AR : ACADEMIC_TITLES_EN;
+  const title = titles.find(t => t.value === titleId);
   if (!title) return null;
   return gender === 'female' ? t(title.femaleLabel) : t(title.label);
 }
 
-/**
- * Get the translated role label.
- * Requires a `t` function from useI18n().
- */
-export function getRoleLabel(role: string, gender: string | null | undefined, titleId: string | null | undefined, t: (key: string) => string): string {
+export function getRoleLabel(role: string, gender?: string | null, titleId?: string | null): string {
+  const locale = useLocaleStore.getState().locale;
+  const isAr = locale === 'ar';
   const isFemale = gender === 'female';
-  if (role === 'student') return isFemale ? t('roles.studentFemale') : t('roles.student');
-  if (role === 'superadmin') return isFemale ? t('roles.superadminFemale') : t('roles.superadmin');
-  if (role === 'admin') return isFemale ? t('roles.adminFemale') : t('roles.admin');
+  if (role === 'student') return isAr ? (isFemale ? 'طالبة' : 'طالب') : 'Student';
+  if (role === 'superadmin') return isAr ? (isFemale ? 'مديرة المنصة' : 'مدير المنصة') : 'Platform Admin';
+  if (role === 'admin') return isAr ? (isFemale ? 'مشرفة' : 'مشرف') : 'Supervisor';
   // For teachers, show academic title if available
-  const title = getTitleLabel(titleId, gender, t);
-  return title || (isFemale ? t('titles.teacherFemale') : t('titles.teacher'));
+  const title = getTitleLabel(titleId, gender);
+  if (title) return title;
+  return isAr ? (isFemale ? 'معلمة' : 'معلم') : 'Teacher';
 }
 
 /**
  * Format a user's name with their academic title prefix.
- * Requires a `t` function from useI18n().
+ * E.g. "دكتور أحمد", "أستاذة سارة", "محمد" (no title for students)
  * E.g. "Dr. Ahmed", "Prof. Sarah", "Mohamed" (no title for students)
  */
 export function formatNameWithTitle(name: string, role: string | null | undefined, titleId: string | null | undefined, gender: string | null | undefined, t: (key: string) => string): string {

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 import { useTranslation, useI18n } from '@/lib/i18n/context';
 
@@ -39,6 +40,8 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   const [isValidRecovery, setIsValidRecovery] = useState(false);
   const { t } = useTranslation();
   const { dir } = useI18n();
+
+  const { t, isRTL } = useTranslations();
 
   // Verify that we have a valid recovery session
   useEffect(() => {
@@ -115,16 +118,23 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   const mismatch = confirmPassword && newPassword !== confirmPassword;
   const canSubmit = newPassword.length >= 6 && passwordsMatch && !isLoading;
 
+  const getStrengthLabel = (s: number) => {
+    if (s <= 0) return t('auth.passwordStrength.veryWeak');
+    if (s === 1) return t('auth.passwordStrength.weak');
+    if (s === 2) return t('auth.passwordStrength.fair');
+    return t('auth.passwordStrength.strong');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newPassword || newPassword.length < 6) {
-      toast.error(t('auth.updatePassword.errorMinLength'));
+      toast.error(t('auth.passwordMinLength'));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      toast.error(t('auth.updatePassword.errorMismatch'));
+      toast.error(t('auth.passwordsDontMatch'));
       return;
     }
 
@@ -133,7 +143,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
       // ── Verify session is still valid before updating password ──
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!currentSession?.user) {
-        toast.error(t('auth.updatePassword.errorSessionExpired'));
+        toast.error(t('auth.expiredSession'));
         setIsLoading(false);
         return;
       }
@@ -152,23 +162,23 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
         const msg = error.message?.toLowerCase() || '';
 
         if (msg.includes('same') || msg.includes('different') || msg.includes('old password')) {
-          toast.error(t('auth.updatePassword.errorSamePassword'));
+          toast.error(t('auth.passwordDifferent'));
         } else if (msg.includes('session') || msg.includes('unauthenticated') || msg.includes('not found') || msg.includes('jwt') || msg.includes('token')) {
-          toast.error(t('auth.updatePassword.errorSessionExpired'));
+          toast.error(t('auth.expiredSession'));
         } else if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
-          toast.error('طلبات كثيرة جداً. يرجى الانتظار ثم المحاولة مرة أخرى');
+          toast.error(t('common.tooManyRequests'));
         } else if (msg.includes('password') || msg.includes('weak') || msg.includes('require') || msg.includes('strength') || msg.includes('policy') || msg.includes('validation') || msg.includes('criteria')) {
-          toast.error('كلمة المرور لا تلبي متطلبات الأمان. تأكد أن كلمة المرور تحتوي على أحرف كبيرة وصغيرة وأرقام ورموز');
+          toast.error(t('auth.passwordNotMeetRequirements'));
         } else {
           // Show the ACTUAL error from Supabase — no more hiding!
-          toast.error(`خطأ: ${error.message}`);
+          toast.error(t('auth.errorWithMessage', { message: error.message }));
         }
         setIsLoading(false);
         return;
       }
 
       setIsSuccess(true);
-      toast.success(t('auth.updatePassword.successUpdated'));
+      toast.success(t('auth.updatePasswordSuccess'));
 
       // Sign out after a short delay so the user can see the success message
       setTimeout(async () => {
@@ -177,7 +187,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
       }, 2000);
     } catch (err: any) {
       console.error('[UpdatePassword] Unexpected error:', err);
-      toast.error(`خطأ غير متوقع: ${err?.message || 'يرجى المحاولة مرة أخرى'}`);
+      toast.error(t('auth.unexpectedAuthError', { message: err?.message || t('auth.fallbackError') }));
     } finally {
       setIsLoading(false);
     }
@@ -186,11 +196,11 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   // Loading state while verifying recovery session
   if (verifying) {
     return (
-      <div dir={dir} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
-        <Card className="border-0 shadow-2xl bg-white/95 dark:bg-card/95 backdrop-blur-sm">
+      <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+        <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
-            <p className="text-sm text-gray-500 dark:text-muted-foreground">{t('auth.updatePassword.verifying')}</p>
+            <p className="text-sm text-gray-500">{t('auth.verifyingLink')}</p>
           </CardContent>
         </Card>
       </div>
@@ -200,7 +210,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   // Invalid or expired link
   if (!isValidRecovery) {
     return (
-      <div dir={dir} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+      <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -211,11 +221,11 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100">
                 <ShieldCheck className="h-7 w-7 text-rose-600" />
               </div>
-              <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">
-                {t('auth.updatePassword.invalidLinkTitle')}
+              <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+                {t('auth.invalidOrExpiredLink')}
               </CardTitle>
-              <CardDescription className="text-gray-500 dark:text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm">
-                {t('auth.updatePassword.invalidLinkDesc')}
+              <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
+                {t('auth.invalidResetLinkDescFull')}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-2 px-4 sm:px-6 pb-4 sm:pb-6">
@@ -225,7 +235,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 variant="outline"
                 className="w-full h-11 text-base font-medium border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/50"
               >
-                {t('auth.updatePassword.backToLogin')}
+                {t('common.returnToLogin')}
               </Button>
             </CardContent>
           </Card>
@@ -237,7 +247,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   // Success state
   if (isSuccess) {
     return (
-      <div dir={dir} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+      <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -247,8 +257,8 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
                 <CheckCircle2 className="h-9 w-9 text-emerald-600" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-foreground">{t('auth.updatePassword.successTitle')}</h3>
-              <p className="text-sm text-gray-500 dark:text-muted-foreground">{t('auth.updatePassword.successDesc')}</p>
+              <h3 className="text-lg font-bold text-gray-900">{t('auth.passwordUpdated')}</h3>
+              <p className="text-sm text-gray-500">{t('auth.passwordUpdatedDesc')}</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -258,7 +268,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
 
   // Main form
   return (
-    <div dir={dir} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -269,11 +279,11 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-sky-100">
               <Lock className="h-6 w-6 text-sky-600" />
             </div>
-            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">
-              {t('auth.updatePassword.title')}
+            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+              {t('auth.setNewPassword')}
             </CardTitle>
-            <CardDescription className="text-gray-500 dark:text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm">
-              {t('auth.updatePassword.subtitle')}
+            <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
+              {t('auth.setNewPasswordDesc')}
             </CardDescription>
           </CardHeader>
 
@@ -286,14 +296,14 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 transition={{ delay: 0.2 }}
                 className="space-y-2"
               >
-                <Label htmlFor="new-password" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
-                  {t('auth.updatePassword.newPasswordLabel')}
+                <Label htmlFor="new-password" className="text-gray-700 font-medium text-xs sm:text-sm">
+                  {t('auth.newPassword')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="new-password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder={t('auth.updatePassword.newPasswordPlaceholder')}
+                    placeholder={t('auth.enterNewPassword')}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="pe-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
@@ -325,8 +335,8 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                         />
                       ))}
                     </div>
-                    <p className={`text-xs font-medium ${strengthTextColors[strength - 1] || 'text-gray-400 dark:text-muted-foreground'}`}>
-                      {strength > 0 ? strengthLabel : 'ضعيفة جداً'}
+                    <p className={`text-xs font-medium ${strengthTextColors[strength - 1] || 'text-gray-400'}`}>
+                      {getStrengthLabel(strength)}
                     </p>
                   </div>
                 )}
@@ -339,14 +349,14 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 transition={{ delay: 0.3 }}
                 className="space-y-2"
               >
-                <Label htmlFor="confirm-password" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
-                  {t('auth.updatePassword.confirmPasswordLabel')}
+                <Label htmlFor="confirm-password" className="text-gray-700 font-medium text-xs sm:text-sm">
+                  {t('auth.confirmPassword')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="confirm-password"
                     type={showConfirm ? 'text' : 'password'}
-                    placeholder={t('auth.updatePassword.confirmPasswordPlaceholder')}
+                    placeholder={t('auth.reenterPassword')}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className={`pe-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 ${
@@ -369,10 +379,10 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                   </button>
                 </div>
                 {mismatch && (
-                  <p className="text-xs text-rose-500 font-medium">{t('auth.updatePassword.passwordsMismatch')}</p>
+                  <p className="text-xs text-rose-500 font-medium">{t('auth.passwordsDontMatch')}</p>
                 )}
                 {passwordsMatch && (
-                  <p className="text-xs text-emerald-500 font-medium">{t('auth.updatePassword.passwordsMatch')}</p>
+                  <p className="text-xs text-emerald-500 font-medium">{t('auth.passwordsMatch')}</p>
                 )}
               </motion.div>
 
@@ -390,10 +400,10 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                   {isLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>{t('auth.updatePassword.updating')}</span>
+                      <span>{t('auth.updating')}</span>
                     </>
                   ) : (
-                    t('auth.updatePassword.submit')
+                    t('auth.updatePassword')
                   )}
                 </Button>
               </motion.div>

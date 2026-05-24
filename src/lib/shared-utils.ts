@@ -3,6 +3,8 @@
 // Extracted from duplicate code across dashboard components
 // =====================================================
 
+import { useLocaleStore } from '@/i18n/locale-store';
+
 /**
  * Calculate password strength with label and color
  * Duplicated in register-form.tsx and setup-wizard.tsx
@@ -12,6 +14,9 @@ export function getPasswordStrength(password: string): {
   label: string;
   color: string;
 } {
+  const locale = useLocaleStore.getState().locale;
+  const isAr = locale === 'ar';
+  
   let score = 0;
   if (password.length >= 6) score++;
   if (password.length >= 8) score++;
@@ -19,10 +24,10 @@ export function getPasswordStrength(password: string): {
   if (/[0-9]/.test(password)) score++;
   if (/[^A-Za-z0-9]/.test(password)) score++;
 
-  if (score <= 1) return { score, label: 'ضعيفة', color: 'bg-red-500' };
-  if (score <= 2) return { score, label: 'متوسطة', color: 'bg-yellow-500' };
-  if (score <= 3) return { score, label: 'جيدة', color: 'bg-blue-500' };
-  return { score, label: 'قوية', color: 'bg-sky-600' };
+  if (score <= 1) return { score, label: isAr ? 'ضعيفة' : 'Weak', color: 'bg-red-500' };
+  if (score <= 2) return { score, label: isAr ? 'متوسطة' : 'Fair', color: 'bg-yellow-500' };
+  if (score <= 3) return { score, label: isAr ? 'جيدة' : 'Good', color: 'bg-blue-500' };
+  return { score, label: isAr ? 'قوية' : 'Strong', color: 'bg-sky-600' };
 }
 
 /**
@@ -31,8 +36,10 @@ export function getPasswordStrength(password: string): {
  */
 export function formatDate(dateString: string): string {
   try {
+    const locale = useLocaleStore.getState().locale;
+    const dateLocale = locale === 'ar' ? 'ar-SA' : 'en-US';
     const date = new Date(dateString);
-    return date.toLocaleDateString('ar-SA', {
+    return date.toLocaleDateString(dateLocale, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

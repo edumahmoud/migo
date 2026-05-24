@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 import { useTranslation, useI18n } from '@/lib/i18n/context';
 
@@ -28,26 +29,25 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   const { signInWithEmail, signInWithGoogle } = useAuthStore();
   const { setCurrentPage } = useAppStore();
   const { institution, fetchInstitution, loaded } = useInstitutionStore();
-  const { t } = useTranslation();
-  const { dir } = useI18n();
+  const { t, isRTL } = useTranslations();
 
   // Fetch institution data on mount
   useEffect(() => {
     if (!loaded) fetchInstitution();
   }, [loaded, fetchInstitution]);
 
-  const displayName = loaded ? (institution?.name || 'أتيندو') : '';
+  const displayName = loaded ? (institution?.name || t('common.appName')) : '';
   const displayLogo = institution?.logo_url;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!email.trim()) {
-      toast.error(t('auth.login.errorEmailRequired'));
+      toast.error(t('auth.pleaseEnterEmail'));
       return;
     }
     if (!password.trim()) {
-      toast.error(t('auth.login.errorPasswordRequired'));
+      toast.error(t('auth.pleaseEnterPassword'));
       return;
     }
 
@@ -61,7 +61,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
 
       const user = useAuthStore.getState().user;
       if (user) {
-        toast.success(t('auth.login.successLogin'));
+        toast.success(t('auth.loginSuccess'));
         if (user.role === 'superadmin' || user.role === 'admin') {
           setCurrentPage('admin-dashboard');
         } else if (user.role === 'teacher') {
@@ -71,7 +71,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         }
       }
     } catch {
-      toast.error(t('auth.login.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setIsLoading(false);
     }
@@ -85,7 +85,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         toast.error(error);
       }
     } catch {
-      toast.error(t('auth.login.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -98,7 +98,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   };
 
   return (
-    <div dir={dir} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -116,11 +116,11 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
               </motion.div>
             )}
-            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">
-              {displayName ? t('auth.login.welcomeWithInstitution', { displayName }) : t('auth.login.welcome')}
+            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+              {displayName ? t('auth.welcomeTo', { name: displayName }) : t('auth.welcome')}
             </CardTitle>
-            <CardDescription className="text-gray-500 dark:text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm">
-              {t('auth.login.subtitle')}
+            <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
+              {t('auth.loginToContinue')}
             </CardDescription>
           </CardHeader>
 
@@ -133,14 +133,14 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 transition={{ delay: 0.3 }}
                 className="space-y-2"
               >
-                <Label htmlFor="email" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
-                  {t('auth.login.emailLabel')}
+                <Label htmlFor="email" className="text-gray-700 font-medium text-xs sm:text-sm">
+                  {t('auth.email')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="email"
                     type="email"
-                    placeholder={t('auth.login.emailPlaceholder')}
+                    placeholder={t('auth.enterEmail')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
@@ -159,14 +159,14 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 transition={{ delay: 0.4 }}
                 className="space-y-2"
               >
-                <Label htmlFor="password" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
-                  {t('auth.login.passwordLabel')}
+                <Label htmlFor="password" className="text-gray-700 font-medium text-xs sm:text-sm">
+                  {t('auth.password')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder={t('auth.login.passwordPlaceholder')}
+                    placeholder={t('auth.enterPassword')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="ps-10 pe-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
@@ -203,7 +203,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                     onClick={onForgotPassword}
                     className="text-sm text-sky-600 hover:text-sky-700 font-medium transition-colors"
                   >
-                    {t('auth.login.forgotPassword')}
+                    {t('auth.forgotPassword')}
                   </button>
                 </motion.div>
               )}
@@ -222,10 +222,10 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                   {isLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>{t('auth.login.loggingIn')}</span>
+                      <span>{t('auth.loggingIn')}</span>
                     </>
                   ) : (
-                    t('auth.login.submit')
+                    t('auth.login')
                   )}
                 </Button>
               </motion.div>
@@ -242,7 +242,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 <div className="w-full border-t border-gray-200 dark:border-border" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-white dark:bg-card px-4 text-gray-400 dark:text-muted-foreground">{t('auth.login.or')}</span>
+                <span className="bg-white px-4 text-gray-400">{t('common.or')}</span>
               </div>
             </motion.div>
 
@@ -281,7 +281,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                     />
                   </svg>
                 )}
-                <span>{t('auth.login.googleSignIn')}</span>
+                <span>{t('auth.googleLogin')}</span>
               </Button>
             </motion.div>
 
@@ -293,14 +293,14 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 transition={{ delay: 0.8 }}
                 className="mt-3 sm:mt-6 text-center"
               >
-                <p className="text-sm text-gray-500 dark:text-muted-foreground">
-                  {t('auth.login.noAccount')}{' '}
+                <p className="text-sm text-gray-500">
+                  {t('auth.noAccount')}{' '}
                   <button
                     type="button"
                     onClick={handleSwitchToRegister}
                     className="font-semibold text-sky-600 hover:text-sky-700 transition-colors hover:underline"
                   >
-                    {t('auth.login.createAccount')}
+                    {t('auth.createAccount')}
                   </button>
                 </p>
               </motion.div>

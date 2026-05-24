@@ -25,6 +25,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { toast } from 'sonner';
+import { useTranslations } from '@/i18n/use-translations';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject } from '@/lib/types';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -153,12 +154,7 @@ const modalContentVariants = {
 // -------------------------------------------------------
 
 export default function SubjectsSection({ profile, role }: SubjectsSectionProps) {
-  const { t, dir } = useI18n();
-
-  // ─── Translated filter options (values stay Arabic to match DB) ───
-  const LEVEL_OPTIONS = LEVEL_VALUES.map((value, i) => ({ value, label: t(`levels.${LEVEL_KEYS[i]}`) }));
-  const SUB_LEVEL_OPTIONS = SUB_LEVEL_VALUES.map((value, i) => ({ value, label: t(`sublevels.${SUB_LEVEL_KEYS[i]}`) }));
-
+  const { t } = useTranslations();
   // ─── App store ───
   const { setSelectedSubjectId: setStoreSelectedSubjectId } = useAppStore();
 
@@ -592,7 +588,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const handleCopyCode = useCallback((code: string, subjectId: string) => {
     navigator.clipboard.writeText(code).then(() => {
       setCopiedCodeId(subjectId);
-      toast.success('تم نسخ كود الانضمام');
+      toast.success(t('common.copied'));
       setTimeout(() => setCopiedCodeId(null), 2000);
     });
   }, []);
@@ -603,7 +599,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const handleCreateSubject = async () => {
     const name = newSubjectName.trim();
     if (!name) {
-      toast.error('يرجى إدخال اسم المقرر');
+      toast.error(t('course.subjectName') + ': ' + t('common.required'));
       return;
     }
     setCreatingSubject(true);
@@ -669,14 +665,14 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       if (error) {
         console.error('Create subject error:', error.message, error.code, error.details, error.hint);
         if (isAuthError(error)) {
-          toast.error('خطأ في الصلاحيات. يرجى تسجيل الخروج ثم الدخول مرة أخرى');
+          toast.error(t('common.accessDenied'));
         } else if (error.code === '23503') {
-          toast.error('خطأ في بيانات المستخدم. يرجى تحديث الصفحة والمحاولة مرة أخرى');
+          toast.error(t('common.unexpectedError'));
         } else {
-          toast.error('حدث خطأ أثناء إنشاء المقرر');
+          toast.error(t('common.unexpectedError'));
         }
       } else {
-        toast.success('تم إنشاء المقرر بنجاح');
+        toast.success(t('course.subjectCreated'));
         setCreateSubjectOpen(false);
         setNewSubjectName('');
         setNewSubjectDesc('');
@@ -693,7 +689,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       }
     } catch (err) {
       console.error('Create subject catch error:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setCreatingSubject(false);
     }
@@ -709,7 +705,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const handleSearchSubject = async () => {
     const code = joinCodeInput.trim().toUpperCase();
     if (!code) {
-      toast.error('يرجى إدخال كود الانضمام');
+      toast.error(t('dashboard.joinSubjectCode') + ': ' + t('common.required'));
       return;
     }
     // Guard against double-clicks / race conditions
@@ -734,7 +730,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'لم يتم العثور على مقرر بهذا الكود');
+        toast.error(data.error || t('course.subjectNotFound'));
         return;
       }
 
@@ -742,10 +738,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       setSubjectPreview(data.subject);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        toast.error('انتهت مهلة البحث. يرجى المحاولة مرة أخرى.');
+        toast.error(t('common.connectionError'));
       } else {
         console.error('[handleSearchSubject] Unexpected error:', err);
-        toast.error('حدث خطأ غير متوقع');
+        toast.error(t('common.unexpectedError'));
       }
     } finally {
       setSearchingSubject(false);
@@ -778,11 +774,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء طلب الانضمام');
+        toast.error(data.error || t('common.unexpectedError'));
         return;
       }
 
-      toast.success(data.message || 'تم إرسال طلب الانضمام بنجاح');
+      toast.success(data.message || t('common.success'));
 
       // Optimistically add the subject to local state so it appears immediately
       if (subjectPreview) {
@@ -810,10 +806,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       fetchSubjects(true);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        toast.error('انتهت مهلة الانضمام. يرجى المحاولة مرة أخرى.');
+        toast.error(t('common.connectionError'));
       } else {
         console.error('[handleConfirmJoinSubject] Unexpected error:', err);
-        toast.error('حدث خطأ غير متوقع');
+        toast.error(t('common.unexpectedError'));
       }
     } finally {
       setJoiningSubject(false);
@@ -827,7 +823,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
     // For 'leave', show confirmation first
     if (action === 'leave') {
       const subjectObj = subjects.find(s => s.id === subjectId);
-      setLeaveConfirmOpen({ subjectId, subjectName: subjectObj?.name || t('subjects.subjectName') });
+      setLeaveConfirmOpen({ subjectId, subjectName: subjectObj?.name || t('course.coursePage') });
       return;
     }
     setLeavingSubjectId(subjectId);
@@ -843,10 +839,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         toast.success(data.message);
         fetchSubjects(true); // forceRefresh after mutation
       } else {
-        toast.error(data.error || 'حدث خطأ');
+        toast.error(data.error || t('common.unexpectedError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setLeavingSubjectId(null);
     }
@@ -869,10 +865,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         toast.success(data.message);
         fetchSubjects(true); // forceRefresh after mutation
       } else {
-        toast.error(data.error || 'حدث خطأ');
+        toast.error(data.error || t('common.unexpectedError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setLeavingSubjectId(null);
     }
@@ -920,9 +916,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
         <div>
-          <h2 className="text-2xl font-bold text-foreground">{t('subjects.title')}</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('nav.subjects')}</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            {role === 'teacher' ? t('subjects.subtitle') : t('subjects.registeredSubjects')}
+            {role === 'teacher' ? t('course.coursePage') : t('course.enrolledStudents')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -932,7 +928,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               className="flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-teal-200 transition-all hover:bg-teal-700 hover:shadow-md hover:shadow-teal-200 active:scale-[0.97]"
             >
               <UserPlus className="h-4 w-4" />
-              {t('subjects.joinSubject')}
+              {t('dashboard.joinSubject')}
             </button>
           )}
           {role === 'teacher' && (
@@ -941,7 +937,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-200 transition-all hover:bg-sky-800 hover:shadow-md hover:shadow-sky-200 active:scale-[0.97]"
             >
               <Plus className="h-4 w-4" />
-              {t('subjects.newSubject')}
+              {t('dashboard.createSubject')}
             </button>
           )}
         </div>
@@ -955,7 +951,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         >
           <div className="flex items-center gap-2 text-sm font-semibold text-foreground shrink-0">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <span>{t('questionBank.filter')}</span>
+            <span>{t('common.search')}</span>
           </div>
           <div className="flex flex-1 flex-wrap items-center gap-3">
             {/* الفرقة filter */}
@@ -967,7 +963,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
                 dir={dir}
               >
-                <option value="">{t('subjects.allLevels')}</option>
+                <option value="">{t('common.all')}</option>
                 {LEVEL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
@@ -983,7 +979,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
                 dir={dir}
               >
-                <option value="">{t('subjects.allSublevels')}</option>
+                <option value="">{t('common.all')}</option>
                 {SUB_LEVEL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
@@ -997,7 +993,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-3 w-3" />
-                {t('subjects.clearFilter')}
+                {t('common.reset')}
               </button>
             )}
           </div>
@@ -1007,8 +1003,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {/* ─── Loading State ─── */}
       {loadingSubjects && (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
-          <p className="mt-3 text-sm text-muted-foreground">{t('subjects.loading')}</p>
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700" />
+          <p className="mt-3 text-sm text-muted-foreground">{t('common.loading')}</p>
         </div>
       )}
 
@@ -1022,12 +1018,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1.5">
-            {role === 'teacher' ? t('subjects.noSubjects') : t('subjects.noStudentSubjects')}
+            {role === 'teacher' ? t('dashboard.noSubjectsYet') : t('course.noStudents')}
           </p>
           <p className="text-sm text-muted-foreground mb-6">
             {role === 'teacher'
-              ? t('subjects.createFirstSubject')
-              : t('subjects.askTeacherOrJoin')}
+              ? t('dashboard.noSubjectsYetDesc')
+              : t('dashboard.joinSubjectDesc')}
           </p>
           <div className="flex items-center gap-3">
             {role === 'student' && (
@@ -1036,7 +1032,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 className="flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-teal-700 active:scale-[0.97]"
               >
                 <UserPlus className="h-4 w-4" />
-                {t('subjects.joinSubject')}
+                {t('dashboard.joinSubject')}
               </button>
             )}
             {role === 'teacher' && (
@@ -1045,7 +1041,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]"
               >
                 <Plus className="h-4 w-4" />
-                {t('subjects.createSubject')}
+                {t('dashboard.createSubject')}
               </button>
             )}
           </div>
@@ -1194,7 +1190,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           {role === 'teacher' && subject.is_co_teacher && (
                             <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-teal-50 border border-teal-200 px-2.5 py-1 text-xs text-teal-700">
                               <Shield className="h-3 w-3 shrink-0" />
-                              <span className="font-medium">{t('subjects.coTeacher')}</span>
+                              <span className="font-medium">{t('roles.teacher')}</span>
                             </div>
                           )}
 
@@ -1216,10 +1212,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                   onClick={(e) => { e.stopPropagation(); handleSubjectAction(subject.id, 'leave'); }}
                                   disabled={leavingSubjectId === subject.id}
                                   className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[11px] text-rose-600 hover:bg-rose-100 transition-colors disabled:opacity-50"
-                                  title={t('subjects.leaveCourse')}
+                                  title={t('course.leaveSubject')}
                                 >
                                   {leavingSubjectId === subject.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <LogOut className="h-3 w-3" />}
-                                  {t('subjects.leave')}
+                                  {t('course.leaveSubject')}
                                 </button>
                               )}
                             </div>
@@ -1237,7 +1233,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <motion.div variants={cardVariants} className="space-y-4">
                 <div className="flex items-center gap-2 pt-2">
                   <div className="h-px flex-1 bg-border" />
-                  <span className="text-xs font-medium text-muted-foreground">{t('subjects.joinRequests')}</span>
+                  <span className="text-xs font-medium text-muted-foreground">طلبات ال{t('dashboard.joinSubject')}</span>
                   <div className="h-px flex-1 bg-border" />
                 </div>
 
@@ -1281,7 +1277,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             <div className="mt-3 flex items-center gap-2">
                               <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs text-amber-700">
                                 <Clock className="h-3 w-3 shrink-0" />
-                                <span className="font-medium">{t('subjects.pendingApproval')}</span>
+                                <span className="font-medium">{t('course.pending')}</span>
                               </div>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleSubjectAction(subject.id, 'cancel'); }}
@@ -1289,7 +1285,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
                               >
                                 {leavingSubjectId === subject.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                                {t('subjects.cancelRequest')}
+                                {t('common.cancel')} الطلب
                               </button>
                             </div>
 
@@ -1351,7 +1347,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             <div className="mt-3 flex items-center gap-2">
                               <div className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 border border-rose-200 px-2.5 py-1 text-xs text-rose-700">
                                 <XCircle className="h-3 w-3 shrink-0" />
-                                <span className="font-medium">{t('subjects.rejected')}</span>
+                                <span className="font-medium">{t('reports.statuses.dismissed')}</span>
                               </div>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleSubjectAction(subject.id, 'dismiss'); }}
@@ -1359,7 +1355,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 className="inline-flex items-center gap-1 rounded-full bg-gray-50 dark:bg-muted/50 border border-gray-200 dark:border-border px-2.5 py-1 text-xs text-gray-600 dark:text-muted-foreground hover:bg-gray-100 dark:hover:bg-muted transition-colors disabled:opacity-50"
                               >
                                 {leavingSubjectId === subject.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                                {t('subjects.dismiss')}
+                                {t('common.delete')}
                               </button>
                             </div>
 
@@ -1428,8 +1424,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       <Sparkles className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">{t('subjects.newSubject')}</h3>
-                      <p className="text-xs text-muted-foreground">{t('subjects.createNewSubjectDesc')}</p>
+                      <h3 className="text-lg font-bold text-foreground">{t('dashboard.createSubject')}</h3>
+                      <p className="text-xs text-muted-foreground">{t('dashboard.noSubjectsYetDesc')}</p>
                     </div>
                   </div>
                   <button
@@ -1445,13 +1441,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 {/* Subject name */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">
-                    {t('subjects.subjectName')} <span className="text-rose-500">*</span>
+                    {t('course.subjectName')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={newSubjectName}
                     onChange={(e) => setNewSubjectName(e.target.value)}
-                    placeholder={t('subjects.subjectNamePlaceholder')}
+                    placeholder={t('course.subjectName')}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
                     dir={dir}
                     disabled={creatingSubject}
@@ -1464,12 +1460,12 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 {/* Description */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">
-                    {t('subjects.description')}
+                    {t('course.description')}
                   </label>
                   <textarea
                     value={newSubjectDesc}
                     onChange={(e) => setNewSubjectDesc(e.target.value)}
-                    placeholder={t('subjects.descriptionPlaceholder')}
+                    placeholder="وصف {t('common.confirm')}ي للمقرر..."
                     rows={2}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none"
                     dir={dir}
@@ -1480,7 +1476,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 {/* Thumbnail picker */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">
-                    {t('subjects.subjectImage')}
+                    {t('course.coursePage')}
                   </label>
                   <input
                     ref={newSubjectThumbRef}
@@ -1502,7 +1498,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted">
                         <img
                           src={URL.createObjectURL(newSubjectThumb)}
-                          alt={t('subjects.subjectImage')}
+                          alt={t('course.coursePage')}
                           className="h-full w-full object-cover"
                         />
                       </div>
@@ -1513,7 +1509,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       <button
                         onClick={() => { setNewSubjectThumb(null); if (newSubjectThumbRef.current) newSubjectThumbRef.current.value = ''; }}
                         className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                        title={t('subjects.dismiss')}
+                        title="{t('common.delete')}"
                         disabled={creatingSubject}
                       >
                         <X className="h-4 w-4" />
@@ -1522,7 +1518,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   )}
                 </div>
 
-                {/* الفرقة (السنة الدراسية) & المستوى الدراسي */}
+                {/* {t('course.semester')} & {t('course.subjectCode')} */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
@@ -1535,7 +1531,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       dir={dir}
                       disabled={creatingSubject}
                     >
-                      <option value="">{t('subjects.noLevel')}</option>
+                      <option value="">{t('common.none')}</option>
                       {LEVEL_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
@@ -1674,7 +1670,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     <div>
                       <h3 className="text-lg font-bold text-foreground">{t('subjects.joinCourse')}</h3>
                       <p className="text-xs text-muted-foreground">
-                        {subjectPreview ? t('subjects.confirmJoinStep') : t('subjects.enterJoinCodeStep')}
+                        {subjectPreview ? `${t('common.confirm')} ${t('dashboard.joinSubject')}` : `${t('dashboard.joinSubjectCode')}`}
                       </p>
                     </div>
                   </div>
@@ -1882,7 +1878,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   {t('subjects.leaveConfirmDesc')} &quot;{leaveConfirmOpen.subjectName}&quot;?
                 </p>
                 <p className="text-xs text-muted-foreground/70 mb-6">
-                  {t('subjects.leaveWarning')}
+                  لن تتمكن من الوصول إلى محتوى المقرر بعد الآن، وسيتم {t('common.delete')} جميع درجاتك ومشاركاتك.
                 </p>
                 <div className="flex items-center gap-3 w-full">
                   <button

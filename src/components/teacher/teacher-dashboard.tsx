@@ -68,6 +68,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useI18n } from '@/lib/i18n/context';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
+import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
@@ -153,6 +154,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // ─── Stores ───
   const { teacherSection: storedTeacherSection, setTeacherSection: storeSetTeacherSection, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
+  const { t } = useTranslations();
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<TeacherSection>(storedTeacherSection || 'dashboard');
@@ -661,7 +663,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const handleCopyTeacherCode = () => {
     if (profile.teacher_code) {
       navigator.clipboard.writeText(profile.teacher_code);
-      toast.success(t('teacher.codeCopied'));
+      toast.success(t('common.copied'));
     }
   };
 
@@ -671,7 +673,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const handleExportSummaries = async () => {
     try {
       const XLSX = await import('xlsx');
-      toast.info(t('teacher.toastPreparingData'));
+      toast.info(t('common.loading'));
 
       const studentIds = students.map((s) => s.id);
       const { data: summaries } = await supabase
@@ -724,10 +726,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         XLSX.utils.book_append_sheet(wb, ws3, t('teacher.excelSummariesSheet'));
       }
 
-      XLSX.writeFile(wb, `${t('teacher.excelFileName')}_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success(t('teacher.toastExportSuccess'));
+      XLSX.writeFile(wb, `ملخصات_الطلاب_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success(t('common.success'));
     } catch {
-      toast.error(t('teacher.toastExportError'));
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -791,10 +793,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         XLSX.utils.book_append_sheet(wb, ws3, t('teacher.excelAllResultsSheet'));
       }
 
-      XLSX.writeFile(wb, `${t('teacher.excelReportFileName')}_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success(t('teacher.toastExportReportSuccess'));
+      XLSX.writeFile(wb, `تقرير_شامل_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success(t('common.success'));
     } catch {
-      toast.error(t('teacher.toastExportError'));
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -817,9 +819,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, quiz.title);
       XLSX.writeFile(wb, `${quiz.title}_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success(t('teacher.toastExportQuizSuccess'));
+      toast.success(t('common.success'));
     } catch {
-      toast.error(t('teacher.toastExportErrorShort'));
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -836,14 +838,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         .eq('teacher_id', profile.id);
 
       if (error) {
-        toast.error(t('teacher.toastResetStudentError'));
+        toast.error(t('common.unexpectedError'));
       } else {
-        toast.success(t('teacher.toastResetStudentSuccess'));
+        toast.success(t('common.success'));
         setStudentDetailOpen(false);
         fetchScores();
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setResettingStudent(false);
     }
@@ -866,13 +868,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || t('teacher.toastAcceptRequestError'));
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success(data.message || t('teacher.toastAcceptStudentSuccess'));
+        toast.success(data.message || t('common.success'));
         fetchStudents();
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -893,13 +895,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || t('teacher.toastRejectRequestError'));
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success(data.message || t('teacher.toastRejectSuccess'));
+        toast.success(data.message || t('common.success'));
         fetchStudents();
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -920,14 +922,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || t('teacher.toastAcceptAllError'));
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
         toast.success(data.message || t('teacher.toastAcceptAllSuccess'));
         setConfirmAcceptAllOpen(false);
         fetchStudents();
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingBulk(false);
     }
@@ -948,14 +950,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || t('teacher.toastRejectAllError'));
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
         toast.success(data.message || t('teacher.toastRejectAllSuccess'));
         setConfirmRejectAllOpen(false);
         fetchStudents();
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingBulk(false);
     }
@@ -967,7 +969,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const handleSearchStudent = async () => {
     const email = studentEmailInput.trim().toLowerCase();
     if (!email) {
-      toast.error(t('teacher.toastEnterStudentEmail'));
+      toast.error(t('auth.email') + ': ' + t('common.required'));
       return;
     }
 
@@ -984,13 +986,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || t('teacher.toastStudentNotFound'));
+        toast.error(data.error || t('common.notFound'));
         return;
       }
 
       setStudentPreview(data.student);
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setSearchingStudent(false);
     }
@@ -1014,11 +1016,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || t('teacher.toastSendLinkError'));
+        toast.error(data.error || t('common.unexpectedError'));
         return;
       }
 
-      toast.success(data.message || t('teacher.toastSendLinkSuccess'));
+      toast.success(data.message || t('common.success'));
       setStudentEmailInput('');
       setStudentPreview(null);
       setSendRequestOpen(false);
@@ -1027,7 +1029,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         fetchStudents();
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setSendingRequest(false);
     }
@@ -1048,15 +1050,15 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || t('teacher.toastRemoveStudentError'));
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success(t('teacher.toastRemoveStudentSuccess'));
+        toast.success(t('common.success'));
         setStudentDetailOpen(false);
         setSelectedStudent(null);
         fetchStudents();
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -1333,7 +1335,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     id: `score-${score.id}`,
                     type: 'quiz_completed',
                     title: score.quiz_title,
-                    subtitle: student?.name || t('teacher.studentFallback'),
+                    subtitle: student?.name || t('roles.student'),
                     pct,
                     date: score.completed_at,
                     icon: <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />,
@@ -1360,8 +1362,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   activities.push({
                     id: `sub-${sub.id}`,
                     type: 'assignment_graded',
-                    title: assignment ? t('teacher.gradeAssignment') : t('teacher.grade'),
-                    subtitle: student?.name || t('teacher.studentFallback'),
+                    title: assignment ? `تقييم مهمة` : 'تقييم',
+                    subtitle: student?.name || t('roles.student'),
                     pct: subPct,
                     date: '',
                     icon: <Award className="h-3.5 w-3.5 text-amber-500" />,

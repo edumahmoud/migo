@@ -24,6 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { useTranslations } from '@/i18n/use-translations';
 import { useInstitutionStore } from '@/stores/institution-store';
 import type { UserProfile } from '@/lib/types';
 
@@ -69,6 +70,7 @@ const sectionVariants = {
 // ─── Component ───
 
 export default function InstitutionSection({ profile }: InstitutionSectionProps) {
+  const { t } = useTranslations();
   // ─── State ───
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -145,12 +147,12 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      toast.error('يرجى اختيار ملف صورة فقط');
+      toast.error(t('admin.institutionLogo') + ': ' + t('common.error'));
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      toast.error('حجم الشعار يجب أن يكون أقل من 2 ميجابايت');
+      toast.error(t('common.error'));
       return;
     }
 
@@ -169,12 +171,12 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       const data = await res.json();
       if (data.success && data.url) {
         updateField('logo_url', data.url);
-        toast.success('تم رفع الشعار بنجاح');
+        toast.success(t('common.success'));
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء رفع الشعار');
+        toast.error(data.error || t('common.unexpectedError'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء رفع الشعار');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setUploadingLogo(false);
     }
@@ -183,11 +185,11 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
   // ─── Save handler ───
   const handleSave = async () => {
     if (!institution.name.trim()) {
-      toast.error('يرجى إدخال اسم المؤسسة');
+      toast.error(t('admin.institutionName') + ': ' + t('common.required'));
       return;
     }
     if (!institution.type) {
-      toast.error('يرجى اختيار نوع المؤسسة');
+      toast.error(t('admin.institutionType') + ': ' + t('common.required'));
       return;
     }
 
@@ -224,15 +226,15 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
 
       const result = await res.json();
       if (!res.ok || result.error) {
-        toast.error(result.error || 'فشل في حفظ بيانات المؤسسة');
+        toast.error(result.error || t('common.unexpectedError'));
         return;
       }
 
-      toast.success('تم حفظ بيانات المؤسسة بنجاح');
+      toast.success(t('common.success'));
       // Refresh data
       await fetchInstitution();
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setSaving(false);
     }
@@ -244,22 +246,22 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
-          <span className="text-sm text-muted-foreground">جاري تحميل بيانات المؤسسة...</span>
+          <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
         </div>
       </div>
     );
   }
 
   const institutionTypes: { key: InstitutionType; label: string; icon: React.ReactNode }[] = [
-    { key: 'center', label: 'سنتر تعليمي', icon: <Building2 className="h-5 w-5" /> },
-    { key: 'school', label: 'مدرسة', icon: <School className="h-5 w-5" /> },
-    { key: 'university', label: 'جامعة', icon: <Landmark className="h-5 w-5" /> },
+    { key: 'center', label: t('admin.institutionTypeOptions.trainingCenter'), icon: <Building2 className="h-5 w-5" /> },
+    { key: 'school', label: t('admin.institutionTypeOptions.school'), icon: <School className="h-5 w-5" /> },
+    { key: 'university', label: t('admin.institutionTypeOptions.university'), icon: <Landmark className="h-5 w-5" /> },
   ];
 
   const typeLabelMap: Record<InstitutionType, string> = {
-    center: 'سنتر تعليمي',
-    school: 'مدرسة',
-    university: 'جامعة',
+    center: t('admin.institutionTypeOptions.trainingCenter'),
+    school: t('admin.institutionTypeOptions.school'),
+    university: t('admin.institutionTypeOptions.university'),
   };
 
   return (
@@ -274,18 +276,18 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
             <Building2 className="h-6 w-6 text-sky-700 dark:text-sky-300" />
-            بيانات المؤسسة
+            {t('admin.institutionSettings')}
           </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">إدارة بيانات وإعدادات المؤسسة التعليمية</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('admin.institutionSettings')}</p>
 
           {/* Migration banner for tagline column */}
           {taglineMigrationStatus === 'pending' && (
             <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-amber-800 dark:text-amber-200">تحديث قاعدة البيانات مطلوب</p>
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-200">{t('admin.databaseHealth')}</p>
                 <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">
-                  لتتمكن من استخدام حقل "الوصف المختصر"، يرجى تنفيذ SQL التالي في محرر SQL بلوحة تحكم Supabase:
+                  {t('admin.databaseHealth')}
                 </p>
                 <code className="mt-1 block text-[10px] bg-amber-100/80 rounded p-1.5 font-mono text-amber-900 select-all">
                   ALTER TABLE institution_settings ADD COLUMN IF NOT EXISTS tagline TEXT;
@@ -315,20 +317,20 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
               <ImagePlus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <h3 className="font-semibold text-foreground text-sm">شعار المؤسسة</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('admin.institutionLogo')}</h3>
             </div>
             <div className="p-4 flex flex-col items-center gap-4">
               <div className="relative group">
                 {institution.logo_url ? (
                   <img
                     src={institution.logo_url}
-                    alt="شعار المؤسسة"
+                    alt={t('admin.institutionLogo')}
                     className="h-28 w-28 rounded-2xl object-cover border-2 border-sky-200 dark:border-sky-800 shadow-sm"
                   />
                 ) : (
                   <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-sky-50 to-teal-50 dark:from-sky-950/30 dark:to-teal-950/30 border-2 border-dashed border-sky-300 dark:border-sky-800 flex flex-col items-center justify-center gap-2">
                     <Building2 className="h-10 w-10 text-sky-400" />
-                    <span className="text-[10px] text-sky-600 dark:text-sky-400">لا يوجد شعار</span>
+                    <span className="text-[10px] text-sky-600 dark:text-sky-400">{t('common.noData')}</span>
                   </div>
                 )}
                 {uploadingLogo && (
@@ -346,7 +348,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   disabled={uploadingLogo}
                 >
                   <ImagePlus className="h-3.5 w-3.5" />
-                  {institution.logo_url ? 'تغيير الشعار' : 'إضافة شعار'}
+                  {institution.logo_url ? t('settings.changeAvatar') : t('common.add')}
                 </Button>
                 {institution.logo_url && (
                   <Button
@@ -356,7 +358,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                     onClick={() => updateField('logo_url', null)}
                     disabled={uploadingLogo}
                   >
-                    إزالة
+                    {t('common.delete')}
                   </Button>
                 )}
               </div>
@@ -368,7 +370,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                 className="hidden"
                 disabled={uploadingLogo}
               />
-              <p className="text-[10px] text-muted-foreground text-center">PNG, JPG حتى 2MB</p>
+              <p className="text-[10px] text-muted-foreground text-center">PNG, JPG {t('files.maxFileSize', { size: '2MB' })}</p>
             </div>
           </motion.div>
 
@@ -382,7 +384,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
               <School className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <h3 className="font-semibold text-foreground text-sm">نوع المؤسسة</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('admin.institutionType')}</h3>
             </div>
             <div className="p-4 space-y-2">
               {institutionTypes.map(({ key, label, icon }) => (
@@ -423,34 +425,34 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
               <div className="p-4 space-y-2">
                 <div className="flex items-center gap-2 mb-3">
                   <AlertCircle className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                  <span className="text-xs font-medium text-sky-800 dark:text-sky-200">ملخص المؤسسة</span>
+                  <span className="text-xs font-medium text-sky-800 dark:text-sky-200">{t('summary.summary')}</span>
                 </div>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">الاسم</span>
+                    <span className="text-muted-foreground">{t('auth.name')}</span>
                     <span className="font-medium text-foreground">{institution.name}</span>
                   </div>
                   {institution.country && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">الدولة</span>
+                      <span className="text-muted-foreground">{t('admin.institutionAddress')}</span>
                       <span className="font-medium text-foreground">{institution.country}</span>
                     </div>
                   )}
                   {institution.city && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">المدينة</span>
+                      <span className="text-muted-foreground">{t('admin.institutionAddress')}</span>
                       <span className="font-medium text-foreground">{institution.city}</span>
                     </div>
                   )}
                   {institution.academic_year && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">العام الدراسي</span>
+                      <span className="text-muted-foreground">{t('admin.institutionAcademicYear')}</span>
                       <span className="font-medium text-foreground">{institution.academic_year}</span>
                     </div>
                   )}
                   {institution.updated_at && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">آخر تحديث</span>
+                      <span className="text-muted-foreground">{t('files.lastModified')}</span>
                       <span className="font-medium text-foreground">
                         {new Date(institution.updated_at).toLocaleDateString('ar-SA')}
                       </span>
@@ -474,18 +476,18 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
               <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <h3 className="font-semibold text-foreground text-sm">المعلومات الأساسية</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('settings.profile')}</h3>
             </div>
             <div className="p-4 space-y-4">
               {/* Institution Name (Arabic) */}
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">
-                  اسم المؤسسة <span className="text-red-400">*</span>
+                  {t('admin.institutionName')} <span className="text-red-400">*</span>
                 </Label>
                 <div className="relative">
                   <Input
                     type="text"
-                    placeholder={`اسم ال${institution.type === 'center' ? 'سنتر' : institution.type === 'school' ? 'مدرسة' : 'الجامعة'}`}
+                    placeholder={t('admin.institutionName')}
                     value={institution.name}
                     onChange={(e) => updateField('name', e.target.value)}
                     className="h-10 text-sm pe-10"
@@ -497,7 +499,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
 
               {/* Institution Name (English) */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">اسم المؤسسة بالإنجليزية</Label>
+                <Label className="text-xs text-muted-foreground">{t('admin.institutionName')} (EN)</Label>
                 <div className="relative">
                   <Input
                     type="text"
@@ -514,11 +516,11 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
 
               {/* Tagline */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">الوصف المختصر</Label>
+                <Label className="text-xs text-muted-foreground">{t('admin.institutionTagline')}</Label>
                 <div className="relative">
                   <Input
                     type="text"
-                    placeholder="مثال: منصة تعليم ذكية"
+                    placeholder={t('admin.institutionTagline')}
                     value={institution.tagline || ''}
                     onChange={(e) => updateField('tagline', e.target.value)}
                     className="h-10 text-sm pe-10"
@@ -527,17 +529,17 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   />
                   <FileText className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
-                <p className="text-[10px] text-muted-foreground">عبارة وصفية تظهر في عنوان المتصفح بجانب اسم المؤسسة</p>
+                <p className="text-[10px] text-muted-foreground">{t('admin.institutionTagline')}</p>
               </div>
 
               {/* Country + City */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">الدولة</Label>
+                  <Label className="text-xs text-muted-foreground">{t('admin.institutionAddress')}</Label>
                   <div className="relative">
                     <Input
                       type="text"
-                      placeholder="الدولة"
+                      placeholder={t('admin.institutionAddress')}
                       value={institution.country || ''}
                       onChange={(e) => updateField('country', e.target.value)}
                       className="h-10 text-sm pe-10"
@@ -547,10 +549,10 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">المدينة</Label>
+                  <Label className="text-xs text-muted-foreground">{t('admin.institutionAddress')}</Label>
                   <Input
                     type="text"
-                    placeholder="المدينة"
+                    placeholder={t('admin.institutionAddress')}
                     value={institution.city || ''}
                     onChange={(e) => updateField('city', e.target.value)}
                     className="h-10 text-sm"
@@ -561,10 +563,10 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
 
               {/* Address */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">العنوان</Label>
+                <Label className="text-xs text-muted-foreground">{t('admin.institutionAddress')}</Label>
                 <Input
                   type="text"
-                  placeholder="العنوان التفصيلي"
+                  placeholder={t('admin.institutionAddress')}
                   value={institution.address || ''}
                   onChange={(e) => updateField('address', e.target.value)}
                   className="h-10 text-sm"
@@ -584,13 +586,13 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
               <Phone className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <h3 className="font-semibold text-foreground text-sm">بيانات التواصل</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('admin.institutionContact')}</h3>
             </div>
             <div className="p-4 space-y-4">
               {/* Phone + Email */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">رقم الهاتف</Label>
+                  <Label className="text-xs text-muted-foreground">{t('admin.institutionPhone')}</Label>
                   <div className="relative">
                     <Input
                       type="tel"
@@ -605,7 +607,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">البريد الإلكتروني</Label>
+                  <Label className="text-xs text-muted-foreground">{t('admin.institutionEmail')}</Label>
                   <div className="relative">
                     <Input
                       type="email"
@@ -624,7 +626,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
               {/* Website + Academic Year */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">الموقع الإلكتروني</Label>
+                  <Label className="text-xs text-muted-foreground">{t('admin.institutionWebsite')}</Label>
                   <div className="relative">
                     <Input
                       type="url"
@@ -639,7 +641,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">العام الدراسي</Label>
+                  <Label className="text-xs text-muted-foreground">{t('admin.institutionAcademicYear')}</Label>
                   <div className="relative">
                     <Input
                       type="text"
@@ -657,7 +659,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
 
               {/* Timezone */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">المنطقة الزمنية</Label>
+                <Label className="text-xs text-muted-foreground">{t('settings.languageAndRegion')}</Label>
                 <div className="relative">
                   <select
                     value={institution.timezone || 'Africa/Cairo'}
@@ -710,11 +712,11 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
               <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <h3 className="font-semibold text-foreground text-sm">وصف المؤسسة</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('course.description')}</h3>
             </div>
             <div className="p-4">
               <textarea
-                placeholder="نبذة مختصرة عن المؤسسة..."
+                placeholder={t('course.description')}
                 value={institution.description || ''}
                 onChange={(e) => updateField('description', e.target.value)}
                 className="w-full rounded-xl border border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-sky-400 focus:ring-sky-400/20 px-3 py-2.5 text-sm resize-none h-24"
@@ -731,7 +733,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
               disabled={saving || loading}
               className="h-10"
             >
-              تراجع عن التعديلات
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={handleSave}
@@ -741,12 +743,12 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
               {saving ? (
                 <span className="flex items-center gap-1.5">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  جاري الحفظ...
+                  {t('common.loading')}...
                 </span>
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  حفظ التعديلات
+                  {t('common.save')}
                 </>
               )}
             </Button>

@@ -12,12 +12,17 @@ import {
   FileSpreadsheet,
   Settings,
   ChevronRight,
+  ChevronLeft,
   MessageCircle,
   Bell,
   Activity,
   Database,
   Video,
   ShieldAlert,
+  Menu,
+  Ban,
+  Megaphone,
+  Building2,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -28,7 +33,7 @@ import {
 } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Types
@@ -42,42 +47,42 @@ interface AppSidebarProps {
 
 interface NavItem {
   id: string;
-  label: string;
+  labelKey: string;
   icon: React.ReactNode;
 }
 
 // -------------------------------------------------------
-// Navigation items per role
+// Navigation items per role (using translation keys)
 // -------------------------------------------------------
 const studentNavItems: NavItem[] = [
-  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'tracking', label: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },
-  { id: 'chat', label: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'teachers', label: 'nav.teachers', icon: <Users className="h-5 w-5" /> },
-  { id: 'summaries', label: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },
-  { id: 'assignments', label: 'nav.assignments', icon: <FileSpreadsheet className="h-5 w-5" /> },
-  { id: 'videos', label: 'nav.videos', icon: <Video className="h-5 w-5" /> },
-  { id: 'files', label: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'reports', label: 'nav.reports', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'notifications', label: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', label: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'tracking', labelKey: 'nav.studentTracking', icon: <Activity className="h-5 w-5" /> },
+  { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'teachers', labelKey: 'nav.teachers', icon: <Users className="h-5 w-5" /> },
+  { id: 'summaries', labelKey: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },
+  { id: 'assignments', labelKey: 'nav.assignments', icon: <FileSpreadsheet className="h-5 w-5" /> },
+  { id: 'videos', labelKey: 'nav.videos', icon: <Video className="h-5 w-5" /> },
+  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
+  { id: 'reports', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
 ];
 
 const teacherNavItems: NavItem[] = [
-  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'summaries', label: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },
-  { id: 'questionBank', label: 'nav.questionBank', icon: <Database className="h-5 w-5" /> },
-  { id: 'chat', label: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'students', label: 'nav.students', icon: <Users className="h-5 w-5" /> },
-  { id: 'tracking', label: 'nav.studentTracking', icon: <Activity className="h-5 w-5" /> },
-  { id: 'videos', label: 'nav.videos', icon: <Video className="h-5 w-5" /> },
-  { id: 'files', label: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'reports', label: 'nav.reports', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'analytics', label: 'nav.analytics', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'notifications', label: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', label: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'summaries', labelKey: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },
+  { id: 'questionBank', labelKey: 'nav.questionBank', icon: <Database className="h-5 w-5" /> },
+  { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'students', labelKey: 'nav.students', icon: <Users className="h-5 w-5" /> },
+  { id: 'tracking', labelKey: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },
+  { id: 'videos', labelKey: 'nav.videos', icon: <Video className="h-5 w-5" /> },
+  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
+  { id: 'reports', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'analytics', labelKey: 'nav.analytics', icon: <TrendingUp className="h-5 w-5" /> },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
 ];
 
 // -------------------------------------------------------
@@ -99,7 +104,7 @@ function NavItems({
   role?: string;
 }) {
   const { chatUnreadCount, reportsUnreadCount } = useAppStore();
-  const { t } = useI18n();
+  const { t } = useTranslations();
 
   return (
     <ul className="space-y-1">
@@ -123,7 +128,7 @@ function NavItems({
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground border border-sidebar-primary shadow-sm'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground border border-transparent'
               }`}
-              title={collapsed ? t(item.label) : undefined}
+              title={collapsed ? t(item.labelKey) : undefined}
             >
               <span
                 className={`transition-colors duration-200 shrink-0 relative ${
@@ -154,7 +159,7 @@ function NavItems({
               </span>
               {!collapsed && (
                 <>
-                  <span>{t(item.label)}</span>
+                  <span>{t(item.labelKey)}</span>
                   {isActive && item.id !== 'chat' && (
                     <motion.div
                       layoutId="activeIndicator"
@@ -183,7 +188,7 @@ export default function AppSidebar({
 }: AppSidebarProps) {
   const isMobile = useIsMobile();
   const { sidebarOpen, setSidebarOpen } = useAppStore();
-  const { t, dir } = useI18n();
+  const { t, isRTL, direction } = useTranslations();
   const navItems = customNavItems || (role === 'student' ? studentNavItems : (role === 'admin' || role === 'superadmin') ? [] : teacherNavItems);
 
   const collapsed = !sidebarOpen;
@@ -196,11 +201,11 @@ export default function AppSidebar({
   if (isMobile) {
     return (
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="right" className="w-72 p-0 bg-sidebar border-sidebar-border">
+        <SheetContent side={isRTL ? 'right' : 'left'} className="w-72 p-0 bg-sidebar border-sidebar-border">
           <SheetHeader className="sr-only">
-            <SheetTitle>{t('nav.sheetTitle')}</SheetTitle>
+            <SheetTitle>{t('nav.mainMenu')}</SheetTitle>
           </SheetHeader>
-          <div className="flex h-full flex-col overflow-hidden pt-2" dir={dir}>
+          <div className="flex h-full flex-col overflow-hidden pt-2" dir={direction}>
             <ScrollArea className="flex-1 min-h-0">
               <nav className="px-3 py-4 text-sidebar-foreground">
                 <NavItems
@@ -219,14 +224,14 @@ export default function AppSidebar({
     );
   }
 
-  // Desktop: Fixed right sidebar (RTL), collapsible
+  // Desktop: Fixed sidebar, collapsible - position based on direction
   return (
     <aside
-      className={`fixed end-0 top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
+      className={`fixed ${isRTL ? 'right-0' : 'left-0'} top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
     >
-      <div className="flex h-full flex-col overflow-hidden" dir={dir}>
+      <div className="flex h-full flex-col overflow-hidden" dir={direction}>
         {/* Navigation */}
         <ScrollArea className="flex-1 min-h-0">
           <nav className="px-2 sm:px-3 py-3 sm:py-4">
@@ -248,7 +253,11 @@ export default function AppSidebar({
               collapsed ? 'justify-center' : ''
             }`}
           >
-            <ChevronRight className={`h-4 w-4 shrink-0 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
+            {isRTL ? (
+              <ChevronLeft className={`h-4 w-4 shrink-0 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
+            ) : (
+              <ChevronRight className={`h-4 w-4 shrink-0 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
+            )}
             {!collapsed && <span>{t('nav.collapseSidebar')}</span>}
           </button>
         </div>

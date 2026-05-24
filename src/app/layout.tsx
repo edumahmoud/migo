@@ -8,6 +8,8 @@ import ServiceWorkerRegistration from "@/components/shared/sw-registration";
 import InstallPrompt from "@/components/shared/install-prompt";
 import SocketErrorBoundary from "@/components/shared/socket-error-boundary";
 import VideoUploadIndicator from "@/components/shared/video-upload-indicator";
+import { I18nProvider } from "@/i18n/provider";
+import { DirectionProvider } from "@/i18n/direction-provider";
 
 import { SocketProvider } from "@/lib/socket";
 import ClientProviders from "@/components/providers/client-providers";
@@ -30,8 +32,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "أتيندو",
-  description: "منصة تعليمية ذكية مدعومة بالذكاء الاصطناعي للطلاب والمعلمين",
+  title: "AttenDo | أتيندو",
+  description: "Smart AI-powered educational platform for students and teachers | منصة تعليمية ذكية مدعومة بالذكاء الاصطناعي للطلاب والمعلمين",
   manifest: "/api/manifest",
   icons: {
     icon: [
@@ -45,7 +47,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "أتيندو",
+    title: "AttenDo | أتيندو",
   },
   formatDetection: {
     telephone: false,
@@ -139,6 +141,41 @@ export default function RootLayout({
                   requestAnimationFrame(check);
                 } catch(e) {}
               })();
+
+              // Initialize locale direction from localStorage before React hydrates
+              // This prevents the flash of wrong direction
+              (function() {
+                try {
+                  var locale = localStorage.getItem('attendo-locale');
+                  if (locale === '"en"' || locale === 'en') {
+                    document.documentElement.lang = 'en';
+                    document.documentElement.dir = 'ltr';
+                  } else {
+                    document.documentElement.lang = 'ar';
+                    document.documentElement.dir = 'rtl';
+                  }
+                } catch(e) {}
+              })();
+
+              // Initialize theme from localStorage before React hydrates
+              // This prevents dark mode from being activated unexpectedly
+              // when ThemeToggle mounts for the first time (e.g., dropdown opens).
+              // Without this, ThemeToggle would check system preference and
+              // potentially add the 'dark' class even if the user was in light mode.
+              (function() {
+                try {
+                  var theme = localStorage.getItem('attendo-theme');
+                  if (theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  } else if (theme === 'light') {
+                    // Explicitly light — ensure dark class is removed
+                    document.documentElement.classList.remove('dark');
+                  }
+                  // If no theme stored yet, default to light (no 'dark' class).
+                  // Do NOT check system preference here — that caused the bug
+                  // where clicking the profile picture activated dark mode.
+                } catch(e) {}
+              })();
             `,
           }}
         />
@@ -146,28 +183,30 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
-        <ClientProviders>
-          <SocketErrorBoundary
-            // Slot 1 (normal): Full app WITH SocketProvider
-            // Slot 2 (fallback): App WITHOUT SocketProvider — used when socket.io crashes
-            fallback={
+        <I18nProvider>
+          <DirectionProvider>
+            <SocketErrorBoundary
+              // Slot 1 (normal): Full app WITH SocketProvider
+              // Slot 2 (fallback): App WITHOUT SocketProvider — used when socket.io crashes
+              fallback={
+                <React.Suspense fallback={null}>
+                  {children}
+                </React.Suspense>
+              }
+            >
               <React.Suspense fallback={null}>
-                {children}
+                <SocketProvider>
+                  {children}
+                </SocketProvider>
               </React.Suspense>
-            }
-          >
-            <React.Suspense fallback={null}>
-              <SocketProvider>
-                {children}
-              </SocketProvider>
-            </React.Suspense>
-          </SocketErrorBoundary>
-        </ClientProviders>
-        <InstitutionHead />
-        <Toaster />
-        <ServiceWorkerRegistration />
-        <InstallPrompt />
-        <VideoUploadIndicator />
+            </SocketErrorBoundary>
+            <InstitutionHead />
+            <Toaster />
+            <ServiceWorkerRegistration />
+            <InstallPrompt />
+            <VideoUploadIndicator />
+          </DirectionProvider>
+        </I18nProvider>
       </body>
     </html>
   );

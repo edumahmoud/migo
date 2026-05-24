@@ -25,7 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import type { Quiz } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -113,7 +113,7 @@ export default function QuizSettingsModal({
   onClose,
   onUpdate,
 }: QuizSettingsModalProps) {
-  const { t, dir } = useI18n();
+  const { t } = useTranslations();
   const [allowRetake, setAllowRetake] = useState(quiz.allow_retake ?? true);
   const [showResults, setShowResults] = useState(quiz.show_results ?? true);
   const [shuffleQuestions, setShuffleQuestions] = useState(quiz.shuffle_questions ?? true);
@@ -150,14 +150,14 @@ export default function QuizSettingsModal({
       if (res.ok && data.success) {
         // Merge the local shuffle setting with the server response
         const updatedQuiz = { ...data.data, shuffle_questions: shuffleQuestions } as Partial<Quiz>;
-        toast.success(t('quizSettings.updateSuccess'));
+        toast.success(t('quiz.quizUpdated'));
         onUpdate(updatedQuiz);
         onClose();
       } else {
-        toast.error(data.error || t('quizSettings.updateFailed'));
+        toast.error(data.error || t('common.unexpectedError'));
       }
     } catch {
-      toast.error(t('quizSettings.saveError'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setSaving(false);
     }
@@ -169,10 +169,10 @@ export default function QuizSettingsModal({
         <DialogHeader className="text-end">
           <DialogTitle className="flex items-center gap-2 text-end">
             <Settings className="h-5 w-5 text-teal-600" />
-            {t('quizSettings.title')}
+            {t('quiz.quizSettings')}
           </DialogTitle>
-          <DialogDescription className="text-end">
-            {t('quizSettings.editQuizSettings', { title: quiz.title })}
+          <DialogDescription className="text-right">
+            {t('quiz.editQuiz')}: &quot;{quiz.title}&quot;
           </DialogDescription>
         </DialogHeader>
 
@@ -185,10 +185,10 @@ export default function QuizSettingsModal({
             animate="visible"
             custom={0}
           >
-            <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">{t('quizSettings.quizLabel')}</p>
+            <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">{t('quiz.quiz')}</p>
             <p className="text-sm font-medium text-teal-800 dark:text-teal-300 truncate">{quiz.title}</p>
             <p className="text-xs text-teal-600/70 mt-1">
-              {t('quizSettings.questionCount', { count: quiz.questions?.length || 0 })}
+              {quiz.questions?.length || 0} {t('quiz.question')}
             </p>
           </motion.div>
 
@@ -202,12 +202,12 @@ export default function QuizSettingsModal({
           >
             <div className="flex items-center gap-2">
               <Settings className="h-4 w-4 text-teal-600" />
-              <h3 className="text-sm font-semibold text-foreground">{t('quizSettings.optionsLabel')}</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('quiz.quizSettings')}</h3>
             </div>
 
             <ToggleSwitch
-              label={t('quizSettings.allowRetake')}
-              description={t('quizSettings.allowRetakeDesc')}
+              label={t('quiz.allowRetake')}
+              description={t('quiz.allowRetake')}
               icon={<RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
               checked={allowRetake}
               onChange={setAllowRetake}
@@ -215,8 +215,8 @@ export default function QuizSettingsModal({
             />
 
             <ToggleSwitch
-              label={t('quizSettings.showResults')}
-              description={t('quizSettings.showResultsDesc')}
+              label={t('quiz.showResults')}
+              description={t('quiz.showResultsAfter')}
               icon={<Eye className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
               checked={showResults}
               onChange={setShowResults}
@@ -224,8 +224,8 @@ export default function QuizSettingsModal({
             />
 
             <ToggleSwitch
-              label={t('quizSettings.shuffleQuestions')}
-              description={t('quizSettings.shuffleQuestionsDesc')}
+              label={t('quiz.shuffleQuestions')}
+              description={t('quiz.shuffleOptions')}
               icon={<Shuffle className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
               checked={shuffleQuestions}
               onChange={setShuffleQuestions}
@@ -245,7 +245,7 @@ export default function QuizSettingsModal({
           >
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-teal-600" />
-              <h3 className="text-sm font-semibold text-foreground">{t('quizSettings.durationLabel')}</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('quiz.quizDuration')}</h3>
             </div>
 
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
@@ -253,8 +253,8 @@ export default function QuizSettingsModal({
                 <Clock className="h-4 w-4 text-teal-600 dark:text-teal-400" />
               </div>
               <div className="flex-1">
-                <Label className="text-sm text-muted-foreground">{t('quizSettings.durationInMinutes')}</Label>
-                <p className="text-[10px] text-muted-foreground/70">{t('quizSettings.durationHint')}</p>
+                <Label className="text-sm text-muted-foreground">{t('quiz.duration')}</Label>
+                <p className="text-[10px] text-muted-foreground/70">{t('quiz.noDuration')}</p>
               </div>
               <Input
                 type="number"
@@ -280,12 +280,12 @@ export default function QuizSettingsModal({
                 {saving ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {t('quizSettings.saving')}
+                {t('common.loading')}...
               </span>
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4" />
-                {t('quizSettings.save')}
+                {t('common.save')}
               </>
             )}
           </Button>

@@ -24,6 +24,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 import { useTranslation, useI18n } from '@/lib/i18n/context';
 
@@ -32,7 +33,7 @@ interface RegisterFormProps {
 }
 
 /** Password strength calculator */
-function getPasswordStrength(password: string): {
+function getPasswordStrength(password: string, t: (key: string) => string): {
   score: number;
   color: string;
 } {
@@ -43,10 +44,10 @@ function getPasswordStrength(password: string): {
   if (/[0-9]/.test(password)) score++;
   if (/[^A-Za-z0-9]/.test(password)) score++;
 
-  if (score <= 1) return { score, color: 'bg-red-500' };
-  if (score <= 2) return { score, color: 'bg-yellow-500' };
-  if (score <= 3) return { score, color: 'bg-blue-500' };
-  return { score, color: 'bg-teal-500' };
+  if (score <= 1) return { score, label: t('auth.passwordStrength.weak'), color: 'bg-red-500' };
+  if (score <= 2) return { score, label: t('auth.passwordStrength.fair'), color: 'bg-yellow-500' };
+  if (score <= 3) return { score, label: t('auth.passwordStrength.good'), color: 'bg-blue-500' };
+  return { score, label: t('auth.passwordStrength.strong'), color: 'bg-teal-500' };
 }
 
 export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
@@ -62,41 +63,39 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const { signUpWithEmail, signInWithGoogle } = useAuthStore();
   const { setCurrentPage } = useAppStore();
   const { institution, fetchInstitution, loaded } = useInstitutionStore();
-  const { t } = useTranslation();
-  const { dir } = useI18n();
+  const { t, isRTL } = useTranslations();
 
   // Fetch institution data on mount
   useEffect(() => {
     if (!loaded) fetchInstitution();
   }, [loaded, fetchInstitution]);
 
-  const displayName = institution?.name || 'أتيندو';
+  const displayName = institution?.name || t('common.appName');
   const displayLogo = institution?.logo_url;
 
-  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
-  const passwordStrengthLabel = passwordStrength.score <= 1 ? t('auth.register.passwordStrengthWeak') : passwordStrength.score <= 2 ? t('auth.register.passwordStrengthMedium') : passwordStrength.score <= 3 ? t('auth.register.passwordStrengthGood') : t('auth.register.passwordStrengthStrong');
+  const passwordStrength = useMemo(() => getPasswordStrength(password, t), [password, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name.trim()) {
-      toast.error(t('auth.register.errorNameRequired'));
+      toast.error(t('auth.pleaseEnterName'));
       return;
     }
     if (!email.trim()) {
-      toast.error(t('auth.register.errorEmailRequired'));
+      toast.error(t('auth.pleaseEnterEmail'));
       return;
     }
     if (!password.trim()) {
-      toast.error(t('auth.register.errorPasswordRequired'));
+      toast.error(t('auth.pleaseEnterPassword'));
       return;
     }
     if (password.length < 6) {
-      toast.error(t('auth.register.errorPasswordMinLength'));
+      toast.error(t('auth.passwordMinLength'));
       return;
     }
     if (password !== confirmPassword) {
-      toast.error(t('auth.register.errorPasswordMismatch'));
+      toast.error(t('auth.passwordsDontMatch'));
       return;
     }
 
@@ -109,11 +108,11 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       }
 
       if (needsConfirmation) {
-        toast.success(t('auth.register.successConfirmation'), {
+        toast.success(t('auth.confirmationSent'), {
           duration: 8000,
         });
       } else {
-        toast.success(t('auth.register.successCreated'));
+        toast.success(t('auth.accountCreated'));
         // Check the user's role after signup (might be superadmin if first user)
         const user = useAuthStore.getState().user;
         if (user) {
@@ -127,7 +126,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         }
       }
     } catch {
-      toast.error(t('auth.register.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setIsLoading(false);
     }
@@ -143,7 +142,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       // Google OAuth redirects away - the auth state change listener
       // in the auth store will handle navigation after redirect back
     } catch {
-      toast.error(t('auth.register.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -156,7 +155,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   };
 
   return (
-    <div dir={dir} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -174,11 +173,11 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 <img src={displayLogo} alt={displayName} className="h-full w-full object-cover" />
               </motion.div>
             )}
-            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-foreground">
-              {t('auth.register.title')}
+            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
+              {t('auth.registerTitle')}
             </CardTitle>
-            <CardDescription className="text-gray-500 dark:text-muted-foreground mt-1 sm:mt-2 text-xs sm:text-sm">
-              {t('auth.register.subtitle', { displayName })}
+            <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
+              {t('auth.joinPlatform', { name: displayName })}
             </CardDescription>
           </CardHeader>
 
@@ -191,14 +190,14 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 transition={{ delay: 0.25 }}
                 className="space-y-2"
               >
-                <Label htmlFor="reg-name" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
-                  {t('auth.register.fullNameLabel')}
+                <Label htmlFor="reg-name" className="text-gray-700 font-medium text-xs sm:text-sm">
+                  {t('auth.fullName')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="reg-name"
                     type="text"
-                    placeholder={t('auth.register.fullNamePlaceholder')}
+                    placeholder={t('auth.enterFullName')}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
@@ -216,14 +215,14 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 transition={{ delay: 0.3 }}
                 className="space-y-2"
               >
-                <Label htmlFor="reg-email" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
-                  {t('auth.register.emailLabel')}
+                <Label htmlFor="reg-email" className="text-gray-700 font-medium text-xs sm:text-sm">
+                  {t('auth.email')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="reg-email"
                     type="email"
-                    placeholder={t('auth.register.emailPlaceholder')}
+                    placeholder={t('auth.enterEmail')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="ps-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
@@ -242,14 +241,14 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 transition={{ delay: 0.35 }}
                 className="space-y-2"
               >
-                <Label htmlFor="reg-password" className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm">
-                  {t('auth.register.passwordLabel')}
+                <Label htmlFor="reg-password" className="text-gray-700 font-medium text-xs sm:text-sm">
+                  {t('auth.password')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="reg-password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder={t('auth.register.passwordPlaceholder')}
+                    placeholder={t('auth.createStrongPassword')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="ps-10 pe-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
@@ -292,7 +291,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                       passwordStrength.score <= 3 ? 'text-blue-600 dark:text-blue-400' :
                       'text-teal-600 dark:text-teal-400'
                     }`}>
-                      {t('auth.register.passwordStrength')}: {passwordStrengthLabel}
+                      {t('auth.passwordStrengthLabel')}: {passwordStrength.label}
                     </p>
                   </div>
                 )}
@@ -309,13 +308,13 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   htmlFor="reg-confirm-password"
                   className="text-gray-700 dark:text-foreground font-medium text-xs sm:text-sm"
                 >
-                  {t('auth.register.confirmPasswordLabel')}
+                  {t('auth.confirmPassword')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="reg-confirm-password"
                     type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder={t('auth.register.confirmPasswordPlaceholder')}
+                    placeholder={t('auth.reenterPassword')}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="ps-10 pe-10 h-10 sm:h-11 bg-gray-50/50 dark:bg-input/50 border-gray-200 dark:border-border focus:border-sky-500 focus:ring-sky-500/20"
@@ -348,7 +347,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 <div className="rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 p-2 sm:p-3 text-xs text-sky-700 dark:text-sky-300 flex items-start gap-2">
                   <GraduationCap className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>
-                    {t('auth.register.studentDefaultNote')}
+                    {t('auth.studentNote')}
                   </span>
                 </div>
               </motion.div>
@@ -367,10 +366,10 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   {isLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>{t('auth.register.creatingAccount')}</span>
+                      <span>{t('auth.registering')}</span>
                     </>
                   ) : (
-                    t('auth.register.submit')
+                    t('auth.register')
                   )}
                 </Button>
               </motion.div>
@@ -387,7 +386,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 <div className="w-full border-t border-gray-200 dark:border-border" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-white dark:bg-card px-4 text-gray-400 dark:text-muted-foreground">{t('auth.register.or')}</span>
+                <span className="bg-white px-4 text-gray-400">{t('common.or')}</span>
               </div>
             </motion.div>
 
@@ -426,7 +425,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                     />
                   </svg>
                 )}
-                <span>{t('auth.register.googleSignUp')}</span>
+                <span>{t('auth.googleRegister')}</span>
               </Button>
             </motion.div>
 
@@ -438,14 +437,14 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 transition={{ delay: 0.7 }}
                 className="mt-3 sm:mt-6 text-center"
               >
-                <p className="text-sm text-gray-500 dark:text-muted-foreground">
-                  {t('auth.register.hasAccount')}{' '}
+                <p className="text-sm text-gray-500">
+                  {t('auth.hasAccount')}{' '}
                   <button
                     type="button"
                     onClick={handleSwitchToLogin}
                     className="font-semibold text-sky-600 hover:text-sky-700 transition-colors hover:underline"
                   >
-                    {t('auth.register.signIn')}
+                    {t('auth.loginYourAccount')}
                   </button>
                 </p>
               </motion.div>

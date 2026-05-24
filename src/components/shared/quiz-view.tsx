@@ -26,7 +26,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useAppStore } from '@/stores/app-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -95,12 +95,7 @@ interface QuizViewProps {
 // -------------------------------------------------------
 // Question type labels
 // -------------------------------------------------------
-const getTypeLabels = (t: (key: string, params?: Record<string, string | number>) => string): Record<QuizQuestion['type'], string> => ({
-  mcq: t('quiz.typeMcq'),
-  boolean: t('quiz.typeBoolean'),
-  completion: t('quiz.typeCompletion'),
-  matching: t('quiz.typeMatching'),
-});
+// Note: typeLabels is now generated dynamically using translations inside the component
 
 const typeIcons: Record<QuizQuestion['type'], React.ReactNode> = {
   mcq: <ListChecks className="h-3.5 w-3.5" />,
@@ -132,6 +127,17 @@ const staggerContainer = {
 // Main Component
 // -------------------------------------------------------
 export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizViewProps) {
+  // ─── Translations ───
+  const { t } = useTranslations();
+
+  // ─── Dynamic type labels ───
+  const typeLabels: Record<QuizQuestion['type'], string> = {
+    mcq: t('quiz.questionTypes.mcq'),
+    boolean: t('quiz.questionTypes.trueFalse'),
+    completion: t('quiz.questionTypes.completion'),
+    matching: t('quiz.questionTypes.matching'),
+  };
+
   // ─── App store ───
   const { setCurrentPage } = useAppStore();
   const { t, dir } = useI18n();
@@ -202,7 +208,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       if (fetchError || !data) {
         // If we already have data, don't overwrite with error
         if (!hasValidDataRef.current) {
-          setError(t('quiz.errorNotFound'));
+          setError(t('common.notFound'));
         }
         return;
       }
@@ -210,7 +216,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       const quizData = data as Quiz;
       if (!quizData.questions || quizData.questions.length === 0) {
         if (!hasValidDataRef.current) {
-          setError(t('quiz.errorNoQuestions'));
+          setError(t('quiz.noQuizzes'));
         }
         return;
       }
@@ -267,7 +273,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       }
     } catch {
       if (!hasValidDataRef.current) {
-        setError(t('quiz.errorLoad'));
+        setError(t('common.unexpectedError'));
       }
     } finally {
       setLoading(false);
@@ -366,7 +372,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     const timer = setTimeout(() => {
       console.warn('[QuizView] Loading timeout (5min safety net) — forcing error state');
       setLoading(false);
-      setError(t('quiz.errorTimeout'));
+      setError(t('common.connectionError'));
     }, 300000); // 5 minutes — safety net only
     return () => clearTimeout(timer);
   }, [loading]);
@@ -398,19 +404,19 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       if (e.key === 'PrintScreen') {
         e.preventDefault();
         navigator.clipboard?.writeText('').catch(() => {});
-        toast.warning(t('quiz.screenshotDisabled'));
+        toast.warning(t('quiz.antiCheat.screenRecording'));
         return;
       }
       // Windows: Win+Shift+S
       if (e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
-        toast.warning(t('quiz.screenshotDisabled'));
+        toast.warning(t('quiz.antiCheat.screenRecording'));
         return;
       }
       // Mac: Cmd+Shift+3 or Cmd+Shift+4 or Cmd+Shift+5
       if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
         e.preventDefault();
-        toast.warning(t('quiz.screenshotDisabled'));
+        toast.warning(t('quiz.antiCheat.screenRecording'));
         return;
       }
       // Ctrl+P (print)
@@ -719,7 +725,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   const handleCompletionCheck = async () => {
     if (answered || !completionInput.trim()) {
       if (!completionInput.trim()) {
-        toast.error(t('quiz.enterAnswer'));
+        toast.error(t('quiz.typeAnswer'));
       }
       return;
     }
@@ -839,16 +845,16 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
           if (res.status === 429) {
             // Rate limited — wait and retry
-            lastError = t('quiz.tooManyRequests');
+            lastError = t('common.tooManyRequests');
             if (attempt < 2) await new Promise(r => setTimeout(r, 3000 * (attempt + 1)));
             continue;
           }
 
           // Other server errors — retry with backoff
-          lastError = t('quiz.connectionError');
+          lastError = t('common.connectionError');
           if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
         } catch (fetchErr) {
-          lastError = t('quiz.connectionError');
+          lastError = t('common.connectionError');
           if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
         }
       }
@@ -874,7 +880,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         // If answer length is similar (within 50%) and non-trivial, give benefit of doubt
         if (studentLen >= 2 && lenRatio >= 0.5) {
           setIsCorrect(true);
-          toast.info(t('quiz.aiVerificationFailed'));
+          toast.info(t('quiz.aiGenerating'));
         } else {
           setIsCorrect(false);
           if (lastError) toast.error(lastError);
@@ -882,7 +888,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       }
       setAnswered(true);
     } catch {
-      toast.error(t('quiz.evaluationError'));
+      toast.error(t('common.unexpectedError'));
       setIsCorrect(false);
       setAnswered(true);
     } finally {
@@ -928,7 +934,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     // Check if all pairs are matched
     const totalPairs = currentQuestion.pairs.length;
     if (Object.keys(matchedPairs).length < totalPairs) {
-      toast.error(t('quiz.matchAllItems'));
+      toast.error(t('quiz.addOption'));
       return;
     }
 
@@ -1018,11 +1024,11 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       if (scoreError) {
         console.error('Error saving score:', scoreError);
         // FIX: Notify user about save failure instead of silent loss
-        toast.error(t('quiz.scoreSaveFailed'), {
-          description: t('quiz.scoreSaveFailedDesc'),
+        toast.error(t('common.error'), {
+          description: t('common.unexpectedErrorDesc'),
           duration: 8000,
           action: {
-            label: t('quiz.retry'),
+            label: t('common.retry'),
             onClick: () => saveScore(finalScore, finalAnswers),
           },
         });
@@ -1156,7 +1162,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50">
           <XCircle className="h-8 w-8 text-rose-600 dark:text-rose-400" />
         </div>
-        <p className="text-lg font-semibold text-foreground">{error || t('quiz.unexpectedError')}</p>
+        <p className="text-lg font-semibold text-foreground">{error || t('common.unexpectedError')}</p>
         <div className="flex gap-2">
           <Button
             onClick={() => { setError(null); hasValidDataRef.current = false; fetchQuiz(); }}
@@ -1164,7 +1170,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
             className="gap-2 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30"
           >
             <RotateCcw className="h-4 w-4" />
-            {t('quiz.retry')}
+            {t('common.retry')}
           </Button>
           <Button
             onClick={onBack}
@@ -1188,15 +1194,15 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
           <CheckCircle2 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
         </div>
-        <p className="text-lg font-semibold text-foreground">{t('quiz.alreadyTaken')}</p>
-        <p className="text-sm text-muted-foreground">{t('quiz.cannotRetake')}</p>
+        <p className="text-lg font-semibold text-foreground">{t('quiz.quizCompleted')}</p>
+        <p className="text-sm text-muted-foreground">{t('quiz.quizCompleted')}</p>
         <Button
           onClick={onBack}
           variant="outline"
           className="gap-2 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30"
         >
           <ChevronRight className="h-4 w-4" />
-            {t('common.backToHome')}
+          {t('common.returnToApp')}
         </Button>
       </div>
     );
@@ -1250,7 +1256,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           </motion.div>
 
           <motion.div variants={fadeInUp} className="text-center">
-            <h2 className="text-2xl font-bold text-foreground">{t('quiz.resultsTitle')}</h2>
+            <h2 className="text-2xl font-bold text-foreground">{t('quiz.quizResults')}</h2>
             <p className="text-muted-foreground mt-1">{quiz?.title}</p>
           </motion.div>
 
@@ -1274,7 +1280,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
             className="gap-2 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30"
           >
             <Eye className="h-4 w-4" />
-            {t('quiz.reviewAnswers')}
+            {t('quiz.reviewMode')}
           </Button>
           )}
           {!reviewMode && (
@@ -1285,7 +1291,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
             style={{ display: quiz?.allow_retake ? undefined : 'none' }}
           >
             <RotateCcw className="h-4 w-4" />
-            {t('quiz.retryQuiz')}
+            {t('quiz.retake')}
           </Button>
           )}
           <Button
@@ -1293,7 +1299,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
             className="gap-2 bg-sky-700 dark:bg-sky-600 text-white hover:bg-sky-800 dark:hover:bg-sky-500"
           >
             <ChevronRight className="h-4 w-4" />
-            {reviewMode ? t('common.back') : t('common.backToHome')}
+            {reviewMode ? t('common.back') : t('common.returnToApp')}
           </Button>
         </motion.div>
 
@@ -1309,8 +1315,8 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
             >
               <div className="border-t pt-4">
                 <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  {t('quiz.reviewAnswers')}
+                  <Eye className="h-5 w-5 text-sky-700" />
+                  {t('quiz.reviewMode')}
                 </h3>
                 {quiz?.questions?.map((q, idx) => {
                   const ans = userAnswers.find((a) => a.questionIndex === idx);
@@ -1400,7 +1406,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
               className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 dark:border-emerald-800 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"
             >
               <Save className="h-3.5 w-3.5" />
-              <span>{t('quiz.progressRestored', { saved: userAnswers.length, total: totalQuestions })}</span>
+              <span>{t('quiz.progressSaved')} — {userAnswers.length}/{totalQuestions}</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1409,7 +1415,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         {userAnswers.length > 0 && !progressRestored && (
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <Save className="h-3 w-3" />
-            <span>{t('quiz.progressSaved', { saved: userAnswers.length, total: totalQuestions })}</span>
+            <span>{t('quiz.autoSaved')} {userAnswers.length}/{totalQuestions}</span>
           </div>
         )}
       </motion.div>
@@ -1520,19 +1526,19 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                       {isCorrect ? (
                         <>
                           <CheckCircle2 className="h-5 w-5 shrink-0" />
-                          <span className="text-sm font-medium">{t('quiz.correctAnswer')}</span>
+                          <span className="text-sm font-medium">{t('quiz.correct')}!</span>
                         </>
                       ) : (
                         <>
                           <XCircle className="h-5 w-5 shrink-0" />
-                          <span className="text-sm font-medium">{t('quiz.wrongAnswer')}</span>
+                          <span className="text-sm font-medium">{t('quiz.incorrect')}</span>
                           {currentQuestion.type === 'matching' && currentQuestion.pairs ? (
-                            <span className="block text-sm text-rose-600 dark:text-rose-400 mt-1">
-                              {t('quiz.correctAnswerLabel')} {currentQuestion.pairs.map(p => `${p.key} ↔ ${p.value}`).join(t('quiz.commaSeparator'))}
+                            <span className="block text-sm text-rose-600 mt-1">
+                              {t('quiz.correctAnswer')}: {currentQuestion.pairs.map(p => `${p.key} ↔ ${p.value}`).join(' , ')}
                             </span>
                           ) : currentQuestion.correctAnswer ? (
-                            <span className="block text-sm text-rose-600 dark:text-rose-400 mt-1">
-                              {t('quiz.correctAnswerLabel')} {currentQuestion.correctAnswer}
+                            <span className="block text-sm text-rose-600 mt-1">
+                              {t('quiz.correctAnswer')}: {currentQuestion.correctAnswer}
                             </span>
                           ) : null}
                         </>
@@ -1571,7 +1577,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                     >
                       <ChevronRight className="h-4 w-4" />
                       <span className="hidden sm:inline">{t('quiz.previousQuestion')}</span>
-                      <span className="sm:hidden">{t('quiz.previous')}</span>
+                      <span className="sm:hidden">{t('common.previous')}</span>
                     </Button>
                   )}
 
@@ -1583,8 +1589,8 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                       className="gap-1.5 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-xs sm:text-sm"
                     >
                       <PenLine className="h-4 w-4" />
-                      <span className="hidden sm:inline">{t('quiz.changeAnswer')}</span>
-                      <span className="sm:hidden">{t('quiz.edit')}</span>
+                      <span className="hidden sm:inline">{t('quiz.chooseAnswer')}</span>
+                      <span className="sm:hidden">{t('common.edit')}</span>
                     </Button>
                   )}
 
@@ -1602,12 +1608,12 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                         {currentIdx < totalQuestions - 1 ? (
                           <>
                             <span className="hidden sm:inline">{t('quiz.nextQuestion')}</span>
-                            <span className="sm:hidden">{t('quiz.next')}</span>
+                            <span className="sm:hidden">{t('common.next')}</span>
                             <ArrowRight className="h-4 w-4" />
                           </>
                         ) : (
                           <>
-                            {t('quiz.finishQuiz')}
+                            {t('quiz.submitQuiz')}
                             <Trophy className="h-4 w-4" />
                           </>
                         )}
@@ -1641,6 +1647,7 @@ interface MCQQuestionProps {
 }
 
 function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, showCorrectness }: MCQQuestionProps) {
+  const { t } = useTranslations();
   if (!question.options) return null;
 
   return (
@@ -1735,10 +1742,10 @@ function BooleanQuestion({
   onAnswer,
   showCorrectness,
 }: BooleanQuestionProps) {
-  const { t } = useI18n();
+  const { t } = useTranslations();
   const options = [
-    { label: t('quiz.booleanTrue'), value: 'صح', icon: <CheckCircle2 className="h-5 w-5" /> },
-    { label: t('quiz.booleanFalse'), value: 'خطأ', icon: <XCircle className="h-5 w-5" /> },
+    { label: t('quiz.questionTypes.trueFalse').split(' ')[0], value: 'صح', icon: <CheckCircle2 className="h-5 w-5" /> },
+    { label: t('quiz.questionTypes.trueFalse').split(' ').pop(), value: 'خطأ', icon: <XCircle className="h-5 w-5" /> },
   ];
 
   return (
@@ -1817,14 +1824,14 @@ function CompletionQuestion({
   onCheck,
   evaluating,
 }: CompletionQuestionProps) {
-  const { t, dir } = useI18n();
+  const { t } = useTranslations();
   return (
     <div className="space-y-3">
       <div className="relative">
         <Input
           value={inputValue}
           onChange={(e) => onInputChange(e.target.value)}
-          placeholder={t('quiz.writeAnswerPlaceholder')}
+          placeholder={t('quiz.typeAnswer')}
           disabled={answered || evaluating}
           className="h-12 text-base border-sky-200 dark:border-sky-800 focus:border-sky-600 dark:focus:border-sky-500 focus:ring-sky-600/20"
           dir={dir}
@@ -1844,12 +1851,12 @@ function CompletionQuestion({
           {evaluating ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              {t('quiz.checking')}
+              {t('common.loading')}...
             </>
           ) : (
             <>
               <CheckCircle2 className="h-4 w-4" />
-              {t('quiz.checkAnswer')}
+              {t('quiz.submitQuiz')}
             </>
           )}
         </Button>
@@ -1896,7 +1903,7 @@ function MatchingQuestion({
   onCheck,
   feedback,
 }: MatchingQuestionProps) {
-  const { t } = useI18n();
+  const { t } = useTranslations();
   // Shuffle values so they don't appear in the same order as keys
   // Uses Fisher-Yates shuffle — ensures the order is DIFFERENT from the original
   const values = useMemo(() => {
@@ -1957,7 +1964,7 @@ function MatchingQuestion({
       {!answered && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
           <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
-          <span>{t('quiz.matchingInstructions')}</span>
+          <span>{t('quiz.matchingLeft')} / {t('quiz.matchingRight')}</span>
         </div>
       )}
 
@@ -1967,7 +1974,7 @@ function MatchingQuestion({
         <div className="space-y-2">
           <div className="flex items-center justify-center gap-1.5 mb-2">
             <div className="h-1.5 w-1.5 rounded-full bg-sky-600" />
-            <p className="text-xs font-bold text-sky-800 dark:text-sky-200">{t('quiz.listA')}</p>
+            <p className="text-xs font-bold text-sky-800">{t('quiz.matchingLeft')}</p>
           </div>
           {keys.map((key) => {
             const isMatched = matchedKeysSet.has(key);
@@ -2053,7 +2060,7 @@ function MatchingQuestion({
         <div className="space-y-2">
           <div className="flex items-center justify-center gap-1.5 mb-2">
             <div className="h-1.5 w-1.5 rounded-full bg-teal-500" />
-            <p className="text-xs font-bold text-teal-700 dark:text-teal-300">{t('quiz.listB')}</p>
+            <p className="text-xs font-bold text-teal-700">{t('quiz.matchingRight')}</p>
           </div>
           {values.map((value) => {
             const isMatched = matchedValuesSet.has(value);
@@ -2121,9 +2128,9 @@ function MatchingQuestion({
       {Object.keys(matchedPairs).length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground">{t('quiz.connections')} ({Object.keys(matchedPairs).length}/{question.pairs?.length || 0})</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t('quiz.matchingLeft')} ({Object.keys(matchedPairs).length}/{question.pairs?.length || 0})</p>
             {!answered && allPairsMatched && (
-              <span className="text-[10px] font-medium text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 px-2 py-0.5 rounded-full">{t('quiz.allConnected')} ✓</span>
+              <span className="text-[10px] font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full">{t('quiz.matchingLeft')} ✓</span>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -2178,7 +2185,7 @@ function MatchingQuestion({
           className="gap-2 bg-sky-700 dark:bg-sky-600 text-white hover:bg-sky-800 dark:hover:bg-sky-500 w-full sm:w-auto px-6 py-2.5 text-sm font-semibold"
         >
           <ArrowLeftRight className="h-4 w-4" />
-          {allPairsMatched ? t('quiz.checkMatching') : `${t('quiz.connect')} (${Object.keys(matchedPairs).length}/${question.pairs?.length || 0})`}
+          {allPairsMatched ? t('common.confirm') : `${t('quiz.matchingLeft')} (${Object.keys(matchedPairs).length}/${question.pairs?.length || 0})`}
         </Button>
       )}
 
@@ -2191,7 +2198,7 @@ function MatchingQuestion({
         >
           <p className="text-xs font-bold text-sky-800 dark:text-sky-200 mb-3 flex items-center gap-1.5">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            {t('quiz.correctMatching')}:
+            {t('quiz.correctAnswer')}:
           </p>
           <div className="space-y-2">
             {question.pairs.map((pair, idx) => (
@@ -2224,8 +2231,14 @@ interface ReviewQuestionCardProps {
 }
 
 function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardProps) {
-  const { t } = useI18n();
-  const typeLabels = getTypeLabels(t);
+  const { t } = useTranslations();
+  const typeLabels: Record<string, string> = {
+    mcq: t('quiz.questionTypes.mcq'),
+    boolean: t('quiz.questionTypes.trueFalse'),
+    completion: t('quiz.questionTypes.completion'),
+    matching: t('quiz.questionTypes.matching'),
+    essay: t('quiz.questionTypes.essay'),
+  };
   const [explaining, setExplaining] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
 
@@ -2252,8 +2265,8 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
         </div>
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground">{t('quiz.questionNum', { num: index + 1 })}</span>
-            <Badge variant="outline" className="text-[10px] border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200">
+            <span className="text-xs text-muted-foreground">{t('quiz.question')} {index + 1}</span>
+            <Badge variant="outline" className="text-[10px] border-sky-300 bg-sky-50 text-sky-800">
               {typeLabels[question.type]}
             </Badge>
           </div>
@@ -2291,7 +2304,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
               {/* Correct matching */}
               {!userAnswer?.isCorrect && (
                 <div>
-                  <p className="text-xs font-medium text-sky-800 dark:text-sky-200 mb-1.5">{t('quiz.correctMatching')}:</p>
+                  <p className="text-xs font-medium text-sky-800 mb-1.5">{t('quiz.correctAnswer')}:</p>
                   <div className="space-y-1.5">
                     {question.pairs.map((p, idx) => (
                       <div key={p.key} className="flex items-center gap-2 rounded-lg bg-white dark:bg-card border border-sky-200 dark:border-sky-800 px-2.5 py-1.5 text-xs">
@@ -2313,8 +2326,8 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                 {t('quiz.yourAnswer')}: <span className="font-medium">{String(userAnswer?.answer || '—')}</span>
               </p>
               {question.correctAnswer && (
-                <p className="text-xs text-sky-800 dark:text-sky-200">
-                  {t('quiz.correctAnswerLabel')}: <span className="font-medium">{question.correctAnswer}</span>
+                <p className="text-xs text-sky-800">
+                  {t('quiz.correctAnswer')}: <span className="font-medium">{question.correctAnswer}</span>
                 </p>
               )}
             </div>
@@ -2359,20 +2372,20 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                         if (res.ok || res.status === 400) break;
                         if (res.status === 429) {
                           const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10) * 1000;
-                          lastError = t('quiz.tooManyRequests');
+                          lastError = t('common.tooManyRequests');
                           if (attempt < 2) await new Promise(r => setTimeout(r, Math.min(retryAfter, 5000 * (attempt + 1))));
                           continue;
                         }
                         break;
                       } catch (fetchErr) {
-                        lastError = t('quiz.connectionError');
+                        lastError = t('common.connectionError');
                         if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
                         continue;
                       }
                     }
 
                     if (!res) {
-                      toast.error(lastError || t('quiz.serverConnectionFailed'));
+                      toast.error(lastError || t('common.connectionError'));
                       return;
                     }
 
@@ -2380,12 +2393,12 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                     if (data.success && data.data?.explanation) {
                       setExplanation(data.data.explanation);
                     } else if (res.status === 429) {
-                      toast.error(t('quiz.tooManyRequestsWait'));
+                      toast.error(t('common.tooManyRequests'));
                     } else {
-                      toast.error(data.error || t('quiz.explanationFailed'));
+                      toast.error(data.error || t('common.unexpectedError'));
                     }
                   } catch {
-                    toast.error(t('quiz.explanationError'));
+                    toast.error(t('common.unexpectedError'));
                   } finally {
                     setExplaining(false);
                   }
@@ -2393,7 +2406,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                 className="flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 dark:hover:text-rose-300 dark:text-rose-300 hover:underline"
               >
                 {explaining ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lightbulb className="h-3 w-3" />}
-                {t('quiz.whyWrong')}
+                {t('quiz.incorrect')}
               </button>
               {explanation && (
                 <div className="mt-2 rounded-lg bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900 p-3 text-sm text-rose-800 dark:text-rose-200 leading-relaxed">

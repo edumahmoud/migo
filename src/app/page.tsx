@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useStatusStore } from '@/stores/status-store';
 import { useNotificationStore } from '@/stores/notification-store';
+import { useTranslations } from '@/i18n/use-translations';
 import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 import { setSocketAuth, destroySocket } from '@/lib/socket';
 import { isSupabaseConfigured } from '@/lib/supabase';
@@ -36,13 +37,13 @@ import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary
 // FIX (v2): Added auto-recovery (3-second timer) and Zustand store reset
 // so transient layout-level errors don't permanently crash the app.
 class AppErrorBoundary extends React.Component<
-  { children: React.ReactNode; onFallbackToLogin?: () => void; t?: (key: string) => string; dir?: 'rtl' | 'ltr' },
+  { children: React.ReactNode; onFallbackToLogin?: () => void; labels: { retrying: string; appError: string; unexpectedErrorDesc: string; retry: string; returnToLogin: string } },
   { hasError: boolean; error: Error | null; retryKey: number; retryCount: number; autoRetrying: boolean }
 > {
   private autoRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
   static MAX_AUTO_RETRIES = 1; // Only auto-retry once to prevent infinite loops
 
-  constructor(props: { children: React.ReactNode; onFallbackToLogin?: () => void; t?: (key: string) => string; dir?: 'rtl' | 'ltr' }) {
+  constructor(props: { children: React.ReactNode; onFallbackToLogin?: () => void; labels: { retrying: string; appError: string; unexpectedErrorDesc: string; retry: string; returnToLogin: string } }) {
     super(props);
     this.state = { hasError: false, error: null, retryKey: 0, retryCount: 0, autoRetrying: false };
   }
@@ -96,13 +97,12 @@ class AppErrorBoundary extends React.Component<
   };
 
   render() {
-    const t = this.props.t || ((key: string) => key);
-    const dir = this.props.dir || 'rtl';
+    const labels = this.props.labels;
     if (this.state.hasError) {
       // Auto-recovery spinner
       if (this.state.autoRetrying) {
         return (
-          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
+          <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={document.documentElement.dir as 'rtl' | 'ltr'}>
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -111,7 +111,7 @@ class AppErrorBoundary extends React.Component<
               </div>
               <div className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
-                <span className="text-sm font-medium text-sky-800 dark:text-sky-300">{t('common.retrying')}</span>
+                <span className="text-sm font-medium text-sky-800">{labels.retrying}</span>
               </div>
             </div>
           </div>
@@ -119,22 +119,22 @@ class AppErrorBoundary extends React.Component<
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
-          <div className="bg-white/90 dark:bg-card/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 dark:border-border p-8 text-center max-w-md mx-auto">
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={document.documentElement.dir as 'rtl' | 'ltr'}>
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl border border-sky-100/50 p-8 text-center max-w-md mx-auto">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 ring-4 ring-amber-100/50">
               <AlertTriangle className="h-8 w-8 text-amber-500" />
             </div>
-            <h1 className="text-lg font-bold text-gray-900 dark:text-foreground mb-2">{t('common.appError')}</h1>
-            <p className="text-sm text-gray-500 dark:text-muted-foreground mb-4">{t('common.errorUnexpected')}</p>
+            <h1 className="text-lg font-bold text-gray-900 mb-2">{labels.appError}</h1>
+            <p className="text-sm text-gray-500 mb-4">{labels.unexpectedErrorDesc}</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <button onClick={this.handleRetry} className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 w-full sm:w-auto">
                 <RefreshCw className="h-4 w-4" />
-                {t('common.retry')}
+                {labels.retry}
               </button>
               {this.props.onFallbackToLogin && (
                 <button onClick={this.props.onFallbackToLogin} className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-gray-200 dark:border-border px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-foreground shadow-sm hover:bg-gray-50 dark:hover:bg-muted/50 w-full sm:w-auto">
                   <LogOut className="h-4 w-4" />
-                  {t('common.backToLogin')}
+                  {labels.returnToLogin}
                 </button>
               )}
             </div>
@@ -149,43 +149,44 @@ class AppErrorBoundary extends React.Component<
 type AuthMode = 'login' | 'register' | 'forgot-password' | 'update-password';
 
 // Admin navigation items (shared between admin-dashboard and profile page sidebar)
+// Using labelKey for i18n
 const adminNavItems = [
-  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'users', label: 'nav.users', icon: <Users className="h-5 w-5" /> },
-  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'announcements', label: 'nav.announcements', icon: <Megaphone className="h-5 w-5" /> },
-  { id: 'banned', label: 'nav.banned', icon: <Ban className="h-5 w-5" /> },
-  { id: 'reports', label: 'nav.analytics', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'chat', label: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'settings', label: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
-  { id: 'institution', label: 'nav.institution', icon: <Building2 className="h-5 w-5" /> },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'users', labelKey: 'nav.users', icon: <Users className="h-5 w-5" /> },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'announcements', labelKey: 'nav.announcements', icon: <Megaphone className="h-5 w-5" /> },
+  { id: 'banned', labelKey: 'nav.banned', icon: <Ban className="h-5 w-5" /> },
+  { id: 'reports', labelKey: 'nav.reports', icon: <TrendingUp className="h-5 w-5" /> },
+  { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
+  { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" /> },
 ];
 
 // Teacher navigation items (for profile page sidebar)
 const teacherNavItems = [
-  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'chat', label: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'students', label: 'nav.students', icon: <Users className="h-5 w-5" /> },
-  { id: 'tracking', label: 'nav.studentTracking', icon: <Activity className="h-5 w-5" /> },
-  { id: 'files', label: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'analytics', label: 'nav.analytics', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'notifications', label: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', label: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'students', labelKey: 'nav.students', icon: <Users className="h-5 w-5" /> },
+  { id: 'tracking', labelKey: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },
+  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
+  { id: 'analytics', labelKey: 'nav.analytics', icon: <TrendingUp className="h-5 w-5" /> },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
 ];
 
 // Student navigation items (for profile page sidebar)
 const studentNavItems = [
-  { id: 'dashboard', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', label: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'tracking', label: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },
-  { id: 'chat', label: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'teachers', label: 'nav.teachers', icon: <Users className="h-5 w-5" /> },
-  { id: 'summaries', label: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },
-  { id: 'assignments', label: 'nav.assignments', icon: <FileSpreadsheet className="h-5 w-5" /> },
-  { id: 'files', label: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'notifications', label: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', label: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'tracking', labelKey: 'nav.studentTracking', icon: <Activity className="h-5 w-5" /> },
+  { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'teachers', labelKey: 'nav.teachers', icon: <Users className="h-5 w-5" /> },
+  { id: 'summaries', labelKey: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },
+  { id: 'assignments', labelKey: 'nav.assignments', icon: <FileSpreadsheet className="h-5 w-5" /> },
+  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
 ];
 
 function HomeContent() {
@@ -195,7 +196,7 @@ function HomeContent() {
   const { cleanup: cleanupNotifications } = useNotificationStore();
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
-  const { t, dir } = useI18n();
+  const { t, isRTL, direction } = useTranslations();
 
   // ─── Early Password Recovery Detection (synchronous) ───
   // Must run BEFORE initialize() so we can prevent the SIGNED_IN race condition.
@@ -550,7 +551,7 @@ function HomeContent() {
   const showFullLoading = (loading || !initialized) && !hasPersistedSession;
   if (showFullLoading || (!setupCheckDone && !hasPersistedSession)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -560,7 +561,7 @@ function HomeContent() {
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
               <GraduationCap className="w-9 h-9 text-white" />
             </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-sky-600 animate-ping" />
+            <div className={`absolute -bottom-1 ${isRTL ? '-left-1' : '-right-1'} w-5 h-5 rounded-full bg-sky-600 animate-ping`} />
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
@@ -586,7 +587,7 @@ function HomeContent() {
   // to prevent the jarring flash of login → dashboard.
   if ((!user && hasPersistedSession) || (loading && hasPersistedSession && !initialized)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -604,13 +605,13 @@ function HomeContent() {
 
   if (!user || currentPage === 'auth') {
     return (
-      <div className="min-h-screen flex flex-col lg:flex-row" dir={dir}>
-        {/* ── Right Panel: Branding & Illustration (hidden on mobile) ── */}
-        <div className="hidden lg:flex lg:w-1/2 xl:w-[55%] relative bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700 overflow-hidden">
+      <div className="min-h-screen flex flex-col lg:flex-row" dir={direction}>
+        {/* ── Branding Panel (hidden on mobile) ── */}
+        <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700 overflow-hidden ${isRTL ? '' : ''}`}>
           {/* Background decoration */}
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute -top-40 -right-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-            <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+            <div className={`absolute -top-40 ${isRTL ? '-right-40' : '-left-40'} w-96 h-96 bg-white/5 rounded-full blur-3xl`} />
+            <div className={`absolute -bottom-40 ${isRTL ? '-left-40' : '-right-40'} w-96 h-96 bg-white/5 rounded-full blur-3xl`} />
             <div className="absolute top-1/3 left-1/3 w-72 h-72 bg-teal-400/10 rounded-full blur-3xl" />
             <div className="absolute bottom-1/4 right-1/4 w-56 h-56 bg-sky-400/10 rounded-full blur-2xl" />
             {/* Pattern overlay */}
@@ -631,19 +632,19 @@ function HomeContent() {
               </div> */}
 
               <h2 className="text-3xl xl:text-4xl font-bold text-white mb-4 leading-tight">
-                {t('app.platformTagline')}
+                {t('common.smartPlatform')}
               </h2>
               <p className="text-lg text-sky-100/80 mb-10 leading-relaxed">
-                {t('app.platformDescription')}
+                {t('common.smartPlatformDesc')}
               </p>
 
               {/* Feature cards */}
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { icon: <BrainCircuit className="h-5 w-5" />, title: t('features.aiTitle'), desc: t('features.aiDesc') },
-                  { icon: <BookOpen className="h-5 w-5" />, title: t('features.summarizeTitle'), desc: t('features.summarizeDesc') },
-                  { icon: <Users className="h-5 w-5" />, title: t('features.trackingTitle'), desc: t('features.trackingDesc') },
-                  { icon: <Shield className="h-5 w-5" />, title: t('features.securityTitle'), desc: t('features.securityDesc') },
+                  { icon: <BrainCircuit className="h-5 w-5" />, title: t('features.ai'), desc: t('features.aiAnalysis') },
+                  { icon: <BookOpen className="h-5 w-5" />, title: t('features.smartSummary'), desc: t('features.fromAnySource') },
+                  { icon: <Users className="h-5 w-5" />, title: t('features.studentTracking'), desc: t('features.reportsAndStats') },
+                  { icon: <Shield className="h-5 w-5" />, title: t('features.secureAndTrusted'), desc: t('features.dataProtection') },
                 ].map((feature, i) => (
                   <motion.div
                     key={i}
@@ -662,7 +663,7 @@ function HomeContent() {
           </div>
         </div>
 
-        {/* ── Left Panel: Auth Form ── */}
+        {/* ── Auth Form Panel ── */}
         <div className="flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
           {/* Mobile-only top branding — no app icon per user request */}
           <div className="lg:hidden flex flex-col items-center mb-6">
@@ -670,19 +671,19 @@ function HomeContent() {
             <div className="flex items-center gap-3 text-muted-foreground flex-wrap justify-center">
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <BrainCircuit className="w-3 h-3" />
-                <span>{t('features.aiTitle')}</span>
+                <span>{t('features.ai')}</span>
               </div>
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <BookOpen className="w-3 h-3" />
-                <span>{t('features.summarizeTitle')}</span>
+                <span>{t('features.smartSummary')}</span>
               </div>
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <Users className="w-3 h-3" />
-                <span>{t('features.trackingTitle')}</span>
+                <span>{t('features.studentTracking')}</span>
               </div>
               <div className="flex items-center gap-1 text-[11px] font-medium">
                 <Shield className="w-3 h-3" />
-                <span>{t('features.securityTitle')}</span>
+                <span>{t('features.secureAndTrusted')}</span>
               </div>
             </div>
           </div>
@@ -752,10 +753,16 @@ function HomeContent() {
   // would crash the entire app with no recovery.
   if (currentPage === 'quiz' && viewingQuizId) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
-        <AppErrorBoundary t={t} dir={dir} onFallbackToLogin={() => {
+      <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
+        <AppErrorBoundary onFallbackToLogin={() => {
           setViewingQuizId(null);
           setCurrentPage('auth');
+        }} labels={{
+          retrying: t('common.retrying'),
+          appError: t('common.appError'),
+          unexpectedErrorDesc: t('common.unexpectedErrorDesc'),
+          retry: t('common.retry'),
+          returnToLogin: t('common.returnToLogin'),
         }}>
           <QuizView
             quizId={viewingQuizId}
@@ -777,7 +784,7 @@ function HomeContent() {
   // ─── Loading spinners for orphaned pages (while useEffect hasn't run yet) ───
   if (currentPage === 'quiz' && !viewingQuizId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -795,7 +802,7 @@ function HomeContent() {
 
   if (currentPage === 'summary') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -843,7 +850,7 @@ function HomeContent() {
     };
 
     return (
-      <div className="flex min-h-screen bg-background" dir={dir}>
+      <div className="flex min-h-screen bg-background" dir={direction}>
         <AppHeader
           userName={user.name}
           userId={user.id}
@@ -888,8 +895,8 @@ function HomeContent() {
           onSectionChange={profileSectionChangeHandler}
           customNavItems={profileNavItems}
         />
-        <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 pl-0 ${
-          sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
+        <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${isRTL ? '' : ''} ${
+          sidebarOpen ? (isRTL ? 'md:pr-64' : 'md:pl-64') : (isRTL ? 'md:pr-[68px]' : 'md:pl-[68px]')
         }`}>
           <UserProfilePage
             userId={profileUserId}
@@ -915,7 +922,7 @@ function HomeContent() {
   // If user becomes null (e.g., auth timeout with persisted session), redirect to auth.
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={dir}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -937,7 +944,7 @@ function HomeContent() {
   // CRITICAL FIX: Wrap dashboard in DashboardErrorBoundary to prevent
   // post-login crashes. Without this, any unhandled error in StudentDashboard,
   // TeacherDashboard, or AdminDashboard propagates to the route-level error.tsx,
-  // which shows "حدث خطأ غير متوقع" and the user sees the app as "crashed".
+  // which shows an error message and the user sees the app as "crashed".
   const dashboardContent = (() => {
     // Check if user is banned (but not admin - admins can't be banned)
     const isBannedUser = banInfo && user.role !== 'admin' && user.role !== 'superadmin';
@@ -980,33 +987,43 @@ function HomeContent() {
   })();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50/50 to-sky-50/30" dir={dir}>
-      <AppErrorBoundary t={t} dir={dir} onFallbackToLogin={handleSignOut}>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-50/50 to-sky-50/30" dir={direction}>
+      <AppErrorBoundary onFallbackToLogin={handleSignOut} labels={{
+        retrying: t('common.retrying'),
+        appError: t('common.appError'),
+        unexpectedErrorDesc: t('common.unexpectedErrorDesc'),
+        retry: t('common.retry'),
+        returnToLogin: t('common.returnToLogin'),
+      }}>
         {dashboardContent}
       </AppErrorBoundary>
     </div>
   );
 }
 
-export default function Home() {
+// ─── Suspense fallback component ───
+function LoadingFallback() {
+  const { t, direction } = useTranslations();
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
-                <GraduationCap className="w-9 h-9 text-white" />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
-              <span className="text-sm font-medium text-sky-800">...</span>
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-slate-50 to-teal-50/30" dir={direction}>
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
+            <GraduationCap className="w-9 h-9 text-white" />
           </div>
         </div>
-      }
-    >
+        <div className="flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
+          <span className="text-sm font-medium text-sky-800">{t('common.loading')}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
       <HomeContent />
     </Suspense>
   );

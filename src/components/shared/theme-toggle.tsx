@@ -3,17 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
+/**
+ * ThemeToggle — a simple toggle button that flips between light and dark mode.
+ *
+ * IMPORTANT: This component does NOT initialize the theme on mount.
+ * Theme initialization happens in the inline <script> in layout.tsx,
+ * which runs BEFORE React hydrates. This prevents dark mode from
+ * being activated unexpectedly when the dropdown opens for the first time.
+ *
+ * On mount, we only READ the current DOM state to sync our local state.
+ */
 export default function ThemeToggle() {
-  const { t } = useI18n();
-  // Use lazy state initialization to read the actual DOM state immediately.
-  // This avoids the two-step render (false → useEffect → true) that could
-  // cause a flash or, in edge cases, an unintended theme toggle on first mount.
-  const [dark, setDark] = useState(() => {
-    if (typeof document === 'undefined') return false;
-    return document.documentElement.classList.contains('dark');
-  });
+  const [dark, setDark] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const { t } = useTranslations();
 
   // Keep a ref in sync so the toggle callback always reads the latest value
   // without needing `dark` in its dependency array (prevents stale closure).
@@ -31,10 +36,12 @@ export default function ThemeToggle() {
   // spurious events from the dropdown opening are safely ignored.
   const canToggleRef = useRef(false);
   useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      canToggleRef.current = true;
-    });
-    return () => cancelAnimationFrame(raf);
+    setMounted(true);
+    // Only READ the current DOM state — do NOT apply/modify the theme.
+    // Theme initialization is handled by the inline script in layout.tsx
+    // so it's already correct before React hydrates.
+    const isDark = document.documentElement.classList.contains('dark');
+    setDark(isDark);
   }, []);
 
   // Listen for theme changes from OTHER instances (e.g. settings page) so
@@ -77,7 +84,7 @@ export default function ThemeToggle() {
       type="button"
       onClick={toggle}
       className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 active:bg-muted/80 transition-colors rounded-lg"
-      aria-label={dark ? t('theme.lightMode') : t('theme.darkMode')}
+      aria-label={dark ? t('settings.lightMode') : t('settings.darkMode')}
     >
       <motion.div
         initial={false}
@@ -90,7 +97,7 @@ export default function ThemeToggle() {
           <Moon className="h-4 w-4 text-sky-600" />
         )}
       </motion.div>
-      <span>{dark ? t('theme.lightMode') : t('theme.darkMode')}</span>
+      <span>{dark ? t('settings.lightMode') : t('settings.darkMode')}</span>
     </button>
   );
 }
