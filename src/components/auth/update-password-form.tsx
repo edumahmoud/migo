@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 
 interface UpdatePasswordFormProps {
@@ -24,7 +25,6 @@ function getPasswordStrength(password: string): number {
   return Math.min(score, 3);
 }
 
-const strengthLabels = ['ضعيفة', 'متوسطة', 'قوية'];
 const strengthColors = ['bg-rose-500', 'bg-amber-500', 'bg-emerald-500'];
 const strengthTextColors = ['text-rose-600', 'text-amber-600', 'text-emerald-600'];
 
@@ -37,6 +37,8 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   const [isSuccess, setIsSuccess] = useState(false);
   const [verifying, setVerifying] = useState(true);
   const [isValidRecovery, setIsValidRecovery] = useState(false);
+
+  const { t, isRTL } = useTranslations();
 
   // Verify that we have a valid recovery session
   useEffect(() => {
@@ -112,16 +114,23 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   const mismatch = confirmPassword && newPassword !== confirmPassword;
   const canSubmit = newPassword.length >= 6 && passwordsMatch && !isLoading;
 
+  const getStrengthLabel = (s: number) => {
+    if (s <= 0) return t('auth.passwordStrength.veryWeak');
+    if (s === 1) return t('auth.passwordStrength.weak');
+    if (s === 2) return t('auth.passwordStrength.fair');
+    return t('auth.passwordStrength.strong');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newPassword || newPassword.length < 6) {
-      toast.error('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+      toast.error(t('auth.passwordMinLength'));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      toast.error('كلمتا المرور غير متطابقتين');
+      toast.error(t('auth.passwordsDontMatch'));
       return;
     }
 
@@ -130,7 +139,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
       // ── Verify session is still valid before updating password ──
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       if (!currentSession?.user) {
-        toast.error('انتهت صلاحية الجلسة. يرجى فتح رابط إعادة التعيين مرة أخرى من البريد الإلكتروني');
+        toast.error(t('auth.expiredSession'));
         setIsLoading(false);
         return;
       }
@@ -149,23 +158,23 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
         const msg = error.message?.toLowerCase() || '';
 
         if (msg.includes('same') || msg.includes('different') || msg.includes('old password')) {
-          toast.error('كلمة المرور الجديدة يجب أن تكون مختلفة عن كلمة المرور الحالية');
+          toast.error(t('auth.passwordDifferent'));
         } else if (msg.includes('session') || msg.includes('unauthenticated') || msg.includes('not found') || msg.includes('jwt') || msg.includes('token')) {
-          toast.error('انتهت صلاحية الجلسة. يرجى فتح رابط إعادة التعيين مرة أخرى من البريد الإلكتروني');
+          toast.error(t('auth.expiredSession'));
         } else if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('429')) {
-          toast.error('طلبات كثيرة جداً. يرجى الانتظار ثم المحاولة مرة أخرى');
+          toast.error(t('common.tooManyRequests'));
         } else if (msg.includes('password') || msg.includes('weak') || msg.includes('require') || msg.includes('strength') || msg.includes('policy') || msg.includes('validation') || msg.includes('criteria')) {
-          toast.error('كلمة المرور لا تلبي متطلبات الأمان. تأكد أن كلمة المرور تحتوي على أحرف كبيرة وصغيرة وأرقام ورموز');
+          toast.error(t('auth.passwordNotMeetRequirements'));
         } else {
           // Show the ACTUAL error from Supabase — no more hiding!
-          toast.error(`خطأ: ${error.message}`);
+          toast.error(t('auth.errorWithMessage', { message: error.message }));
         }
         setIsLoading(false);
         return;
       }
 
       setIsSuccess(true);
-      toast.success('تم تحديث كلمة المرور بنجاح');
+      toast.success(t('auth.updatePasswordSuccess'));
 
       // Sign out after a short delay so the user can see the success message
       setTimeout(async () => {
@@ -174,7 +183,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
       }, 2000);
     } catch (err: any) {
       console.error('[UpdatePassword] Unexpected error:', err);
-      toast.error(`خطأ غير متوقع: ${err?.message || 'يرجى المحاولة مرة أخرى'}`);
+      toast.error(t('auth.unexpectedAuthError', { message: err?.message || t('auth.fallbackError') }));
     } finally {
       setIsLoading(false);
     }
@@ -183,11 +192,11 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   // Loading state while verifying recovery session
   if (verifying) {
     return (
-      <div dir="rtl" className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+      <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
         <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
-            <p className="text-sm text-gray-500">جارٍ التحقق من الرابط...</p>
+            <p className="text-sm text-gray-500">{t('auth.verifyingLink')}</p>
           </CardContent>
         </Card>
       </div>
@@ -197,7 +206,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   // Invalid or expired link
   if (!isValidRecovery) {
     return (
-      <div dir="rtl" className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+      <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -209,10 +218,10 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 <ShieldCheck className="h-7 w-7 text-rose-600" />
               </div>
               <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
-                الرابط غير صالح أو منتهي
+                {t('auth.invalidOrExpiredLink')}
               </CardTitle>
               <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-                رابط إعادة تعيين كلمة المرور غير صالح أو انتهت صلاحيته. يرجى طلب رابط جديد.
+                {t('auth.invalidResetLinkDescFull')}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-2 px-4 sm:px-6 pb-4 sm:pb-6">
@@ -222,7 +231,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 variant="outline"
                 className="w-full h-11 text-base font-medium border-gray-200 hover:bg-gray-50"
               >
-                العودة لتسجيل الدخول
+                {t('common.returnToLogin')}
               </Button>
             </CardContent>
           </Card>
@@ -234,7 +243,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   // Success state
   if (isSuccess) {
     return (
-      <div dir="rtl" className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+      <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -244,8 +253,8 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
                 <CheckCircle2 className="h-9 w-9 text-emerald-600" />
               </div>
-              <h3 className="text-lg font-bold text-gray-900">تم تحديث كلمة المرور</h3>
-              <p className="text-sm text-gray-500">سيتم تحويلك لصفحة تسجيل الدخول...</p>
+              <h3 className="text-lg font-bold text-gray-900">{t('auth.passwordUpdated')}</h3>
+              <p className="text-sm text-gray-500">{t('auth.passwordUpdatedDesc')}</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -255,7 +264,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
 
   // Main form
   return (
-    <div dir="rtl" className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -267,10 +276,10 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
               <Lock className="h-6 w-6 text-sky-600" />
             </div>
             <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
-              تعيين كلمة مرور جديدة
+              {t('auth.setNewPassword')}
             </CardTitle>
             <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-              أدخل كلمة المرور الجديدة لحسابك
+              {t('auth.setNewPasswordDesc')}
             </CardDescription>
           </CardHeader>
 
@@ -284,13 +293,13 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 className="space-y-2"
               >
                 <Label htmlFor="new-password" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  كلمة المرور الجديدة
+                  {t('auth.newPassword')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="new-password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="أدخل كلمة المرور الجديدة"
+                    placeholder={t('auth.enterNewPassword')}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
@@ -322,7 +331,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                       ))}
                     </div>
                     <p className={`text-xs font-medium ${strengthTextColors[strength - 1] || 'text-gray-400'}`}>
-                      {strength > 0 ? strengthLabels[strength - 1] : 'ضعيفة جداً'}
+                      {getStrengthLabel(strength)}
                     </p>
                   </div>
                 )}
@@ -336,13 +345,13 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                 className="space-y-2"
               >
                 <Label htmlFor="confirm-password" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  تأكيد كلمة المرور
+                  {t('auth.confirmPassword')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="confirm-password"
                     type={showConfirm ? 'text' : 'password'}
-                    placeholder="أعد إدخال كلمة المرور"
+                    placeholder={t('auth.reenterPassword')}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className={`pr-10 h-10 sm:h-11 bg-gray-50/50 text-right ${
@@ -364,10 +373,10 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                   </button>
                 </div>
                 {mismatch && (
-                  <p className="text-xs text-rose-500 font-medium">كلمتا المرور غير متطابقتين</p>
+                  <p className="text-xs text-rose-500 font-medium">{t('auth.passwordsDontMatch')}</p>
                 )}
                 {passwordsMatch && (
-                  <p className="text-xs text-emerald-500 font-medium">كلمتا المرور متطابقتان ✓</p>
+                  <p className="text-xs text-emerald-500 font-medium">{t('auth.passwordsMatch')}</p>
                 )}
               </motion.div>
 
@@ -385,10 +394,10 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                   {isLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>جارٍ التحديث...</span>
+                      <span>{t('auth.updating')}</span>
                     </>
                   ) : (
-                    'تحديث كلمة المرور'
+                    t('auth.updatePassword')
                   )}
                 </Button>
               </motion.div>

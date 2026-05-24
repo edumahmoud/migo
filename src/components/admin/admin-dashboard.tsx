@@ -78,6 +78,7 @@ import UserLink from '@/components/shared/user-link';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
+import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -111,20 +112,20 @@ const cardHover = {
 };
 
 // -------------------------------------------------------
-// Admin navigation items
+// Admin navigation items (labelKey used for i18n, t() called at render time)
 // -------------------------------------------------------
-const adminNavItems = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'users', label: 'المستخدمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'announcements', label: 'الإعلانات', icon: <Megaphone className="h-5 w-5" /> },
-  { id: 'banned', label: 'المحظورون', icon: <Ban className="h-5 w-5" /> },
-  { id: 'comments', label: 'التعليقات', icon: <Flag className="h-5 w-5" /> },
-  { id: 'complaints', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'reports', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
-  { id: 'institution', label: 'المؤسسة', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
+const adminNavItemDefs = [
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'users', labelKey: 'nav.users', icon: <Users className="h-5 w-5" /> },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'announcements', labelKey: 'nav.announcements', icon: <Megaphone className="h-5 w-5" /> },
+  { id: 'banned', labelKey: 'nav.banned', icon: <Ban className="h-5 w-5" /> },
+  { id: 'comments', labelKey: 'admin.comments', icon: <Flag className="h-5 w-5" /> },
+  { id: 'complaints', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'reports', labelKey: 'nav.reports', icon: <TrendingUp className="h-5 w-5" /> },
+  { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
+  { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
 ];
 
 // -------------------------------------------------------
@@ -158,18 +159,18 @@ function formatDateTime(dateStr: string): string {
 }
 
 // -------------------------------------------------------
-// Role label helper
+// Role label helper - accepts t function as parameter since it's outside component
 // -------------------------------------------------------
-function getRoleLabel(role: string): string {
+function getRoleLabel(role: string, translate: (key: string) => string): string {
   switch (role) {
     case 'superadmin':
-      return 'مدير المنصة';
+      return translate('roles.superadmin');
     case 'admin':
-      return 'مشرف';
+      return translate('roles.supervisor');
     case 'teacher':
-      return 'معلم';
+      return translate('roles.teacher');
     case 'student':
-      return 'طالب';
+      return translate('roles.student');
     default:
       return role;
   }
@@ -253,6 +254,7 @@ interface UserWithMeta extends UserProfile {
 // render (new component type each render = infinite re-fetching).
 // -------------------------------------------------------
 const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teacherId, teacherName }: { teacherId: string; teacherName: string }) {
+  const { t } = useTranslations();
   const [links, setLinks] = useState<Array<{ id: string; supervisor_id: string; is_primary: boolean; supervisor?: { name: string; role: string } }>>([]);
   const [admins, setAdmins] = useState<Array<{ id: string; name: string; role: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -308,7 +310,7 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
         toast.error(result.error || 'فشل إنشاء الرابط');
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally { setAdding(false); }
   };
 
@@ -328,7 +330,7 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
         toast.error(result.error || 'فشل حذف الرابط');
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -400,7 +402,7 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
           {admins
             .filter((a) => !links.some((l) => l.supervisor_id === a.id))
             .map((a) => (
-              <option key={a.id} value={a.id}>{a.name} ({a.role === 'admin' ? 'مشرف' : 'مدير'})</option>
+              <option key={a.id} value={a.id}>{a.name} ({a.role === 'admin' ? t('roles.supervisor') : 'مدير'})</option>
             ))}
         </select>
         <button
@@ -422,6 +424,7 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
 export default function AdminDashboard({ profile, onSignOut }: AdminDashboardProps) {
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
+  const { t, isRTL, direction } = useTranslations();
   const { sidebarOpen, setSidebarOpen, adminSection: storedAdminSection, setAdminSection: storeSetAdminSection } = useAppStore();
 
   // ─── Navigation ───
@@ -563,7 +566,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       
       if (!token) {
         console.error('Admin data fetch: No auth token available');
-        if (!silent) toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        if (!silent) toast.error(t('auth.mustLogin'));
         if (!silent) setLoadingData(false);
         return;
       }
@@ -577,9 +580,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         console.error('Admin data fetch failed:', res.status, errorData);
         if (!silent) {
           if (res.status === 401) {
-            toast.error('انتهت صلاحية الجلسة. يرجى تحديث الصفحة أو تسجيل الدخول مرة أخرى');
+            toast.error(t('auth.sessionKicked'));
           } else if (res.status === 403) {
-            toast.error('غير مصرح بالوصول. يجب أن تكون مشرف أو مدير منصة');
+            toast.error(t('common.accessDenied'));
           } else {
             toast.error(`خطأ في جلب البيانات: ${errorData.error || res.status}`);
           }
@@ -602,11 +605,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         }
       } else if (!result.success) {
         console.error('Admin data fetch returned error:', result.error);
-        if (!silent) toast.error(result.error || 'حدث خطأ أثناء جلب البيانات');
+        if (!silent) toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع أثناء جلب البيانات';
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       if (!silent) toast.error(message);
     } finally {
       if (!silent) setLoadingData(false);
@@ -618,7 +621,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('auth.mustLogin'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/change-role', {
@@ -628,7 +631,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم تغيير الدور بنجاح');
+        toast.success(t('admin.roleChanged'));
         // Update selectedUser immediately so the dialog shows the new role
         setSelectedUser((prev) => prev ? { ...prev, role: newRole } as UserWithMeta : prev);
         // Refresh data in the background
@@ -636,10 +639,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         // Close the dialog
         setUserDetailOpen(false);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء تغيير الدور');
+        toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setChangingRole(false);
@@ -897,7 +900,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('auth.mustLogin'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/delete-user', {
@@ -909,18 +912,18 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       try {
         result = await res.json();
       } catch {
-        throw new Error(res.ok ? 'حدث خطأ غير متوقع' : `خطأ في الخادم (${res.status})`);
+        throw new Error(res.ok ? t('common.unexpectedError') : `خطأ في الخادم (${res.status})`);
       }
       if (result.success) {
-        toast.success('تم حذف المستخدم بنجاح');
+        toast.success(t('admin.userDeleted'));
         setUserDetailOpen(false);
         setConfirmDeleteUser(null);
         fetchAllData(true);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء حذف المستخدم');
+        toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setDeletingUserId(null);
@@ -935,7 +938,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('auth.mustLogin'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/delete-subject', {
@@ -945,15 +948,15 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم حذف المقرر بنجاح');
+        toast.success(t('course.subjectDeleted'));
         setSubjectDetailOpen(false);
         setConfirmDeleteSubject(null);
         fetchAllData(true);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء حذف المقرر');
+        toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setDeletingSubjectId(null);
@@ -966,7 +969,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('auth.mustLogin'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/unban-user', {
@@ -976,13 +979,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم إلغاء الحظر بنجاح');
+        toast.success(t('admin.userUnbanned'));
         fetchBannedUsers();
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء إلغاء الحظر');
+        toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setUnbanningEmail(null);
@@ -1017,7 +1020,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('auth.mustLogin'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/ban-user', {
@@ -1034,7 +1037,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       try {
         result = await res.json();
       } catch {
-        throw new Error(res.ok ? 'حدث خطأ غير متوقع' : `خطأ في الخادم (${res.status})`);
+        throw new Error(res.ok ? t('common.unexpectedError') : `خطأ في الخادم (${res.status})`);
       }
       if (result.success) {
         toast.success(banUntil ? 'تم حظر المستخدم مؤقتاً' : 'تم حظر المستخدم نهائياً');
@@ -1049,7 +1052,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || 'حدث خطأ أثناء حظر المستخدم');
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setBanningUserId(null);
@@ -1087,7 +1090,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('auth.mustLogin'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/announcements', {
@@ -1112,7 +1115,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || 'حدث خطأ أثناء إنشاء الإعلان');
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setCreatingAnnouncement(false);
@@ -1139,7 +1142,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || 'حدث خطأ');
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     }
   };
@@ -1165,7 +1168,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || 'حدث خطأ أثناء حذف الإعلان');
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setDeletingAnnouncementId(null);
@@ -1234,11 +1237,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       const usersData = allUsers.map((u) => ({
         'الاسم': u.name,
         'البريد الإلكتروني': u.email,
-        'الدور': getRoleLabel(u.role),
+        'الدور': getRoleLabel(u.role, t),
         'تاريخ التسجيل': formatDate(u.created_at),
       }));
       const ws2 = XLSX.utils.json_to_sheet(usersData);
-      XLSX.utils.book_append_sheet(wb, ws2, 'المستخدمون');
+      XLSX.utils.book_append_sheet(wb, ws2, t('nav.users'));
 
       // Sheet 3: All subjects
       const subjectsData = allSubjects.map((s) => {
@@ -1251,7 +1254,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         };
       });
       const ws3 = XLSX.utils.json_to_sheet(subjectsData);
-      XLSX.utils.book_append_sheet(wb, ws3, 'المقررات');
+      XLSX.utils.book_append_sheet(wb, ws3, t('nav.subjects'));
 
       // Sheet 4: Score performance
       if (allScores.length > 0) {
@@ -1421,7 +1424,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           </td>
                           <td className="p-3">
                             <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
-                              {getRoleLabel(user.role)}
+                              {getRoleLabel(user.role, t)}
                             </span>
                           </td>
                           <td className="p-3 hidden md:table-cell">
@@ -1587,7 +1590,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
-              {role === 'all' ? 'الكل' : getRoleLabel(role)}
+              {role === 'all' ? 'الكل' : getRoleLabel(role, t)}
             </button>
           ))}
         </div>
@@ -1681,7 +1684,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5">
                       <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
-                        {getRoleLabel(user.role)}
+                        {getRoleLabel(user.role, t)}
                       </span>
                       {bannedUsers.some(b => b.email === user.email && b.is_active !== false && (!b.ban_until || new Date(b.ban_until) > new Date())) && (
                         <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800">
@@ -1761,7 +1764,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       {formatNameWithTitle(selectedUser.name, selectedUser.role, selectedUser.gender, selectedUser.title_id)}
                     </span>
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border ${getRoleBadgeClass(selectedUser.role)}`}>
-                      {getRoleLabel(selectedUser.role)}
+                      {getRoleLabel(selectedUser.role, t)}
                     </span>
                   </div>
                 </div>
@@ -1857,7 +1860,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                             }`}
                           >
                             {changingRole ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                            {getRoleLabel(role)}
+                            {getRoleLabel(role, t)}
                           </button>
                         ))}
                     </div>
@@ -2552,7 +2555,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -2573,7 +2576,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -3841,12 +3844,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         role={profile.role as 'student' | 'teacher' | 'admin'}
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
-        customNavItems={adminNavItems.filter(item => !(item as { superadminOnly?: boolean }).superadminOnly || profile.role === 'superadmin')}
+        customNavItems={adminNavItemDefs.map(item => ({ ...item, label: t(item.labelKey) })).filter(item => !(item as { superadminOnly?: boolean }).superadminOnly || profile.role === 'superadmin')}
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
-      <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 pl-0 ${
-        sidebarOpen ? 'md:pr-64' : 'md:pr-[68px]'
+      <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${isRTL ? 'pl-0' : 'pr-0'} ${
+        sidebarOpen ? (isRTL ? 'md:pr-64' : 'md:pl-64') : (isRTL ? 'md:pr-[68px]' : 'md:pl-[68px]')
       }`}>
         <div className="mx-auto max-w-6xl p-3 md:p-8">
           {loadingData ? renderLoading() : (

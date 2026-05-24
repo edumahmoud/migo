@@ -12,6 +12,7 @@ import {
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
+import { useTranslations } from '@/i18n/use-translations';
 import NotificationBell from '@/components/shared/notification-bell';
 import UserAvatar from '@/components/shared/user-avatar';
 import ThemeToggle from '@/components/shared/theme-toggle';
@@ -35,13 +36,13 @@ interface AppHeaderProps {
 
 // Academic titles (same as settings-section)
 const ACADEMIC_TITLES = [
-  { value: 'teacher', label: 'معلم', femaleLabel: 'معلمة' },
-  { value: 'dr', label: 'دكتور', femaleLabel: 'دكتورة' },
-  { value: 'prof', label: 'أستاذ', femaleLabel: 'أستاذة' },
-  { value: 'assoc_prof', label: 'أستاذ مشارك', femaleLabel: 'أستاذة مشاركة' },
-  { value: 'assist_prof', label: 'أستاذ مساعد', femaleLabel: 'أستاذة مساعدة' },
-  { value: 'lecturer', label: 'محاضر', femaleLabel: 'محاضرة' },
-  { value: 'teaching_assist', label: 'معيد', femaleLabel: 'معيدة' },
+  { value: 'teacher', labelKey: 'settings.lecturer', femaleLabelKey: 'roles.teacherWithGender.female' },
+  { value: 'dr', labelKey: 'settings.doctor', femaleLabelKey: 'settings.doctor' },
+  { value: 'prof', labelKey: 'settings.professor', femaleLabelKey: 'settings.professor' },
+  { value: 'assoc_prof', labelKey: 'settings.associateProfessor', femaleLabelKey: 'settings.associateProfessor' },
+  { value: 'assist_prof', labelKey: 'settings.assistantProfessor', femaleLabelKey: 'settings.assistantProfessor' },
+  { value: 'lecturer', labelKey: 'settings.lecturer', femaleLabelKey: 'settings.lecturer' },
+  { value: 'teaching_assist', labelKey: 'settings.teachingAssistant', femaleLabelKey: 'settings.teachingAssistant' },
 ] as const;
 
 // -------------------------------------------------------
@@ -65,6 +66,7 @@ export default function AppHeader({
   const { openProfile, setReportsUnreadCount } = useAppStore();
   const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
   const { myStatus, init: initStatusStore } = useStatusStore();
+  const { t, isRTL, direction } = useTranslations();
 
   // Initialize status store with userId (critical for Supabase Presence)
   useEffect(() => {
@@ -113,19 +115,19 @@ export default function AppHeader({
   // Gender-aware role label
   const isFemale = userGender === 'female';
   const roleLabel = userRole === 'student'
-    ? (isFemale ? 'طالبة' : 'طالب')
+    ? (isFemale ? t('roles.studentWithGender.female') : t('roles.studentWithGender.male'))
     : userRole === 'superadmin'
-      ? (isFemale ? 'مديرة المنصة' : 'مدير المنصة')
+      ? (isFemale ? t('roles.supervisor') : t('roles.superadmin'))
       : userRole === 'admin'
-        ? (isFemale ? 'مشرفة' : 'مشرف')
+        ? (isFemale ? t('roles.supervisor') : t('roles.admin'))
         : (() => {
-            // For teachers, show academic title if available, otherwise default to معلم/معلمة
+            // For teachers, show academic title if available, otherwise default
             const effectiveTitleId = titleId || 'teacher';
-            const title = ACADEMIC_TITLES.find(t => t.value === effectiveTitleId);
+            const title = ACADEMIC_TITLES.find(at => at.value === effectiveTitleId);
             if (title) {
-              return isFemale ? title.femaleLabel : title.label;
+              return isFemale ? t(title.femaleLabelKey) : t(title.labelKey);
             }
-            return isFemale ? 'معلمة' : 'معلم';
+            return isFemale ? t('roles.teacherWithGender.female') : t('roles.teacherWithGender.male');
           })();
 
   // Close dropdown on outside click
@@ -151,15 +153,15 @@ export default function AppHeader({
   }, [dropdownOpen]);
 
   return (
-    <header className="fixed top-0 right-0 left-0 z-40 h-14 sm:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border" dir="rtl">
+    <header className={`fixed top-0 ${isRTL ? 'right-0' : 'left-0'} left-0 z-40 h-14 sm:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border`} dir={direction}>
       <div className="flex h-full items-center justify-between px-2 sm:px-5">
-        {/* ── Right side: Logo + App name ── */}
+        {/* ── Start side: Logo + App name ── */}
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
           {/* Sidebar toggle */}
           <button
             onClick={onToggleSidebar}
             className="touch-target shrink-0 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/60 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
-            aria-label={sidebarCollapsed ? 'فتح القائمة' : 'إغلاق القائمة'}
+            aria-label={sidebarCollapsed ? t('nav.openMenu') : t('nav.closeMenu')}
           >
             <svg
               className="h-5 w-5"
@@ -186,7 +188,7 @@ export default function AppHeader({
           <ActiveSectionLabel role={userRole} />
         </div>
 
-        {/* ── Left side: Notifications + User ── */}
+        {/* ── End side: Notifications + User ── */}
         <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
           {/* Notification Bell */}
           <NotificationBell />
@@ -200,7 +202,7 @@ export default function AppHeader({
             >
               {/* Avatar + Name — whole area opens dropdown */}
               <div className="hidden sm:flex items-center gap-2 sm:gap-2.5 min-w-0">
-                <div className="flex flex-col items-end min-w-0">
+                <div className={`flex flex-col min-w-0 ${isRTL ? 'items-end' : 'items-start'}`}>
                   <span className="text-sm font-semibold text-foreground truncate max-w-[140px]">
                     {userName}
                   </span>
@@ -211,13 +213,13 @@ export default function AppHeader({
                 <div className="relative">
                   <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
                   {/* Status dot on desktop avatar */}
-                  <span className={`absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
+                  <span className={`absolute -bottom-0.5 ${isRTL ? '-left-0.5' : '-right-0.5'} h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
                 </div>
               </div>
               {/* Mobile: Just avatar with status dot */}
               <div className="sm:hidden relative">
                 <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
-                <span className={`absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
+                <span className={`absolute -bottom-0.5 ${isRTL ? '-left-0.5' : '-right-0.5'} h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
               </div>
               <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 hidden sm:block ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -231,8 +233,8 @@ export default function AppHeader({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, pointerEvents: 'none' as const }}
                   transition={{ duration: 0.1 }}
-                  className="absolute left-0 top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50"
-                  dir="rtl"
+                  className={`absolute top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50 ${isRTL ? 'left-0' : 'right-0'}`}
+                  dir={direction}
                 >
                   {/* User info in dropdown */}
                   <div className="border-b px-4 py-3 bg-muted/20">
@@ -249,7 +251,7 @@ export default function AppHeader({
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 active:bg-muted/80 transition-colors"
                     >
                       <UserCircle className="h-4 w-4 text-muted-foreground" />
-                      الملف الشخصي
+                      {t('nav.profile')}
                     </button>
                     <button
                       onClick={() => {
@@ -259,7 +261,7 @@ export default function AppHeader({
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-muted/50 active:bg-muted/80 transition-colors"
                     >
                       <Settings className="h-4 w-4 text-muted-foreground" />
-                      الإعدادات
+                      {t('nav.settings')}
                     </button>
                     <ThemeToggle />
                     <button
@@ -270,7 +272,7 @@ export default function AppHeader({
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 active:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-950/50 transition-colors"
                     >
                       <LogOut className="h-4 w-4" />
-                      تسجيل الخروج
+                      {t('auth.logout')}
                     </button>
                   </div>
                 </motion.div>
@@ -288,24 +290,29 @@ export default function AppHeader({
 // -------------------------------------------------------
 function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 'superadmin' }) {
   const { studentSection, teacherSection, adminSection } = useAppStore();
+  const { t } = useTranslations();
 
   const sectionLabels: Record<string, string> = {
-    dashboard: 'لوحة التحكم',
-    subjects: 'المقررات',
-    summaries: 'الملخصات',
-    assignments: 'المهام',
-    files: 'ملفاتي',
-    teachers: 'المعلمون',
-    students: 'الطلاب',
-    analytics: 'التقارير',
-    settings: 'الإعدادات',
-    users: 'المستخدمون',
-    reports: 'التقارير',
-    announcements: 'الإعلانات',
-    banned: 'المحظورون',
-    institution: 'المؤسسة',
-    chat: 'المحادثات',
-    notifications: 'الإشعارات',
+    dashboard: t('nav.dashboard'),
+    subjects: t('nav.subjects'),
+    summaries: t('nav.summaries'),
+    assignments: t('nav.assignments'),
+    files: t('nav.files'),
+    teachers: t('nav.teachers'),
+    students: t('nav.students'),
+    analytics: t('nav.analytics'),
+    settings: t('nav.settings'),
+    users: t('nav.users'),
+    reports: t('nav.reports'),
+    announcements: t('nav.announcements'),
+    banned: t('nav.banned'),
+    institution: t('nav.institution'),
+    chat: t('nav.chat'),
+    notifications: t('nav.notifications'),
+    complaints: t('nav.complaints'),
+    tracking: t('nav.tracking'),
+    questionBank: t('nav.questionBank'),
+    videos: t('nav.videos'),
   };
 
   const activeSection = role === 'student' ? studentSection : role === 'teacher' ? teacherSection : (role === 'admin' || role === 'superadmin') ? adminSection : 'dashboard';
@@ -350,10 +357,11 @@ function HeaderLogo() {
 }
 
 // -------------------------------------------------------
-// Header Title — shows institution name or default "أتيندو"
+// Header Title — shows institution name or default app name
 // -------------------------------------------------------
 function HeaderTitle() {
   const { institution, fetchInstitution, loaded } = useInstitutionStore();
+  const { t } = useTranslations();
 
   useEffect(() => {
     if (!loaded) fetchInstitution();
@@ -362,7 +370,7 @@ function HeaderTitle() {
   return (
     <div className="flex flex-col min-w-0">
       <h1 className="text-base sm:text-lg font-bold text-primary whitespace-nowrap truncate max-w-[180px] sm:max-w-[250px]">
-        {loaded ? (institution?.name || 'أتيندو') : '\u00A0'}
+        {loaded ? (institution?.name || t('common.appName')) : '\u00A0'}
       </h1>
       {loaded && institution?.tagline && (
         <span className="text-[10px] sm:text-xs text-primary/60 whitespace-nowrap truncate max-w-[180px] sm:max-w-[250px] -mt-0.5">

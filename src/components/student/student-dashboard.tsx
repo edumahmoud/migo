@@ -54,6 +54,7 @@ import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
+import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
 import { extractPdfTextClient, extractTextFromFile } from '@/lib/pdf-client';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -154,6 +155,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
+
+  // ─── Translations ───
+  const { t } = useTranslations();
 
   // ─── Data state ───
   // RADICAL FIX: Initialize summaries from localStorage cache SYNCHRONOUSLY.
@@ -260,7 +264,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // Enforce file size limit (10MB) immediately
     const MAX_FILE_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
-      toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB). يرجى اختيار ملف أصغر');
+      toast.error(t('common.unexpectedError'));
       setSummaryFile(null);
       setSummaryFileBuffer(null);
       setSummaryFileName('');
@@ -1217,7 +1221,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       // Fallback: try to read now if we didn't get the buffer earlier
       const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (capturedFile.size > MAX_FILE_SIZE) {
-        toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB). يرجى اختيار ملف أصغر');
+        toast.error(t('common.unexpectedError'));
         return;
       }
       try {
@@ -1870,7 +1874,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم حذف الملخص بنجاح');
+        toast.success(t('common.success'));
         // Add to recently deleted set to prevent stale re-fetch from re-adding it
         recentlyDeletedSummaryIdsRef.current.add(summaryId);
         setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
@@ -1884,9 +1888,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         // Fallback to direct Supabase delete
         const { error } = await supabase.from('summaries').delete().eq('id', summaryId);
         if (error) {
-          toast.error(data.error || 'حدث خطأ أثناء حذف الملخص');
+          toast.error(data.error || t('common.unexpectedError'));
         } else {
-          toast.success('تم حذف الملخص بنجاح');
+          toast.success(t('common.success'));
           recentlyDeletedSummaryIdsRef.current.add(summaryId);
           setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
           const remaining = summaries.filter(s => s.id !== summaryId);
@@ -1898,16 +1902,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       try {
         const { error } = await supabase.from('summaries').delete().eq('id', summaryId);
         if (error) {
-          toast.error('حدث خطأ أثناء حذف الملخص');
+          toast.error(t('common.unexpectedError'));
         } else {
-          toast.success('تم حذف الملخص بنجاح');
+          toast.success(t('common.success'));
           recentlyDeletedSummaryIdsRef.current.add(summaryId);
           setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
           const remaining = summaries.filter(s => s.id !== summaryId);
           safeSetSummaries(remaining, 0, true); // force=true
         }
       } catch {
-        toast.error('حدث خطأ غير متوقع');
+        toast.error(t('common.unexpectedError'));
       }
     } finally {
       setDeletingSummaryId(null);
@@ -1966,7 +1970,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const quizData = await quizRes.json();
 
       if (!quizRes.ok || !quizData.success) {
-        toast.error(quizData.error || 'فشل إنشاء الاختبار');
+        toast.error(quizData.error || t('common.unexpectedError'));
         return;
       }
 
@@ -1988,7 +1992,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       });
 
       if (saveRes.ok) {
-        toast.success('تم إنشاء الاختبار بنجاح');
+        toast.success(t('common.success'));
         fetchQuizzes();
         setQuizConfigOpen(false);
         setQuizConfigSummaryId(null);
@@ -2004,16 +2008,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           // NOTE: shuffle_questions is client-side only, not stored in DB
         });
         if (!error) {
-          toast.success('تم إنشاء الاختبار بنجاح');
+          toast.success(t('common.success'));
           fetchQuizzes();
           setQuizConfigOpen(false);
           setQuizConfigSummaryId(null);
         } else {
-          toast.error('فشل حفظ الاختبار');
+          toast.error(t('common.unexpectedError'));
         }
       }
     } catch {
-      toast.error('حدث خطأ أثناء إنشاء الاختبار');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setCreatingQuizFromSummary(false);
     }
@@ -2055,7 +2059,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       setTeacherPreview(data.teacher);
     } catch (err) {
       console.error('[handleSearchTeacher] Unexpected error:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setSearchingTeacher(false);
     }
@@ -2076,7 +2080,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إرسال طلب الارتباط');
+        toast.error(data.error || t('common.unexpectedError'));
         return;
       }
 
@@ -2096,7 +2100,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       setTimeout(() => { fetchLinkedTeachers(); fetchQuizzes(); }, 1000);
     } catch (err) {
       console.error('[handleConfirmLinkTeacher] Unexpected error:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setLinkingTeacher(false);
     }
@@ -2117,16 +2121,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إلغاء الربط');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success('تم إلغاء ربط المعلم بنجاح');
+        toast.success(t('common.success'));
         setSelectedTeacher(null);
         setUnlinkConfirmOpen(false);
         fetchLinkedTeachers();
         fetchQuizzes();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setDeletingLinkId(null);
     }
@@ -2147,13 +2151,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إلغاء الطلب');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success('تم إلغاء طلب الارتباط بنجاح');
+        toast.success(t('common.success'));
         fetchLinkedTeachers();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setCancelingRequestId(null);
     }
@@ -2174,13 +2178,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إزالة الطلب');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success('تم إزالة الطلب المرفوض');
+        toast.success(t('common.success'));
         fetchLinkedTeachers();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setCancelingRequestId(null);
     }
@@ -2201,7 +2205,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول الطلب');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
         toast.success(data.message || 'تم قبول المعلم بنجاح');
         fetchIncomingLinkRequests();
@@ -2209,7 +2213,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         fetchQuizzes();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingIncomingId(null);
     }
@@ -2230,14 +2234,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض الطلب');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success(data.message || 'تم رفض الطلب');
+        toast.success(data.message || t('common.success'));
         fetchIncomingLinkRequests();
         fetchLinkedTeachers();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingIncomingId(null);
     }
@@ -2258,7 +2262,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول جميع الطلبات');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
         toast.success(data.message || `تم قبول جميع الطلبات بنجاح`);
         setConfirmIncomingAcceptAllOpen(false);
@@ -2267,7 +2271,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         fetchQuizzes();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingIncomingBulk(false);
     }
@@ -2288,7 +2292,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض جميع الطلبات');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
         toast.success(data.message || `تم رفض جميع الطلبات`);
         setConfirmIncomingRejectAllOpen(false);
@@ -2296,7 +2300,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         fetchLinkedTeachers();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingIncomingBulk(false);
     }
@@ -4117,7 +4121,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/40 dark:bg-sky-950/30 p-4 space-y-3">
                     <UserLink
                       userId={teacherPreview.id}
-                      name={teacherPreview.name || 'معلم'}
+                      name={teacherPreview.name || t('roles.teacher')}
                       avatarUrl={teacherPreview.avatar_url}
                       role="teacher"
                       gender={teacherPreview.gender}

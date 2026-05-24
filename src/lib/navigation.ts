@@ -24,7 +24,7 @@ import type { StudentSection, TeacherSection, AdminSection } from '@/lib/types';
 
 export interface NavItem<T extends string = string> {
   id: T;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
   superadminOnly?: boolean;
 }
@@ -34,16 +34,16 @@ export interface NavItem<T extends string = string> {
 // Matches: app-sidebar.tsx, page.tsx
 // -------------------------------------------------------
 export const studentNavItems: NavItem<StudentSection>[] = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
-  { id: 'subjects', label: 'المقررات', icon: BookOpen },
-  { id: 'chat', label: 'المحادثات', icon: MessageCircle },
-  { id: 'teachers', label: 'المعلمون', icon: Users },
-  { id: 'summaries', label: 'الملخصات', icon: FileText },
-  { id: 'assignments', label: 'المهام', icon: FileSpreadsheet },
-  { id: 'files', label: 'ملفاتي', icon: FolderOpen },
-  { id: 'reports', label: 'الإبلاغات', icon: ShieldAlert },
-  { id: 'notifications', label: 'الإشعارات', icon: Bell },
-  { id: 'settings', label: 'الإعدادات', icon: Settings },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: BookOpen },
+  { id: 'chat', labelKey: 'nav.chat', icon: MessageCircle },
+  { id: 'teachers', labelKey: 'nav.teachers', icon: Users },
+  { id: 'summaries', labelKey: 'nav.summaries', icon: FileText },
+  { id: 'assignments', labelKey: 'nav.assignments', icon: FileSpreadsheet },
+  { id: 'files', labelKey: 'nav.files', icon: FolderOpen },
+  { id: 'reports', labelKey: 'nav.complaints', icon: ShieldAlert },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: Bell },
+  { id: 'settings', labelKey: 'nav.settings', icon: Settings },
 ];
 
 // -------------------------------------------------------
@@ -51,16 +51,16 @@ export const studentNavItems: NavItem<StudentSection>[] = [
 // Matches: app-sidebar.tsx, page.tsx
 // -------------------------------------------------------
 export const teacherNavItems: NavItem<TeacherSection>[] = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
-  { id: 'subjects', label: 'المقررات', icon: BookOpen },
-  { id: 'questionBank', label: 'بنك الأسئلة', icon: Database },
-  { id: 'chat', label: 'المحادثات', icon: MessageCircle },
-  { id: 'students', label: 'الطلاب', icon: Users },
-  { id: 'files', label: 'ملفاتي', icon: FolderOpen },
-  { id: 'reports', label: 'الإبلاغات', icon: ShieldAlert },
-  { id: 'analytics', label: 'التقارير', icon: TrendingUp },
-  { id: 'notifications', label: 'الإشعارات', icon: Bell },
-  { id: 'settings', label: 'الإعدادات', icon: Settings },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: BookOpen },
+  { id: 'questionBank', labelKey: 'nav.questionBank', icon: Database },
+  { id: 'chat', labelKey: 'nav.chat', icon: MessageCircle },
+  { id: 'students', labelKey: 'nav.students', icon: Users },
+  { id: 'files', labelKey: 'nav.files', icon: FolderOpen },
+  { id: 'reports', labelKey: 'nav.complaints', icon: ShieldAlert },
+  { id: 'analytics', labelKey: 'nav.analytics', icon: TrendingUp },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: Bell },
+  { id: 'settings', labelKey: 'nav.settings', icon: Settings },
 ];
 
 // -------------------------------------------------------
@@ -68,16 +68,16 @@ export const teacherNavItems: NavItem<TeacherSection>[] = [
 // Matches: admin-dashboard.tsx, page.tsx
 // -------------------------------------------------------
 export const adminNavItems: NavItem<AdminSection>[] = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
-  { id: 'users', label: 'المستخدمون', icon: Users },
-  { id: 'subjects', label: 'المقررات', icon: BookOpen },
-  { id: 'announcements', label: 'الإعلانات', icon: Megaphone },
-  { id: 'banned', label: 'المحظورون', icon: Ban },
-  { id: 'complaints', label: 'الإبلاغات', icon: ShieldAlert },
-  { id: 'reports', label: 'التقارير', icon: TrendingUp },
-  { id: 'chat', label: 'المحادثات', icon: MessageCircle },
-  { id: 'settings', label: 'الإعدادات', icon: Settings },
-  { id: 'institution', label: 'المؤسسة', icon: Building2, superadminOnly: true },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { id: 'users', labelKey: 'nav.users', icon: Users },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: BookOpen },
+  { id: 'announcements', labelKey: 'nav.announcements', icon: Megaphone },
+  { id: 'banned', labelKey: 'nav.banned', icon: Ban },
+  { id: 'complaints', labelKey: 'nav.complaints', icon: ShieldAlert },
+  { id: 'reports', labelKey: 'nav.reports', icon: TrendingUp },
+  { id: 'chat', labelKey: 'nav.chat', icon: MessageCircle },
+  { id: 'settings', labelKey: 'nav.settings', icon: Settings },
+  { id: 'institution', labelKey: 'nav.institution', icon: Building2, superadminOnly: true },
 ];
 
 // -------------------------------------------------------

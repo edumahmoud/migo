@@ -8,11 +8,11 @@ import {
   Bell,
   Menu,
   Users,
-  Activity,
   ShieldAlert,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Types
@@ -26,36 +26,36 @@ interface MobileBottomNavProps {
 
 interface BottomNavItem {
   id: string;
-  label: string;
+  labelKey: string;
   icon: React.ReactNode;
   isMore?: boolean;
 }
 
 // -------------------------------------------------------
-// Navigation items per role (5 items each)
+// Navigation items per role (5 items each, using translation keys)
 // -------------------------------------------------------
 const studentNavItems: BottomNavItem[] = [
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'reports', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'more', labelKey: 'nav.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
 const teacherNavItems: BottomNavItem[] = [
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'reports', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
+  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'reports', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'more', labelKey: 'nav.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
 const adminNavItems: BottomNavItem[] = [
-  { id: 'users', label: 'المستخدمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'notifications', label: 'الإشعارات', icon: <Bell className="h-5 w-5" /> },
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'complaints', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'more', label: 'المزيد', icon: <Menu className="h-5 w-5" />, isMore: true },
+  { id: 'users', labelKey: 'nav.users', icon: <Users className="h-5 w-5" /> },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
+  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'complaints', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'more', labelKey: 'nav.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
 // -------------------------------------------------------
@@ -69,6 +69,7 @@ export default function MobileBottomNav({
 }: MobileBottomNavProps) {
   const isMobile = useIsMobile();
   const { chatUnreadCount, reportsUnreadCount } = useAppStore();
+  const { direction } = useTranslations();
 
   // Don't render on desktop
   if (!isMobile) return null;
@@ -84,7 +85,7 @@ export default function MobileBottomNav({
     <nav
       className="fixed bottom-0 inset-x-0 z-40 bg-background/95 backdrop-blur-md border-t border-border dark:bg-card/95 dark:border-border"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      dir="rtl"
+      dir={direction}
     >
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-1">
         {navItems.map((item, index) => {
@@ -132,6 +133,8 @@ function BottomNavItemButton({
   onToggleSidebar: () => void;
   role?: string;
 }) {
+  const { t } = useTranslations();
+
   const handleClick = () => {
     if (item.isMore) {
       onToggleSidebar();
@@ -147,7 +150,7 @@ function BottomNavItemButton({
         isCenter ? '-mt-4 pb-1' : 'gap-0.5 py-1.5'
       }`}
       whileTap={{ scale: 0.9 }}
-      aria-label={item.label}
+      aria-label={t(item.labelKey)}
       aria-current={isActive ? 'page' : undefined}
     >
       {/* Active background highlight — skip for center item (has its own circle) */}
@@ -206,7 +209,7 @@ function BottomNavItemButton({
           isActive ? 'text-primary' : 'text-muted-foreground'
         }`}
       >
-        {item.label}
+        {t(item.labelKey)}
       </span>
 
       {/* Active indicator dot — skip for center item */}

@@ -2,8 +2,11 @@
 
 import { motion } from 'framer-motion';
 import { WifiOff, RefreshCw, X, GraduationCap } from 'lucide-react';
+import { useTranslations } from '@/i18n/use-translations';
 
 export default function OfflinePage() {
+  const { t, isRTL } = useTranslations();
+
   const handleExit = () => {
     try {
       window.close();
@@ -13,7 +16,7 @@ export default function OfflinePage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 rounded-full blur-3xl" />
@@ -54,7 +57,7 @@ export default function OfflinePage() {
             transition={{ delay: 0.4 }}
             className="text-xl font-bold text-gray-900 mb-2"
           >
-            لا يوجد اتصال
+            {t('offline.noConnection')}
           </motion.h1>
 
           {/* Description */}
@@ -64,7 +67,7 @@ export default function OfflinePage() {
             transition={{ delay: 0.5 }}
             className="text-sm text-gray-500 mb-6 leading-relaxed"
           >
-            يبدو أنك غير متصل بالإنترنت. تحقق من اتصالك وحاول مرة أخرى.
+            {t('offline.noConnectionDesc')}
           </motion.p>
 
           {/* Action buttons */}
@@ -79,7 +82,7 @@ export default function OfflinePage() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" />
-              إعادة المحاولة
+              {t('offline.retry')}
             </button>
 
             <button
@@ -87,7 +90,7 @@ export default function OfflinePage() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-red-200 px-6 py-2.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 active:bg-red-100 transition-all duration-200 w-full sm:w-auto"
             >
               <X className="h-4 w-4" />
-              الخروج من التطبيق
+              {t('offline.exit')}
             </button>
           </motion.div>
         </div>
@@ -99,7 +102,7 @@ export default function OfflinePage() {
           transition={{ delay: 1 }}
           className="text-center text-xs text-gray-400 mt-4"
         >
-          أتيندو — منصة تعليمية ذكية
+          {t('offline.branding')}
         </motion.p>
       </motion.div>
     </div>

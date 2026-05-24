@@ -28,6 +28,7 @@ import {
   Sun,
   Moon,
   Unlock,
+  Globe,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -57,6 +58,8 @@ import { useSharedSocket, useSocketEvent, setSocketAuth } from '@/lib/socket';
 import { useStatusStore, getStatusColor } from '@/stores/status-store';
 import type { UserProfile, UserStatus } from '@/lib/types';
 import ThemeToggle from '@/components/shared/theme-toggle';
+import { useTranslations } from '@/i18n/use-translations';
+import { useLocaleStore } from '@/i18n/locale-store';
 
 // -------------------------------------------------------
 // Types
@@ -164,6 +167,8 @@ export default function SettingsSection({
   onUpdateProfile,
   onDeleteAccount,
 }: SettingsSectionProps) {
+  const { t, isRTL, direction } = useTranslations();
+  const { locale, setLocale } = useLocaleStore();
   const { refreshProfile } = useAuthStore();
 
   // ─── Shared socket ───
@@ -1292,6 +1297,44 @@ export default function SettingsSection({
 
               {/* Theme Toggle (Appearance) */}
               <ThemeToggle />
+
+              {/* Divider */}
+              <div className="border-t" />
+
+              {/* Language Switcher */}
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30">
+                    <Globe className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{t('settings.language')}</p>
+                    <p className="text-xs text-muted-foreground">{locale === 'ar' ? 'العربية' : 'English'}</p>
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setLocale('ar')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      locale === 'ar'
+                        ? 'bg-sky-600 text-white shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    العربية
+                  </button>
+                  <button
+                    onClick={() => setLocale('en')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      locale === 'en'
+                        ? 'bg-sky-600 text-white shadow-sm'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    English
+                  </button>
+                </div>
+              </div>
             </div>
           </motion.div>
 

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 
 // ─── Constants ───
@@ -51,10 +52,11 @@ function isValidEmail(email: string): boolean {
 function withSupabaseTimeout<Res extends { data: unknown; error: { message: string; status?: number; code?: string } | null }>(
   promise: Promise<Res>,
   ms: number,
+  t: (key: string, params?: Record<string, unknown>) => string,
 ): Promise<{ data: Res['data'] | null; error: { message: string; status?: number; code?: string } | null }> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
-      resolve({ data: null, error: { message: `انتهت مهلة الطلب (${Math.round(ms / 1000)} ثانية). يرجى المحاولة مرة أخرى` } });
+      resolve({ data: null, error: { message: t('auth.requestTimeoutSeconds', { seconds: Math.round(ms / 1000) }) } });
     }, ms);
 
     promise
@@ -69,7 +71,7 @@ function withSupabaseTimeout<Res extends { data: unknown; error: { message: stri
       })
       .catch((err) => {
         clearTimeout(timer);
-        resolve({ data: null, error: { message: err?.message || 'حدث خطأ في الاتصال', status: err?.status, code: err?.code } });
+        resolve({ data: null, error: { message: err?.message || t('auth.connectionErrorOccurred'), status: err?.status, code: err?.code } });
       });
   });
 }
@@ -83,6 +85,8 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  const { t, isRTL } = useTranslations();
 
   // ─── Cooldown timer ───
   // Prevents the user from sending another reset email until the cooldown expires.
@@ -113,27 +117,27 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     if (m > 0) return `${m}:${s.toString().padStart(2, '0')}`;
-    return `${s} ثانية`;
-  }, []);
+    return `${s} ${t('auth.seconds')}`;
+  }, [t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // ── Pre-flight checks ──
     if (!email.trim()) {
-      toast.error('يرجى إدخال البريد الإلكتروني');
+      toast.error(t('auth.pleaseEnterEmail'));
       return;
     }
     if (!isValidEmail(email)) {
-      toast.error('صيغة البريد الإلكتروني غير صحيحة');
+      toast.error(t('auth.invalidEmailFormat'));
       return;
     }
     if (cooldownRemaining > 0) {
-      toast.error(`يرجى الانتظار ${formatCooldown(cooldownRemaining)} قبل المحاولة مرة أخرى`);
+      toast.error(t('auth.pleaseWaitTime', { time: formatCooldown(cooldownRemaining) }));
       return;
     }
     if (!isSupabaseConfigured) {
-      toast.error('خطأ في إعدادات الخادم — يرجى التواصل مع الدعم');
+      toast.error(t('auth.serverConfigErrorContact'));
       console.error('[ForgotPassword] Supabase is not configured — NEXT_PUBLIC_SUPABASE_URL or ANON_KEY is missing');
       return;
     }
@@ -148,6 +152,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
           redirectTo: `${window.location.origin}/auth/reset-password`,
         }),
         REQUEST_TIMEOUT_MS,
+        t as (key: string, params?: Record<string, unknown>) => string,
       );
 
       if (error) {
@@ -161,9 +166,9 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
           // Rate limit hit — start cooldown so the user doesn't retry too quickly
           setLastSentTime(Date.now());
           setCooldownRemaining(COOLDOWN_SECONDS);
-          toast.error('تم تجاوز حد عدد الرسائل. يرجى الانتظار قبل المحاولة مرة أخرى');
-        } else if (msg.includes('انتهت مهلة') || msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort')) {
-          toast.error('انتهت مهلة الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى');
+          toast.error(t('auth.rateLimitExceeded'));
+        } else if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('abort') || msg.includes('انتهت مهلة')) {
+          toast.error(t('auth.connectionTimeoutCheck'));
         } else if (
           msg.includes('email not found') || msg.includes('user not found') ||
           msg.includes('no user found')
@@ -176,12 +181,12 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
           errorCode === 'url_not_allowed' || status === 403 ||
           msg.includes('requested url is not allowed')
         ) {
-          toast.error('خطأ في إعدادات رابط إعادة التعيين. يرجى التواصل مع المشرف');
+          toast.error(t('auth.resetLinkConfigError'));
           console.error('[ForgotPassword] Redirect URL not allowed! Add to Supabase Dashboard > Authentication > URL Configuration > Redirect URLs:', `${window.location.origin}/auth/reset-password`);
         } else if (msg.includes('failed to fetch') || msg.includes('network') || msg.includes('net::')) {
-          toast.error('فشل الاتصال بالخادم. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى');
+          toast.error(t('auth.serverConnectionFailedCheck'));
         } else if (msg.includes('invalid api key') || msg.includes('invalid api') || status === 401) {
-          toast.error('خطأ في إعدادات الخادم. يرجى التواصل مع الدعم الفني');
+          toast.error(t('auth.serverConfigContactTech'));
           console.error('[ForgotPassword] API key issue — check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY');
         } else {
           // Show the actual error message so the user can report it —
@@ -189,7 +194,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
           const displayMsg = error.message?.length > 100
             ? error.message.substring(0, 100) + '...'
             : error.message;
-          toast.error(`خطأ: ${displayMsg}`);
+          toast.error(t('auth.errorWithMessage', { message: displayMsg }));
           console.error('[ForgotPassword] Unhandled error — full details:', JSON.stringify(error));
         }
         return;
@@ -199,10 +204,10 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
       setLastSentTime(Date.now());
       setCooldownRemaining(COOLDOWN_SECONDS);
       setEmailSent(true);
-      toast.success('تم إرسال رابط إعادة التعيين إلى بريدك الإلكتروني');
+      toast.success(t('auth.resetLinkSentSuccess'));
     } catch (err) {
       console.error('[ForgotPassword] Unexpected error:', err);
-      toast.error('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى');
+      toast.error(t('auth.unexpectedErrorRetry'));
     } finally {
       setIsLoading(false);
     }
@@ -211,7 +216,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
   const canResend = cooldownRemaining === 0 && !isLoading;
 
   return (
-    <div dir="rtl" className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -220,12 +225,12 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
         <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm flex-1 sm:flex-none flex flex-col sm:block">
           <CardHeader className="text-center pb-1 pt-3 sm:pt-6 sm:pb-2 px-4 sm:px-6">
             <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
-              استعادة كلمة المرور
+              {t('auth.restorePassword')}
             </CardTitle>
             <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
               {emailSent
-                ? 'تم إرسال رابط إعادة التعيين إلى بريدك الإلكتروني'
-                : 'أدخل بريدك الإلكتروني وسنرسل لك رابط إعادة التعيين'
+                ? t('auth.resetLinkSentDesc')
+                : t('auth.resetPasswordDesc')
               }
             </CardDescription>
           </CardHeader>
@@ -241,10 +246,10 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   <CheckCircle2 className="h-8 w-8 text-sky-600" />
                 </div>
                 <p className="text-sm text-gray-600">
-                  تم إرسال رابط إعادة تعيين كلمة المرور إلى <span className="font-semibold">{email}</span>
+                  {t('auth.resetLinkSentToEmail')} <span className="font-semibold">{email}</span>
                 </p>
                 <p className="text-xs text-gray-400">
-                  يرجى التحقق من صندوق الوارد والبريد غير المرغوب فيه
+                  {t('auth.checkInboxSpam')}
                 </p>
 
                 {/* Resend button with cooldown */}
@@ -252,7 +257,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   <div className="space-y-2">
                     <div className="flex items-center justify-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg py-2 px-3">
                       <Clock className="h-3.5 w-3.5" />
-                      <span>يمكنك إعادة الإرسال بعد {formatCooldown(cooldownRemaining)}</span>
+                      <span>{t('auth.canResendAfter', { time: formatCooldown(cooldownRemaining) })}</span>
                     </div>
                     <Button
                       type="button"
@@ -264,7 +269,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                       className="w-full h-10 text-sm font-medium border-gray-200 opacity-50"
                     >
                       <Clock className="h-4 w-4 ml-1" />
-                      إعادة الإرسال ({formatCooldown(cooldownRemaining)})
+                      {t('auth.resendWithTime', { time: formatCooldown(cooldownRemaining) })}
                     </Button>
                   </div>
                 ) : (
@@ -276,7 +281,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                     variant="outline"
                     className="w-full h-10 text-sm font-medium border-gray-200 hover:bg-gray-50"
                   >
-                    إعادة إرسال الرابط
+                    {t('auth.resendLink')}
                   </Button>
                 )}
 
@@ -286,7 +291,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   variant="outline"
                   className="w-full h-11 text-base font-medium border-gray-200 hover:bg-gray-50"
                 >
-                  العودة لتسجيل الدخول
+                  {t('common.returnToLogin')}
                 </Button>
               </motion.div>
             ) : (
@@ -298,13 +303,13 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                   className="space-y-2"
                 >
                   <Label htmlFor="reset-email" className="text-gray-700 font-medium text-xs sm:text-sm">
-                    البريد الإلكتروني
+                    {t('auth.email')}
                   </Label>
                   <div className="relative">
                     <Input
                       id="reset-email"
                       type="email"
-                      placeholder="أدخل بريدك الإلكتروني المسجل"
+                      placeholder={t('auth.enterRegisteredEmail')}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
@@ -320,7 +325,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                 {cooldownRemaining > 0 && (
                   <div className="flex items-center justify-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg py-2 px-3">
                     <Clock className="h-3.5 w-3.5" />
-                    <span>يرجى الانتظار {formatCooldown(cooldownRemaining)} قبل إرسال رابط جديد</span>
+                    <span>{t('auth.pleaseWaitNewLink', { time: formatCooldown(cooldownRemaining) })}</span>
                   </div>
                 )}
 
@@ -337,15 +342,15 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                     {isLoading ? (
                       <>
                         <Loader2 className="h-5 w-5 animate-spin" />
-                        <span>جارٍ الإرسال...</span>
+                        <span>{t('auth.sending')}</span>
                       </>
                     ) : cooldownRemaining > 0 ? (
                       <>
                         <Clock className="h-4 w-4 ml-1" />
-                        انتظر {formatCooldown(cooldownRemaining)}
+                        {t('auth.waitTime', { time: formatCooldown(cooldownRemaining) })}
                       </>
                     ) : (
-                      'إرسال رابط إعادة التعيين'
+                      t('auth.sendResetLink')
                     )}
                   </Button>
                 </motion.div>
@@ -362,7 +367,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                     className="text-sm text-sky-600 hover:text-sky-700 font-medium transition-colors inline-flex items-center gap-1"
                   >
                     <ArrowRight className="h-4 w-4" />
-                    العودة لتسجيل الدخول
+                    {t('common.returnToLogin')}
                   </button>
                 </motion.div>
               </form>

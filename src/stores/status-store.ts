@@ -3,6 +3,7 @@ import type { UserStatus } from '@/lib/types';
 import { getSocket } from '@/lib/socket';
 import { supabase } from '@/lib/supabase';
 import type { RealtimeChannel, RealtimePresenceJoinPayload } from '@supabase/supabase-js';
+import { useLocaleStore } from '@/i18n/locale-store';
 
 // =====================================================
 // AttenDo - Global Status Store
@@ -65,11 +66,13 @@ export function getStatusColor(status: UserStatus): string {
 }
 
 export function getStatusLabel(status: UserStatus): string {
+  const locale = useLocaleStore.getState().locale;
+  const isAr = locale === 'ar';
   switch (status) {
-    case 'online': return 'متصل';
-    case 'busy': return 'مشغول';
-    case 'away': return 'بعيد';
-    default: return 'غير متصل';
+    case 'online': return isAr ? 'متصل' : 'Online';
+    case 'busy': return isAr ? 'مشغول' : 'Busy';
+    case 'away': return isAr ? 'بعيد' : 'Away';
+    default: return isAr ? 'غير متصل' : 'Offline';
   }
 }
 

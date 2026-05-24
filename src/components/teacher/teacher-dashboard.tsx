@@ -67,6 +67,7 @@ import ReportsSection from '@/components/reports/reports-section';
 import { useAppStore } from '@/stores/app-store';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
+import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
@@ -139,6 +140,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // ─── Stores ───
   const { teacherSection: storedTeacherSection, setTeacherSection: storeSetTeacherSection, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
+  const { t } = useTranslations();
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<TeacherSection>(storedTeacherSection || 'dashboard');
@@ -647,7 +649,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const handleCopyTeacherCode = () => {
     if (profile.teacher_code) {
       navigator.clipboard.writeText(profile.teacher_code);
-      toast.success('تم نسخ كود المعلم بنجاح');
+      toast.success(t('common.copied'));
     }
   };
 
@@ -657,7 +659,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const handleExportSummaries = async () => {
     try {
       const XLSX = await import('xlsx');
-      toast.info('جاري تحضير البيانات...');
+      toast.info(t('common.loading'));
 
       const studentIds = students.map((s) => s.id);
       const { data: summaries } = await supabase
@@ -711,9 +713,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       }
 
       XLSX.writeFile(wb, `ملخصات_الطلاب_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('تم تصدير البيانات بنجاح');
+      toast.success(t('common.success'));
     } catch {
-      toast.error('حدث خطأ أثناء تصدير البيانات');
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -778,9 +780,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       }
 
       XLSX.writeFile(wb, `تقرير_شامل_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('تم تصدير التقرير الشامل بنجاح');
+      toast.success(t('common.success'));
     } catch {
-      toast.error('حدث خطأ أثناء تصدير البيانات');
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -803,9 +805,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, quiz.title);
       XLSX.writeFile(wb, `${quiz.title}_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('تم تصدير بيانات الاختبار بنجاح');
+      toast.success(t('common.success'));
     } catch {
-      toast.error('حدث خطأ أثناء التصدير');
+      toast.error(t('common.unexpectedError'));
     }
   };
 
@@ -822,14 +824,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         .eq('teacher_id', profile.id);
 
       if (error) {
-        toast.error('حدث خطأ أثناء تصفير حالة الطالب');
+        toast.error(t('common.unexpectedError'));
       } else {
-        toast.success('تم تصفير حالة الطالب بنجاح');
+        toast.success(t('common.success'));
         setStudentDetailOpen(false);
         fetchScores();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setResettingStudent(false);
     }
@@ -852,13 +854,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول الطلب');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success(data.message || 'تم قبول الطالب بنجاح');
+        toast.success(data.message || t('common.success'));
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -879,13 +881,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض الطلب');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success(data.message || 'تم رفض الطلب');
+        toast.success(data.message || t('common.success'));
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -906,14 +908,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول جميع الطلبات');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
         toast.success(data.message || `تم قبول جميع الطلبات بنجاح`);
         setConfirmAcceptAllOpen(false);
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingBulk(false);
     }
@@ -934,14 +936,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض جميع الطلبات');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
         toast.success(data.message || `تم رفض جميع الطلبات`);
         setConfirmRejectAllOpen(false);
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingBulk(false);
     }
@@ -953,7 +955,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const handleSearchStudent = async () => {
     const email = studentEmailInput.trim().toLowerCase();
     if (!email) {
-      toast.error('يرجى إدخال البريد الإلكتروني للطالب');
+      toast.error(t('auth.email') + ': ' + t('common.required'));
       return;
     }
 
@@ -970,13 +972,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'لم يتم العثور على طالب بهذا البريد');
+        toast.error(data.error || t('common.notFound'));
         return;
       }
 
       setStudentPreview(data.student);
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setSearchingStudent(false);
     }
@@ -1000,11 +1002,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إرسال طلب الارتباط');
+        toast.error(data.error || t('common.unexpectedError'));
         return;
       }
 
-      toast.success(data.message || 'تم إرسال طلب الارتباط بنجاح');
+      toast.success(data.message || t('common.success'));
       setStudentEmailInput('');
       setStudentPreview(null);
       setSendRequestOpen(false);
@@ -1013,7 +1015,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setSendingRequest(false);
     }
@@ -1034,15 +1036,15 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إزالة الطالب');
+        toast.error(data.error || t('common.unexpectedError'));
       } else {
-        toast.success('تم إزالة الطالب بنجاح');
+        toast.success(t('common.success'));
         setStudentDetailOpen(false);
         setSelectedStudent(null);
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -1319,7 +1321,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     id: `score-${score.id}`,
                     type: 'quiz_completed',
                     title: score.quiz_title,
-                    subtitle: student?.name || 'طالب',
+                    subtitle: student?.name || t('roles.student'),
                     pct,
                     date: score.completed_at,
                     icon: <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />,
@@ -1347,7 +1349,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     id: `sub-${sub.id}`,
                     type: 'assignment_graded',
                     title: assignment ? `تقييم مهمة` : 'تقييم',
-                    subtitle: student?.name || 'طالب',
+                    subtitle: student?.name || t('roles.student'),
                     pct: subPct,
                     date: '',
                     icon: <Award className="h-3.5 w-3.5 text-amber-500" />,

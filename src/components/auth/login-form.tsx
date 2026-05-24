@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 
 interface LoginFormProps {
@@ -27,24 +28,25 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   const { signInWithEmail, signInWithGoogle } = useAuthStore();
   const { setCurrentPage } = useAppStore();
   const { institution, fetchInstitution, loaded } = useInstitutionStore();
+  const { t, isRTL } = useTranslations();
 
   // Fetch institution data on mount
   useEffect(() => {
     if (!loaded) fetchInstitution();
   }, [loaded, fetchInstitution]);
 
-  const displayName = loaded ? (institution?.name || 'أتيندو') : '';
+  const displayName = loaded ? (institution?.name || t('common.appName')) : '';
   const displayLogo = institution?.logo_url;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!email.trim()) {
-      toast.error('يرجى إدخال البريد الإلكتروني');
+      toast.error(t('auth.pleaseEnterEmail'));
       return;
     }
     if (!password.trim()) {
-      toast.error('يرجى إدخال كلمة المرور');
+      toast.error(t('auth.pleaseEnterPassword'));
       return;
     }
 
@@ -58,7 +60,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
 
       const user = useAuthStore.getState().user;
       if (user) {
-        toast.success('تم تسجيل الدخول بنجاح');
+        toast.success(t('auth.loginSuccess'));
         if (user.role === 'superadmin' || user.role === 'admin') {
           setCurrentPage('admin-dashboard');
         } else if (user.role === 'teacher') {
@@ -68,7 +70,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         }
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +84,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
         toast.error(error);
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.unexpectedError'));
     } finally {
       setIsGoogleLoading(false);
     }
@@ -95,7 +97,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
   };
 
   return (
-    <div dir="rtl" className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -114,10 +116,10 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
               </motion.div>
             )}
             <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900">
-              {displayName ? `مرحباً بك في ${displayName}` : 'مرحباً بك'}
+              {displayName ? t('auth.welcomeTo', { name: displayName }) : t('auth.welcome')}
             </CardTitle>
             <CardDescription className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm">
-              سجّل دخولك للمتابعة إلى منصتك التعليمية
+              {t('auth.loginToContinue')}
             </CardDescription>
           </CardHeader>
 
@@ -131,13 +133,13 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 className="space-y-2"
               >
                 <Label htmlFor="email" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  البريد الإلكتروني
+                  {t('auth.email')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="email"
                     type="email"
-                    placeholder="أدخل بريدك الإلكتروني"
+                    placeholder={t('auth.enterEmail')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pr-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
@@ -157,13 +159,13 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 className="space-y-2"
               >
                 <Label htmlFor="password" className="text-gray-700 font-medium text-xs sm:text-sm">
-                  كلمة المرور
+                  {t('auth.password')}
                 </Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="أدخل كلمة المرور"
+                    placeholder={t('auth.enterPassword')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pr-10 pl-10 h-10 sm:h-11 bg-gray-50/50 border-gray-200 focus:border-sky-500 focus:ring-sky-500/20 text-right"
@@ -199,7 +201,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                     onClick={onForgotPassword}
                     className="text-sm text-sky-600 hover:text-sky-700 font-medium transition-colors"
                   >
-                    نسيت كلمة المرور؟
+                    {t('auth.forgotPassword')}
                   </button>
                 </motion.div>
               )}
@@ -218,10 +220,10 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                   {isLoading ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>جارٍ تسجيل الدخول...</span>
+                      <span>{t('auth.loggingIn')}</span>
                     </>
                   ) : (
-                    'تسجيل الدخول'
+                    t('auth.login')
                   )}
                 </Button>
               </motion.div>
@@ -238,7 +240,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 <div className="w-full border-t border-gray-200" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-white px-4 text-gray-400">أو</span>
+                <span className="bg-white px-4 text-gray-400">{t('common.or')}</span>
               </div>
             </motion.div>
 
@@ -277,7 +279,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                     />
                   </svg>
                 )}
-                <span>تسجيل الدخول بحساب جوجل</span>
+                <span>{t('auth.googleLogin')}</span>
               </Button>
             </motion.div>
 
@@ -290,13 +292,13 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                 className="mt-3 sm:mt-6 text-center"
               >
                 <p className="text-sm text-gray-500">
-                  ليس لديك حساب؟{' '}
+                  {t('auth.noAccount')}{' '}
                   <button
                     type="button"
                     onClick={handleSwitchToRegister}
                     className="font-semibold text-sky-600 hover:text-sky-700 transition-colors hover:underline"
                   >
-                    أنشئ حساباً جديداً
+                    {t('auth.createAccount')}
                   </button>
                 </p>
               </motion.div>

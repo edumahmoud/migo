@@ -7,6 +7,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { useLocaleStore } from "@/i18n/locale-store"
 
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
   return (
@@ -69,6 +70,8 @@ function PaginationPrevious({
   className,
   ...props
 }: React.ComponentProps<typeof PaginationLink>) {
+  const { locale } = useLocaleStore();
+  const isRTL = locale === 'ar';
   return (
     <PaginationLink
       aria-label="Go to previous page"
@@ -76,8 +79,8 @@ function PaginationPrevious({
       className={cn("gap-1 px-2.5 sm:ps-2.5", className)}
       {...props}
     >
-      <ChevronRightIcon />
-      <span className="hidden sm:block">السابق</span>
+      {isRTL ? <ChevronRightIcon /> : <ChevronLeftIcon />}
+      <span className="hidden sm:block">{isRTL ? 'السابق' : 'Previous'}</span>
     </PaginationLink>
   )
 }
@@ -86,6 +89,8 @@ function PaginationNext({
   className,
   ...props
 }: React.ComponentProps<typeof PaginationLink>) {
+  const { locale } = useLocaleStore();
+  const isRTL = locale === 'ar';
   return (
     <PaginationLink
       aria-label="Go to next page"
@@ -93,8 +98,8 @@ function PaginationNext({
       className={cn("gap-1 px-2.5 sm:pe-2.5", className)}
       {...props}
     >
-      <span className="hidden sm:block">التالي</span>
-      <ChevronLeftIcon />
+      <span className="hidden sm:block">{isRTL ? 'التالي' : 'Next'}</span>
+      {isRTL ? <ChevronLeftIcon /> : <ChevronRightIcon />}
     </PaginationLink>
   )
 }

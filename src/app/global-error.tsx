@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, X, GraduationCap } from 'lucide-react';
+import { useTranslations } from '@/i18n/use-translations';
+import { useLocaleStore } from '@/i18n/locale-store';
 
 export default function GlobalError({
   error,
@@ -11,6 +13,10 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t, isRTL } = useTranslations();
+  const locale = useLocaleStore((s) => s.locale);
+  const direction = useLocaleStore((s) => s.direction);
+
   useEffect(() => {
     console.error('[Global Error]', error);
   }, [error]);
@@ -37,7 +43,7 @@ export default function GlobalError({
   };
 
   return (
-    <html lang="ar" dir="rtl">
+    <html lang={locale} dir={direction}>
       <body className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -80,7 +86,7 @@ export default function GlobalError({
               transition={{ delay: 0.4 }}
               className="text-xl font-bold text-gray-900 mb-2"
             >
-              خطأ حرج في التطبيق
+              {t('globalError.criticalError')}
             </motion.h1>
 
             {/* Description */}
@@ -90,7 +96,7 @@ export default function GlobalError({
               transition={{ delay: 0.5 }}
               className="text-sm text-gray-500 mb-4 leading-relaxed"
             >
-              حدث خطأ فادح يمنع تشغيل التطبيق. يرجى تحديث الصفحة أو المحاولة لاحقاً.
+              {t('globalError.criticalErrorDesc')}
             </motion.p>
 
             {/* Error digest */}
@@ -101,7 +107,7 @@ export default function GlobalError({
                 transition={{ delay: 0.55 }}
                 className="text-xs text-gray-400 mb-5 font-mono"
               >
-                كود المرجع: {error.digest}
+                {t('common.referenceCode')} {error.digest}
               </motion.p>
             )}
 
@@ -117,7 +123,7 @@ export default function GlobalError({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
               >
                 <RefreshCw className="h-4 w-4" />
-                إعادة المحاولة
+                {t('globalError.retry')}
               </button>
 
               <button
@@ -125,7 +131,7 @@ export default function GlobalError({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
               >
                 <RefreshCw className="h-4 w-4" />
-                تحديث الصفحة
+                {t('globalError.refreshPage')}
               </button>
 
               <button
@@ -133,7 +139,7 @@ export default function GlobalError({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-red-200 px-6 py-2.5 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50 active:bg-red-100 transition-all duration-200 w-full sm:w-auto"
               >
                 <X className="h-4 w-4" />
-                الخروج من التطبيق
+                {t('globalError.exitApp')}
               </button>
             </motion.div>
           </div>
@@ -145,7 +151,7 @@ export default function GlobalError({
             transition={{ delay: 1 }}
             className="text-center text-xs text-gray-400 mt-4"
           >
-            أتيندو — منصة تعليمية ذكية
+            {t('globalError.branding')}
           </motion.p>
         </motion.div>
       </body>

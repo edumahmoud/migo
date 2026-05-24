@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, RotateCcw, X, GraduationCap } from 'lucide-react';
+import { useTranslations } from '@/i18n/use-translations';
 
 /**
  * Root Error Page (error.tsx)
@@ -11,7 +12,7 @@ import { AlertTriangle, RefreshCw, RotateCcw, X, GraduationCap } from 'lucide-re
  * It should ONLY be reached if ALL inner error boundaries fail.
  *
  * Previous issue: SocketErrorBoundary was catching errors but re-rendering
- * the same children, causing errors to propagate here and show "حدث خطأ غير متوقع"
+ * the same children, causing errors to propagate here and showing "حدث خطأ غير متوقع"
  * even for recoverable dashboard errors.
  *
  * This page now includes:
@@ -28,6 +29,8 @@ export default function ErrorPage({
 }) {
   const [autoRetrying, setAutoRetrying] = useState(true);
   const [hasActiveSession, setHasActiveSession] = useState(false);
+
+  const { t, isRTL } = useTranslations();
 
   useEffect(() => {
     // Log error for debugging
@@ -109,7 +112,7 @@ export default function ErrorPage({
   // Auto-retry UI
   if (autoRetrying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={isRTL ? 'rtl' : 'ltr'}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -118,7 +121,7 @@ export default function ErrorPage({
           </div>
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
-            <span className="text-sm font-medium text-sky-800">جاري محاولة الاسترجاع...</span>
+            <span className="text-sm font-medium text-sky-800">{t('errorBoundary.recoveringAuto')}</span>
           </div>
         </div>
       </div>
@@ -126,7 +129,7 @@ export default function ErrorPage({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 rounded-full blur-3xl" />
@@ -167,7 +170,7 @@ export default function ErrorPage({
             transition={{ delay: 0.4 }}
             className="text-xl font-bold text-gray-900 mb-2"
           >
-            حدث خطأ غير متوقع
+            {t('errorBoundary.unexpectedError')}
           </motion.h1>
 
           {/* Description */}
@@ -177,7 +180,7 @@ export default function ErrorPage({
             transition={{ delay: 0.5 }}
             className="text-sm text-gray-500 mb-4 leading-relaxed"
           >
-            نأسف لذلك! حدثت مشكلة أثناء تحميل التطبيق. يمكنك المحاولة مرة أخرى أو إعادة تعيين التطبيق.
+            {t('errorBoundary.unexpectedErrorDesc')}
           </motion.p>
 
           {/* Error digest for debugging */}
@@ -188,7 +191,7 @@ export default function ErrorPage({
               transition={{ delay: 0.55 }}
               className="text-xs text-gray-400 mb-5 font-mono"
             >
-              كود المرجع: {error.digest}
+              {t('common.referenceCode')} {error.digest}
             </motion.p>
           )}
 
@@ -204,7 +207,7 @@ export default function ErrorPage({
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
             >
               <RotateCcw className="h-4 w-4" />
-              إعادة المحاولة
+              {t('common.retry')}
             </button>
 
             <button
@@ -212,7 +215,7 @@ export default function ErrorPage({
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-gray-200 px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" />
-              تحديث الصفحة
+              {t('common.refreshPage')}
             </button>
 
             {hasActiveSession && (
@@ -221,7 +224,7 @@ export default function ErrorPage({
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-teal-200 px-6 py-2.5 text-sm font-semibold text-teal-700 shadow-sm hover:bg-teal-50 active:bg-teal-100 transition-all duration-200 w-full sm:w-auto"
               >
                 <GraduationCap className="h-4 w-4" />
-                العودة للتطبيق
+                {t('common.returnToApp')}
               </button>
             )}
 
@@ -230,7 +233,7 @@ export default function ErrorPage({
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white border border-amber-200 px-6 py-2.5 text-sm font-semibold text-amber-700 shadow-sm hover:bg-amber-50 active:bg-amber-100 transition-all duration-200 w-full sm:w-auto"
             >
               <AlertTriangle className="h-4 w-4" />
-              إعادة تعيين التطبيق
+              {t('common.resetApp')}
             </button>
           </motion.div>
         </div>
@@ -242,7 +245,7 @@ export default function ErrorPage({
           transition={{ delay: 1 }}
           className="text-center text-xs text-gray-400 mt-4"
         >
-          أتيندو — منصة تعليمية ذكية
+          {t('errorBoundary.branding')}
         </motion.p>
       </motion.div>
     </div>
