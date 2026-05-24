@@ -91,9 +91,9 @@ const itemVariants = {
 // -------------------------------------------------------
 // Helpers
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string = 'ar'): string {
   try {
-    return new Date(dateStr).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(dateStr).toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
   } catch { return dateStr; }
 }
 
@@ -147,16 +147,16 @@ function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string
   if (!remaining) return null;
 
   const parts: string[] = [];
-  if (remaining.d > 0) parts.push(`${remaining.d} يوم`);
-  if (remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.h} ساعة`);
-  if (remaining.m > 0 || remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.m} دقيقة`);
-  parts.push(`${remaining.s} ثانية`);
+  if (remaining.d > 0) parts.push(t('exams.dayUnit', { n: remaining.d }));
+  if (remaining.h > 0 || remaining.d > 0) parts.push(t('exams.hourUnit', { n: remaining.h }));
+  if (remaining.m > 0 || remaining.h > 0 || remaining.d > 0) parts.push(t('exams.minuteUnit', { n: remaining.m }));
+  parts.push(t('exams.secondUnit', { n: remaining.s }));
 
   return (
     <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
       <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 animate-pulse" />
       <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-        يبدأ بعد: {parts.join(' و ')}
+        {t('exams.startsIn')} {parts.join(` ${t('exams.and')} `)}
       </span>
     </div>
   );
@@ -201,7 +201,7 @@ function isQuizExpired(quiz: Quiz): boolean {
 // -------------------------------------------------------
 export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   const { setViewingQuizId } = useAppStore();
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
 
   // ─── Sub-tab ───
   const [subTab, setSubTab] = useState<ExamSubTab>('active');
@@ -368,7 +368,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
   const handleAddQuestion = () => {
     if (!currentQuestionText.trim()) {
-      toast.error('يرجى إدخال نص السؤال');
+      toast.error(t('exams.toastQuestionTextRequired'));
       return;
     }
 
@@ -378,11 +378,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       case 'mcq': {
         const filledOptions = mcqOptions.filter((o) => o.trim());
         if (filledOptions.length < 2) {
-          toast.error('يرجى إدخال خيارين على الأقل');
+          toast.error(t('exams.toastTwoOptionsRequired'));
           return;
         }
         if (!mcqOptions[mcqCorrect]?.trim()) {
-          toast.error('يرجى التأكد من أن الإجابة الصحيحة ليست فارغة');
+          toast.error(t('exams.toastCorrectAnswerRequired'));
           return;
         }
         question = {
@@ -397,13 +397,13 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         question = {
           type: 'boolean',
           question: currentQuestionText.trim(),
-          correctAnswer: booleanCorrect ? 'صح' : 'خطأ',
+          correctAnswer: booleanCorrect ? t('exams.toastTrue') : t('exams.toastFalse'),
         };
         break;
       }
       case 'completion': {
         if (!completionAnswer.trim()) {
-          toast.error('يرجى إدخال الإجابة الصحيحة');
+          toast.error(t('exams.toastCorrectAnswerInput'));
           return;
         }
         question = {
@@ -416,7 +416,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       case 'matching': {
         const validPairs = matchingPairs.filter((p) => p.key.trim() && p.value.trim());
         if (validPairs.length < 2) {
-          toast.error('يرجى إدخال زوجين على الأقل');
+          toast.error(t('exams.toastTwoPairsRequired'));
           return;
         }
         question = {
@@ -432,7 +432,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
     setQuizQuestions([...quizQuestions, question]);
     resetQuestionForm();
-    toast.success('تم إضافة السؤال بنجاح');
+    toast.success(t('exams.toastQuestionAdded'));
   };
 
   const handleRemoveQuestion = (index: number) => {
@@ -444,11 +444,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   // -------------------------------------------------------
   const handleSaveQuiz = async () => {
     if (!quizTitle.trim()) {
-      toast.error('يرجى إدخال عنوان الاختبار');
+      toast.error(t('exams.toastQuizTitleRequired'));
       return;
     }
     if (quizQuestions.length === 0) {
-      toast.error('يرجى إضافة سؤال واحد على الأقل');
+      toast.error(t('exams.toastOneQuestionRequired'));
       return;
     }
 
@@ -457,7 +457,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     // Safety timeout: ensure savingQuiz is reset even if something goes wrong
     const safetyTimeout = setTimeout(() => {
       setSavingQuiz(false);
-      toast.error('انتهت مهلة الحفظ. يرجى المحاولة مرة أخرى.');
+      toast.error(t('exams.toastSaveTimeout'));
     }, 30000); // 30 second timeout (AI generation may take longer)
     
     try {
@@ -506,18 +506,18 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               .eq('id', editingQuiz.id);
             
             if (retryError) {
-              toast.error(`حدث خطأ أثناء تحديث الاختبار: ${retryError.message}`);
+              toast.error(t('exams.toastQuizUpdateFailed') + ': ' + retryError.message);
             } else {
-              toast.success('تم تحديث الاختبار بنجاح');
+              toast.success(t('exams.toastQuizUpdated'));
               setQuizModalOpen(false);
               resetQuizForm();
               fetchData();
             }
           } else {
-            toast.error(`حدث خطأ أثناء تحديث الاختبار: ${error.message}`);
+            toast.error(t('exams.toastQuizUpdateFailed') + ': ' + error.message);
           }
         } else {
-          toast.success('تم تحديث الاختبار بنجاح');
+          toast.success(t('exams.toastQuizUpdated'));
           setQuizModalOpen(false);
           resetQuizForm();
           fetchData();
@@ -538,7 +538,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         setQuizzes(prev => [optimisticQuiz, ...prev]);
         setQuizModalOpen(false);
         resetQuizForm();
-        toast.success('تم إنشاء الاختبار بنجاح');
+        toast.success(t('exams.toastQuizCreated'));
 
         // Save to server in background
         try {
@@ -549,7 +549,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               const { is_finished, ...dataWithoutFinished } = quizData as Record<string, unknown> & { is_finished?: unknown };
               const { error: retryError } = await supabase.from('quizzes').insert(dataWithoutFinished).select();
               if (retryError) {
-                toast.error(`حدث خطأ أثناء حفظ الاختبار: ${retryError.message}`);
+                toast.error(t('exams.toastQuizCreateFailed') + ': ' + retryError.message);
                 // Revert: remove the optimistic entry and refetch
                 setQuizzes(prev => prev.filter(q => q.id !== tempId));
                 fetchData();
@@ -558,7 +558,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 fetchData();
               }
             } else {
-              toast.error(`حدث خطأ أثناء حفظ الاختبار: ${error.message}`);
+              toast.error(t('exams.toastQuizCreateFailed') + ': ' + error.message);
               setQuizzes(prev => prev.filter(q => q.id !== tempId));
               fetchData();
             }
@@ -574,7 +574,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       }
     } catch (err) {
       console.error('Save quiz catch error:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       clearTimeout(safetyTimeout);
       setSavingQuiz(false);
@@ -637,7 +637,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   // -------------------------------------------------------
   const handleGenerateFromAiFile = async () => {
     if (!selectedCourseFile) {
-      toast.error('يرجى اختيار ملف');
+      toast.error(t('exams.toastSelectFile'));
       return;
     }
 
@@ -661,14 +661,14 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
       const extractData = await extractRes.json();
       if (!extractRes.ok || !extractData.success) {
-        toast.error(extractData.error || 'فشل استخراج النص من الملف');
+        toast.error(extractData.error || t('exams.toastExtractFailed'));
         setGeneratingFromAi(false);
         return;
       }
 
       const content = extractData.data.text;
       if (!content || content.trim().length < 50) {
-        toast.error('المحتوى المستخرج قصير جداً لإنشاء اختبار');
+        toast.error(t('exams.toastContentTooShort'));
         setGeneratingFromAi(false);
         return;
       }
@@ -688,7 +688,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
       const quizData = await quizRes.json();
       if (!quizRes.ok || !quizData.success) {
-        toast.error(quizData.error || 'فشل إنشاء الأسئلة');
+        toast.error(quizData.error || t('exams.toastGenerateFailed'));
         setGeneratingFromAi(false);
         return;
       }
@@ -696,7 +696,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       // Step 3: Populate the quiz form with generated questions
       const questions = quizData.data.questions as QuizQuestion[];
       if (!questions || questions.length === 0) {
-        toast.error('لم يتم إنشاء أي أسئلة');
+        toast.error(t('exams.toastNoQuestionsGenerated'));
         setGeneratingFromAi(false);
         return;
       }
@@ -705,11 +705,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       // Auto-set title if empty
       if (!quizTitle.trim()) {
         const baseName = selectedCourseFile.file_name.replace(/\.[^.]+$/, '');
-        setQuizTitle(`اختبار: ${baseName}`);
+        setQuizTitle(t('exams.quizTitlePrefix', { name: baseName }));
       }
-      toast.success(`تم إنشاء ${questions.length} سؤال بنجاح`);
+      toast.success(t('exams.toastQuestionsGenerated', { count: questions.length }));
     } catch {
-      toast.error('حدث خطأ أثناء إنشاء الاختبار من الملف');
+      toast.error(t('exams.toastAiCreateFailed'));
     } finally {
       setGeneratingFromAi(false);
     }
@@ -760,7 +760,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         setSelectedBankQuestionIds(new Set(data.data.questions.map((q: BankQuestion) => q.id)));
       }
     } catch {
-      toast.error('حدث خطأ أثناء تحميل أسئلة البنك');
+      toast.error(t('exams.toastBankLoadFailed'));
     }
   };
 
@@ -769,7 +769,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   // -------------------------------------------------------
   const handleImportFromBank = () => {
     if (!selectedBank || selectedBankQuestionIds.size === 0) {
-      toast.error('يرجى اختيار سؤال واحد على الأقل');
+      toast.error(t('exams.toastSelectOneQuestion'));
       return;
     }
 
@@ -785,7 +785,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           quizQ.options = (q.options as string[]) || [];
           quizQ.correctAnswer = q.correct_answer || '';
         } else if (q.type === 'boolean') {
-          quizQ.correctAnswer = q.correct_answer || 'صح';
+          quizQ.correctAnswer = q.correct_answer || t('exams.toastTrue');
         } else if (q.type === 'completion') {
           quizQ.correctAnswer = q.correct_answer || '';
         } else if (q.type === 'matching') {
@@ -797,9 +797,9 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     setQuizQuestions([...quizQuestions, ...selectedQuestions]);
     // Auto-set title if empty
     if (!quizTitle.trim()) {
-      setQuizTitle(`اختبار: ${selectedBank.name}`);
+      setQuizTitle(t('exams.quizTitlePrefix', { name: selectedBank.name }));
     }
-    toast.success(`تم استيراد ${selectedQuestions.length} سؤال من بنك الأسئلة`);
+    toast.success(t('exams.toastImported', { count: selectedQuestions.length }));
     // Reset bank state
     setSelectedBank(null);
     setBankQuestions([]);
@@ -834,13 +834,13 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     try {
       const { error } = await supabase.from('quizzes').delete().eq('id', quizId);
       if (error) {
-        toast.error('حدث خطأ أثناء حذف الاختبار');
+        toast.error(t('exams.toastQuizDeleteFailed'));
         setQuizzes(previousQuizzes); // Revert on failure
       } else {
-        toast.success('تم حذف الاختبار');
+        toast.success(t('exams.toastQuizDeleted'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
       setQuizzes(previousQuizzes); // Revert on failure
     } finally {
       setDeletingId(null);
@@ -858,16 +858,16 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         .update({ [field]: !currentValue })
         .eq('id', quizId);
       if (error) {
-        toast.error('حدث خطأ أثناء تحديث الإعداد');
+        toast.error(t('exams.toastSettingUpdateFailed'));
       } else {
         toast.success(field === 'show_results'
-          ? (!currentValue ? 'تم تفعيل إظهار النتائج' : 'تم إيقاف إظهار النتائج')
-          : (!currentValue ? 'تم تفعيل إعادة الاختبار' : 'تم إيقاف إعادة الاختبار')
+          ? (!currentValue ? t('exams.toastShowResultsEnabled') : t('exams.toastShowResultsDisabled'))
+          : (!currentValue ? t('exams.toastRetakeEnabled') : t('exams.toastRetakeDisabled'))
         );
         fetchData();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setTogglingQuizId(null);
     }
@@ -897,13 +897,13 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         .eq('id', quiz.id);
       if (error) {
         console.error('Error toggling quiz finished state:', error);
-        toast.error('حدث خطأ أثناء تحديث حالة الاختبار');
+        toast.error(t('exams.toastStatusUpdateFailed'));
       } else {
-        toast.success(currentlyFinished ? 'تم إعادة تفعيل الاختبار ونقله إلى النشطة' : 'تم إنهاء الاختبار');
+        toast.success(currentlyFinished ? t('exams.toastQuizReactivated') : t('exams.toastQuizFinished'));
         fetchData();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setTogglingQuizId(null);
     }
@@ -919,22 +919,22 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       const XLSX = await import('xlsx');
       const qScores = scores.filter((s) => s.quiz_id === quiz.id);
       if (qScores.length === 0) {
-        toast.error('لا توجد نتائج للتصدير');
+        toast.error(t('exams.toastNoResultsExport'));
         return;
       }
       const wb = XLSX.utils.book_new();
       const data = qScores.map((s) => ({
-        'اسم الطالب': subjectStudents.find((st) => st.id === s.student_id)?.name || '—',
-        'الدرجة': `${s.score}/${s.total}`,
-        'النسبة': `${scorePercentage(s.score, s.total)}%`,
-        'تاريخ الإنجاز': formatDate(s.completed_at),
+        [t('exams.excelStudentName')]: subjectStudents.find((st) => st.id === s.student_id)?.name || '—',
+        [t('exams.excelScore')]: `${s.score}/${s.total}`,
+        [t('exams.excelPercentage')]: `${scorePercentage(s.score, s.total)}%`,
+        [t('exams.excelCompletionDate')]: formatDate(s.completed_at, locale),
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, quiz.title);
-      XLSX.writeFile(wb, `${quiz.title}_نتائج_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('تم تصدير نتائج الاختبار بنجاح');
+      XLSX.writeFile(wb, `${quiz.title}_${t('exams.exportResults')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success(t('exams.toastExportSuccess'));
     } catch {
-      toast.error('حدث خطأ أثناء التصدير');
+      toast.error(t('exams.toastExportFailed'));
     }
   };
 
@@ -967,35 +967,35 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         return (
           <Badge variant="outline" className="text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-[10px]">
             <Clock className="h-2.5 w-2.5 me-1" />
-            مجدول
+            {t('exams.scheduled')}
           </Badge>
         );
       case 'active':
         return (
           <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 text-[10px]">
             <Play className="h-2.5 w-2.5 me-1" />
-            متاح
+            {t('exams.available')}
           </Badge>
         );
       case 'completed':
         return (
           <Badge variant="outline" className="text-teal-700 dark:text-teal-300 border-teal-300 bg-teal-50 dark:bg-teal-950/30 text-[10px]">
             <Trophy className="h-2.5 w-2.5 me-1" />
-            مكتمل
+            {t('exams.completed')}
           </Badge>
         );
       case 'expired':
         return (
           <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 dark:bg-orange-950/30 text-[10px]">
             <Clock className="h-2.5 w-2.5 me-1" />
-            انتهى الوقت
+            {t('exams.timeExpired')}
           </Badge>
         );
       case 'finished':
         return (
           <Badge variant="outline" className="text-muted-foreground text-[10px]">
             <ClipboardList className="h-2.5 w-2.5 me-1" />
-            منتهي
+            {t('exams.finishedLabel')}
           </Badge>
         );
       default:
@@ -1016,18 +1016,18 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     <div className="border-t pt-5">
       <h4 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
         <Plus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-        إضافة سؤال
+        {t('exams.addQuestion')}
       </h4>
 
       {/* Question type selector */}
       <div className="mb-4">
-        <label className="text-sm font-medium text-foreground mb-1.5 block">نوع السؤال</label>
+        <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.questionType')}</label>
         <div className="flex flex-wrap gap-2">
           {[
-            { type: 'mcq' as const, label: 'اختيار متعدد' },
-            { type: 'boolean' as const, label: 'صح/خطأ' },
-            { type: 'completion' as const, label: 'إكمال' },
-            { type: 'matching' as const, label: 'مطابقة' },
+            { type: 'mcq' as const, label: t('exams.mcqLabel') },
+            { type: 'boolean' as const, label: t('exams.booleanLabel') },
+            { type: 'completion' as const, label: t('exams.completionLabel') },
+            { type: 'matching' as const, label: t('exams.matchingLabel') },
           ].map((opt) => (
             <button
               key={opt.type}
@@ -1047,15 +1047,15 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
       {/* Question text */}
       <div className="mb-4">
-        <label className="text-sm font-medium text-foreground mb-1.5 block">نص السؤال</label>
+        <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.questionText')}</label>
         <input
           type="text"
           value={currentQuestionText}
           onChange={(e) => setCurrentQuestionText(e.target.value)}
           placeholder={
             currentQuestionType === 'completion'
-              ? 'أدخل النص مع ____ مكان الفراغ'
-              : 'أدخل نص السؤال'
+              ? t('exams.completionPlaceholder')
+              : t('exams.questionPlaceholder')
           }
           className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
           disabled={savingQuiz}
@@ -1066,7 +1066,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       {/* MCQ options */}
       {currentQuestionType === 'mcq' && (
         <div className="space-y-2 mb-4">
-          <label className="text-sm font-medium text-foreground mb-1.5 block">الخيارات</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.options')}</label>
           {mcqOptions.map((opt, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <button
@@ -1088,21 +1088,21 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   newOpts[idx] = e.target.value;
                   setMcqOptions(newOpts);
                 }}
-                placeholder={`الخيار ${idx + 1}`}
+                placeholder={t('exams.optionLabel', { n: idx + 1 })}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
                 dir={dir}
               />
             </div>
           ))}
-          <p className="text-xs text-muted-foreground">اضغط على الدائرة لتحديد الإجابة الصحيحة</p>
+          <p className="text-xs text-muted-foreground">{t('exams.selectCorrectAnswer')}</p>
         </div>
       )}
 
       {/* Boolean */}
       {currentQuestionType === 'boolean' && (
         <div className="mb-4">
-          <label className="text-sm font-medium text-foreground mb-1.5 block">الإجابة الصحيحة</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.correctAnswer')}</label>
           <div className="flex gap-2">
             <button
               onClick={() => setBooleanCorrect(true)}
@@ -1113,7 +1113,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
-              صح
+              {t('quiz.booleanTrue')}
             </button>
             <button
               onClick={() => setBooleanCorrect(false)}
@@ -1124,7 +1124,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
-              خطأ
+              {t('quiz.booleanFalse')}
             </button>
           </div>
         </div>
@@ -1133,12 +1133,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       {/* Completion */}
       {currentQuestionType === 'completion' && (
         <div className="mb-4">
-          <label className="text-sm font-medium text-foreground mb-1.5 block">الإجابة الصحيحة</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.correctAnswer')}</label>
           <input
             type="text"
             value={completionAnswer}
             onChange={(e) => setCompletionAnswer(e.target.value)}
-            placeholder="أدخل الإجابة الصحيحة للفراغ"
+            placeholder={t('exams.correctAnswerPlaceholder')}
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             disabled={savingQuiz}
             dir={dir}
@@ -1149,7 +1149,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       {/* Matching */}
       {currentQuestionType === 'matching' && (
         <div className="space-y-3 mb-4">
-          <label className="text-sm font-medium text-foreground mb-1.5 block">أزواج المطابقة</label>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.matchingPairs')}</label>
           {matchingPairs.map((pair, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -1161,7 +1161,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   newPairs[idx] = { ...newPairs[idx], key: e.target.value };
                   setMatchingPairs(newPairs);
                 }}
-                placeholder="العنصر"
+                placeholder={t('exams.itemPlaceholder')}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
                 dir={dir}
@@ -1175,7 +1175,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   newPairs[idx] = { ...newPairs[idx], value: e.target.value };
                   setMatchingPairs(newPairs);
                 }}
-                placeholder="المطابق"
+                placeholder={t('exams.matchPlaceholder')}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
                 dir={dir}
@@ -1199,7 +1199,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             className="flex items-center gap-1 text-xs font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
-            إضافة زوج آخر
+            {t('exams.addPair')}
           </button>
         </div>
       )}
@@ -1211,7 +1211,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         className="flex items-center gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 px-4 py-3 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-50 hover:border-sky-400 transition-colors w-full justify-center"
       >
         <Plus className="h-4 w-4" />
-        إضافة سؤال
+        {t('exams.addQuestion')}
       </button>
     </div>
   );
@@ -1224,7 +1224,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     return (
       <div className="border-t pt-5">
         <h4 className="text-sm font-bold text-foreground mb-3">
-          الأسئلة المضافة ({quizQuestions.length})
+          {t('exams.addedQuestions', { count: quizQuestions.length })}
         </h4>
         <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
           {quizQuestions.map((q, idx) => (
@@ -1235,7 +1235,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-foreground truncate">{q.question}</p>
                 <p className="text-xs text-muted-foreground">
-                  {q.type === 'mcq' ? 'اختيار متعدد' : q.type === 'boolean' ? 'صح/خطأ' : q.type === 'completion' ? 'إكمال' : 'مطابقة'}
+                  {q.type === 'mcq' ? t('exams.mcqLabel') : q.type === 'boolean' ? t('exams.booleanLabel') : q.type === 'completion' ? t('exams.completionLabel') : t('exams.matchingLabel')}
                 </p>
               </div>
               <button
@@ -1283,7 +1283,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               <button
                 onClick={() => { if (!savingQuiz) { setQuizModalOpen(false); resetQuizForm(); } }}
                 className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0 touch-manipulation"
-                aria-label="إغلاق"
+                aria-label={t('common.close')}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -1293,12 +1293,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             <div className="p-5 space-y-5">
               {/* Title */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان الاختبار</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.quizTitle')}</label>
                 <input
                   type="text"
                   value={quizTitle}
                   onChange={(e) => setQuizTitle(e.target.value)}
-                  placeholder="مثال: اختبار الفصل الثاني - الرياضيات"
+                  placeholder="t('exams.quizTitlePlaceholder')"
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                   disabled={savingQuiz || generatingFromAi}
                   dir={dir}
@@ -1308,7 +1308,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               {/* Duration & date/time */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">المدة (دقيقة)</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.duration')}</label>
                   <input
                     type="number"
                     value={quizDuration}
@@ -1320,7 +1320,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">التاريخ (اختياري)</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.date')}</label>
                   <input
                     type="date"
                     value={quizDate}
@@ -1330,7 +1330,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">الوقت (اختياري)</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.time')}</label>
                   <input
                     type="time"
                     value={quizTime}
@@ -1345,7 +1345,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
                   <Settings className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                  <span className="text-sm font-semibold text-foreground">إعدادات الاختبار</span>
+                  <span className="text-sm font-semibold text-foreground">{t('exams.quizSettings')}</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {/* Show Results */}
@@ -1360,7 +1360,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     }`}
                   >
                     <EyeIcon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">عرض النتائج</span>
+                    <span className="truncate">{t('exams.showResultsLabel')}</span>
                   </button>
                   {/* Allow Retake */}
                   <button
@@ -1374,7 +1374,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     }`}
                   >
                     <RotateCcw className="h-4 w-4 shrink-0" />
-                    <span className="truncate">إعادة الاختبار</span>
+                    <span className="truncate">{t('exams.allowRetakeLabel')}</span>
                   </button>
                   {/* Shuffle Questions */}
                   <button
@@ -1388,7 +1388,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     }`}
                   >
                     <Shuffle className="h-4 w-4 shrink-0" />
-                    <span className="truncate">ترتيب عشوائي</span>
+                    <span className="truncate">{t('exams.shuffleLabel')}</span>
                   </button>
                 </div>
               </div>
@@ -1396,7 +1396,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               {/* ─── Quiz Input Mode Toggle (only for new quizzes, not editing) ─── */}
               {!editingQuiz && (
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">طريقة الإنشاء</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.creationMethod')}</label>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setQuizInputMode('manual')}
@@ -1408,7 +1408,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       }`}
                     >
                       <Pencil className="h-4 w-4" />
-                      إدخال يدوي
+                      {t('exams.manualEntry')}
                     </button>
                     <button
                       onClick={() => {
@@ -1423,7 +1423,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       }`}
                     >
                       <Sparkles className="h-4 w-4" />
-                      من ملف المقرر
+                      {t('exams.fromCourseFile')}
                     </button>
                     <button
                       onClick={() => {
@@ -1438,7 +1438,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       }`}
                     >
                       <Database className="h-4 w-4" />
-                      من بنك الأسئلة
+                      {t('exams.fromQuestionBank')}
                     </button>
                   </div>
                 </div>
@@ -1453,19 +1453,19 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       <Sparkles className="h-4 w-4 text-teal-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-teal-700 dark:text-teal-300">إنشاء اختبار من ملف</p>
-                      <p className="text-xs text-teal-600/70">اختر ملفاً من ملفات المقرر لإنشاء اختبار تلقائي بالذكاء الاصطناعي</p>
+                      <p className="text-sm font-bold text-teal-700 dark:text-teal-300">{t('exams.createFromFileTitle')}</p>
+                      <p className="text-xs text-teal-600/70">{t('exams.createFromFileDesc')}</p>
                     </div>
                   </div>
 
                   {/* Question types config */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">أنواع الأسئلة وعددها</label>
+                    <label className="text-sm font-medium text-foreground">{t('exams.questionTypesAndCount')}</label>
                     {([
-                      { key: 'mcq' as const, label: 'اختيار من متعدد', icon: <ListChecks className="h-4 w-4" /> },
-                      { key: 'boolean' as const, label: 'صح أو خطأ', icon: <CheckCircle2 className="h-4 w-4" /> },
-                      { key: 'completion' as const, label: 'أكمل الجملة', icon: <Type className="h-4 w-4" /> },
-                      { key: 'matching' as const, label: 'توصيل', icon: <Link2 className="h-4 w-4" /> },
+                      { key: 'mcq' as const, label: t('exams.mcqLabel'), icon: <ListChecks className="h-4 w-4" /> },
+                      { key: 'boolean' as const, label: t('exams.booleanLabel'), icon: <CheckCircle2 className="h-4 w-4" /> },
+                      { key: 'completion' as const, label: t('exams.completionLabel'), icon: <Type className="h-4 w-4" /> },
+                      { key: 'matching' as const, label: t('exams.matchingLabel'), icon: <Link2 className="h-4 w-4" /> },
                     ]).map((qt) => (
                       <div key={qt.key} className="flex items-center justify-between gap-3 rounded-lg border bg-card p-2.5">
                         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -1495,17 +1495,17 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
                   {/* Course files selection */}
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">اختر ملفاً من ملفات المقرر</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.selectCourseFile')}</label>
                     {loadingCourseFiles ? (
                       <div className="flex items-center justify-center py-6 gap-2">
                         <Loader2 className="h-5 w-5 animate-spin text-teal-600" />
-                        <span className="text-sm text-muted-foreground">جاري تحميل الملفات...</span>
+                        <span className="text-sm text-muted-foreground">{t('exams.loadingFiles')}</span>
                       </div>
                     ) : courseFiles.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-6 gap-2 rounded-lg border-2 border-dashed border-teal-300 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-950/30">
                         <FolderOpen className="h-8 w-8 text-teal-400" />
-                        <span className="text-sm text-muted-foreground">لا توجد ملفات مستندية في المقرر</span>
-                        <span className="text-xs text-muted-foreground/60">ارفع ملفات PDF أو Word من تبويب الملفات</span>
+                        <span className="text-sm text-muted-foreground">{t('exams.noDocumentFiles')}</span>
+                        <span className="text-xs text-muted-foreground/60">{t('exams.uploadDocsHint')}</span>
                       </div>
                     ) : (
                       <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-2">
@@ -1558,12 +1558,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     {generatingFromAi ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        جاري إنشاء الأسئلة...
+                        {t('exams.generatingQuestions')}
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-4 w-4" />
-                        إنشاء أسئلة من الملف
+                        {t('exams.generateFromFile')}
                       </>
                     )}
                   </button>
@@ -1579,8 +1579,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       <Database className="h-4 w-4 text-violet-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-violet-700 dark:text-violet-300">استيراد من بنك الأسئلة</p>
-                      <p className="text-xs text-violet-600/70">اختر بنك أسئلة من مقررك واستورد الأسئلة للاختبار</p>
+                      <p className="text-sm font-bold text-violet-700 dark:text-violet-300">{t('exams.importFromBankTitle')}</p>
+                      <p className="text-xs text-violet-600/70">{t('exams.importFromBankDesc')}</p>
                     </div>
                   </div>
 
@@ -1588,13 +1588,13 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   {loadingBanks ? (
                     <div className="flex items-center justify-center py-6 gap-2">
                       <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
-                      <span className="text-sm text-muted-foreground">جاري تحميل بنوك الأسئلة...</span>
+                      <span className="text-sm text-muted-foreground">{t('exams.loadingBanks')}</span>
                     </div>
                   ) : subjectBanks.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-6 gap-2 rounded-lg border-2 border-dashed border-violet-300 dark:border-violet-800 bg-violet-50/30 dark:bg-violet-950/30">
                       <Database className="h-8 w-8 text-violet-400" />
-                      <span className="text-sm text-muted-foreground">لا توجد بنوك أسئلة في هذا المقرر</span>
-                      <span className="text-xs text-muted-foreground/60">أنشئ بنك أسئلة من قسم بنك الأسئلة في القائمة</span>
+                      <span className="text-sm text-muted-foreground">{t('exams.noBanksInCourse')}</span>
+                      <span className="text-xs text-muted-foreground/60">{t('exams.createBankHint')}</span>
                     </div>
                   ) : !selectedBank ? (
                     <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-2">
@@ -1612,7 +1612,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-foreground truncate">{bank.name}</p>
-                            <p className="text-xs text-muted-foreground">{bank.question_count || 0} سؤال</p>
+                            <p className="text-xs text-muted-foreground">{t('exams.questionCount', { count: bank.question_count || 0 })}</p>
                           </div>
                         </button>
                       ))}
@@ -1630,7 +1630,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                           <X className="h-3.5 w-3.5" />
                         </button>
                         <span className="text-sm font-medium text-foreground">{selectedBank.name}</span>
-                        <span className="text-xs text-muted-foreground">({bankQuestions.length} سؤال)</span>
+                        <span className="text-xs text-muted-foreground">({t('exams.questionCount', { count: bankQuestions.length })})</span>
                         <button
                           onClick={() => {
                             if (selectedBankQuestionIds.size === bankQuestions.length) {
@@ -1641,13 +1641,13 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                           }}
                           className="ms-auto text-xs text-violet-600 dark:text-violet-400 hover:underline"
                         >
-                          {selectedBankQuestionIds.size === bankQuestions.length ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
+                          {selectedBankQuestionIds.size === bankQuestions.length ? t('exams.deselectAll') : t('exams.selectAll')}
                         </button>
                       </div>
 
                       {/* Questions list with checkboxes */}
                       {bankQuestions.length === 0 ? (
-                        <div className="py-4 text-center text-xs text-muted-foreground">لا توجد أسئلة في هذا البنك</div>
+                        <div className="py-4 text-center text-xs text-muted-foreground">{t('exams.noQuestionsInBank')}</div>
                       ) : (
                         <div className="max-h-56 overflow-y-auto custom-scrollbar space-y-1.5">
                           {bankQuestions.map((q) => {
@@ -1674,11 +1674,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                                   <p className="text-xs font-medium text-foreground line-clamp-2">{q.question}</p>
                                   <div className="flex items-center gap-1.5 mt-1">
                                     <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
-                                      {q.type === 'mcq' ? 'اختيار متعدد' : q.type === 'boolean' ? 'صح/خطأ' : q.type === 'completion' ? 'إكمال' : 'مطابقة'}
+                                      {q.type === 'mcq' ? t('exams.mcqLabel') : q.type === 'boolean' ? t('exams.booleanLabel') : q.type === 'completion' ? t('exams.completionLabel') : t('exams.matchingLabel')}
                                     </span>
                                     {q.difficulty && (
                                       <span className="text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
-                                        {q.difficulty === 'easy' ? 'سهل' : q.difficulty === 'medium' ? 'متوسط' : 'صعب'}
+                                        {q.difficulty === 'easy' ? t('exams.easy') : q.difficulty === 'medium' ? t('exams.medium') : t('exams.hard')}
                                       </span>
                                     )}
                                   </div>
@@ -1698,12 +1698,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                         {importingFromBank ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            جاري الاستيراد...
+                            {t('exams.importing')}
                           </>
                         ) : (
                           <>
                             <Database className="h-4 w-4" />
-                            استيراد {selectedBankQuestionIds.size} سؤال
+                            {t('exams.importCount', { count: selectedBankQuestionIds.size })}
                           </>
                         )}
                       </button>
@@ -1727,12 +1727,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 {savingQuiz ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    جاري الحفظ...
+                    {t('exams.savingQuiz')}
                   </>
                 ) : generatingFromAi ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    جاري إنشاء الأسئلة...
+                    {t('exams.generatingQuestions')}
                   </>
                 ) : (
                   <>
@@ -1831,7 +1831,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             {quiz.scheduled_date && (
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                {formatDate(quiz.scheduled_date)}
+                {formatDate(quiz.scheduled_date, locale)}
                 {quiz.scheduled_time && <span> {quiz.scheduled_time}</span>}
               </span>
             )}
@@ -1966,7 +1966,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           {quiz.scheduled_date && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
               <Calendar className="h-3 w-3" />
-              <span>{formatDate(quiz.scheduled_date)}</span>
+              <span>{formatDate(quiz.scheduled_date, locale)}</span>
               {quiz.scheduled_time && <span className="font-medium">- {quiz.scheduled_time}</span>}
             </div>
           )}
@@ -2019,7 +2019,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-foreground">{t('exams.title')}</h3>
-          <p className="text-muted-foreground text-sm mt-1">{quizzes.length} اختبار</p>
+          <p className="text-muted-foreground text-sm mt-1">{t('exams.quizCount', { count: quizzes.length })}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -2079,7 +2079,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             </div>
             <p className="text-lg font-semibold text-foreground mb-1">{t('exams.noActiveQuizzes')}</p>
             <p className="text-sm text-muted-foreground">
-              {role === 'teacher' ? 'ابدأ بإنشاء اختبار جديد لطلابك' : 'لم يتم إضافة اختبارات نشطة بعد'}
+              {role === 'teacher' ? t('exams.startQuizTeacher') : t('exams.noActiveQuizzesStudent')}
             </p>
             {role === 'teacher' && (
               <button
@@ -2112,7 +2112,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             </div>
             <p className="text-lg font-semibold text-foreground mb-1">{t('exams.noFinishedQuizzes')}</p>
             <p className="text-sm text-muted-foreground">
-              {role === 'teacher' ? 'الاختبارات المنتهية ستظهر هنا مع نتائجها' : 'الاختبارات المكتملة ستظهر هنا'}
+              {role === 'teacher' ? t('exams.finishedQuizzesHintTeacher') : t('exams.finishedQuizzesHintStudent')}
             </p>
           </motion.div>
         ) : (
@@ -2149,7 +2149,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>{t('exams.deleteQuiz')}</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف هذا الاختبار؟ لا يمكن التراجع عن هذا الإجراء.
+              {t('exams.deleteQuizConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
@@ -2164,7 +2164,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {deletingId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              حذف
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

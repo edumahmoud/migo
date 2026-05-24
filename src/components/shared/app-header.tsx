@@ -230,8 +230,8 @@ export default function AppHeader({
               {dropdownOpen && (
                 <motion.div
                   ref={dropdownRef}
-                  initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  initial={{ opacity: 0, y: -8, scale: 0.95, pointerEvents: 'none' as const }}
+                  animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: 'auto' as const }}
                   exit={{ opacity: 0, pointerEvents: 'none' as const }}
                   transition={{ duration: 0.1 }}
                   className="absolute end-0 top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50"

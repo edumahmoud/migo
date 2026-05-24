@@ -115,25 +115,25 @@ const cardHover = {
 // Admin navigation items
 // -------------------------------------------------------
 const adminNavItems = [
-  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'users', label: 'المستخدمون', icon: <Users className="h-5 w-5" /> },
-  { id: 'subjects', label: 'المقررات', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'announcements', label: 'الإعلانات', icon: <Megaphone className="h-5 w-5" /> },
-  { id: 'banned', label: 'المحظورون', icon: <Ban className="h-5 w-5" /> },
-  { id: 'comments', label: 'التعليقات', icon: <Flag className="h-5 w-5" /> },
-  { id: 'complaints', label: 'الإبلاغات', icon: <ShieldAlert className="h-5 w-5" /> },
-  { id: 'reports', label: 'التقارير', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'chat', label: 'المحادثات', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'settings', label: 'الإعدادات', icon: <Settings className="h-5 w-5" /> },
-  { id: 'institution', label: 'المؤسسة', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
+  { id: 'dashboard', label: 'admin.navDashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+  { id: 'users', label: 'admin.navUsers', icon: <Users className="h-5 w-5" /> },
+  { id: 'subjects', label: 'admin.navSubjects', icon: <BookOpen className="h-5 w-5" /> },
+  { id: 'announcements', label: 'admin.navAnnouncements', icon: <Megaphone className="h-5 w-5" /> },
+  { id: 'banned', label: 'admin.navBanned', icon: <Ban className="h-5 w-5" /> },
+  { id: 'comments', label: 'admin.navComments', icon: <Flag className="h-5 w-5" /> },
+  { id: 'complaints', label: 'admin.navComplaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'reports', label: 'admin.navReports', icon: <TrendingUp className="h-5 w-5" /> },
+  { id: 'chat', label: 'admin.navChat', icon: <MessageCircle className="h-5 w-5" /> },
+  { id: 'settings', label: 'admin.navSettings', icon: <Settings className="h-5 w-5" /> },
+  { id: 'institution', label: 'admin.navInstitution', icon: <Building2 className="h-5 w-5" />, superadminOnly: true },
 ];
 
 // -------------------------------------------------------
 // Helper: format date to Arabic-friendly string
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string = 'ar-SA'): string {
   try {
-    return new Date(dateStr).toLocaleDateString('ar-SA', {
+    return new Date(dateStr).toLocaleDateString(locale, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -144,9 +144,9 @@ function formatDate(dateStr: string): string {
 }
 
 // Format date with exact time
-function formatDateTime(dateStr: string): string {
+function formatDateTime(dateStr: string, locale: string = 'ar-SA'): string {
   try {
-    return new Date(dateStr).toLocaleDateString('ar-SA', {
+    return new Date(dateStr).toLocaleDateString(locale, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -161,16 +161,16 @@ function formatDateTime(dateStr: string): string {
 // -------------------------------------------------------
 // Role label helper
 // -------------------------------------------------------
-function getRoleLabel(role: string): string {
+function getRoleLabel(role: string, t: (key: string) => string): string {
   switch (role) {
     case 'superadmin':
-      return 'مدير المنصة';
+      return t('roles.superadmin');
     case 'admin':
-      return 'مشرف';
+      return t('roles.admin');
     case 'teacher':
-      return 'معلم';
+      return t('roles.teacher');
     case 'student':
-      return 'طالب';
+      return t('roles.student');
     default:
       return role;
   }
@@ -254,6 +254,7 @@ interface UserWithMeta extends UserProfile {
 // render (new component type each render = infinite re-fetching).
 // -------------------------------------------------------
 const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teacherId, teacherName }: { teacherId: string; teacherName: string }) {
+  const { t } = useI18n();
   const [links, setLinks] = useState<Array<{ id: string; supervisor_id: string; is_primary: boolean; supervisor?: { name: string; role: string } }>>([]);
   const [admins, setAdmins] = useState<Array<{ id: string; name: string; role: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -302,14 +303,14 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم ربط المعلم بالمشرف بنجاح');
+        toast.success(t('admin.toastLinkSuccess'));
         setSelectedAdmin('');
         fetchLinks();
       } else {
-        toast.error(result.error || 'فشل إنشاء الرابط');
+        toast.error(result.error || t('admin.toastLinkFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally { setAdding(false); }
   };
 
@@ -323,13 +324,13 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم إزالة الرابط');
+        toast.success(t('admin.toastLinkRemoved'));
         fetchLinks();
       } else {
-        toast.error(result.error || 'فشل حذف الرابط');
+        toast.error(result.error || t('admin.toastLinkRemoveFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     }
   };
 
@@ -351,22 +352,22 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
     <div className="rounded-lg border border-border bg-muted/30 p-3">
       <div className="flex items-center gap-2 mb-2">
         <ShieldAlert className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-        <span className="text-sm font-semibold text-foreground">المشرفون المرتبطون</span>
+        <span className="text-sm font-semibold text-foreground">{t('admin.linkedSupervisors')}</span>
       </div>
-      <p className="text-xs text-muted-foreground mb-2">المشرفون المسؤولون عن معلم {teacherName}</p>
+      <p className="text-xs text-muted-foreground mb-2">{t('admin.supervisorsForTeacher', { name: teacherName })}</p>
 
       {loading ? (
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
       ) : links.length === 0 ? (
-        <p className="text-xs text-muted-foreground">لا يوجد مشرفون مرتبطون. سيتم الربط تلقائياً عند ترقية الحساب.</p>
+        <p className="text-xs text-muted-foreground">{t('admin.noLinkedSupervisors')}</p>
       ) : (
         <div className="space-y-2 mb-3">
           {links.map((link) => (
             <div key={link.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">{link.supervisor?.name || 'غير معروف'}</span>
+                <span className="text-sm font-medium">{link.supervisor?.name || t('admin.unknown')}</span>
                 {link.is_primary && (
-                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">رئيسي</span>
+                  <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">{t('admin.primary')}</span>
                 )}
               </div>
               <div className="flex items-center gap-1">
@@ -375,14 +376,14 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
                     onClick={() => handleSetPrimary(link.id, link.supervisor_id)}
                     className="text-[10px] text-sky-600 hover:underline"
                   >
-                    تعيين رئيسي
+                    {t('admin.setPrimary')}
                   </button>
                 )}
                 <button
                   onClick={() => handleRemoveLink(link.id)}
                   className="text-[10px] text-rose-600 hover:underline"
                 >
-                  إزالة
+                  {t('common.remove')}
                 </button>
               </div>
             </div>
@@ -397,11 +398,11 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
           onChange={(e) => setSelectedAdmin(e.target.value)}
           className="flex-1 rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
         >
-          <option value="">إضافة مشرف...</option>
+          <option value="">{t('admin.addSupervisor')}</option>
           {admins
             .filter((a) => !links.some((l) => l.supervisor_id === a.id))
             .map((a) => (
-              <option key={a.id} value={a.id}>{a.name} ({a.role === 'admin' ? 'مشرف' : 'مدير'})</option>
+              <option key={a.id} value={a.id}>{a.name} ({a.role === 'admin' ? t('admin.adminRole') : t('admin.superadminRole')})</option>
             ))}
         </select>
         <button
@@ -410,7 +411,7 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
           className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-700 text-white text-xs font-medium hover:bg-sky-800 disabled:opacity-50 transition-colors whitespace-nowrap"
         >
           {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          ربط
+          {t('admin.link')}
         </button>
       </div>
     </div>
@@ -422,7 +423,7 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
 // -------------------------------------------------------
 export default function AdminDashboard({ profile, onSignOut }: AdminDashboardProps) {
   // ─── i18n ───
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
 
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
@@ -544,7 +545,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new Error('انتهت مهلة الطلب. يرجى المحاولة مرة أخرى');
+        throw new Error(t('admin.toastRequestTimeout'));
       }
       throw error;
     }
@@ -567,7 +568,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       
       if (!token) {
         console.error('Admin data fetch: No auth token available');
-        if (!silent) toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        if (!silent) toast.error(t('admin.toastNoSession'));
         if (!silent) setLoadingData(false);
         return;
       }
@@ -581,11 +582,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         console.error('Admin data fetch failed:', res.status, errorData);
         if (!silent) {
           if (res.status === 401) {
-            toast.error('انتهت صلاحية الجلسة. يرجى تحديث الصفحة أو تسجيل الدخول مرة أخرى');
+            toast.error(t('admin.toastSessionExpired'));
           } else if (res.status === 403) {
-            toast.error('غير مصرح بالوصول. يجب أن تكون مشرف أو مدير منصة');
+            toast.error(t('admin.toastUnauthorized'));
           } else {
-            toast.error(`خطأ في جلب البيانات: ${errorData.error || res.status}`);
+            toast.error(t('admin.toastDataFetchError', { error: errorData.error || String(res.status) }));
           }
         }
         if (!silent) setLoadingData(false);
@@ -606,11 +607,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         }
       } else if (!result.success) {
         console.error('Admin data fetch returned error:', result.error);
-        if (!silent) toast.error(result.error || 'حدث خطأ أثناء جلب البيانات');
+        if (!silent) toast.error(result.error || t('admin.toastDataFetchFailed'));
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع أثناء جلب البيانات';
+      const message = error instanceof Error && (error.message.includes('مهلة') || error.message.includes('timed out')) ? error.message : t('admin.toastDataFetchFailedFull');
       if (!silent) toast.error(message);
     } finally {
       if (!silent) setLoadingData(false);
@@ -622,7 +623,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('admin.toastNoSession'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/change-role', {
@@ -632,7 +633,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم تغيير الدور بنجاح');
+        toast.success(t('admin.toastRoleChanged'));
         // Update selectedUser immediately so the dialog shows the new role
         setSelectedUser((prev) => prev ? { ...prev, role: newRole } as UserWithMeta : prev);
         // Refresh data in the background
@@ -640,10 +641,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         // Close the dialog
         setUserDetailOpen(false);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء تغيير الدور');
+        toast.error(result.error || t('admin.toastRoleChangeFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && (error.message.includes('مهلة') || error.message.includes('timed out')) ? error.message : t('common.errorUnexpected');
       toast.error(message);
     } finally {
       setChangingRole(false);
@@ -847,22 +848,22 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
   // ─── Subject filter options ───
   const LEVEL_OPTIONS = [
-    { value: 'الفرقة الأولى', label: 'الفرقة الأولى' },
-    { value: 'الفرقة الثانية', label: 'الفرقة الثانية' },
-    { value: 'الفرقة الثالثة', label: 'الفرقة الثالثة' },
-    { value: 'الفرقة الرابعة', label: 'الفرقة الرابعة' },
-    { value: 'الفرقة الخامسة', label: 'الفرقة الخامسة' },
+    { value: t('admin.levelFirst'), label: t('admin.levelFirst') },
+    { value: t('admin.levelSecond'), label: t('admin.levelSecond') },
+    { value: t('admin.levelThird'), label: t('admin.levelThird') },
+    { value: t('admin.levelFourth'), label: t('admin.levelFourth') },
+    { value: t('admin.levelFifth'), label: t('admin.levelFifth') },
   ];
 
   const SUB_LEVEL_OPTIONS = [
-    { value: 'المستوى الأول', label: 'المستوى الأول' },
-    { value: 'المستوى الثاني', label: 'المستوى الثاني' },
+    { value: t('admin.subLevelFirst'), label: t('admin.subLevelFirst') },
+    { value: t('admin.subLevelSecond'), label: t('admin.subLevelSecond') },
   ];
 
   const mapSubLevel = (val: string | undefined): string | undefined => {
     if (!val) return val;
-    if (val === 'مستوى أول') return 'المستوى الأول';
-    if (val === 'مستوى ثاني') return 'المستوى الثاني';
+    if (val === t('admin.mapSubLevelFirst')) return t('admin.subLevelFirst');
+    if (val === t('admin.mapSubLevelSecond')) return t('admin.subLevelSecond');
     return val;
   };
 
@@ -889,7 +890,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       .map(([month, count]) => ({
         month,
         count,
-        label: new Date(month + '-01').toLocaleDateString('ar-SA', { month: 'short', year: 'numeric' }),
+        label: new Date(month + '-01').toLocaleDateString(locale, { month: 'short', year: 'numeric' }),
       }));
   })();
 
@@ -901,7 +902,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('admin.toastNoSession'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/delete-user', {
@@ -913,18 +914,18 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       try {
         result = await res.json();
       } catch {
-        throw new Error(res.ok ? 'حدث خطأ غير متوقع' : `خطأ في الخادم (${res.status})`);
+        throw new Error(res.ok ? t('common.errorUnexpected') : t('admin.serverError', { status: String(res.status) }));
       }
       if (result.success) {
-        toast.success('تم حذف المستخدم بنجاح');
+        toast.success(t('admin.toastUserDeleted'));
         setUserDetailOpen(false);
         setConfirmDeleteUser(null);
         fetchAllData(true);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء حذف المستخدم');
+        toast.error(result.error || t('admin.toastUserDeleteFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && (error.message.includes('مهلة') || error.message.includes('timed out')) ? error.message : t('common.errorUnexpected');
       toast.error(message);
     } finally {
       setDeletingUserId(null);
@@ -939,7 +940,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('admin.toastNoSession'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/delete-subject', {
@@ -949,15 +950,15 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم حذف المقرر بنجاح');
+        toast.success(t('admin.toastSubjectDeleted'));
         setSubjectDetailOpen(false);
         setConfirmDeleteSubject(null);
         fetchAllData(true);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء حذف المقرر');
+        toast.error(result.error || t('admin.toastSubjectDeleteFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && (error.message.includes('مهلة') || error.message.includes('timed out')) ? error.message : t('common.errorUnexpected');
       toast.error(message);
     } finally {
       setDeletingSubjectId(null);
@@ -970,7 +971,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('admin.toastNoSession'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/unban-user', {
@@ -980,13 +981,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم إلغاء الحظر بنجاح');
+        toast.success(t('admin.unbanSuccess'));
         fetchBannedUsers();
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء إلغاء الحظر');
+        toast.error(result.error || t('admin.toastBanFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && (error.message.includes('مهلة') || error.message.includes('timed out')) ? error.message : t('common.errorUnexpected');
       toast.error(message);
     } finally {
       setUnbanningEmail(null);
@@ -1021,7 +1022,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('admin.toastNoSession'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/ban-user', {
@@ -1038,10 +1039,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       try {
         result = await res.json();
       } catch {
-        throw new Error(res.ok ? 'حدث خطأ غير متوقع' : `خطأ في الخادم (${res.status})`);
+        throw new Error(res.ok ? t('common.errorUnexpected') : t('admin.serverError', { status: String(res.status) }));
       }
       if (result.success) {
-        toast.success(banUntil ? 'تم حظر المستخدم مؤقتاً' : 'تم حظر المستخدم نهائياً');
+        toast.success(banUntil ? t('admin.banTemporarySuccess') : t('admin.banPermanentSuccess'));
         setBanDialogOpen(false);
         setBanReason('');
         setBanDuration('permanent');
@@ -1050,10 +1051,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         fetchBannedUsers();
         fetchAllData(true);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء حظر المستخدم');
+        toast.error(result.error || t('admin.toastBanFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && (error.message.includes('مهلة') || error.message.includes('timed out')) ? error.message : t('common.errorUnexpected');
       toast.error(message);
     } finally {
       setBanningUserId(null);
@@ -1084,14 +1085,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
   const handleCreateAnnouncement = async () => {
     if (!newAnnTitle.trim() || !newAnnContent.trim()) {
-      toast.error('يرجى إدخال العنوان والمحتوى');
+      toast.error(t('admin.toastTitleContentRequired'));
       return;
     }
     setCreatingAnnouncement(true);
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة. يرجى تسجيل الدخول مرة أخرى');
+        toast.error(t('admin.toastNoSession'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/announcements', {
@@ -1106,17 +1107,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم إنشاء الإعلان بنجاح');
+        toast.success(t('admin.toastAnnouncementCreated'));
         setCreateAnnouncementOpen(false);
         setNewAnnTitle('');
         setNewAnnContent('');
         setNewAnnPriority('normal');
         fetchAnnouncements();
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء إنشاء الإعلان');
+        toast.error(result.error || t('admin.toastAnnouncementCreateFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && (error.message.includes('مهلة') || error.message.includes('timed out')) ? error.message : t('common.errorUnexpected');
       toast.error(message);
     } finally {
       setCreatingAnnouncement(false);
@@ -1127,7 +1128,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة');
+        toast.error(t('admin.toastNoSessionShort'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/announcements', {
@@ -1137,13 +1138,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       });
       const result = await res.json();
       if (result.success) {
-        toast.success(isActive ? 'تم إيقاف الإعلان' : 'تم تفعيل الإعلان');
+        toast.success(isActive ? t('admin.toastAnnouncementPaused') : t('admin.toastAnnouncementResumed'));
         fetchAnnouncements();
       } else {
-        toast.error(result.error || 'حدث خطأ');
+        toast.error(result.error || t('admin.toastAnnouncementToggleFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && (error.message.includes('مهلة') || error.message.includes('timed out')) ? error.message : t('common.errorUnexpected');
       toast.error(message);
     }
   };
@@ -1153,7 +1154,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     try {
       const token = await getAuthToken();
       if (!token) {
-        toast.error('لا يوجد جلسة نشطة');
+        toast.error(t('admin.toastNoSessionShort'));
         return;
       }
       const res = await fetchWithTimeout('/api/admin/announcements', {
@@ -1163,13 +1164,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       });
       const result = await res.json();
       if (result.success) {
-        toast.success('تم حذف الإعلان');
+        toast.success(t('admin.toastAnnouncementDeleted'));
         fetchAnnouncements();
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء حذف الإعلان');
+        toast.error(result.error || t('admin.toastAnnouncementDeleteFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : 'حدث خطأ غير متوقع';
+      const message = error instanceof Error && (error.message.includes('مهلة') || error.message.includes('timed out')) ? error.message : t('common.errorUnexpected');
       toast.error(message);
     } finally {
       setDeletingAnnouncementId(null);
@@ -1216,63 +1217,63 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const handleExportReport = async () => {
     try {
       const XLSX = await import('xlsx');
-      toast.info('جاري تحضير التقرير...');
+      toast.info(t('admin.toastExportPreparing'));
       const wb = XLSX.utils.book_new();
 
       // Sheet 1: Platform overview
       const overviewData = [
-        { 'المؤشر': 'إجمالي المستخدمين', 'القيمة': allUsers.length },
-        { 'المؤشر': 'الطلاب', 'القيمة': studentCount },
-        { 'المؤشر': 'المعلمون', 'القيمة': teacherCount },
-        { 'المؤشر': 'المشرفون', 'القيمة': adminCount },
-        { 'المؤشر': 'مديرو المنصة', 'القيمة': superadminCount },
-        { 'المؤشر': 'المقررات الدراسية', 'القيمة': allSubjects.length },
-        { 'المؤشر': 'الاختبارات', 'القيمة': totalQuizzes },
-        { 'المؤشر': 'التسليمات', 'القيمة': totalSubmissions },
-        { 'المؤشر': 'متوسط الدرجات', 'القيمة': `${avgPlatformScore}%` },
+        { [t('admin.excelIndicator')]: t('admin.statTotalUsers'), [t('admin.excelValue')]: allUsers.length },
+        { [t('admin.excelIndicator')]: t('admin.statStudents'), [t('admin.excelValue')]: studentCount },
+        { [t('admin.excelIndicator')]: t('admin.statTeachers'), [t('admin.excelValue')]: teacherCount },
+        { [t('admin.excelIndicator')]: t('admin.supervisors'), [t('admin.excelValue')]: adminCount },
+        { [t('admin.excelIndicator')]: t('roles.superadmin'), [t('admin.excelValue')]: superadminCount },
+        { [t('admin.excelIndicator')]: t('admin.subjectsTitle'), [t('admin.excelValue')]: allSubjects.length },
+        { [t('admin.excelIndicator')]: t('admin.totalQuizzes'), [t('admin.excelValue')]: totalQuizzes },
+        { [t('admin.excelIndicator')]: t('admin.totalSubmissions'), [t('admin.excelValue')]: totalSubmissions },
+        { [t('admin.excelIndicator')]: t('admin.avgScore'), [t('admin.excelValue')]: `${avgPlatformScore}%` },
       ];
       const ws1 = XLSX.utils.json_to_sheet(overviewData);
-      XLSX.utils.book_append_sheet(wb, ws1, 'نظرة عامة');
+      XLSX.utils.book_append_sheet(wb, ws1, t('admin.excelOverviewSheet'));
 
       // Sheet 2: All users
       const usersData = allUsers.map((u) => ({
-        'الاسم': u.name,
-        'البريد الإلكتروني': u.email,
-        'الدور': getRoleLabel(u.role),
-        'تاريخ التسجيل': formatDate(u.created_at),
+        [t('admin.excelNameCol')]: u.name,
+        [t('admin.excelEmailCol')]: u.email,
+        [t('admin.excelRoleCol')]: getRoleLabel(u.role, t),
+        [t('admin.excelRegistrationDateCol')]: formatDate(u.created_at),
       }));
       const ws2 = XLSX.utils.json_to_sheet(usersData);
-      XLSX.utils.book_append_sheet(wb, ws2, 'المستخدمون');
+      XLSX.utils.book_append_sheet(wb, ws2, t('admin.excelUsersSheet'));
 
       // Sheet 3: All subjects
       const subjectsData = allSubjects.map((s) => {
         const teacher = allUsers.find((u) => u.id === s.teacher_id);
         return {
-          'اسم المقرر': s.name,
-          'الوصف': s.description || '—',
-          'المعلم': teacher?.name || 'غير معروف',
-          'تاريخ الإنشاء': formatDate(s.created_at),
+          [t('admin.excelSubjectName')]: s.name,
+          [t('admin.excelDescription')]: s.description || '—',
+          [t('admin.excelTeacherCol')]: teacher?.name || t('admin.unknown'),
+          [t('admin.excelCreationDateCol')]: formatDate(s.created_at),
         };
       });
       const ws3 = XLSX.utils.json_to_sheet(subjectsData);
-      XLSX.utils.book_append_sheet(wb, ws3, 'المقررات');
+      XLSX.utils.book_append_sheet(wb, ws3, t('admin.excelSubjectsSheet'));
 
       // Sheet 4: Score performance
       if (allScores.length > 0) {
         const scoresData = allScores.map((s) => ({
-          'عنوان الاختبار': s.quiz_title,
-          'الدرجة': `${s.score}/${s.total}`,
-          'النسبة': `${scorePercentage(s.score, s.total)}%`,
-          'تاريخ الإنجاز': formatDate(s.completed_at),
+          [t('admin.excelQuizTitleCol')]: s.quiz_title,
+          [t('admin.excelScoreCol')]: `${s.score}/${s.total}`,
+          [t('admin.excelPercentageCol')]: `${scorePercentage(s.score, s.total)}%`,
+          [t('admin.excelCompletionDateCol')]: formatDate(s.completed_at),
         }));
         const ws4 = XLSX.utils.json_to_sheet(scoresData);
-        XLSX.utils.book_append_sheet(wb, ws4, 'النتائج');
+        XLSX.utils.book_append_sheet(wb, ws4, t('admin.excelResultsSheet'));
       }
 
-      XLSX.writeFile(wb, `تقرير_المنصة_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('تم تصدير التقرير بنجاح');
+      XLSX.writeFile(wb, `${t('admin.excelPlatformReport')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success(t('admin.toastExportSuccess'));
     } catch {
-      toast.error('حدث خطأ أثناء تصدير التقرير');
+      toast.error(t('admin.toastExportFailed'));
     }
   };
 
@@ -1287,7 +1288,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     // Get the current session token for authorization
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
-      throw new Error('لا يوجد جلسة نشطة');
+      throw new Error(t('admin.toastNoSessionShort'));
     }
 
     // Call the server-side API to delete the account from the database
@@ -1301,7 +1302,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || 'فشل في حذف الحساب');
+      throw new Error(data.error || t('admin.toastDeleteAccountFailed'));
     }
 
     // Sign out after successful deletion
@@ -1315,7 +1316,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     <div className="flex items-center justify-center py-32">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
-        <span className="text-sm text-muted-foreground">جاري تحميل البيانات...</span>
+        <span className="text-sm text-muted-foreground">{t('admin.loadingData')}</span>
       </div>
     </div>
   );
@@ -1330,7 +1331,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <h2 className="text-2xl font-bold text-foreground">
           {profile.role === 'superadmin' ? t('admin.dashboardLabel') : t('admin.dashboardLabel')}
         </h2>
-        <p className="text-muted-foreground mt-1">مرحباً بك في لوحة إدارة منصة أتيندو</p>
+        <p className="text-muted-foreground mt-1">{t('admin.welcome')}</p>
       </motion.div>
 
       {/* Stats row */}
@@ -1355,7 +1356,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         />
         <StatCard
           icon={<Video className="h-5 w-5" />}
-          label="الفيديوهات"
+          label={t('admin.statVideos')}
           value={totalVideos}
           color="violet"
         />
@@ -1377,30 +1378,30 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <UserCircle className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                أحدث المستخدمين
+                {t('admin.latestUsers')}
               </h3>
               <button
                 onClick={() => setActiveSection('users')}
                 className="text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 font-medium flex items-center gap-1"
               >
-                عرض الكل
+                {t('common.viewAll')}
                 <ChevronLeft className="h-3 w-3" />
               </button>
             </div>
             <div className="max-h-96 overflow-y-auto custom-scrollbar">
               {allUsers.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground text-sm">
-                  لا يوجد مستخدمون بعد
+                  {t('admin.noUsersYet')}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-muted/50 sticky top-0">
                       <tr className="text-xs text-muted-foreground">
-                        <th className="text-right font-medium p-3">الاسم</th>
-                        <th className="text-right font-medium p-3 hidden sm:table-cell">البريد الإلكتروني</th>
-                        <th className="text-right font-medium p-3">الدور</th>
-                        <th className="text-right font-medium p-3 hidden md:table-cell">تاريخ التسجيل</th>
+                        <th className="text-right font-medium p-3">{t('common.name')}</th>
+                        <th className="text-right font-medium p-3 hidden sm:table-cell">{t('common.email')}</th>
+                        <th className="text-right font-medium p-3">{t('common.role')}</th>
+                        <th className="text-right font-medium p-3 hidden md:table-cell">{t('admin.registrationDateLabel')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -1425,7 +1426,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           </td>
                           <td className="p-3">
                             <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
-                              {getRoleLabel(user.role)}
+                              {getRoleLabel(user.role, t)}
                             </span>
                           </td>
                           <td className="p-3 hidden md:table-cell">
@@ -1450,7 +1451,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                إحصائيات المنصة
+                {t('admin.platformStats')}
               </h3>
             </div>
             <div className="p-5 space-y-4">
@@ -1460,7 +1461,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <ClipboardList className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">إجمالي الاختبارات</p>
+                  <p className="text-xs text-muted-foreground">{t('admin.totalQuizzes')}</p>
                   <p className="text-sm font-bold text-foreground">{totalQuizzes}</p>
                 </div>
               </div>
@@ -1471,7 +1472,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">إجمالي التسليمات</p>
+                  <p className="text-xs text-muted-foreground">{t('admin.totalSubmissions')}</p>
                   <p className="text-sm font-bold text-foreground">{totalSubmissions}</p>
                 </div>
               </div>
@@ -1482,7 +1483,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <BookOpen className="h-4 w-4 text-teal-600 dark:text-teal-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">المقررات النشطة</p>
+                  <p className="text-xs text-muted-foreground">{t('admin.activeSubjects')}</p>
                   <p className="text-sm font-bold text-foreground">{allSubjects.length}</p>
                 </div>
               </div>
@@ -1493,33 +1494,33 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <TrendingUp className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">متوسط الدرجات</p>
+                  <p className="text-xs text-muted-foreground">{t('admin.avgScore')}</p>
                   <p className="text-sm font-bold text-foreground">{avgPlatformScore}%</p>
                 </div>
               </div>
 
               {/* User distribution */}
               <div className="pt-2 border-t">
-                <p className="text-sm font-medium text-foreground mb-3">توزيع المستخدمين</p>
+                <p className="text-sm font-medium text-foreground mb-3">{t('admin.userDistribution')}</p>
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
                     <div className="h-3 w-3 rounded-full bg-blue-500" />
-                    <span className="text-sm text-muted-foreground flex-1">الطلاب</span>
+                    <span className="text-sm text-muted-foreground flex-1">{t('roles.student')}</span>
                     <span className="text-sm font-bold text-foreground">{studentCount}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="h-3 w-3 rounded-full bg-sky-600" />
-                    <span className="text-sm text-muted-foreground flex-1">المعلمون</span>
+                    <span className="text-sm text-muted-foreground flex-1">{t('roles.teacher')}</span>
                     <span className="text-sm font-bold text-foreground">{teacherCount}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="h-3 w-3 rounded-full bg-sky-600" />
-                    <span className="text-sm text-muted-foreground flex-1">المشرفون</span>
+                    <span className="text-sm text-muted-foreground flex-1">{t('admin.supervisors')}</span>
                     <span className="text-sm font-bold text-foreground">{adminCount}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="h-3 w-3 rounded-full bg-amber-500" />
-                    <span className="text-sm text-muted-foreground flex-1">مدير المنصة</span>
+                    <span className="text-sm text-muted-foreground flex-1">{t('roles.superadmin')}</span>
                     <span className="text-sm font-bold text-foreground">{superadminCount}</span>
                   </div>
                 </div>
@@ -1548,21 +1549,21 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">{t('admin.usersTitle')}</h2>
-          <p className="text-muted-foreground mt-1">إدارة جميع المستخدمين على المنصة</p>
+          <p className="text-muted-foreground mt-1">{t('admin.manageUsersDesc')}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Users className="h-4 w-4" />
-            <span>{filteredUsers.length} مستخدم</span>
+            <span>{t('admin.usersCount', { count: filteredUsers.length })}</span>
           </div>
           {/* Sort toggle */}
           <button
             onClick={() => { setUserSortOrder(prev => prev === 'newest' ? 'oldest' : 'newest'); setUserPage(1); }}
             className="flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-            title={userSortOrder === 'newest' ? 'ترتيب: الأحدث أولاً' : 'ترتيب: الأقدم أولاً'}
+            title={userSortOrder === 'newest' ? t('admin.sortNewest') : t('admin.sortOldest')}
           >
             <ArrowUpDown className="h-3.5 w-3.5" />
-            {userSortOrder === 'newest' ? 'الأحدث' : 'الأقدم'}
+            {userSortOrder === 'newest' ? t('admin.newest') : t('admin.oldest')}
           </button>
         </div>
       </motion.div>
@@ -1575,7 +1576,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             type="text"
             value={userSearch}
             onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
-            placeholder="بحث بالاسم أو البريد الإلكتروني..."
+            placeholder={t("admin.searchUsers")}
             className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir={dir}
           />
@@ -1591,7 +1592,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
-              {role === 'all' ? 'الكل' : getRoleLabel(role)}
+              {role === 'all' ? t('admin.all') : getRoleLabel(role, t)}
             </button>
           ))}
         </div>
@@ -1651,10 +1652,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <Users className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
-            {userSearch || roleFilter !== 'all' ? 'لا توجد نتائج للبحث' : 'لا يوجد مستخدمون'}
+            {userSearch || roleFilter !== 'all' ? t('admin.noSearchResults') : t('admin.noUsers')}
           </p>
           <p className="text-sm text-muted-foreground">
-            {userSearch || roleFilter !== 'all' ? 'جرّب البحث بكلمات مختلفة' : 'سيظهر المستخدمون هنا بعد تسجيلهم'}
+            {userSearch || roleFilter !== 'all' ? t('common.tryDifferentSearch') : t('admin.noUsersRegistered')}
           </p>
         </motion.div>
       ) : (
@@ -1685,11 +1686,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5">
                       <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold border ${getRoleBadgeClass(user.role)}`}>
-                        {getRoleLabel(user.role)}
+                        {getRoleLabel(user.role, t)}
                       </span>
                       {bannedUsers.some(b => b.email === user.email && b.is_active !== false && (!b.ban_until || new Date(b.ban_until) > new Date())) && (
                         <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800">
-                          محظور
+                          {t('admin.bannedLabel')}
                         </span>
                       )}
                     </div>
@@ -1706,11 +1707,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         <>
                           <span className="inline-flex items-center gap-1 text-[11px] text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 rounded-md px-1.5 py-0.5">
                             <BookOpen className="h-3 w-3" />
-                            {user.subjectCount ?? 0} مقرر
+                            {t('admin.subjectCount', { count: user.subjectCount ?? 0 })}
                           </span>
                           <span className="inline-flex items-center gap-1 text-[11px] text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/30 rounded-md px-1.5 py-0.5">
                             <Users className="h-3 w-3" />
-                            {user.studentCount ?? 0} طالب
+                            {t('admin.studentCount', { count: user.studentCount ?? 0 })}
                           </span>
                         </>
                       )}
@@ -1718,11 +1719,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         <>
                           <span className="inline-flex items-center gap-1 text-[11px] text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30 rounded-md px-1.5 py-0.5">
                             <BookOpen className="h-3 w-3" />
-                            {user.subjectCount ?? 0} مقرر
+                            {t('admin.subjectCount', { count: user.subjectCount ?? 0 })}
                           </span>
                           <span className="inline-flex items-center gap-1 text-[11px] text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 rounded-md px-1.5 py-0.5">
                             <GraduationCap className="h-3 w-3" />
-                            {user.teacherCount ?? 0} معلم
+                            {t('admin.teacherCount', { count: user.teacherCount ?? 0 })}
                           </span>
                         </>
                       )}
@@ -1765,7 +1766,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       {formatNameWithTitle(selectedUser.name, selectedUser.role, selectedUser.gender, selectedUser.title_id, t)}
                     </span>
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold border ${getRoleBadgeClass(selectedUser.role)}`}>
-                      {getRoleLabel(selectedUser.role)}
+                      {getRoleLabel(selectedUser.role, t)}
                     </span>
                   </div>
                 </div>
@@ -1787,14 +1788,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="flex items-center gap-3">
                     <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="text-sm text-muted-foreground">
-                      وقت التسجيل: {formatDateTime(selectedUser.created_at)}
+                      {t('admin.registrationDate')}: {formatDateTime(selectedUser.created_at)}
                     </span>
                   </div>
                   {selectedUser.role === 'teacher' && selectedUser.teacher_code && (
                     <div className="flex items-center gap-3">
                       <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
                       <span className="text-sm text-muted-foreground">
-                        كود المعلم: <span className="font-mono font-bold text-foreground">{selectedUser.teacher_code}</span>
+                        {t('admin.teacherCode')}: <span className="font-mono font-bold text-foreground">{selectedUser.teacher_code}</span>
                       </span>
                     </div>
                   )}
@@ -1806,11 +1807,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
                         <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.subjectCount ?? 0}</p>
-                        <p className="text-xs text-teal-600 dark:text-teal-400">مقرر دراسي</p>
+                        <p className="text-xs text-teal-600 dark:text-teal-400">{t('admin.courseSubject')}</p>
                       </div>
                       <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
                         <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.studentCount ?? 0}</p>
-                        <p className="text-xs text-teal-600 dark:text-teal-400">طالب مسجل</p>
+                        <p className="text-xs text-teal-600 dark:text-teal-400">{t('admin.registeredStudent')}</p>
                       </div>
                     </div>
                     {/* Supervisor links management */}
@@ -1823,11 +1824,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 p-3 text-center">
                       <p className="text-lg font-bold text-sky-800 dark:text-sky-200">{selectedUser.teacherCount ?? 0}</p>
-                      <p className="text-xs text-sky-700 dark:text-sky-300">معلم مربوط</p>
+                      <p className="text-xs text-sky-700 dark:text-sky-300">{t('admin.linkedTeacher')}</p>
                     </div>
                     <div className="rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 p-3 text-center">
                       <p className="text-lg font-bold text-teal-700 dark:text-teal-300">{selectedUser.subjectCount ?? 0}</p>
-                      <p className="text-xs text-teal-600 dark:text-teal-400">مقرر دراسي</p>
+                      <p className="text-xs text-teal-600 dark:text-teal-400">{t('admin.courseSubject')}</p>
                     </div>
                   </div>
                 )}
@@ -1837,10 +1838,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Shield className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                      <span className="text-sm font-semibold text-sky-700 dark:text-sky-300">تغيير الدور</span>
+                      <span className="text-sm font-semibold text-sky-700 dark:text-sky-300">{t('admin.changeRole')}</span>
                     </div>
                     <p className="text-xs text-sky-700 dark:text-sky-300 mb-3">
-                      تغيير دور المستخدم في المنصة
+                      {t('admin.changeUserRoleDesc')}
                     </p>
                     <div className="flex gap-2 flex-wrap">
                       {(['student', 'teacher', 'admin', 'superadmin'] as const)
@@ -1861,14 +1862,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                             }`}
                           >
                             {changingRole ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                            {getRoleLabel(role)}
+                            {getRoleLabel(role, t)}
                           </button>
                         ))}
                     </div>
                     {profile.role !== 'superadmin' && (
                       <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
                         <Shield className="h-3 w-3" />
-                        مدير المنصة فقط يمكنه تعيين أدوار المشرف ومدير المنصة
+                        {t('admin.onlySuperadminCanAssign')}
                       </p>
                     )}
                   </div>
@@ -1888,7 +1889,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         <AlertTriangle className="h-4 w-4 text-rose-500" />
                       )}
                       <span className={`text-sm font-semibold ${isUserBanned ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                        {isUserBanned ? 'المستخدم محظور' : 'منطقة الخطر'}
+                        {isUserBanned ? t('admin.userIsBanned') : t('admin.dangerZone')}
                       </span>
                     </div>
 
@@ -1900,24 +1901,24 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                               ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                               : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
                           }`}>
-                            {userBan.ban_until ? 'حظر مؤقت' : 'حظر نهائي'}
+                            {userBan.ban_until ? t('admin.temporaryBan') : t('admin.permanentBan')}
                           </span>
                         </div>
                         {userBan.reason && (
-                          <p className="text-xs text-amber-700 dark:text-amber-300">السبب: {userBan.reason}</p>
+                          <p className="text-xs text-amber-700 dark:text-amber-300">{t('admin.reason')}: {userBan.reason}</p>
                         )}
                         {userBan.ban_until && (
-                          <p className="text-xs text-amber-700 dark:text-amber-300">ينتهي في: {formatDate(userBan.ban_until)}</p>
+                          <p className="text-xs text-amber-700 dark:text-amber-300">{t('admin.expiresAt')}: {formatDate(userBan.ban_until)}</p>
                         )}
                         {userBan.banned_by_name && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400">بواسطة: {userBan.banned_by_name}</p>
+                          <p className="text-xs text-amber-600 dark:text-amber-400">{t('admin.bannedBy')}: {userBan.banned_by_name}</p>
                         )}
                       </div>
                     )}
 
                     {!isUserBanned && (
                       <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">
-                        حذف المستخدم سيؤدي إلى إزالة جميع بياناته نهائياً.
+                        {t('admin.deleteUserWarning')}
                       </p>
                     )}
 
@@ -1933,7 +1934,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           ) : (
                             <Unlock className="h-3.5 w-3.5" />
                           )}
-                          إلغاء الحظر
+                          {t('admin.unban')}
                         </button>
                       ) : (
                         <button
@@ -1951,7 +1952,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           ) : (
                             <Gavel className="h-3.5 w-3.5" />
                           )}
-                          حظر المستخدم
+                          {t('admin.banUser')}
                         </button>
                       )}
                       <button
@@ -1964,7 +1965,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         ) : (
                           <Trash2 className="h-3.5 w-3.5" />
                         )}
-                        حذف المستخدم
+                        {t('admin.deleteUser')}
                       </button>
                     </div>
                   </div>
@@ -1976,10 +1977,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 p-4">
                     <div className="flex items-center gap-2">
                       <Shield className="h-4 w-4 text-amber-500" />
-                      <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">لا يمكنك اتخاذ إجراءات بحق حسابك</span>
+                      <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">{t('admin.cannotActionOwnAccount')}</span>
                     </div>
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                      لا يمكنك تغيير صفتك أو حظر أو حذف حسابك الخاص.
+                      {t('admin.cannotActionOwnAccountDesc')}
                     </p>
                   </div>
                 )}
@@ -2015,7 +2016,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <Gavel className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-foreground">حظر المستخدم</h3>
+                    <h3 className="text-lg font-bold text-foreground">{t('admin.banUser')}</h3>
                     <p className="text-xs text-muted-foreground">{selectedUser.name}</p>
                   </div>
                 </div>
@@ -2031,11 +2032,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <div className="p-5 space-y-4">
                 {/* Reason */}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">سبب الحظر</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('admin.banReason')}</label>
                   <textarea
                     value={banReason}
                     onChange={(e) => setBanReason(e.target.value)}
-                    placeholder="أدخل سبب الحظر (اختياري)..."
+                    placeholder={t("admin.banReasonPlaceholder")}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-colors resize-none"
                     rows={3}
                     dir={dir}
@@ -2044,13 +2045,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
                 {/* Duration */}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">مدة الحظر</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('admin.banDurationLabel')}</label>
                   <div className="grid grid-cols-2 gap-2">
                     {([
-                      { value: 'permanent' as const, label: 'حظر نهائي', icon: <Ban className="h-3.5 w-3.5" /> },
-                      { value: '1day' as const, label: 'يوم واحد', icon: <Clock className="h-3.5 w-3.5" /> },
-                      { value: '1week' as const, label: 'أسبوع', icon: <Clock className="h-3.5 w-3.5" /> },
-                      { value: '1month' as const, label: 'شهر', icon: <Clock className="h-3.5 w-3.5" /> },
+                      { value: 'permanent' as const, label: t('admin.permanentBan'), icon: <Ban className="h-3.5 w-3.5" /> },
+                      { value: '1day' as const, label: t('admin.banDurationDay'), icon: <Clock className="h-3.5 w-3.5" /> },
+                      { value: '1week' as const, label: t('admin.banDurationWeek'), icon: <Clock className="h-3.5 w-3.5" /> },
+                      { value: '1month' as const, label: t('admin.banDurationMonth'), icon: <Clock className="h-3.5 w-3.5" /> },
                     ]).map((opt) => (
                       <button
                         key={opt.value}
@@ -2076,7 +2077,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     }`}
                   >
                     <Calendar className="h-3.5 w-3.5" />
-                    تاريخ مخصص
+                    {t('admin.customDate')}
                   </button>
                   {banDuration === 'custom' && (
                     <input
@@ -2093,8 +2094,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3">
                   <p className="text-xs text-amber-700 dark:text-amber-300">
                     {banDuration === 'permanent'
-                      ? '⚠️ الحظر النهائي سيمنع المستخدم من الوصول لجميع الميزات نهائياً ما لم يتم إلغاء الحظر يدوياً.'
-                      : '⚠️ الحظر المؤقت سيمنع المستخدم من الوصول للمقررات والمحادثات والإشعارات حتى انتهاء المدة المحددة.'
+                      ? t('admin.permanentBanWarning')
+                      : t('admin.temporaryBanWarning')
                     }
                   </p>
                 </div>
@@ -2111,13 +2112,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     ) : (
                       <Gavel className="h-4 w-4" />
                     )}
-                    تأكيد الحظر
+                    {t('admin.confirmBan')}
                   </button>
                   <button
                     onClick={() => setBanDialogOpen(false)}
                     className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
                   >
-                    إلغاء
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -2141,11 +2142,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">{t('admin.subjectsTitle')}</h2>
-          <p className="text-muted-foreground mt-1">جميع المقررات على المنصة</p>
+          <p className="text-muted-foreground mt-1">{t('admin.subjectsDesc')}</p>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <BookOpen className="h-4 w-4" />
-          <span>{filteredSubjects.length} مقرر{hasSubjectFilters ? ` من ${allSubjects.length}` : ''}</span>
+          <span>{hasSubjectFilters ? t('admin.subjectsCountFiltered', { count: filteredSubjects.length, total: allSubjects.length }) : t('admin.subjectsCount', { count: filteredSubjects.length })}</span>
         </div>
       </motion.div>
 
@@ -2160,7 +2161,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 type="text"
                 value={subjectSearch}
                 onChange={(e) => setSubjectSearch(e.target.value)}
-                placeholder="بحث باسم المقرر أو الوصف..."
+                placeholder={t("admin.searchSubjects")}
                 className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors"
                 dir={dir}
               />
@@ -2174,7 +2175,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 className="w-full sm:w-auto appearance-none rounded-lg border bg-background pr-10 pl-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
                 dir={dir}
               >
-                <option value="">كل الفرقات</option>
+                <option value="">{t('admin.allLevels')}</option>
                 {LEVEL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
@@ -2189,7 +2190,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 className="w-full sm:w-auto appearance-none rounded-lg border bg-background pr-10 pl-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
                 dir={dir}
               >
-                <option value="">كل المستويات</option>
+                <option value="">{t('admin.allSublevels')}</option>
                 {SUB_LEVEL_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
@@ -2200,10 +2201,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           {hasSubjectFilters && (
             <div className="flex items-center gap-2 flex-wrap">
               <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">فلاتر نشطة:</span>
+              <span className="text-xs text-muted-foreground">{t('admin.activeFilters')}:</span>
               {subjectSearch && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 px-2.5 py-0.5 text-xs font-medium text-teal-700 dark:text-teal-300">
-                  بحث: {subjectSearch}
+                  {t('admin.searchFilterLabel', { search: subjectSearch })}
                   <button onClick={() => setSubjectSearch('')} className="hover:text-teal-900">
                     <X className="h-3 w-3" />
                   </button>
@@ -2229,7 +2230,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 onClick={() => { setSubjectSearch(''); setSubjectLevelFilter(''); setSubjectSubLevelFilter(''); }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors underline"
               >
-                مسح الكل
+                {t('common.clearAll')}
               </button>
             </div>
           )}
@@ -2245,8 +2246,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900/50 mb-4">
             <BookOpen className="h-8 w-8 text-teal-600 dark:text-teal-400" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد مقررات بعد</p>
-          <p className="text-sm text-muted-foreground">سيظهر المقررات هنا بعد إنشائها من قبل المعلمين</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('admin.noSubjectsYet')}</p>
+          <p className="text-sm text-muted-foreground">{t('admin.subjectsWillAppear')}</p>
         </motion.div>
       ) : filteredSubjects.length === 0 ? (
         <motion.div
@@ -2256,13 +2257,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900/50 mb-4">
             <Search className="h-8 w-8 text-teal-600 dark:text-teal-400" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد نتائج</p>
-          <p className="text-sm text-muted-foreground">جرّب البحث بكلمات مختلفة أو تغيير الفلاتر</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('admin.noSubjectResults')}</p>
+          <p className="text-sm text-muted-foreground">{t('admin.tryDifferentSearchOrFilters')}</p>
           <button
             onClick={() => { setSubjectSearch(''); setSubjectLevelFilter(''); setSubjectSubLevelFilter(''); }}
             className="mt-3 text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium underline"
           >
-            مسح الفلاتر
+            {t('common.clearFilters')}
           </button>
         </motion.div>
       ) : (
@@ -2306,7 +2307,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         showUsername={false}
                       />
                     ) : (
-                      <span className="text-xs text-muted-foreground">معلم غير معروف</span>
+                      <span className="text-xs text-muted-foreground">{t('admin.unknownTeacher')}</span>
                     )}
                   </div>
 
@@ -2322,7 +2323,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         className="flex items-center gap-1 text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 font-medium"
                       >
                         <Eye className="h-3.5 w-3.5" />
-                        عرض
+                        {t('common.view')}
                       </button>
                       {confirmDeleteSubject === subject.id ? (
                         <div className="flex items-center gap-1">
@@ -2334,14 +2335,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                             {deletingSubjectId === subject.id ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
-                              'تأكيد'
+                              t('common.confirm')
                             )}
                           </button>
                           <button
                             onClick={() => setConfirmDeleteSubject(null)}
                             className="rounded border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
                           >
-                            إلغاء
+                            {t('common.cancel')}
                           </button>
                         </div>
                       ) : (
@@ -2350,7 +2351,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           className="flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 font-medium"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                          حذف
+                          {t('common.delete')}
                         </button>
                       )}
                     </div>
@@ -2417,7 +2418,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   <>
                     {/* Teacher info */}
                     <div>
-                      <p className="text-sm font-medium text-foreground mb-2">المعلم</p>
+                      <p className="text-sm font-medium text-foreground mb-2">{t('admin.teacherLabel')}</p>
                       {subjectTeacher ? (
                         <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
                           <UserAvatar name={subjectTeacher.name} avatarUrl={subjectTeacher.avatar_url} size="sm" />
@@ -2427,17 +2428,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm text-muted-foreground">لم يتم العثور على بيانات المعلم</p>
+                        <p className="text-sm text-muted-foreground">{t('admin.teacherDataNotFound')}</p>
                       )}
                     </div>
 
                     {/* Enrolled students */}
                     <div>
                       <p className="text-sm font-medium text-foreground mb-2">
-                        الطلاب المسجلون ({subjectStudents.length})
+                        {t('admin.registeredStudents', { count: subjectStudents.length })}
                       </p>
                       {subjectStudents.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">لا يوجد طلاب مسجلون في هذا المقرر</p>
+                        <p className="text-sm text-muted-foreground">{t('admin.noRegisteredStudents')}</p>
                       ) : (
                         <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
                           {subjectStudents.map((student) => (
@@ -2457,10 +2458,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/30 p-4 mt-4">
                       <div className="flex items-center gap-2 mb-2">
                         <AlertTriangle className="h-4 w-4 text-rose-500" />
-                        <span className="text-sm font-semibold text-rose-600 dark:text-rose-400">منطقة الخطر</span>
+                        <span className="text-sm font-semibold text-rose-600 dark:text-rose-400">{t('admin.dangerZone')}</span>
                       </div>
                       <p className="text-xs text-rose-600 dark:text-rose-400 mb-3">
-                        حذف المقرر سيؤدي إلى إزالة جميع البيانات المرتبطة به نهائياً.
+                        {t('admin.deleteSubjectWarning')}
                       </p>
                       <button
                         onClick={() => handleDeleteSubject(selectedSubject.id)}
@@ -2472,7 +2473,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         ) : (
                           <Trash2 className="h-3.5 w-3.5" />
                         )}
-                        حذف المقرر
+                        {t('admin.toastDeleteSubjectBtn')}
                       </button>
                     </div>
                   </>
@@ -2524,7 +2525,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             const user = userMap.get(c.user_id);
             return {
               ...c,
-              user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t) : 'مستخدم',
+              user_name: user ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t) : t('common.user'),
             };
           });
           setFlaggedComments(enriched);
@@ -2550,13 +2551,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         .eq('id', commentId);
 
       if (error) {
-        toast.error('فشل إلغاء البلاغ');
+        toast.error(t('admin.toastDismissReportFailed'));
       } else {
-        toast.success('تم إلغاء البلاغ');
+        toast.success(t('admin.toastReportDismissed'));
         setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     }
   };
 
@@ -2571,13 +2572,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         .eq('id', commentId);
 
       if (error) {
-        toast.error('فشل حذف التعليق');
+        toast.error(t('admin.toastDeleteCommentFailed'));
       } else {
-        toast.success('تم حذف التعليق');
+        toast.success(t('admin.toastCommentDeleted'));
         setFlaggedComments((prev) => prev.filter((c: any) => c.id !== commentId));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     }
   };
 
@@ -2590,10 +2591,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <div>
           <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Flag className="h-5 w-5 text-amber-600" />
-            رقابة التعليقات
+            {t('admin.commentModeration')}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            التعليقات المبلّغة التي تحتاج مراجعة
+            {t('admin.commentModerationDesc')}
           </p>
         </div>
         <button
@@ -2602,7 +2603,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60"
         >
           <Loader2 className={`h-3.5 w-3.5 ${flaggedLoading ? 'animate-spin' : 'hidden'}`} />
-          تحديث
+          {t('common.refresh')}
         </button>
       </motion.div>
 
@@ -2621,15 +2622,15 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 mb-4">
             <MessageSquare className="h-8 w-8 text-amber-600 dark:text-amber-300" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد تعليقات مبلّغة</p>
-          <p className="text-sm text-muted-foreground">جميع التعليقات متوافقة مع السياسة</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('admin.noFlaggedComments')}</p>
+          <p className="text-sm text-muted-foreground">{t('admin.allCommentsCompliant')}</p>
         </motion.div>
       ) : (
         <motion.div variants={containerVariants} className="space-y-4">
           <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-4 py-3">
             <Flag className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
-              {flaggedComments.length} تعليق مبلّغ يحتاج مراجعة
+              {t('admin.flaggedCount', { count: flaggedComments.length })}
             </p>
           </div>
 
@@ -2644,13 +2645,13 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-foreground">{comment.user_name || 'مستخدم'}</span>
+                      <span className="text-sm font-semibold text-foreground">{comment.user_name || t('common.user')}</span>
                       <span className="text-[11px] text-muted-foreground">
                         {new Date(comment.created_at).toLocaleDateString('ar-SA')}
                       </span>
                       <span className="rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-[10px] font-medium flex items-center gap-1">
                         <Flag className="h-2.5 w-2.5" />
-                        مبلّغ
+                        {t('admin.flagged')}
                       </span>
                     </div>
                     {/* Video reference */}
@@ -2675,14 +2676,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     className="flex items-center gap-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30 transition-colors"
                   >
                     <Unlock className="h-3.5 w-3.5" />
-                    إلغاء البلاغ
+                    {t('admin.dismissReport')}
                   </button>
                   <button
                     onClick={() => handleDeleteFlaggedComment(comment.id)}
                     className="flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800 px-3 py-1.5 text-sm font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    حذف التعليق
+                    {t('admin.deleteComment')}
                   </button>
                 </div>
               </div>
@@ -2703,11 +2704,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
     // Helper: format remaining time
     const formatRemaining = (banUntil: string) => {
       const remaining = new Date(banUntil).getTime() - Date.now();
-      if (remaining <= 0) return 'منتهي';
+      if (remaining <= 0) return t('admin.expiredShort');
       const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
       const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-      if (days > 0) return `${days} يوم و ${hours} ساعة`;
-      return `${hours} ساعة`;
+      if (days > 0) return t('admin.remainingDaysHours', { days, hours });
+      return t('admin.remainingHoursOnly', { hours });
     };
 
     // Filter tabs
@@ -2720,14 +2721,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">{t('admin.bannedUsersTitle')}</h2>
-          <p className="text-muted-foreground mt-1">إدارة الحظر المؤقت والنهائي للمستخدمين</p>
+          <p className="text-muted-foreground mt-1">{t('admin.bannedUsersDesc')}</p>
         </div>
         <button
           onClick={fetchBannedUsers}
           className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 px-3 py-2 text-xs font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
         >
           <Loader2 className={`h-3.5 w-3.5 ${loadingBanned ? 'animate-spin' : 'hidden'}`} />
-          تحديث
+          {t('common.refresh')}
         </button>
       </motion.div>
 
@@ -2735,19 +2736,19 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-xl border bg-card p-4 text-center">
           <p className="text-2xl font-bold text-rose-700 dark:text-rose-300">{activeBans.length}</p>
-          <p className="text-xs text-muted-foreground">حظر نشط</p>
+          <p className="text-xs text-muted-foreground">{t('admin.activeBan')}</p>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
           <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{activeBans.filter((b) => b.ban_until).length}</p>
-          <p className="text-xs text-muted-foreground">حظر مؤقت</p>
+          <p className="text-xs text-muted-foreground">{t('admin.temporaryBans')}</p>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
           <p className="text-2xl font-bold text-foreground">{activeBans.filter((b) => !b.ban_until).length}</p>
-          <p className="text-xs text-muted-foreground">حظر نهائي</p>
+          <p className="text-xs text-muted-foreground">{t('admin.permanentBans')}</p>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
           <p className="text-2xl font-bold text-muted-foreground">{expiredBans.length}</p>
-          <p className="text-xs text-muted-foreground">منتهي الصلاحية</p>
+          <p className="text-xs text-muted-foreground">{t('admin.expiredBans')}</p>
         </div>
       </motion.div>
 
@@ -2759,8 +2760,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
             <Ban className="h-8 w-8 text-rose-600 dark:text-rose-400" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا يوجد مستخدمون محظورون</p>
-          <p className="text-sm text-muted-foreground">سيظهر المستخدمون المحظورون هنا عند حظر مستخدم</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('admin.noBannedUsers')}</p>
+          <p className="text-sm text-muted-foreground">{t('admin.bannedUsersWillAppear')}</p>
         </motion.div>
       ) : (
         <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2805,9 +2806,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     }`}>
                       {isActive
                         ? isPermanent
-                          ? 'حظر نهائي'
-                          : `مؤقت - متبقي ${formatRemaining(banned.ban_until!)}`
-                        : 'منتهي الصلاحية'
+                          ? t('admin.permanentBanLabel')
+                          : t('admin.temporaryRemaining', { time: formatRemaining(banned.ban_until!) })
+                        : t('admin.expiredLabel')
                       }
                     </span>
                   </div>
@@ -2816,7 +2817,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   {isActive && banned.ban_until && (
                     <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      ينتهي في: {formatDate(banned.ban_until)}
+                      {t('admin.expiresAt')}: {formatDate(banned.ban_until)}
                     </p>
                   )}
 
@@ -2828,7 +2829,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
                   {banned.banned_by_name && (
                     <p className="text-xs text-muted-foreground mb-2">
-                      حظر بواسطة: {banned.banned_by_name}
+                      {t('admin.bannedByLabel', { name: banned.banned_by_name })}
                     </p>
                   )}
 
@@ -2844,10 +2845,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         ) : (
                           <Unlock className="h-3.5 w-3.5" />
                         )}
-                        إلغاء الحظر
+                        {t('admin.unban')}
                       </button>
                     ) : (
-                      <span className="text-xs text-muted-foreground">تم إلغاء الحظر</span>
+                      <span className="text-xs text-muted-foreground">{t('admin.banLifted')}</span>
                     )}
                   </div>
                 </div>
@@ -2866,10 +2867,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   const renderAnnouncements = () => {
     const priorityLabel = (p: string) => {
       switch (p) {
-        case 'urgent': return 'عاجل';
-        case 'high': return 'مهم';
-        case 'normal': return 'عادي';
-        case 'low': return 'منخفض';
+        case 'urgent': return t('admin.announcementPriority.urgent');
+        case 'high': return t('admin.announcementPriority.high');
+        case 'normal': return t('admin.announcementPriority.normal');
+        case 'low': return t('admin.announcementPriority.low');
         default: return p;
       }
     };
@@ -2889,14 +2890,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-foreground">{t('admin.announcementsTitle')}</h2>
-            <p className="text-muted-foreground mt-1">إنشاء وإدارة إعلانات المنصة</p>
+            <p className="text-muted-foreground mt-1">{t('admin.announcementsDesc')}</p>
           </div>
           <button
             onClick={() => setCreateAnnouncementOpen(true)}
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
-            إعلان جديد
+            {t('admin.newAnnouncement')}
           </button>
         </motion.div>
 
@@ -2908,14 +2909,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
               <Megaphone className="h-8 w-8 text-sky-700 dark:text-sky-300" />
             </div>
-            <p className="text-lg font-semibold text-foreground mb-1">لا توجد إعلانات</p>
-            <p className="text-sm text-muted-foreground mb-4">ابدأ بإنشاء إعلان جديد للمستخدمين</p>
+            <p className="text-lg font-semibold text-foreground mb-1">{t('admin.noAnnouncements')}</p>
+            <p className="text-sm text-muted-foreground mb-4">{t('admin.noAnnouncementsDesc')}</p>
             <button
               onClick={() => setCreateAnnouncementOpen(true)}
               className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
             >
               <Plus className="h-4 w-4" />
-              إنشاء إعلان
+              {t('admin.createAnnouncementBtn')}
             </button>
           </motion.div>
         ) : (
@@ -2935,7 +2936,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         </span>
                         {!ann.is_active && (
                           <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-bold border bg-gray-100 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700">
-                            متوقف
+                            {t('admin.stopped')}
                           </span>
                         )}
                       </div>
@@ -2955,12 +2956,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       {ann.is_active ? (
                         <>
                           <ToggleRight className="h-3.5 w-3.5" />
-                          إيقاف
+                          {t('admin.pause')}
                         </>
                       ) : (
                         <>
                           <ToggleLeft className="h-3.5 w-3.5" />
-                          تفعيل
+                          {t('admin.resume')}
                         </>
                       )}
                     </button>
@@ -2974,7 +2975,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       ) : (
                         <Trash2 className="h-3.5 w-3.5" />
                       )}
-                      حذف
+                      {t('common.delete')}
                     </button>
                   </div>
                 </div>
@@ -3005,7 +3006,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <div className="flex items-center justify-between border-b p-5">
                   <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                     <Megaphone className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                    إعلان جديد
+                    {t('admin.newAnnouncement')}
                   </h3>
                   <button
                     onClick={() => { if (!creatingAnnouncement) setCreateAnnouncementOpen(false); }}
@@ -3017,12 +3018,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
                 <div className="p-5 space-y-4">
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">العنوان</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('admin.announcementTitle')}</label>
                     <input
                       type="text"
                       value={newAnnTitle}
                       onChange={(e) => setNewAnnTitle(e.target.value)}
-                      placeholder="عنوان الإعلان..."
+                      placeholder={t("admin.announcementTitlePlaceholder")}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                       disabled={creatingAnnouncement}
                       dir={dir}
@@ -3030,11 +3031,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">المحتوى</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('admin.announcementContent')}</label>
                     <textarea
                       value={newAnnContent}
                       onChange={(e) => setNewAnnContent(e.target.value)}
-                      placeholder="محتوى الإعلان..."
+                      placeholder={t("admin.announcementContentPlaceholder")}
                       rows={4}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
                       disabled={creatingAnnouncement}
@@ -3043,7 +3044,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">الأولوية</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('admin.announcementPriorityLabel')}</label>
                     <div className="flex gap-2">
                       {(['low', 'normal', 'high', 'urgent'] as const).map((p) => (
                         <button
@@ -3072,7 +3073,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     ) : (
                       <Plus className="h-4 w-4" />
                     )}
-                    إنشاء الإعلان
+                    {t('admin.createAnnouncement')}
                   </button>
                 </div>
               </motion.div>
@@ -3088,9 +3089,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // -------------------------------------------------------
   const getPeriodLabel = (p: 'day' | 'month' | 'year') => {
     switch (p) {
-      case 'day': return 'اليوم';
-      case 'month': return 'الشهر';
-      case 'year': return 'السنة';
+      case 'day': return t('admin.periodDay');
+      case 'month': return t('admin.periodMonth');
+      case 'year': return t('admin.periodYear');
     }
   };
 
@@ -3100,7 +3101,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">{t('admin.reportsTitle')}</h2>
-          <p className="text-muted-foreground mt-1">تقارير وإحصائيات المنصة</p>
+          <p className="text-muted-foreground mt-1">{t('admin.reportsAndPlatformStats')}</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -3108,7 +3109,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 whitespace-nowrap"
           >
             <Download className="h-4 w-4" />
-            تصدير التقرير
+            {t('admin.exportReport')}
           </button>
         </div>
       </motion.div>
@@ -3125,7 +3126,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  المحاضرات النشطة
+                  {t('admin.activeLectures')}
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-600" />
@@ -3148,7 +3149,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Activity className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">المستخدمون النشطون ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-xs text-muted-foreground">{t('admin.activeUsers')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-teal-600 dark:text-teal-400 inline" /> : (usageStats?.activeUsers ?? 0)}
@@ -3174,7 +3175,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">التسجيلات الجديدة ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-xs text-muted-foreground">{t('admin.newRegistrations')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-amber-600 dark:text-amber-400 inline" /> : (usageStats?.newRegistrations ?? 0)}
@@ -3200,7 +3201,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">جلسات الحضور ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-xs text-muted-foreground">{t('admin.attendanceSessions')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300 inline" /> : (usageStats?.attendanceSessions ?? 0)}
@@ -3226,7 +3227,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Award className="h-5 w-5 text-rose-600 dark:text-rose-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">الاختبارات المكتملة ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-xs text-muted-foreground">{t('admin.completedQuizzes')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-rose-600 dark:text-rose-400 inline" /> : (usageStats?.quizzesTaken ?? 0)}
@@ -3252,7 +3253,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <ClipboardList className="h-5 w-5 text-sky-600 dark:text-sky-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">محاضرات جديدة ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-xs text-muted-foreground">{t('admin.newLectures')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-600 dark:text-sky-400 inline" /> : (usageStats?.lecturesCreated ?? 0)}
@@ -3278,7 +3279,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <ClipboardList className="h-5 w-5 text-orange-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">تكليفات جديدة ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-xs text-muted-foreground">{t('admin.newAssignments')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-orange-600 inline" /> : (usageStats?.assignmentsCreated ?? 0)}
@@ -3299,7 +3300,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* ─── Period Filter ─── */}
       <motion.div variants={itemVariants}>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-muted-foreground ms-1">الفترة الزمنية:</span>
+          <span className="text-sm font-medium text-muted-foreground ms-1">{t('admin.timePeriod')}:</span>
           {(['day', 'month', 'year'] as const).map((p) => (
             <button
               key={p}
@@ -3323,8 +3324,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card shadow-sm p-5">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              النشاط اليومي
-              <span className="text-xs font-normal text-muted-foreground ms-1">آخر 30 يوم</span>
+              {t('admin.dailyActivity')}
+              <span className="text-xs font-normal text-muted-foreground ms-1">{t('admin.last30Days')}</span>
             </h3>
             {usageStats && usageStats.chartData && usageStats.chartData.some((d) => d.users > 0 || d.sessions > 0 || d.quizzes > 0) ? (
               <div className="h-72 min-h-[280px]">
@@ -3355,12 +3356,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       }}
                       labelFormatter={(val: unknown) => {
                         const d = new Date(String(val));
-                        return d.toLocaleDateString('ar-SA', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+                        return d.toLocaleDateString(locale, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
                       }}
                     />
-                    <Bar dataKey="users" name="تسجيلات جديدة" fill="#f59e0b" radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="sessions" name="جلسات حضور" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
-                    <Bar dataKey="quizzes" name="اختبارات" fill="#0284c7" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="users" name={t('admin.newRegistrationsChart')} fill="#f59e0b" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="sessions" name={t('admin.attendanceSessionsChart')} fill="#8b5cf6" radius={[2, 2, 0, 0]} />
+                    <Bar dataKey="quizzes" name={t('admin.quizzesChart')} fill="#0284c7" radius={[2, 2, 0, 0]} />
                     <Legend wrapperStyle={{ fontSize: '12px', direction: 'rtl' }} />
                   </RechartsBarChart>
                 </ResponsiveContainer>
@@ -3369,7 +3370,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <div className="h-72 flex items-center justify-center text-muted-foreground text-sm">
                 <div className="flex flex-col items-center gap-2">
                   <BarChart3 className="h-10 w-10 opacity-30" />
-                  <span>لا توجد بيانات نشاط بعد</span>
+                  <span>{t('admin.noActivityData')}</span>
                 </div>
               </div>
             )}
@@ -3381,8 +3382,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card shadow-sm p-5">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-              اتجاه التسجيلات
-              <span className="text-xs font-normal text-muted-foreground ms-1">آخر 12 شهر</span>
+              {t('admin.registrationTrends')}
+              <span className="text-xs font-normal text-muted-foreground ms-1">{t('admin.last12Months')}</span>
             </h3>
             {usageStats && usageStats.registrationTrends && usageStats.registrationTrends.some((d) => d.count > 0) ? (
               <div className="h-72 min-h-[280px]">
@@ -3411,7 +3412,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <Line
                       type="monotone"
                       dataKey="count"
-                      name="عدد التسجيلات"
+                      name={t('admin.registrationCount')}
                       stroke="#14b8a6"
                       strokeWidth={2.5}
                       dot={{ r: 4, fill: '#14b8a6', stroke: '#fff', strokeWidth: 2 }}
@@ -3424,7 +3425,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <div className="h-72 flex items-center justify-center text-muted-foreground text-sm">
                 <div className="flex flex-col items-center gap-2">
                   <TrendingUp className="h-10 w-10 opacity-30" />
-                  <span>لا توجد بيانات تسجيلات بعد</span>
+                  <span>{t('admin.noRegistrationData')}</span>
                 </div>
               </div>
             )}
@@ -3439,7 +3440,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="rounded-xl border bg-card shadow-sm p-5">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              توزيع الدرجات
+              {t('admin.scoreDistribution')}
             </h3>
             {allScores.length > 0 ? (
               <div className="h-56 sm:h-72 min-h-[250px]">
@@ -3452,10 +3453,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         const good = allScores.filter((s) => { const p = scorePercentage(s.score, s.total); return p >= 60 && p < 75; }).length;
                         const weak = allScores.filter((s) => scorePercentage(s.score, s.total) < 60).length;
                         return [
-                          { name: 'ممتاز', value: excellent },
-                          { name: 'جيد جداً', value: veryGood },
-                          { name: 'جيد', value: good },
-                          { name: 'ضعيف', value: weak },
+                          { name: t('admin.excellent'), value: excellent },
+                          { name: t('admin.veryGood'), value: veryGood },
+                          { name: t('admin.good'), value: good },
+                          { name: t('admin.weak'), value: weak },
                         ].filter((d) => d.value > 0);
                       })()}
                       cx="50%"
@@ -3487,7 +3488,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               </div>
             ) : (
               <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">
-                لا توجد نتائج بعد
+                {t('admin.noResultsYet')}
               </div>
             )}
           </div>
@@ -3499,20 +3500,20 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                أداء الاختبارات
+                {t('admin.quizPerformance')}
               </h3>
-              <span className="text-xs text-muted-foreground">{allScores.length} نتيجة</span>
+              <span className="text-xs text-muted-foreground">{t('admin.resultsCount', { count: allScores.length })}</span>
             </div>
             <div className="p-5">
               {allScores.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                   <Award className="h-10 w-10 mb-2 opacity-40" />
-                  <p className="text-sm">لا توجد نتائج اختبارات بعد</p>
+                  <p className="text-sm">{t('admin.noQuizResults')}</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   <div>
-                    <p className="text-sm font-medium text-foreground mb-3">توزيع الدرجات</p>
+                    <p className="text-sm font-medium text-foreground mb-3">{t('admin.scoreDistribution')}</p>
                     {(() => {
                       const excellent = allScores.filter((s) => scorePercentage(s.score, s.total) >= 90).length;
                       const veryGood = allScores.filter((s) => { const p = scorePercentage(s.score, s.total); return p >= 75 && p < 90; }).length;
@@ -3523,25 +3524,25 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         <div className="space-y-2">
                           <div className="flex items-center gap-3">
                             <div className="h-3 w-3 rounded-full bg-sky-600 shrink-0" />
-                            <span className="text-sm text-muted-foreground flex-1">ممتاز (90%+)</span>
+                            <span className="text-sm text-muted-foreground flex-1">{t('admin.excellent90')}</span>
                             <span className="text-sm font-bold text-foreground">{excellent}</span>
                             <span className="text-xs text-muted-foreground">({total > 0 ? Math.round((excellent / total) * 100) : 0}%)</span>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="h-3 w-3 rounded-full bg-teal-500 shrink-0" />
-                            <span className="text-sm text-muted-foreground flex-1">جيد جداً (75-89%)</span>
+                            <span className="text-sm text-muted-foreground flex-1">{t('admin.veryGood75')}</span>
                             <span className="text-sm font-bold text-foreground">{veryGood}</span>
                             <span className="text-xs text-muted-foreground">({total > 0 ? Math.round((veryGood / total) * 100) : 0}%)</span>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="h-3 w-3 rounded-full bg-amber-500 shrink-0" />
-                            <span className="text-sm text-muted-foreground flex-1">جيد (60-74%)</span>
+                            <span className="text-sm text-muted-foreground flex-1">{t('admin.good60')}</span>
                             <span className="text-sm font-bold text-foreground">{good}</span>
                             <span className="text-xs text-muted-foreground">({total > 0 ? Math.round((good / total) * 100) : 0}%)</span>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="h-3 w-3 rounded-full bg-rose-500 shrink-0" />
-                            <span className="text-sm text-muted-foreground flex-1">ضعيف (&lt;60%)</span>
+                            <span className="text-sm text-muted-foreground flex-1">{t('admin.weakBelow60')}</span>
                             <span className="text-sm font-bold text-foreground">{weak}</span>
                             <span className="text-xs text-muted-foreground">({total > 0 ? Math.round((weak / total) * 100) : 0}%)</span>
                           </div>
@@ -3550,7 +3551,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     })()}
                   </div>
                   <div className="pt-3 border-t">
-                    <p className="text-sm font-medium text-foreground mb-3">أحدث النتائج</p>
+                    <p className="text-sm font-medium text-foreground mb-3">{t('admin.latestResults')}</p>
                     <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
                       {allScores.slice(0, 6).map((score) => {
                         const pct = scorePercentage(score.score, score.total);
@@ -3583,18 +3584,18 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
           <div className="flex items-center justify-between border-b p-4">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              إحصائيات تفصيلية
+              {t('admin.detailedStats')}
             </h3>
-            <span className="text-xs text-muted-foreground">مقارنة مع الفترة السابقة</span>
+            <span className="text-xs text-muted-foreground">{t('admin.comparedToPrevious')}</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-muted/50 sticky top-0">
                 <tr className="text-xs text-muted-foreground">
-                  <th className="text-right font-medium p-3">المؤشر</th>
-                  <th className="text-center font-medium p-3">العدد الحالي</th>
-                  <th className="text-center font-medium p-3">الفترة السابقة</th>
-                  <th className="text-center font-medium p-3">التغيير</th>
+                  <th className="text-right font-medium p-3">{t('admin.indicator')}</th>
+                  <th className="text-center font-medium p-3">{t('admin.currentCount')}</th>
+                  <th className="text-center font-medium p-3">{t('admin.previousPeriod')}</th>
+                  <th className="text-center font-medium p-3">{t('admin.change')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -3606,7 +3607,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
                             <Activity className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
                           </div>
-                          <span className="text-sm font-medium text-foreground">المستخدمون النشطون</span>
+                          <span className="text-sm font-medium text-foreground">{t('admin.activeUsers')}</span>
                         </div>
                       </td>
                       <td className="p-3 text-center">
@@ -3630,7 +3631,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
                             <Users className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                           </div>
-                          <span className="text-sm font-medium text-foreground">التسجيلات الجديدة</span>
+                          <span className="text-sm font-medium text-foreground">{t('admin.newRegistrations')}</span>
                         </div>
                       </td>
                       <td className="p-3 text-center">
@@ -3654,7 +3655,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
                             <ClipboardList className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
                           </div>
-                          <span className="text-sm font-medium text-foreground">جلسات الحضور</span>
+                          <span className="text-sm font-medium text-foreground">{t('admin.attendanceSessions')}</span>
                         </div>
                       </td>
                       <td className="p-3 text-center">
@@ -3678,7 +3679,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100">
                             <Award className="h-3.5 w-3.5 text-sky-700" />
                           </div>
-                          <span className="text-sm font-medium text-foreground">الاختبارات المكتملة</span>
+                          <span className="text-sm font-medium text-foreground">{t('admin.completedQuizzes')}</span>
                         </div>
                       </td>
                       <td className="p-3 text-center">
@@ -3702,7 +3703,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-rose-100">
                             <Radio className="h-3.5 w-3.5 text-rose-600" />
                           </div>
-                          <span className="text-sm font-medium text-foreground">المحاضرات النشطة حالياً</span>
+                          <span className="text-sm font-medium text-foreground">{t('admin.currentlyActiveLectures')}</span>
                         </div>
                       </td>
                       <td className="p-3 text-center">
@@ -3721,7 +3722,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       </td>
                       <td className="p-3 text-center">
                         <span className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300">
-                          مباشر
+                          {t('admin.live')}
                         </span>
                       </td>
                     </tr>
@@ -3732,10 +3733,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       {loadingUsageStats ? (
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          جاري تحميل الإحصائيات...
+                          {t('admin.loadingStats')}
                         </div>
                       ) : (
-                        'لا توجد بيانات'
+                        t('common.noData')
                       )}
                     </td>
                   </tr>
@@ -3751,24 +3752,24 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         <div className="rounded-xl border bg-card shadow-sm p-5">
           <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-            ملخص إحصائيات المنصة
+            {t('admin.platformStatsSummary')}
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="text-center p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800">
               <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{allUsers.length}</p>
-              <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">مستخدم</p>
+              <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">{t('admin.userLabel')}</p>
             </div>
             <div className="text-center p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800">
               <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{allSubjects.length}</p>
-              <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">مقرر</p>
+              <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">{t('admin.subjectLabel')}</p>
             </div>
             <div className="text-center p-3 rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-800">
               <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{totalQuizzes}</p>
-              <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">اختبار</p>
+              <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">{t('admin.quizLabel')}</p>
             </div>
             <div className="text-center p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-800">
               <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{avgPlatformScore}%</p>
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">متوسط الدرجات</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{t('admin.avgScore')}</p>
             </div>
           </div>
         </div>
@@ -3783,7 +3784,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Shield className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">المشرفون</p>
+                <p className="text-sm text-muted-foreground">{t('admin.supervisors')}</p>
                 <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{adminCount}</p>
               </div>
             </div>
@@ -3797,7 +3798,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <GraduationCap className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">المعلمون</p>
+                <p className="text-sm text-muted-foreground">{t('admin.statTeachers')}</p>
                 <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{teacherCount}</p>
               </div>
             </div>
@@ -3811,7 +3812,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Users className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">الطلاب</p>
+                <p className="text-sm text-muted-foreground">{t('admin.statStudents')}</p>
                 <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{studentCount}</p>
               </div>
             </div>

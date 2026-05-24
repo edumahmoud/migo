@@ -74,11 +74,11 @@ const itemVariants = {
 };
 
 // -------------------------------------------------------
-// File type categories (Arabic)
+// File type categories
 // -------------------------------------------------------
-type FileCategory = 'الكل' | 'صور' | 'مستندات' | 'فيديوهات' | 'صوتيات' | 'أخرى';
+type FileCategory = 'all' | 'images' | 'documents' | 'videos' | 'audio' | 'other';
 
-const FILE_CATEGORIES: FileCategory[] = ['الكل', 'صور', 'مستندات', 'فيديوهات', 'صوتيات', 'أخرى'];
+const FILE_CATEGORIES: FileCategory[] = ['all', 'images', 'documents', 'videos', 'audio', 'other'];
 
 function getFileCategory(fileType: string): FileCategory {
   const lower = fileType.toLowerCase();
@@ -91,7 +91,7 @@ function getFileCategory(fileType: string): FileCategory {
     lower.includes('svg') ||
     lower.includes('webp')
   ) {
-    return 'صور';
+    return 'images';
   }
   if (
     lower.includes('pdf') ||
@@ -105,23 +105,23 @@ function getFileCategory(fileType: string): FileCategory {
     lower.includes('powerpoint') ||
     lower.includes('sheet')
   ) {
-    return 'مستندات';
+    return 'documents';
   }
   if (lower.includes('video') || lower.includes('mp4') || lower.includes('avi') || lower.includes('mov') || lower.includes('webm')) {
-    return 'فيديوهات';
+    return 'videos';
   }
   if (lower.includes('audio') || lower.includes('mp3') || lower.includes('wav') || lower.includes('ogg') || lower.includes('mpeg')) {
-    return 'صوتيات';
+    return 'audio';
   }
-  return 'أخرى';
+  return 'other';
 }
 
 // -------------------------------------------------------
 // Helpers
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string): string {
   try {
-    return new Date(dateStr).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(dateStr).toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
   } catch { return dateStr; }
 }
 
@@ -175,10 +175,10 @@ interface SubjectFileWithUploader extends SubjectFile {
 // Main Component
 // -------------------------------------------------------
 export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   const [files, setFiles] = useState<SubjectFileWithUploader[]>([]);
   const [loading, setLoading] = useState(true);
-  const [categoryFilter, setCategoryFilter] = useState<FileCategory>('الكل');
+  const [categoryFilter, setCategoryFilter] = useState<FileCategory>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<SubjectFileWithUploader | null>(null);
@@ -229,7 +229,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
           const uploader = uploaderMap.get(f.uploaded_by);
           return {
             ...f,
-            uploader_name: uploader ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender, t) : 'مستخدم',
+            uploader_name: uploader ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender, t) : t('common.user'),
           };
         });
 
@@ -295,7 +295,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
   // -------------------------------------------------------
   const filteredFiles = useMemo(() => {
     let result = files;
-    if (categoryFilter !== 'الكل') {
+    if (categoryFilter !== 'all') {
       result = result.filter((f) => getFileCategory(f.file_type) === categoryFilter);
     }
     return result;
@@ -314,15 +314,15 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
         .eq('id', fileId);
       if (error) {
         if (error.message?.includes('does not exist') || error.message?.includes('schema cache')) {
-          toast.error('هذه الميزة تحتاج تحديث قاعدة البيانات. يرجى تشغيل الترحيل v6.');
+          toast.error(t('course.toastNeedMigration'));
         } else {
-          toast.error('حدث خطأ أثناء تغيير ظهور الملف');
+          toast.error(t('course.toastVisibilityError'));
         }
       } else {
-        toast.success(newVisibility === 'public' ? 'تم إظهار الملف للطلاب' : 'تم إخفاء الملف عن الطلاب');
+        toast.success(newVisibility === 'public' ? t('course.toastFileShown') : t('course.toastFileHidden'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setTogglingVisibilityId(null);
     }
@@ -342,10 +342,10 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
         }
       }
       const { error } = await supabase.from('subject_files').delete().eq('id', fileId);
-      if (error) toast.error('حدث خطأ أثناء حذف الملف');
-      else { toast.success('تم حذف الملف'); }
+      if (error) toast.error(t('course.toastDeleteError'));
+      else { toast.success(t('course.toastDeleted')); }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
@@ -425,11 +425,11 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
         const { error } = await supabase.from('subject_files').delete().eq('id', fileId);
         if (!error) deleted++;
       }
-      toast.success(`تم حذف ${deleted} ملف`);
+      toast.success(t('course.toastBulkDeleted', { count: deleted }));
       setSelectedFileIds(new Set());
       setConfirmBulkDelete(false);
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setBulkActionLoading(false);
     }
@@ -450,10 +450,10 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
           .eq('id', fileId);
         if (!error) updated++;
       }
-      toast.success(updated > 1 ? `تم تغيير ظهور ${updated} ملف` : 'تم تغيير ظهور الملف');
+      toast.success(updated > 1 ? t('course.toastBulkVisibility', { count: updated }) : t('course.toastVisibilityChanged'));
       setSelectedFileIds(new Set());
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setBulkActionLoading(false);
     }
@@ -543,13 +543,13 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
         }
       }
 
-      let msg = `تم إسناد ${created} ملف بنجاح`;
-      if (skipped > 0) msg += ` (تم تخطي ${skipped})`;
+      let msg = t('course.toastAssigned', { count: created });
+      if (skipped > 0) msg += ' ' + t('course.toastSkipped', { count: skipped });
       toast.success(msg);
       setAssignModalOpen(false);
       setSelectedFileIds(new Set());
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setAssigning(false);
     }
@@ -564,14 +564,14 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-foreground">{t('course.files')}</h3>
-          <p className="text-muted-foreground text-sm mt-1">{files.length} ملف</p>
+          <p className="text-muted-foreground text-sm mt-1">{t('course.fileCount', { count: files.length })}</p>
         </div>
       </motion.div>
 
       {/* Category filter tabs */}
       <motion.div variants={itemVariants} className="flex items-center gap-2 overflow-x-auto pb-1">
         {FILE_CATEGORIES.map((cat) => {
-          const count = cat === 'الكل'
+          const count = cat === 'all'
             ? files.length
             : files.filter((f) => getFileCategory(f.file_type) === cat).length;
           return (
@@ -584,7 +584,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
-              {cat}
+              {t(`course.category${cat.charAt(0).toUpperCase()}${cat.slice(1)}`)}
               <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'}`}>
                 ({count})
               </span>
@@ -602,7 +602,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <CheckSquare className="h-4 w-4" />
-              تحديد
+              {t('course.select')}
             </button>
           ) : (
             <>
@@ -615,18 +615,18 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                 ) : (
                   <Square className="h-4 w-4" />
                 )}
-                تحديد الكل
+                {t('course.selectAll')}
               </button>
               {selectedFileIds.size > 0 && (
                 <span className="text-xs text-sky-700 dark:text-sky-300 font-medium">
-                  تم تحديد {selectedFileIds.size} ملف
+                  {t('course.filesSelected', { count: selectedFileIds.size })}
                 </span>
               )}
               <button
                 onClick={() => { setSelectionMode(false); setSelectedFileIds(new Set()); }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                إلغاء
+                {t('common.cancel')}
               </button>
             </>
           )}
@@ -648,7 +648,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('course.noFiles')}</p>
           <p className="text-sm text-muted-foreground">
-            {categoryFilter !== 'الكل' ? 'لا توجد ملفات في هذا التصنيف' : 'لم يتم رفع ملفات بعد'}
+            {categoryFilter !== 'all' ? t('course.noFilesInCategory') : t('course.noFilesUploaded')}
           </p>
         </motion.div>
       ) : (
@@ -680,7 +680,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
                     <span>{formatFileSize(file.file_size)}</span>
-                    <span title="تاريخ الإسناد للمقرر">{formatDate(file.created_at)}</span>
+                    <span title={t('course.assignDateTitle')}>{formatDate(file.created_at, locale)}</span>
                     {file.category && (
                       <span className="rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2 py-0.5 text-[10px] font-medium">
                         {file.category}
@@ -706,7 +706,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                           ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 hover:bg-amber-50 hover:text-amber-600'
                           : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 hover:bg-sky-50 hover:text-sky-700'
                       } disabled:opacity-60`}
-                      title={(file.visibility ?? 'public') === 'public' ? 'إخفاء عن الطلاب' : 'إظهار للطلاب'}
+                      title={(file.visibility ?? 'public') === 'public' ? t('course.hideFromStudents') : t('course.showToStudents')}
                     >
                       {togglingVisibilityId === file.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -715,14 +715,14 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                       ) : (
                         <EyeOff className="h-3.5 w-3.5" />
                       )}
-                      {(file.visibility ?? 'public') === 'public' ? 'مرئي' : 'مخفي'}
+                      {(file.visibility ?? 'public') === 'public' ? t('course.visible') : t('course.hidden')}
                     </button>
                   )}
                   {/* Preview button */}
                   <button
                     onClick={() => handlePreview(file)}
                     className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
-                    title="معاينة"
+                    title={t('common.preview')}
                   >
                     <Maximize2 className="h-4 w-4" />
                   </button>
@@ -730,7 +730,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   <button
                     onClick={() => handleDownload(file)}
                     className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
-                    title="تحميل"
+                    title={t('common.download')}
                   >
                     <Download className="h-4 w-4" />
                   </button>
@@ -740,7 +740,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                       onClick={() => setConfirmDeleteId(file.id)}
                       disabled={deletingId === file.id}
                       className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors disabled:opacity-60"
-                      title="حذف"
+                      title={t('common.delete')}
                     >
                       {deletingId === file.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                     </button>
@@ -764,7 +764,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               dir={dir}
             >
               <span className="text-sm font-medium text-foreground whitespace-nowrap">
-                تم تحديد {selectedFileIds.size} ملف
+                {t('course.filesSelected', { count: selectedFileIds.size })}
               </span>
               <div className="h-6 w-px bg-border" />
               {confirmBulkDelete ? null : (
@@ -772,7 +772,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   <DropdownMenu dir={dir}>
                     <DropdownMenuTrigger asChild>
                       <button className="flex items-center gap-1.5 rounded-md bg-sky-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-sky-800 transition-colors">
-                        إجراءات
+                        {t('course.actions')}
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-48">
@@ -781,7 +781,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                         className="text-rose-600 dark:text-rose-400 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4 me-2" />
-                        حذف
+                        {t('common.delete')}
                       </DropdownMenuItem>
                       {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility !== 'public') && (
                         <DropdownMenuItem
@@ -790,7 +790,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                           className="cursor-pointer"
                         >
                           <Eye className="h-4 w-4 me-2" />
-                          إظهار للطلاب
+                          {t('course.showToStudents')}
                         </DropdownMenuItem>
                       )}
                       {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility === 'public') && (
@@ -800,7 +800,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                           className="cursor-pointer"
                         >
                           <EyeOff className="h-4 w-4 me-2" />
-                          إخفاء عن الطلاب
+                          {t('course.hideFromStudents')}
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem
@@ -808,7 +808,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                         className="cursor-pointer"
                       >
                         <FolderPlus className="h-4 w-4 me-2" />
-                        إسناد لمقررات أخرى
+                        {t('course.assignToOtherCourses')}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={async () => {
@@ -820,7 +820,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                         className="cursor-pointer"
                       >
                         <Download className="h-4 w-4 me-2" />
-                        تحميل
+                        {t('common.download')}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -829,7 +829,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                     className="flex items-center gap-1 rounded-md bg-muted text-muted-foreground px-3 py-1.5 text-xs font-medium hover:bg-muted/80 transition-colors"
                   >
                     <X className="h-3 w-3" />
-                    إلغاء التحديد
+                    {t('course.cancelSelection')}
                   </button>
                 </>
               )}
@@ -842,13 +842,13 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
       <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف الملف</AlertDialogTitle>
+            <AlertDialogTitle>{t('course.deleteFileTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف هذا الملف؟ لا يمكن التراجع عن هذا الإجراء.
+              {t('course.deleteFileConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -858,7 +858,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {deletingId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              حذف
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -868,20 +868,20 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
       <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف الملفات المحددة</AlertDialogTitle>
+            <AlertDialogTitle>{t('course.deleteFilesTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف {selectedFileIds.size} ملف محدد؟ لا يمكن التراجع عن هذا الإجراء.
+              {t('course.deleteFilesConfirm', { count: selectedFileIds.size })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); handleBulkDelete(); }}
               disabled={bulkActionLoading}
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {bulkActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              حذف
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -909,7 +909,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <FolderPlus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  إسناد لمقررات أخرى
+                  {t('course.assignToOtherCourses')}
                 </h3>
                 <button
                   onClick={() => { if (!assigning) setAssignModalOpen(false); }}
@@ -924,14 +924,14 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                     <FolderPlus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                   </div>
                   <p className="text-sm font-medium text-foreground">
-                    {selectedFileIds.size} ملف محدد
+                    {t('course.filesSelectedCount', { count: selectedFileIds.size })}
                   </p>
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">اختر المقررات</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('course.selectCourses')}</label>
                   {assignSubjects.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">لا توجد مقررات أخرى متاحة</p>
+                    <p className="text-xs text-muted-foreground">{t('course.noOtherCourses')}</p>
                   ) : (
                     <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar rounded-lg border p-2">
                       {assignSubjects.map((s) => (
@@ -965,7 +965,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   ) : (
                     <FolderPlus className="h-4 w-4" />
                   )}
-                  اسناد
+                  {t('course.assign')}
                 </button>
               </div>
             </motion.div>
@@ -998,7 +998,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   <button
                     onClick={() => handleDownload(previewFile)}
                     className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-                    title="تحميل"
+                    title={t('common.download')}
                   >
                     <Download className="h-4 w-4" />
                   </button>

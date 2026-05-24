@@ -72,7 +72,7 @@ async function fetchWithRetry(
     }
   }
   clearTimeout(timeoutId);
-  throw lastError || new Error('فشل الاتصال بعد عدة محاولات');
+  throw lastError || new Error('Connection failed after multiple attempts');
 }
 
 // -------------------------------------------------------
@@ -449,7 +449,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         questionData = {
           type: 'boolean',
           question: currentQuestionText.trim(),
-          correct_answer: booleanCorrect ? 'صح' : 'خطأ',
+          correct_answer: booleanCorrect ? 'صح' : 'خطأ', // stored in Arabic for data consistency
         };
         break;
       }
@@ -776,7 +776,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${bank.name}_أسئلة.json`;
+    a.download = `${t('questionBank.exportFileName', { name: bank.name })}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1080,14 +1080,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <Database className="h-6 w-6 text-sky-700 dark:text-sky-300" />
             {t('nav.questionBank')}
           </h2>
-          <p className="text-muted-foreground mt-1">إدارة بنوك الأسئلة المرتبطة بالمقررات</p>
+          <p className="text-muted-foreground mt-1">{t('questionBank.manageBanksDesc')}</p>
         </div>
         <button
           onClick={() => setCreateModalOpen(true)}
           className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <Plus className="h-4 w-4" />
-          إنشاء بنك جديد
+          {t('questionBank.createNewBank')}
         </button>
       </motion.div>
 
@@ -1099,7 +1099,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="بحث في بنوك الأسئلة..."
+            placeholder={t('questionBank.searchBanksPlaceholder')}
             className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir={dir}
           />
@@ -1112,7 +1112,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             className="rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors appearance-none cursor-pointer min-w-[160px]"
             dir={dir}
           >
-            <option value="all">جميع المقررات</option>
+            <option value="all">{t('questionBank.allSubjects')}</option>
             {subjects.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
@@ -1129,7 +1129,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{banks.length}</p>
-              <p className="text-xs text-muted-foreground">بنك أسئلة</p>
+              <p className="text-xs text-muted-foreground">{t('questionBank.banksCount')}</p>
             </div>
           </div>
         </div>
@@ -1140,7 +1140,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{banks.reduce((sum, b) => sum + (b.question_count || 0), 0)}</p>
-              <p className="text-xs text-muted-foreground">إجمالي الأسئلة</p>
+              <p className="text-xs text-muted-foreground">{t('questionBank.totalQuestions')}</p>
             </div>
           </div>
         </div>
@@ -1151,7 +1151,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{subjects.length}</p>
-              <p className="text-xs text-muted-foreground">مقرر مرتبط</p>
+              <p className="text-xs text-muted-foreground">{t('questionBank.linkedSubject')}</p>
             </div>
           </div>
         </div>
@@ -1163,14 +1163,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted/50 mb-4">
             <Database className="h-8 w-8 text-muted-foreground" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد بنوك أسئلة</p>
-          <p className="text-sm text-muted-foreground mb-4">ابدأ بإنشاء بنك أسئلة مرتبط بأحد مقرراتك</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('questionBank.noBanks')}</p>
+          <p className="text-sm text-muted-foreground mb-4">{t('questionBank.noBanksDesc')}</p>
           <button
             onClick={() => setCreateModalOpen(true)}
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
-            إنشاء بنك جديد
+            {t('questionBank.createNewBank')}
           </button>
         </motion.div>
       ) : (
@@ -1211,7 +1211,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                       <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <ListChecks className="h-3 w-3" />
-                          {bank.question_count || 0} سؤال
+                          {t('questionBank.questionsCount', { count: bank.question_count || 0 })}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {formatDate(bank.created_at)}
@@ -1248,27 +1248,27 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-bold text-foreground truncate">{selectedBank.name}</h2>
             <p className="text-sm text-muted-foreground">
-              {selectedBank.subject_name} · {questions.length} سؤال
+              {t('questionBank.subjectQuestions', { subject: selectedBank.subject_name || '', count: questions.length })}
             </p>
           </div>
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleOpenEditBank}
               className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-              title="تعديل"
+              title={t('common.edit')}
             >
               <Pencil className="h-4 w-4" />
             </button>
             <button
               onClick={() => handleExportBank(selectedBank as QuestionBank & { questions: BankQuestion[] })}
               className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-              title="تصدير"
+              title={t('common.export')}
             >
               <Download className="h-4 w-4" />
             </button>
             <label
               className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-              title="استيراد أسئلة من ملف JSON"
+              title={t('questionBank.importJsonTitle')}
             >
               <Upload className="h-4 w-4" />
               <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
@@ -1276,17 +1276,17 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <button
               onClick={() => { setAiModalOpen(true); loadCourseFiles(selectedBank.subject_id); }}
               className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-2.5 text-xs font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
-              title="إنشاء أسئلة من ملف المقرر"
+              title={t('questionBank.generateFromFileTitle')}
             >
               <Sparkles className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">إنشاء بالذكاء</span>
+              <span className="hidden sm:inline">{t('questionBank.generateWithAiShort')}</span>
             </button>
             <button
               onClick={() => setAddQuestionModalOpen(true)}
               className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-sky-700 text-white px-2.5 text-xs font-medium hover:bg-sky-800 transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
-              إضافة سؤال
+              {t('questionBank.addQuestion')}
             </button>
           </div>
         </motion.div>
@@ -1304,22 +1304,22 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
               <ListChecks className="h-7 w-7 text-muted-foreground" />
             </div>
-            <p className="text-sm font-semibold text-foreground mb-1">لا توجد أسئلة بعد</p>
-            <p className="text-xs text-muted-foreground mb-3">أضف أسئلة يدوياً أو أنشئها من ملفات المقرر بالذكاء الاصطناعي</p>
+            <p className="text-sm font-semibold text-foreground mb-1">{t('questionBank.noQuestionsYet')}</p>
+            <p className="text-xs text-muted-foreground mb-3">{t('questionBank.noQuestionsYetDesc')}</p>
             <div className="flex gap-2">
               <button
                 onClick={() => setAddQuestionModalOpen(true)}
                 className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-2 text-xs font-medium text-white hover:bg-sky-800 transition-colors"
               >
                 <Plus className="h-3.5 w-3.5" />
-                إضافة يدوية
+                {t('questionBank.addManually')}
               </button>
               <button
                 onClick={() => { setAiModalOpen(true); loadCourseFiles(selectedBank.subject_id); }}
                 className="flex items-center gap-1.5 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-3 py-2 text-xs font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                إنشاء بالذكاء
+                {t('questionBank.generateWithAiShort')}
               </button>
             </div>
           </motion.div>
@@ -1377,7 +1377,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                     )}
                     {q.type === 'completion' && q.correct_answer && (
                       <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                        الإجابة: {q.correct_answer}
+                        {t('questionBank.answerLabel')} {q.correct_answer}
                       </span>
                     )}
                     {q.type === 'matching' && q.pairs && (
@@ -1409,8 +1409,8 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <div className="flex items-center gap-2">
               <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-300" />
               <div>
-                <p className="text-sm font-medium text-sky-800 dark:text-sky-200">إنشاء اختبار من هذا البنك</p>
-                <p className="text-xs text-sky-600 dark:text-sky-400">انتقل لصفحة الاختبارات في المقرر لاستيراد الأسئلة</p>
+                <p className="text-sm font-medium text-sky-800 dark:text-sky-200">{t('questionBank.createQuizFromBank')}</p>
+                <p className="text-xs text-sky-600 dark:text-sky-400">{t('questionBank.createQuizFromBankDesc')}</p>
               </div>
             </div>
             <button
@@ -1418,7 +1418,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-2 text-xs font-medium text-white hover:bg-sky-800 transition-colors"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
-              الذهاب للمقرر
+              {t('questionBank.goToCourse')}
             </button>
           </div>
         </motion.div>
@@ -1450,7 +1450,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Database className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                إنشاء بنك أسئلة جديد
+                {t('questionBank.createNewBankTitle')}
               </h3>
               <button onClick={() => { if (!creatingBank) setCreateModalOpen(false); }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
                 <X className="h-4 w-4" />
@@ -1458,36 +1458,36 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">اسم بنك الأسئلة <span className="text-rose-500">*</span></label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.bankName')} <span className="text-rose-500">*</span></label>
                 <input
                   type="text"
                   value={bankName}
                   onChange={e => setBankName(e.target.value)}
-                  placeholder="مثال: أسئلة الفصل الأول"
+                  placeholder={t('questionBank.bankNameExample')}
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                   dir={dir}
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">المقرر <span className="text-rose-500">*</span></label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.subjectLabel')} <span className="text-rose-500">*</span></label>
                 <select
                   value={bankSubjectId}
                   onChange={e => setBankSubjectId(e.target.value)}
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors appearance-none cursor-pointer"
                   dir={dir}
                 >
-                  <option value="">اختر المقرر</option>
+                  <option value="">{t('questionBank.selectSubject')}</option>
                   {subjects.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.descriptionOptional')}</label>
                 <textarea
                   value={bankDescription}
                   onChange={e => setBankDescription(e.target.value)}
-                  placeholder="وصف اختياري لبنك الأسئلة..."
+                  placeholder={t('questionBank.bankDescriptionPlaceholder')}
                   rows={3}
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
                   dir={dir}
@@ -1498,7 +1498,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 disabled={creatingBank || !bankName.trim() || !bankSubjectId}
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-sky-700 py-2.5 text-sm font-medium text-white hover:bg-sky-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {creatingBank ? <><Loader2 className="h-4 w-4 animate-spin" /> جاري الإنشاء...</> : <><Plus className="h-4 w-4" /> إنشاء البنك</>}
+                {creatingBank ? <><Loader2 className="h-4 w-4 animate-spin" /> {t('questionBank.creating')}</> : <><Plus className="h-4 w-4" /> {t('questionBank.create')}</>}
               </button>
             </div>
           </motion.div>
@@ -1531,7 +1531,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Plus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                إضافة سؤال
+                {t('questionBank.addQuestion')}
               </h3>
               <button onClick={() => { if (!addingQuestion) { setAddQuestionModalOpen(false); resetQuestionForm(); } }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
                 <X className="h-4 w-4" />
@@ -1545,7 +1545,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 className="w-full mt-5 flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-3 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-50 hover:border-sky-400 transition-colors disabled:opacity-50"
               >
                 {addingQuestion ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                إضافة السؤال
+                {t('questionBank.addQuestionBtn')}
               </button>
             </div>
           </motion.div>
@@ -1578,7 +1578,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-violet-600 dark:text-violet-400" />
-                إنشاء أسئلة بالذكاء الاصطناعي
+                {t('questionBank.generateAiTitle')}
               </h3>
               <button onClick={() => { if (!generatingFromAi) { setAiModalOpen(false); setSelectedCourseFile(null); setCourseFiles([]); } }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
                 <X className="h-4 w-4" />
@@ -1587,7 +1587,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <div className="p-5 space-y-4">
               {/* Select file */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">اختر ملف من مقرراتك</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.selectCourseFileLabel')}</label>
                 {loadingCourseFiles ? (
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1595,7 +1595,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 ) : courseFiles.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border p-4 text-center">
                     <FolderOpen className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-xs text-muted-foreground">لا توجد ملفات (PDF/Word) في هذا المقرر</p>
+                    <p className="text-xs text-muted-foreground">{t('questionBank.noPdfWordFiles')}</p>
                   </div>
                 ) : (
                   <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
@@ -1619,7 +1619,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
               {/* Question types config */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">عدد الأسئلة حسب النوع</label>
+                <label className="text-sm font-medium text-foreground mb-2 block">{t('questionBank.questionCountByType')}</label>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { key: 'mcq' as const, label: t('quiz.typeMcq') },
@@ -1648,9 +1648,9 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-violet-600 py-2.5 text-sm font-medium text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {generatingFromAi ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> جاري إنشاء الأسئلة...</>
+                  <><Loader2 className="h-4 w-4 animate-spin" /> {t('questionBank.generatingQuestions')}</>
                 ) : (
-                  <><Sparkles className="h-4 w-4" /> إنشاء الأسئلة</>
+                  <><Sparkles className="h-4 w-4" /> {t('questionBank.generateQuestions')}</>
                 )}
               </button>
             </div>
@@ -1682,14 +1682,14 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             dir={dir}
           >
             <div className="flex items-center justify-between border-b p-5">
-              <h3 className="text-lg font-bold text-foreground">تعديل بنك الأسئلة</h3>
+              <h3 className="text-lg font-bold text-foreground">{t('questionBank.editBank')}</h3>
               <button onClick={() => { if (!editingBank) setEditModalOpen(false); }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">اسم بنك الأسئلة</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.editBankName')}</label>
                 <input
                   type="text"
                   value={editBankName}
@@ -1699,7 +1699,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('questionBank.editBankDesc')}</label>
                 <textarea
                   value={editBankDesc}
                   onChange={e => setEditBankDesc(e.target.value)}
@@ -1714,7 +1714,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-sky-700 py-2.5 text-sm font-medium text-white hover:bg-sky-800 transition-colors disabled:opacity-50"
               >
                 {editingBank ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                حفظ التعديلات
+                {t('common.saveChanges')}
               </button>
             </div>
           </motion.div>

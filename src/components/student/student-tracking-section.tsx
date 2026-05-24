@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import type { Score, Submission, Assignment, Subject } from '@/lib/types';
+import { useI18n } from '@/lib/i18n/context';
 import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 
@@ -139,6 +140,7 @@ export default function StudentTrackingSection({
   submissions,
   assignments,
 }: StudentTrackingSectionProps) {
+  const { t } = useI18n();
   // ─── Fetch subjects for attendance by subject ───
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectNames, setSubjectNames] = useState<Record<string, string>>({});
@@ -186,7 +188,7 @@ export default function StudentTrackingSection({
     const subjectMap = new Map<string, { name: string; total: number; attended: number }>();
 
     attendanceSessions.forEach(session => {
-      const name = subjectNames[session.subject_id] || 'مقرر غير معروف';
+      const name = subjectNames[session.subject_id] || t('student.trackingUnknownSubject');
       const existing = subjectMap.get(session.subject_id) || { name, total: 0, attended: 0 };
       existing.total += 1;
       subjectMap.set(session.subject_id, existing);
@@ -229,11 +231,11 @@ export default function StudentTrackingSection({
     // Attendance activities
     attendanceRecords.forEach(record => {
       const session = attendanceSessions.find(s => s.id === record.session_id);
-      const subjectName = session ? (subjectNames[session.subject_id] || 'مقرر') : 'مقرر';
+      const subjectName = session ? (subjectNames[session.subject_id] || t('student.trackingCourse')) : t('student.trackingCourse');
       activities.push({
         date: record.checked_in_at,
         type: 'attendance',
-        title: 'تسجيل حضور',
+        title: t('student.trackingActivityAttendanceRecord'),
         detail: subjectName,
       });
     });
@@ -243,7 +245,7 @@ export default function StudentTrackingSection({
       activities.push({
         date: score.completed_at,
         type: 'quiz',
-        title: 'إكمال اختبار',
+        title: t('student.trackingActivityQuizComplete'),
         detail: `${score.quiz_title} — ${score.score}/${score.total}`,
       });
     });
@@ -254,8 +256,8 @@ export default function StudentTrackingSection({
       activities.push({
         date: sub.submitted_at,
         type: 'assignment',
-        title: 'تسليم مهمة',
-        detail: assignment?.title || 'مهمة',
+        title: t('student.trackingActivityAssignmentSubmit'),
+        detail: assignment?.title || t('student.trackingCourse'),
       });
     });
 
@@ -272,11 +274,11 @@ export default function StudentTrackingSection({
       .slice(0, 10)
       .map(record => {
         const session = attendanceSessions.find(s => s.id === record.session_id);
-        const subjectName = session ? (subjectNames[session.subject_id] || 'مقرر غير معروف') : 'مقرر غير معروف';
+        const subjectName = session ? (subjectNames[session.subject_id] || t('student.trackingUnknownSubject')) : t('student.trackingUnknownSubject');
         return {
           date: record.checked_in_at,
           subjectName,
-          status: 'حاضر' as const,
+          status: t('student.trackingPresentBadge'),
         };
       });
   }, [attendanceRecords, attendanceSessions, subjectNames]);
@@ -294,8 +296,8 @@ export default function StudentTrackingSection({
           <Activity className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">تتبع الطالب</h1>
-          <p className="text-sm text-muted-foreground">متابعة الحضور والأداء والنشاط</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('student.trackingTitle')}</h1>
+          <p className="text-sm text-muted-foreground">{t('student.trackingSubtitle')}</p>
         </div>
       </motion.div>
 
@@ -305,27 +307,27 @@ export default function StudentTrackingSection({
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Clock className="h-5 w-5 text-sky-600" />
-              نظرة عامة على الحضور
+              {t('student.trackingAttendanceOverview')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col sm:flex-row items-center gap-6">
               {/* Circular progress */}
-              <CircularProgress value={attendanceStats.rate} label="نسبة الحضور" />
+              <CircularProgress value={attendanceStats.rate} label={t('student.trackingAttendanceRate')} />
 
               {/* Stats cards */}
               <div className="grid grid-cols-3 gap-4 flex-1 w-full">
                 <div className="text-center p-3 rounded-xl bg-sky-50/50 border border-sky-100/50">
                   <p className="text-2xl font-bold text-sky-800">{attendanceStats.totalSessions}</p>
-                  <p className="text-xs text-muted-foreground">إجمالي الجلسات</p>
+                  <p className="text-xs text-muted-foreground">{t('student.trackingTotalSessions')}</p>
                 </div>
                 <div className="text-center p-3 rounded-xl bg-teal-50/50 border border-teal-100/50">
                   <p className="text-2xl font-bold text-teal-700">{attendanceStats.attended}</p>
-                  <p className="text-xs text-muted-foreground">حاضر</p>
+                  <p className="text-xs text-muted-foreground">{t('student.trackingPresent')}</p>
                 </div>
                 <div className="text-center p-3 rounded-xl bg-red-50/50 border border-red-100/50">
                   <p className="text-2xl font-bold text-red-600">{attendanceStats.absent}</p>
-                  <p className="text-xs text-muted-foreground">غائب</p>
+                  <p className="text-xs text-muted-foreground">{t('student.trackingAbsent')}</p>
                 </div>
               </div>
             </div>
@@ -341,14 +343,14 @@ export default function StudentTrackingSection({
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <BookOpen className="h-5 w-5 text-sky-600" />
-                الحضور حسب المقرر
+                {t('student.trackingAttendanceBySubject')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {attendanceBySubject.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">لا توجد بيانات حضور بعد</p>
+                  <p className="text-sm">{t('student.trackingNoAttendanceData')}</p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar">
@@ -363,7 +365,7 @@ export default function StudentTrackingSection({
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {item.attended} من {item.total} جلسة
+                          {t('student.trackingOutOf', { attended: item.attended, total: item.total })}
                         </p>
                       </div>
                     </div>
@@ -380,7 +382,7 @@ export default function StudentTrackingSection({
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Award className="h-5 w-5 text-sky-600" />
-                ملخص الأداء
+                {t('student.trackingPerformanceSummary')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -391,7 +393,7 @@ export default function StudentTrackingSection({
                     <BarChart3 className="h-5 w-5 text-sky-700" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">متوسط درجات الاختبارات</p>
+                    <p className="text-sm font-medium text-gray-900">{t('student.trackingQuizScoreAvg')}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Progress value={performanceStats.avgScore} className="h-2 flex-1" />
                       <span className="text-xs font-bold text-sky-700">
@@ -407,7 +409,7 @@ export default function StudentTrackingSection({
                     <ClipboardList className="h-5 w-5 text-teal-700" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">المهام المكتملة</p>
+                    <p className="text-sm font-medium text-gray-900">{t('student.trackingCompletedAssignments')}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Progress
                         value={performanceStats.totalAssignments > 0 ? (performanceStats.completedAssignments / performanceStats.totalAssignments) * 100 : 0}
@@ -426,7 +428,7 @@ export default function StudentTrackingSection({
                     <FileText className="h-5 w-5 text-amber-700" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">الاختبارات المكتملة</p>
+                    <p className="text-sm font-medium text-gray-900">{t('student.trackingCompletedQuizzes')}</p>
                     <p className="text-xl font-bold text-amber-700">{performanceStats.totalScores}</p>
                   </div>
                 </div>
@@ -437,7 +439,7 @@ export default function StudentTrackingSection({
                     <TrendingUp className="h-5 w-5 text-white" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">التقدم العام</p>
+                    <p className="text-sm font-medium text-gray-900">{t('student.trackingOverallProgress')}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Progress
                         value={(() => {
@@ -467,14 +469,14 @@ export default function StudentTrackingSection({
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-sky-600" />
-                سجل الحضور الأخير
+                {t('student.trackingRecentAttendance')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {recentAttendance.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Calendar className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">لا يوجد سجل حضور بعد</p>
+                  <p className="text-sm">{t('student.trackingNoAttendanceRecord')}</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
@@ -490,7 +492,7 @@ export default function StudentTrackingSection({
                         </p>
                       </div>
                       <Badge variant="secondary" className="bg-teal-50 text-teal-700 border-teal-100 text-xs">
-                        {item.status}
+                        {t('student.trackingPresentBadge')}
                       </Badge>
                     </div>
                   ))}
@@ -506,14 +508,14 @@ export default function StudentTrackingSection({
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Activity className="h-5 w-5 text-sky-600" />
-                سجل النشاط
+              {t('student.trackingActivityTimeline')}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {activityTimeline.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Activity className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">لا يوجد نشاط بعد</p>
+                  <p className="text-sm">{t('student.trackingNoActivity')}</p>
                 </div>
               ) : (
                 <div className="relative space-y-0 max-h-72 overflow-y-auto custom-scrollbar">
@@ -532,9 +534,9 @@ export default function StudentTrackingSection({
                       assignment: 'bg-amber-50 ring-amber-100',
                     };
                     const badgeMap = {
-                      attendance: { label: 'حضور', className: 'bg-teal-50 text-teal-700 border-teal-100' },
-                      quiz: { label: 'اختبار', className: 'bg-sky-50 text-sky-700 border-sky-100' },
-                      assignment: { label: 'مهمة', className: 'bg-amber-50 text-amber-700 border-amber-100' },
+                      attendance: { label: t('student.trackingAttendanceBadge'), className: 'bg-teal-50 text-teal-700 border-teal-100' },
+                      quiz: { label: t('student.trackingQuizBadge'), className: 'bg-sky-50 text-sky-700 border-sky-100' },
+                      assignment: { label: t('student.trackingAssignmentBadge'), className: 'bg-amber-50 text-amber-700 border-amber-100' },
                     };
 
                     return (

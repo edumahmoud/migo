@@ -80,7 +80,7 @@ interface PerformanceLevelConfig {
 const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
   {
     key: 'excellent',
-    label: 'ممتاز',
+    label: 'teacher.trackingLevelExcellent',
     color: 'bg-emerald-500',
     bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
     ringColor: 'ring-emerald-100',
@@ -89,7 +89,7 @@ const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
   },
   {
     key: 'good',
-    label: 'جيد',
+    label: 'teacher.trackingLevelGood',
     color: 'bg-sky-500',
     bgColor: 'bg-sky-50 dark:bg-sky-950/30',
     ringColor: 'ring-sky-100',
@@ -98,7 +98,7 @@ const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
   },
   {
     key: 'average',
-    label: 'متوسط',
+    label: 'teacher.trackingLevelAverage',
     color: 'bg-amber-500',
     bgColor: 'bg-amber-50 dark:bg-amber-950/30',
     ringColor: 'ring-amber-100',
@@ -107,7 +107,7 @@ const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
   },
   {
     key: 'weak',
-    label: 'ضعيف',
+    label: 'teacher.trackingLevelWeak',
     color: 'bg-rose-500',
     bgColor: 'bg-rose-50 dark:bg-rose-950/30',
     ringColor: 'ring-rose-100',
@@ -134,7 +134,7 @@ interface PercentageRangeConfig {
 const PERCENTAGE_RANGES: PercentageRangeConfig[] = [
   {
     key: '90-100',
-    label: 'ممتاز',
+    label: 'teacher.trackingRangeExcellent',
     range: '90% - 100%',
     color: 'bg-emerald-500',
     bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
@@ -143,7 +143,7 @@ const PERCENTAGE_RANGES: PercentageRangeConfig[] = [
   },
   {
     key: '80-89',
-    label: 'جيد جداً',
+    label: 'teacher.trackingRangeVeryGood',
     range: '80% - 89%',
     color: 'bg-sky-500',
     bgColor: 'bg-sky-50 dark:bg-sky-950/30',
@@ -152,7 +152,7 @@ const PERCENTAGE_RANGES: PercentageRangeConfig[] = [
   },
   {
     key: '70-79',
-    label: 'جيد',
+    label: 'teacher.trackingRangeGood',
     range: '70% - 79%',
     color: 'bg-teal-500',
     bgColor: 'bg-teal-50 dark:bg-teal-950/30',
@@ -161,7 +161,7 @@ const PERCENTAGE_RANGES: PercentageRangeConfig[] = [
   },
   {
     key: '60-69',
-    label: 'مقبول',
+    label: 'teacher.trackingRangeAcceptable',
     range: '60% - 69%',
     color: 'bg-amber-500',
     bgColor: 'bg-amber-50 dark:bg-amber-950/30',
@@ -170,8 +170,8 @@ const PERCENTAGE_RANGES: PercentageRangeConfig[] = [
   },
   {
     key: 'below-60',
-    label: 'ضعيف',
-    range: 'أقل من 60%',
+    label: 'teacher.trackingRangeWeak',
+    range: 'teacher.trackingBelow60',
     color: 'bg-rose-500',
     bgColor: 'bg-rose-50 dark:bg-rose-950/30',
     textColor: 'text-rose-700 dark:text-rose-300',
@@ -196,7 +196,7 @@ interface EfficiencyLevelConfig {
 const EFFICIENCY_LEVELS: EfficiencyLevelConfig[] = [
   {
     key: 'high',
-    label: 'عالي الكفاءة',
+    label: 'teacher.trackingEfficiencyHigh',
     color: 'text-emerald-600 dark:text-emerald-400',
     bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
     textColor: 'text-emerald-700 dark:text-emerald-300',
@@ -204,7 +204,7 @@ const EFFICIENCY_LEVELS: EfficiencyLevelConfig[] = [
   },
   {
     key: 'medium',
-    label: 'متوسط الكفاءة',
+    label: 'teacher.trackingEfficiencyMedium',
     color: 'text-amber-600 dark:text-amber-400',
     bgColor: 'bg-amber-50 dark:bg-amber-950/30',
     textColor: 'text-amber-700 dark:text-amber-300',
@@ -212,7 +212,7 @@ const EFFICIENCY_LEVELS: EfficiencyLevelConfig[] = [
   },
   {
     key: 'low',
-    label: 'منخفض الكفاءة',
+    label: 'teacher.trackingEfficiencyLow',
     color: 'text-rose-600 dark:text-rose-400',
     bgColor: 'bg-rose-50 dark:bg-rose-950/30',
     textColor: 'text-rose-700 dark:text-rose-300',
@@ -324,11 +324,11 @@ interface StudentPerformanceData {
 type SortOption = 'name' | 'performance' | 'attendance' | 'quiz' | 'efficiency';
 
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [
-  { key: 'name', label: 'الاسم' },
-  { key: 'performance', label: 'الأداء العام' },
-  { key: 'attendance', label: 'الحضور' },
-  { key: 'quiz', label: 'الاختبارات' },
-  { key: 'efficiency', label: 'الكفاءة' },
+  { key: 'name', label: 'teacher.trackingSortName' },
+  { key: 'performance', label: 'teacher.trackingSortPerformance' },
+  { key: 'attendance', label: 'teacher.trackingSortAttendance' },
+  { key: 'quiz', label: 'teacher.trackingSortQuiz' },
+  { key: 'efficiency', label: 'teacher.trackingSortEfficiency' },
 ];
 
 // -------------------------------------------------------
@@ -361,7 +361,7 @@ export default function TeacherStudentTrackingSection({
     // Also derive from quiz titles as fallback
     quizzes.forEach(q => {
       if (q.subject_id && !map.has(q.subject_id)) {
-        map.set(q.subject_id, q.title || 'مقرر');
+        map.set(q.subject_id, q.title || t('teacher.trackingCourse'));
       }
     });
     return map;
@@ -417,7 +417,7 @@ export default function TeacherStudentTrackingSection({
         if (!subjectMap.has(subjectId)) {
           subjectMap.set(subjectId, {
             subjectId,
-            subjectName: subjectNameMap.get(subjectId) || 'مقرر',
+            subjectName: subjectNameMap.get(subjectId) || t('teacher.trackingCourse'),
             quizAvg: 0,
             attendanceRate: 0,
             quizCount: 0,
@@ -445,7 +445,7 @@ export default function TeacherStudentTrackingSection({
         if (!subjectMap.has(subjectId)) {
           subjectMap.set(subjectId, {
             subjectId,
-            subjectName: subjectNameMap.get(subjectId) || 'مقرر',
+            subjectName: subjectNameMap.get(subjectId) || t('teacher.trackingCourse'),
             quizAvg: 0,
             attendanceRate: 0,
             quizCount: 0,
@@ -475,7 +475,7 @@ export default function TeacherStudentTrackingSection({
         if (!subjectMap.has(subjectId)) {
           subjectMap.set(subjectId, {
             subjectId,
-            subjectName: subjectNameMap.get(subjectId) || 'مقرر',
+            subjectName: subjectNameMap.get(subjectId) || t('teacher.trackingCourse'),
             quizAvg: 0,
             attendanceRate: 0,
             quizCount: 0,
@@ -504,7 +504,7 @@ export default function TeacherStudentTrackingSection({
         recentActivities.push({
           date: score.completed_at,
           type: 'quiz',
-          title: 'إكمال اختبار',
+          title: t('teacher.trackingActivityQuizComplete'),
           detail: `${score.quiz_title} — ${score.score}/${score.total}`,
         });
       });
@@ -512,11 +512,11 @@ export default function TeacherStudentTrackingSection({
       // Attendance activities
       studentRecords.slice(0, 5).forEach(record => {
         const session = teacherAttendanceSessions.find(s => s.id === record.session_id);
-        const subjectName = session ? subjectNameMap.get(session.subject_id) || 'مقرر' : 'جلسة حضور';
+        const subjectName = session ? subjectNameMap.get(session.subject_id) || t('teacher.trackingCourse') : t('teacher.trackingAttendanceSession');
         recentActivities.push({
           date: session ? session.id : new Date().toISOString(), // Best available date
           type: 'attendance',
-          title: 'تسجيل حضور',
+          title: t('teacher.trackingActivityAttendanceRecord'),
           detail: subjectName,
         });
       });
@@ -527,8 +527,8 @@ export default function TeacherStudentTrackingSection({
         recentActivities.push({
           date: new Date().toISOString(), // Submissions don't have submitted_at in this data shape
           type: 'assignment',
-          title: 'تسليم مهمة',
-          detail: assignment ? `مهمة (${sub.score !== null ? `${sub.score}/${assignment.max_score}` : 'قيد التصحيح'})` : 'مهمة',
+          title: t('teacher.trackingActivityAssignmentSubmit'),
+          detail: assignment ? `${t('teacher.trackingTaskLabel')} (${sub.score !== null ? `${sub.score}/${assignment.max_score}` : t('teacher.trackingGrading')})` : t('teacher.trackingTaskLabel'),
         });
       });
 
@@ -554,7 +554,8 @@ export default function TeacherStudentTrackingSection({
         subjectPerformances,
       };
     });
-  }, [students, scores, teacherSubmissions, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords, quizzes, subjectNameMap]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, scores, teacherSubmissions, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords, quizzes, subjectNameMap, t]);
 
   // ─── Overview stats ───
   const overviewStats = useMemo(() => {
@@ -644,16 +645,16 @@ export default function TeacherStudentTrackingSection({
   // ─── Export CSV ───
   const handleExport = useCallback(() => {
     const headers = [
-      'الاسم',
-      'البريد الإلكتروني',
-      'متوسط الاختبارات',
-      'نسبة الحضور',
-      'إكمال المهام',
-      'الأداء العام',
-      'التصنيف',
-      'النسبة المئوية',
-      'الكفاءة',
-      'مستوى الكفاءة',
+      t('teacher.trackingCsvName'),
+      t('teacher.trackingCsvEmail'),
+      t('teacher.trackingCsvQuizAvg'),
+      t('teacher.trackingCsvAttendanceRate'),
+      t('teacher.trackingCsvAssignmentCompletion'),
+      t('teacher.trackingCsvOverallPerformance'),
+      t('teacher.trackingCsvClassification'),
+      t('teacher.trackingCsvPercentage'),
+      t('teacher.trackingCsvEfficiency'),
+      t('teacher.trackingCsvEfficiencyLevel'),
     ];
 
     const rows = studentPerformanceData.map(d => [
@@ -663,10 +664,10 @@ export default function TeacherStudentTrackingSection({
       Math.round(d.attendanceRate) + '%',
       Math.round(d.assignmentCompletion) + '%',
       Math.round(d.overallPerformance) + '%',
-      getPerformanceLevelConfig(d.level).label,
-      d.percentageRange === 'below-60' ? 'أقل من 60%' : d.percentageRange.replace('-', ' - ') + '%',
+      t(getPerformanceLevelConfig(d.level).label),
+      d.percentageRange === 'below-60' ? t('teacher.trackingBelow60') : d.percentageRange.replace('-', ' - ') + '%',
       Math.round(d.efficiency) + '%',
-      getEfficiencyLevelConfig(d.efficiencyLevel).label,
+      t(getEfficiencyLevelConfig(d.efficiencyLevel).label),
     ]);
 
     // BOM for Arabic UTF-8 support
@@ -680,7 +681,8 @@ export default function TeacherStudentTrackingSection({
     link.download = `student_performance_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  }, [studentPerformanceData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentPerformanceData, t]);
 
   return (
     <motion.div
@@ -697,7 +699,7 @@ export default function TeacherStudentTrackingSection({
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{t('nav.studentTracking')}</h1>
-            <p className="text-sm text-muted-foreground">متابعة أداء وحضور وتقدم وكفاءة الطلاب</p>
+            <p className="text-sm text-muted-foreground">{t('teacher.trackingSubtitle')}</p>
           </div>
         </div>
         {/* Export button */}
@@ -708,7 +710,7 @@ export default function TeacherStudentTrackingSection({
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-l from-sky-600 to-teal-600 text-white text-sm font-medium shadow-md shadow-sky-600/20 hover:shadow-lg hover:shadow-sky-600/30 transition-shadow"
         >
           <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">تصدير البيانات</span>
+          <span className="hidden sm:inline">{t('teacher.trackingExportData')}</span>
         </motion.button>
       </motion.div>
 
@@ -724,7 +726,7 @@ export default function TeacherStudentTrackingSection({
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{overviewStats.totalStudents}</p>
-                  <p className="text-xs text-muted-foreground">إجمالي الطلاب</p>
+                  <p className="text-xs text-muted-foreground">{t('teacher.trackingTotalStudents')}</p>
                 </div>
               </div>
             </CardContent>
@@ -739,7 +741,7 @@ export default function TeacherStudentTrackingSection({
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{Math.round(overviewStats.avgPerformance)}%</p>
-                  <p className="text-xs text-muted-foreground">متوسط الأداء</p>
+                  <p className="text-xs text-muted-foreground">{t('teacher.trackingAvgPerformance')}</p>
                 </div>
               </div>
             </CardContent>
@@ -754,7 +756,7 @@ export default function TeacherStudentTrackingSection({
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{Math.round(overviewStats.avgAttendance)}%</p>
-                  <p className="text-xs text-muted-foreground">معدل الحضور</p>
+                  <p className="text-xs text-muted-foreground">{t('teacher.trackingAttendanceRate')}</p>
                 </div>
               </div>
             </CardContent>
@@ -769,7 +771,7 @@ export default function TeacherStudentTrackingSection({
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-violet-700">{Math.round(overviewStats.avgEfficiency)}%</p>
-                  <p className="text-xs text-muted-foreground">متوسط الكفاءة</p>
+                  <p className="text-xs text-muted-foreground">{t('teacher.trackingAvgEfficiency')}</p>
                 </div>
               </div>
             </CardContent>
@@ -784,7 +786,7 @@ export default function TeacherStudentTrackingSection({
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{overviewStats.topPerformers}</p>
-                  <p className="text-xs text-muted-foreground">ممتاز</p>
+                  <p className="text-xs text-muted-foreground">{t('teacher.trackingTopPerformers')}</p>
                 </div>
               </div>
             </CardContent>
@@ -799,7 +801,7 @@ export default function TeacherStudentTrackingSection({
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Filter className="h-5 w-5 text-sky-600" />
-                تصنيف الطلاب حسب الأداء
+                {t('teacher.trackingClassificationByPerformance')}
               </CardTitle>
               {/* Tab switcher */}
               <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-0.5">
@@ -811,7 +813,7 @@ export default function TeacherStudentTrackingSection({
                       : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
                   }`}
                 >
-                  حسب المستوى
+                  {t('teacher.trackingByLevel')}
                 </button>
                 <button
                   onClick={() => setActiveFilterTab('range')}
@@ -821,7 +823,7 @@ export default function TeacherStudentTrackingSection({
                       : 'text-gray-500 dark:text-gray-400 hover:text-gray-700'
                   }`}
                 >
-                  حسب النسبة
+                  {t('teacher.trackingByPercentage')}
                 </button>
               </div>
             </div>
@@ -856,7 +858,7 @@ export default function TeacherStudentTrackingSection({
                             {count}
                           </span>
                           <span className={`text-sm font-medium ${isActive ? level.textColor : 'text-gray-500 dark:text-gray-400'}`}>
-                            {level.label}
+                            {t(level.label)}
                           </span>
                           <span className={`text-xs ${isActive ? level.textColor : 'text-gray-400'}`}>
                             {level.key === 'excellent' ? '85%+' : level.key === 'good' ? '70-84%' : level.key === 'average' ? '50-69%' : '<50%'}
@@ -902,10 +904,10 @@ export default function TeacherStudentTrackingSection({
                             {count}
                           </span>
                           <span className={`text-xs font-medium ${isActive ? range.textColor : 'text-gray-500 dark:text-gray-400'}`}>
-                            {range.label}
+                            {t(range.label)}
                           </span>
                           <span className={`text-[10px] ${isActive ? range.textColor : 'text-gray-400'}`}>
-                            {range.range}
+                            {range.key === 'below-60' ? t(range.range) : range.range}
                           </span>
                         </motion.button>
                       );
@@ -916,7 +918,7 @@ export default function TeacherStudentTrackingSection({
                   <div className="mt-2 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 dark:from-gray-800/50 to-white dark:to-card border border-gray-100/80 dark:border-gray-700">
                     <div className="flex items-center gap-2 mb-3">
                       <BarChart3 className="h-4 w-4 text-sky-600" />
-                      <span className="text-sm font-medium text-gray-900">توزيع الأداء</span>
+                      <span className="text-sm font-medium text-gray-900">{t('teacher.trackingPerformanceDistribution')}</span>
                     </div>
                     <div className="space-y-2.5">
                       {PERCENTAGE_RANGES.map(range => {
@@ -925,7 +927,7 @@ export default function TeacherStudentTrackingSection({
                         return (
                           <div key={range.key} className="flex items-center gap-3">
                             <span className="text-[11px] font-medium text-gray-600 min-w-[70px] text-left">
-                              {range.range}
+                              {range.key === 'below-60' ? t(range.range) : range.range}
                             </span>
                             <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
                               <motion.div
@@ -957,14 +959,14 @@ export default function TeacherStudentTrackingSection({
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-3 flex items-center gap-2 flex-wrap"
               >
-                <span className="text-xs text-muted-foreground">عرض:</span>
+                <span className="text-xs text-muted-foreground">{t('teacher.trackingShowing')}</span>
                 {filterLevel !== 'all' && (
                   <Badge
                     variant="secondary"
                     className={`${getPerformanceLevelConfig(filterLevel).bgColor} ${getPerformanceLevelConfig(filterLevel).textColor} cursor-pointer`}
                     onClick={() => setFilterLevel('all')}
                   >
-                    {getPerformanceLevelConfig(filterLevel).label} ({classificationCounts[filterLevel]})
+                    {t(getPerformanceLevelConfig(filterLevel).label)} ({classificationCounts[filterLevel]})
                     <XCircle className="h-3 w-3 ms-1" />
                   </Badge>
                 )}
@@ -974,7 +976,7 @@ export default function TeacherStudentTrackingSection({
                     className={`${getPercentageRangeConfig(filterRange).bgColor} ${getPercentageRangeConfig(filterRange).textColor} cursor-pointer`}
                     onClick={() => setFilterRange('all')}
                   >
-                    {getPercentageRangeConfig(filterRange).label} ({percentageRangeDistribution[filterRange]})
+                    {t(getPercentageRangeConfig(filterRange).label)} ({percentageRangeDistribution[filterRange]})
                     <XCircle className="h-3 w-3 ms-1" />
                   </Badge>
                 )}
@@ -982,7 +984,7 @@ export default function TeacherStudentTrackingSection({
                   onClick={() => { setFilterLevel('all'); setFilterRange('all'); }}
                   className="text-xs text-sky-600 hover:text-sky-700 font-medium"
                 >
-                  عرض الكل
+                  {t('teacher.trackingViewAll')}
                 </button>
               </motion.div>
             )}
@@ -997,9 +999,9 @@ export default function TeacherStudentTrackingSection({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Users className="h-5 w-5 text-sky-600" />
-                قائمة الطلاب
+                {t('teacher.trackingStudentList')}
                 <span className="text-sm font-normal text-muted-foreground">
-                  ({filteredStudents.length} طالب)
+                  ({t('teacher.trackingStudentCount', { count: filteredStudents.length })})
                 </span>
               </CardTitle>
 
@@ -1009,7 +1011,7 @@ export default function TeacherStudentTrackingSection({
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <input
                     type="text"
-                    placeholder="بحث عن طالب..."
+                    placeholder={t('teacher.trackingSearchStudent')}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="w-full sm:w-48 h-9 pr-9 pl-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 transition-all"
@@ -1027,7 +1029,7 @@ export default function TeacherStudentTrackingSection({
                   >
                     {SORT_OPTIONS.map(opt => (
                       <option key={opt.key} value={opt.key}>
-                        ترتيب: {opt.label}
+                        {t('teacher.trackingSortBy')} {t(opt.label)}
                       </option>
                     ))}
                   </select>
@@ -1041,10 +1043,10 @@ export default function TeacherStudentTrackingSection({
               <div className="text-center py-12 text-muted-foreground">
                 <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
                 <p className="text-sm font-medium">
-                  {students.length === 0 ? 'لا يوجد طلاب بعد' : 'لا توجد نتائج مطابقة'}
+                  {students.length === 0 ? t('teacher.trackingNoStudentsYet') : t('teacher.trackingNoMatchingResults')}
                 </p>
                 <p className="text-xs mt-1">
-                  {students.length === 0 ? 'قم بربط الطلاب لبدء تتبع أدائهم' : 'جرّب تغيير معايير البحث أو التصفية'}
+                  {students.length === 0 ? t('teacher.trackingLinkStudentsToTrack') : t('teacher.trackingTryDifferentFilters')}
                 </p>
               </div>
             ) : (
@@ -1081,6 +1083,7 @@ function EfficiencyGauge({
   efficiencyLevel: EfficiencyLevel;
   classAvg: number;
 }) {
+  const { t } = useI18n();
   const config = getEfficiencyLevelConfig(efficiencyLevel);
   const displayEfficiency = Math.min(efficiency, 150);
   const circumference = 2 * Math.PI * 40; // radius 40
@@ -1138,19 +1141,19 @@ function EfficiencyGauge({
           <span className="text-lg font-bold" style={{ color: strokeColor }}>
             {Math.round(efficiency)}%
           </span>
-          <span className="text-[9px] text-gray-400">كفاءة</span>
+          <span className="text-[9px] text-gray-400">{t('teacher.trackingEfficiency')}</span>
         </div>
       </div>
       <Badge
         variant="secondary"
         className={`${config.bgColor} ${config.textColor} text-[10px] px-2 py-0.5 border-0 font-bold`}
       >
-        {config.label}
+        {t(config.label)}
       </Badge>
       {classAvg > 0 && (
         <div className="flex items-center gap-1 text-[10px] text-gray-400">
           <Target className="h-3 w-3" />
-          <span>متوسط الفصل: {Math.round(classAvg)}%</span>
+          <span>{t('teacher.trackingClassAvg', { value: Math.round(classAvg) })}</span>
         </div>
       )}
     </div>
@@ -1161,6 +1164,7 @@ function EfficiencyGauge({
 // Subject Performance Mini Card
 // -------------------------------------------------------
 function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
+  const { t } = useI18n();
   return (
     <div className="p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80 space-y-2">
       <div className="flex items-center gap-2">
@@ -1170,7 +1174,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
       <div className="space-y-1.5">
         {/* Quiz avg */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-500 min-w-[50px]">الاختبارات</span>
+          <span className="text-[10px] text-gray-500 min-w-[50px]">{t('teacher.trackingQuizzes')}</span>
           <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
@@ -1185,7 +1189,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
         </div>
         {/* Attendance */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-500 min-w-[50px]">الحضور</span>
+          <span className="text-[10px] text-gray-500 min-w-[50px]">{t('teacher.trackingAttendance')}</span>
           <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
@@ -1200,7 +1204,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
         </div>
         {/* Assignments */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-gray-500 min-w-[50px]">المهام</span>
+          <span className="text-[10px] text-gray-500 min-w-[50px]">{t('teacher.trackingAssignments')}</span>
           <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
@@ -1236,6 +1240,7 @@ function StudentCard({
   totalAssignments: number;
   classAvgEfficiency: number;
 }) {
+  const { t } = useI18n();
   const levelConfig = getPerformanceLevelConfig(data.level);
   const rangeConfig = getPercentageRangeConfig(data.percentageRange);
 
@@ -1280,7 +1285,7 @@ function StudentCard({
               variant="secondary"
               className={`${levelConfig.bgColor} ${levelConfig.textColor} text-[10px] px-1.5 py-0 border-0 font-bold`}
             >
-              {levelConfig.label}
+              {t(levelConfig.label)}
             </Badge>
             <Badge
               variant="outline"
@@ -1310,7 +1315,7 @@ function StudentCard({
           }`}>
             {Math.round(data.efficiency)}%
           </div>
-          <span className="text-[9px] text-gray-400">كفاءة</span>
+          <span className="text-[9px] text-gray-400">{t('teacher.trackingEfficiency')}</span>
         </div>
 
         {/* Expand icon */}
@@ -1338,7 +1343,7 @@ function StudentCard({
                     <BarChart3 className="h-4 w-4 text-sky-700" />
                   </div>
                   <span className="text-lg font-bold text-sky-800 dark:text-sky-200">{Math.round(data.quizAvg)}%</span>
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight">متوسط الاختبارات</span>
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingQuizAvg')}</span>
                 </div>
 
                 {/* Attendance rate */}
@@ -1347,9 +1352,9 @@ function StudentCard({
                     <CheckCircle2 className="h-4 w-4 text-teal-700" />
                   </div>
                   <span className="text-lg font-bold text-teal-700 dark:text-teal-300">{Math.round(data.attendanceRate)}%</span>
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight">نسبة الحضور</span>
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingAttendanceRatio')}</span>
                   <span className="text-[9px] text-muted-foreground">
-                    {data.attendedSessionIds.size}/{totalSessions} جلسة
+                    {data.attendedSessionIds.size}/{totalSessions} {t('teacher.trackingSession')}
                   </span>
                 </div>
 
@@ -1359,9 +1364,9 @@ function StudentCard({
                     <ClipboardList className="h-4 w-4 text-amber-700" />
                   </div>
                   <span className="text-lg font-bold text-amber-700 dark:text-amber-300">{Math.round(data.assignmentCompletion)}%</span>
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight">إكمال المهام</span>
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingAssignmentCompletion')}</span>
                   <span className="text-[9px] text-muted-foreground">
-                    {data.studentSubmissions.filter(s => s.status === 'graded' || s.status === 'submitted').length}/{totalAssignments} مهمة
+                    {data.studentSubmissions.filter(s => s.status === 'graded' || s.status === 'submitted').length}/{totalAssignments} {t('teacher.trackingTask')}
                   </span>
                 </div>
               </div>
@@ -1370,8 +1375,8 @@ function StudentCard({
               <div className="p-3 rounded-xl bg-gradient-to-l from-violet-50/80 to-white border border-violet-100/50">
                 <div className="flex items-center gap-2 mb-3">
                   <Zap className="h-4 w-4 text-violet-600" />
-                  <span className="text-sm font-medium text-gray-900">كفاءة الطالب</span>
-                  <span className="text-[10px] text-gray-400">(النتائج / الجهد) × 100</span>
+                  <span className="text-sm font-medium text-gray-900">{t('teacher.trackingStudentEfficiency')}</span>
+                  <span className="text-[10px] text-gray-400">{t('teacher.trackingFormula')}</span>
                 </div>
                 <div className="flex items-center gap-4">
                   {/* Circular gauge */}
@@ -1383,24 +1388,24 @@ function StudentCard({
                   {/* Efficiency breakdown */}
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-700/50">
-                      <span className="text-[11px] text-gray-600 dark:text-gray-400">الجهد المبذول</span>
+                      <span className="text-[11px] text-gray-600 dark:text-gray-400">{t('teacher.trackingEffort')}</span>
                       <div className="flex items-center gap-2">
                         <Progress value={Math.round(data.effortScore)} className="h-1.5 w-16" />
                         <span className="text-xs font-bold text-gray-700">{Math.round(data.effortScore)}%</span>
                       </div>
                     </div>
                     <div className="text-[9px] text-gray-400 pr-2">
-                      حضور ({Math.round(data.attendanceRate)}%) × 50% + مهام ({Math.round(data.assignmentCompletion)}%) × 50%
+                      {t('teacher.trackingEffortFormula', { attendance: Math.round(data.attendanceRate), assignments: Math.round(data.assignmentCompletion) })}
                     </div>
                     <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-700/50">
-                      <span className="text-[11px] text-gray-600 dark:text-gray-400">النتائج المحققة</span>
+                      <span className="text-[11px] text-gray-600 dark:text-gray-400">{t('teacher.trackingResults')}</span>
                       <div className="flex items-center gap-2">
                         <Progress value={Math.round(data.resultScore)} className="h-1.5 w-16" />
                         <span className="text-xs font-bold text-gray-700">{Math.round(data.resultScore)}%</span>
                       </div>
                     </div>
                     <div className="text-[9px] text-gray-400 pr-2">
-                      متوسط الاختبارات ({Math.round(data.quizAvg)}%)
+                      {t('teacher.trackingResultsFormula', { quizAvg: Math.round(data.quizAvg) })}
                     </div>
                     {/* Comparison to class average */}
                     {classAvgEfficiency > 0 && (
@@ -1413,7 +1418,7 @@ function StudentCard({
                           <TrendingUp className="h-3 w-3 rotate-180" />
                         )}
                         <span>
-                          {data.efficiency >= classAvgEfficiency ? 'فوق' : 'تحت'} متوسط الفصل بـ{Math.abs(Math.round(data.efficiency - classAvgEfficiency))}%
+                          {data.efficiency >= classAvgEfficiency ? t('teacher.trackingAboveClassAvg', { diff: Math.abs(Math.round(data.efficiency - classAvgEfficiency)) }) : t('teacher.trackingBelowClassAvg', { diff: Math.abs(Math.round(data.efficiency - classAvgEfficiency)) })}
                         </span>
                       </div>
                     )}
@@ -1426,9 +1431,9 @@ function StudentCard({
                 <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-white border border-sky-100/50">
                   <div className="flex items-center gap-2 mb-3">
                     <BookOpen className="h-4 w-4 text-sky-600" />
-                    <span className="text-sm font-medium text-gray-900">الأداء حسب المقرر</span>
+                    <span className="text-sm font-medium text-gray-900">{t('teacher.trackingPerformanceBySubject')}</span>
                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800">
-                      {data.subjectPerformances.length} مقرر
+                      {t('teacher.trackingSubjectCount', { count: data.subjectPerformances.length })}
                     </Badge>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scrollbar">
@@ -1443,19 +1448,19 @@ function StudentCard({
               <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-teal-50/80 border border-sky-100/50">
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="h-4 w-4 text-sky-600" />
-                  <span className="text-sm font-medium text-gray-900">حساب الأداء العام</span>
+                  <span className="text-sm font-medium text-gray-900">{t('teacher.trackingOverallPerformanceCalc')}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
-                    <p className="text-[10px] text-muted-foreground">اختبارات (40%)</p>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingQuizWeight')}</p>
                     <p className="text-sm font-bold text-sky-700 dark:text-sky-300">{Math.round(data.quizAvg * 0.4)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground">حضور (30%)</p>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAttendanceWeight')}</p>
                     <p className="text-sm font-bold text-teal-700 dark:text-teal-300">{Math.round(data.attendanceRate * 0.3)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground">مهمات (30%)</p>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAssignmentWeight')}</p>
                     <p className="text-sm font-bold text-amber-700 dark:text-amber-300">{Math.round(data.assignmentCompletion * 0.3)}</p>
                   </div>
                 </div>
@@ -1466,9 +1471,9 @@ function StudentCard({
                 <div className="p-3 rounded-xl bg-gradient-to-l from-teal-50/60 to-white border border-teal-100/50">
                   <div className="flex items-center gap-2 mb-3">
                     <Route className="h-4 w-4 text-teal-600" />
-                    <span className="text-sm font-medium text-gray-900">مسار الطالب</span>
+                    <span className="text-sm font-medium text-gray-900">{t('teacher.trackingStudentPath')}</span>
                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800">
-                      {data.recentActivities.length} نشاط
+                      {t('teacher.trackingActivityCount', { count: data.recentActivities.length })}
                     </Badge>
                   </div>
                   <div className="relative space-y-0 max-h-52 overflow-y-auto custom-scrollbar">
@@ -1492,9 +1497,9 @@ function StudentCard({
                         assignment: 'bg-amber-400',
                       };
                       const badgeMap = {
-                        attendance: { label: 'حضور', className: 'bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800' },
-                        quiz: { label: 'اختبار', className: 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800' },
-                        assignment: { label: 'مهمة', className: 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-800' },
+                        attendance: { label: t('teacher.trackingAttendanceBadge'), className: 'bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800' },
+                        quiz: { label: t('teacher.trackingQuizBadge'), className: 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800' },
+                        assignment: { label: t('teacher.trackingAssignmentBadge'), className: 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-800' },
                       };
 
                       return (
@@ -1521,7 +1526,7 @@ function StudentCard({
                             <p className="text-[9px] text-gray-300 mt-0.5">
                               {item.date && item.date !== new Date().toISOString()
                                 ? formatDate(item.date)
-                                : 'تاريخ غير متوفر'}
+                                : t('teacher.trackingDateUnavailable')}
                             </p>
                           </div>
                         </motion.div>

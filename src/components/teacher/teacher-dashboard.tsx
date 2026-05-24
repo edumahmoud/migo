@@ -133,6 +133,16 @@ function pctColorClass(pct: number): string {
 // Pie chart colors
 const PIE_COLORS = ['#0284c7', '#0d9488', '#f59e0b', '#ef4444'];
 
+function questionTypeLabel(type: string, t: (key: string) => string): string {
+  switch (type) {
+    case 'mcq': return t('quiz.typeMcq');
+    case 'boolean': return t('quiz.typeBoolean');
+    case 'completion': return t('quiz.typeCompletion');
+    case 'matching': return t('quiz.typeMatching');
+    default: return type;
+  }
+}
+
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
@@ -651,7 +661,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const handleCopyTeacherCode = () => {
     if (profile.teacher_code) {
       navigator.clipboard.writeText(profile.teacher_code);
-      toast.success('تم نسخ كود المعلم بنجاح');
+      toast.success(t('teacher.codeCopied'));
     }
   };
 
@@ -661,7 +671,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const handleExportSummaries = async () => {
     try {
       const XLSX = await import('xlsx');
-      toast.info('جاري تحضير البيانات...');
+      toast.info(t('teacher.toastPreparingData'));
 
       const studentIds = students.map((s) => s.id);
       const { data: summaries } = await supabase
@@ -679,45 +689,45 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           ? Math.round(sScores.reduce((sum, sc) => sum + scorePercentage(sc.score, sc.total), 0) / sScores.length)
           : 0;
         return {
-          'اسم الطالب': s.name,
-          'البريد الإلكتروني': s.email,
-          'عدد الاختبارات': sScores.length,
-          'آخر نتيجة': lastScore ? `${lastScore.score}/${lastScore.total}` : '—',
-          'متوسط الأداء': `${avg}%`,
+          [t('teacher.excelStudentName')]: s.name,
+          [t('teacher.excelEmail')]: s.email,
+          [t('teacher.excelQuizCount')]: sScores.length,
+          [t('teacher.excelLastResult')]: lastScore ? `${lastScore.score}/${lastScore.total}` : '—',
+          [t('teacher.excelAvgPerformance')]: `${avg}%`,
         };
       });
       const ws1 = XLSX.utils.json_to_sheet(overviewData);
-      XLSX.utils.book_append_sheet(wb, ws1, 'نظرة عامة على الطلاب');
+      XLSX.utils.book_append_sheet(wb, ws1, t('teacher.excelOverviewSheet'));
 
       // Sheet 2: Detailed scores
       const scoresData = scores.map((s) => ({
-        'اسم الطالب': students.find((st) => st.id === s.student_id)?.name || '—',
-        'عنوان الاختبار': s.quiz_title,
-        'الدرجة': `${s.score}/${s.total}`,
-        'النسبة': `${scorePercentage(s.score, s.total)}%`,
-        'تاريخ الإنجاز': formatDate(s.completed_at),
+        [t('teacher.excelStudentName')]: students.find((st) => st.id === s.student_id)?.name || '—',
+        [t('teacher.excelQuizTitle')]: s.quiz_title,
+        [t('teacher.excelScore')]: `${s.score}/${s.total}`,
+        [t('teacher.excelPercentage')]: `${scorePercentage(s.score, s.total)}%`,
+        [t('teacher.excelCompletionDate')]: formatDate(s.completed_at),
       }));
       if (scoresData.length > 0) {
         const ws2 = XLSX.utils.json_to_sheet(scoresData);
-        XLSX.utils.book_append_sheet(wb, ws2, 'النتائج التفصيلية');
+        XLSX.utils.book_append_sheet(wb, ws2, t('teacher.excelDetailedResults'));
       }
 
       // Sheet 3: Summaries
       if (summaries && summaries.length > 0) {
         const summariesData = summaries.map((sm: { title: string; user_id: string; created_at: string; summary_content: string }) => ({
-          'عنوان الملخص': sm.title,
-          'الطالب': students.find((st) => st.id === sm.user_id)?.name || '—',
-          'تاريخ الإنشاء': formatDate(sm.created_at),
-          'المحتوى': sm.summary_content?.slice(0, 200) || '',
+          [t('teacher.excelSummaryTitle')]: sm.title,
+          [t('teacher.excelStudent')]: students.find((st) => st.id === sm.user_id)?.name || '—',
+          [t('teacher.excelCreationDate')]: formatDate(sm.created_at),
+          [t('teacher.excelContent')]: sm.summary_content?.slice(0, 200) || '',
         }));
         const ws3 = XLSX.utils.json_to_sheet(summariesData);
-        XLSX.utils.book_append_sheet(wb, ws3, 'الملخصات');
+        XLSX.utils.book_append_sheet(wb, ws3, t('teacher.excelSummariesSheet'));
       }
 
-      XLSX.writeFile(wb, `ملخصات_الطلاب_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('تم تصدير البيانات بنجاح');
+      XLSX.writeFile(wb, `${t('teacher.excelFileName')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success(t('teacher.toastExportSuccess'));
     } catch {
-      toast.error('حدث خطأ أثناء تصدير البيانات');
+      toast.error(t('teacher.toastExportError'));
     }
   };
 
@@ -736,15 +746,15 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           ? Math.round(qScores.reduce((sum, s) => sum + scorePercentage(s.score, s.total), 0) / qScores.length)
           : 0;
         return {
-          'عنوان الاختبار': q.title,
-          'عدد الأسئلة': q.questions?.length || 0,
-          'عدد الطلاب': qScores.length,
-          'متوسط الأداء': `${avg}%`,
-          'تاريخ الإنشاء': formatDate(q.created_at),
+          [t('teacher.excelQuizTitle')]: q.title,
+          [t('teacher.excelQuestionCount')]: q.questions?.length || 0,
+          [t('teacher.excelStudentCount')]: qScores.length,
+          [t('teacher.excelAvgPerformance')]: `${avg}%`,
+          [t('teacher.excelCreationDate')]: formatDate(q.created_at),
         };
       });
       const ws1 = XLSX.utils.json_to_sheet(quizStats);
-      XLSX.utils.book_append_sheet(wb, ws1, 'إحصائيات الاختبارات');
+      XLSX.utils.book_append_sheet(wb, ws1, t('teacher.excelQuizStatsSheet'));
 
       // Sheet 2: Per-question breakdown
       const questionData: Record<string, string | number>[] = [];
@@ -753,38 +763,38 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         q.questions?.forEach((question, idx) => {
           const correctCount = qScores.filter((s) => s.user_answers?.[idx]?.isCorrect).length;
           questionData.push({
-            'الاختبار': q.title,
-            'رقم السؤال': idx + 1,
-            'نوع السؤال': question.type === 'mcq' ? 'اختيار متعدد' : question.type === 'boolean' ? 'صح/خطأ' : question.type === 'completion' ? 'إكمال' : 'مطابقة',
-            'نص السؤال': question.question,
-            'عدد الإجابات الصحيحة': correctCount,
-            'عدد المشاركين': qScores.length,
-            'نسبة الإجابة الصحيحة': qScores.length > 0 ? `${Math.round((correctCount / qScores.length) * 100)}%` : '—',
+            [t('teacher.excelQuiz')]: q.title,
+            [t('teacher.excelQuestionNumber')]: idx + 1,
+            [t('teacher.excelQuestionType')]: questionTypeLabel(question.type, t),
+            [t('teacher.excelQuestionText')]: question.question,
+            [t('teacher.excelCorrectCount')]: correctCount,
+            [t('teacher.excelParticipantCount')]: qScores.length,
+            [t('teacher.excelCorrectPct')]: qScores.length > 0 ? `${Math.round((correctCount / qScores.length) * 100)}%` : '—',
           });
         });
       });
       if (questionData.length > 0) {
         const ws2 = XLSX.utils.json_to_sheet(questionData);
-        XLSX.utils.book_append_sheet(wb, ws2, 'تفصيل الأسئلة');
+        XLSX.utils.book_append_sheet(wb, ws2, t('teacher.excelQuestionDetailSheet'));
       }
 
       // Sheet 3: All scores
       const allScores = scores.map((s) => ({
-        'اسم الطالب': students.find((st) => st.id === s.student_id)?.name || '—',
-        'عنوان الاختبار': s.quiz_title,
-        'الدرجة': `${s.score}/${s.total}`,
-        'النسبة': `${scorePercentage(s.score, s.total)}%`,
-        'تاريخ الإنجاز': formatDate(s.completed_at),
+        [t('teacher.excelStudentName')]: students.find((st) => st.id === s.student_id)?.name || '—',
+        [t('teacher.excelQuizTitle')]: s.quiz_title,
+        [t('teacher.excelScore')]: `${s.score}/${s.total}`,
+        [t('teacher.excelPercentage')]: `${scorePercentage(s.score, s.total)}%`,
+        [t('teacher.excelCompletionDate')]: formatDate(s.completed_at),
       }));
       if (allScores.length > 0) {
         const ws3 = XLSX.utils.json_to_sheet(allScores);
-        XLSX.utils.book_append_sheet(wb, ws3, 'جميع النتائج');
+        XLSX.utils.book_append_sheet(wb, ws3, t('teacher.excelAllResultsSheet'));
       }
 
-      XLSX.writeFile(wb, `تقرير_شامل_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('تم تصدير التقرير الشامل بنجاح');
+      XLSX.writeFile(wb, `${t('teacher.excelReportFileName')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success(t('teacher.toastExportReportSuccess'));
     } catch {
-      toast.error('حدث خطأ أثناء تصدير البيانات');
+      toast.error(t('teacher.toastExportError'));
     }
   };
 
@@ -798,18 +808,18 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const wb = XLSX.utils.book_new();
 
       const data = qScores.map((s) => ({
-        'اسم الطالب': students.find((st) => st.id === s.student_id)?.name || '—',
-        'الدرجة': `${s.score}/${s.total}`,
-        'النسبة': `${scorePercentage(s.score, s.total)}%`,
-        'تاريخ الإنجاز': formatDate(s.completed_at),
+        [t('teacher.excelStudentName')]: students.find((st) => st.id === s.student_id)?.name || '—',
+        [t('teacher.excelScore')]: `${s.score}/${s.total}`,
+        [t('teacher.excelPercentage')]: `${scorePercentage(s.score, s.total)}%`,
+        [t('teacher.excelCompletionDate')]: formatDate(s.completed_at),
       }));
 
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, quiz.title);
       XLSX.writeFile(wb, `${quiz.title}_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('تم تصدير بيانات الاختبار بنجاح');
+      toast.success(t('teacher.toastExportQuizSuccess'));
     } catch {
-      toast.error('حدث خطأ أثناء التصدير');
+      toast.error(t('teacher.toastExportErrorShort'));
     }
   };
 
@@ -826,14 +836,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         .eq('teacher_id', profile.id);
 
       if (error) {
-        toast.error('حدث خطأ أثناء تصفير حالة الطالب');
+        toast.error(t('teacher.toastResetStudentError'));
       } else {
-        toast.success('تم تصفير حالة الطالب بنجاح');
+        toast.success(t('teacher.toastResetStudentSuccess'));
         setStudentDetailOpen(false);
         fetchScores();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setResettingStudent(false);
     }
@@ -856,13 +866,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول الطلب');
+        toast.error(data.error || t('teacher.toastAcceptRequestError'));
       } else {
-        toast.success(data.message || 'تم قبول الطالب بنجاح');
+        toast.success(data.message || t('teacher.toastAcceptStudentSuccess'));
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -883,13 +893,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض الطلب');
+        toast.error(data.error || t('teacher.toastRejectRequestError'));
       } else {
-        toast.success(data.message || 'تم رفض الطلب');
+        toast.success(data.message || t('teacher.toastRejectSuccess'));
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -910,14 +920,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول جميع الطلبات');
+        toast.error(data.error || t('teacher.toastAcceptAllError'));
       } else {
-        toast.success(data.message || `تم قبول جميع الطلبات بنجاح`);
+        toast.success(data.message || t('teacher.toastAcceptAllSuccess'));
         setConfirmAcceptAllOpen(false);
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setProcessingBulk(false);
     }
@@ -938,14 +948,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض جميع الطلبات');
+        toast.error(data.error || t('teacher.toastRejectAllError'));
       } else {
-        toast.success(data.message || `تم رفض جميع الطلبات`);
+        toast.success(data.message || t('teacher.toastRejectAllSuccess'));
         setConfirmRejectAllOpen(false);
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setProcessingBulk(false);
     }
@@ -957,7 +967,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const handleSearchStudent = async () => {
     const email = studentEmailInput.trim().toLowerCase();
     if (!email) {
-      toast.error('يرجى إدخال البريد الإلكتروني للطالب');
+      toast.error(t('teacher.toastEnterStudentEmail'));
       return;
     }
 
@@ -974,13 +984,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'لم يتم العثور على طالب بهذا البريد');
+        toast.error(data.error || t('teacher.toastStudentNotFound'));
         return;
       }
 
       setStudentPreview(data.student);
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setSearchingStudent(false);
     }
@@ -1004,11 +1014,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إرسال طلب الارتباط');
+        toast.error(data.error || t('teacher.toastSendLinkError'));
         return;
       }
 
-      toast.success(data.message || 'تم إرسال طلب الارتباط بنجاح');
+      toast.success(data.message || t('teacher.toastSendLinkSuccess'));
       setStudentEmailInput('');
       setStudentPreview(null);
       setSendRequestOpen(false);
@@ -1017,7 +1027,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setSendingRequest(false);
     }
@@ -1038,15 +1048,15 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إزالة الطالب');
+        toast.error(data.error || t('teacher.toastRemoveStudentError'));
       } else {
-        toast.success('تم إزالة الطالب بنجاح');
+        toast.success(t('teacher.toastRemoveStudentSuccess'));
         setStudentDetailOpen(false);
         setSelectedStudent(null);
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -1063,7 +1073,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     // Get the current session token for authorization
     const deleteHeaders = await getCachedAuthHeaders();
     if (!deleteHeaders['Authorization']) {
-      throw new Error('لا يوجد جلسة نشطة');
+      throw new Error(t('teacher.sessionExpired'));
     }
 
     // Call the server-side API to delete the account from the database
@@ -1074,7 +1084,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || 'فشل في حذف الحساب');
+      throw new Error(data.error || t('teacher.deleteAccountFailed'));
     }
 
     // Sign out after successful deletion
@@ -1101,10 +1111,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     const good = scores.filter((s) => { const p = scorePercentage(s.score, s.total); return p >= 60 && p < 75; }).length;
     const weak = scores.filter((s) => scorePercentage(s.score, s.total) < 60).length;
     return [
-      { name: 'ممتاز', value: excellent },
-      { name: 'جيد جداً', value: veryGood },
-      { name: 'جيد', value: good },
-      { name: 'ضعيف', value: weak },
+      { name: t('teacher.excellent'), value: excellent },
+      { name: t('teacher.veryGood'), value: veryGood },
+      { name: t('teacher.good'), value: good },
+      { name: t('teacher.weak'), value: weak },
     ].filter((d) => d.value > 0);
   })();
 
@@ -1117,7 +1127,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
     >
       <div>
-        <h2 className="text-2xl font-bold text-foreground">أهلاً بك، {formatNameWithTitle(profile.name, profile.role, profile.title_id, profile.gender, t)}</h2>
+        <h2 className="text-2xl font-bold text-foreground">{t('teacher.welcome', { name: formatNameWithTitle(profile.name, profile.role, profile.title_id, profile.gender, t) })}</h2>
         <p className="text-muted-foreground mt-1">{t('teacher.dashboardLabel')}</p>
       </div>
       {profile.teacher_code && (
@@ -1126,7 +1136,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           whileTap={{ scale: 0.97 }}
           onClick={handleCopyTeacherCode}
           className="flex items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 shadow-sm transition-colors hover:bg-sky-100 hover:border-sky-300"
-          title="انقر للنسخ"
+          title={t('teacher.clickToCopy')}
         >
           <Copy className="h-3 w-3" />
           <span>{t('teacher.teacherCodeLabel')}</span>
@@ -1190,13 +1200,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-sky-700" />
-                نظرة عامة على الأداء
+                {t('teacher.performanceOverview')}
               </h3>
               <button
                 onClick={() => setActiveSection('analytics')}
                 className="text-xs text-sky-700 hover:text-sky-800 font-medium flex items-center gap-1"
               >
-                تحليل مفصّل
+                {t('teacher.detailedAnalysis')}
                 <ChevronLeft className="h-3 w-3" />
               </button>
             </div>
@@ -1204,15 +1214,15 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               {scores.length === 0 && teacherSubmissions.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground text-sm">
                   <TrendingUp className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                  لا توجد بيانات أداء بعد
+                  {t('teacher.noPerformanceData')}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Bar chart: avg performance per quiz */}
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-3">متوسط الأداء لكل اختبار</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-3">{t('teacher.avgPerQuiz')}</p>
                     {barChartData.length === 0 ? (
-                      <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">لا توجد اختبارات بعد</div>
+                      <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">{t('teacher.noQuizzesYet')}</div>
                     ) : (
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={barChartData.slice(-6)} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
@@ -1221,7 +1231,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
                           <Tooltip
                             contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
-                            formatter={(value) => [`${value}%`, 'المتوسط']}
+                            formatter={(value) => [`${value}%`, t('teacher.chartAverage')]}
                           />
                           <Bar dataKey="avg" fill="#0284c7" radius={[4, 4, 0, 0]} maxBarSize={40} />
                         </BarChart>
@@ -1230,9 +1240,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   </div>
                   {/* Pie chart: grade distribution */}
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-3">توزيع الدرجات</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-3">{t('teacher.scoreDistribution')}</p>
                     {pieChartData.length === 0 ? (
-                      <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">لا توجد نتائج بعد</div>
+                      <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">{t('teacher.noScoresYet')}</div>
                     ) : (
                       <ResponsiveContainer width="100%" height={200}>
                         <PieChart>
@@ -1272,19 +1282,19 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     <p className="text-lg font-bold text-teal-600 dark:text-teal-400">
                       {scores.filter((s) => scorePercentage(s.score, s.total) >= 75).length}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">ناجح (75%+)</p>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.passing75')}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-lg font-bold text-amber-600 dark:text-amber-400">
                       {scores.filter((s) => { const p = scorePercentage(s.score, s.total); return p >= 60 && p < 75; }).length}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">مقبول (60-74%)</p>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.acceptable6074')}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-lg font-bold text-rose-600 dark:text-rose-400">
                       {scores.filter((s) => scorePercentage(s.score, s.total) < 60).length}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">راسب (أقل من 60%)</p>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.failingBelow60')}</p>
                   </div>
                 </div>
               )}
@@ -1298,7 +1308,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <ListChecks className="h-4 w-4 text-violet-600" />
-                آخر النشاطات
+                {t('teacher.recentActivity')}
               </h3>
             </div>
             <div className="max-h-[420px] overflow-y-auto custom-scrollbar">
@@ -1323,7 +1333,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     id: `score-${score.id}`,
                     type: 'quiz_completed',
                     title: score.quiz_title,
-                    subtitle: student?.name || 'طالب',
+                    subtitle: student?.name || t('teacher.studentFallback'),
                     pct,
                     date: score.completed_at,
                     icon: <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />,
@@ -1336,7 +1346,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     id: `quiz-${quiz.id}`,
                     type: 'quiz_created',
                     title: quiz.title,
-                    subtitle: 'اختبار جديد',
+                    subtitle: t('teacher.newQuiz'),
                     date: quiz.created_at,
                     icon: <ClipboardList className="h-3.5 w-3.5 text-sky-500" />,
                   });
@@ -1350,8 +1360,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   activities.push({
                     id: `sub-${sub.id}`,
                     type: 'assignment_graded',
-                    title: assignment ? `تقييم مهمة` : 'تقييم',
-                    subtitle: student?.name || 'طالب',
+                    title: assignment ? t('teacher.gradeAssignment') : t('teacher.grade'),
+                    subtitle: student?.name || t('teacher.studentFallback'),
                     pct: subPct,
                     date: '',
                     icon: <Award className="h-3.5 w-3.5 text-amber-500" />,
@@ -1370,7 +1380,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   return (
                     <div className="py-12 text-center text-muted-foreground text-sm">
                       <ListChecks className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                      لا توجد نشاطات بعد
+                      {t('teacher.noActivities')}
                     </div>
                   );
                 }
@@ -1412,7 +1422,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">{t('teacher.studentsTitle')}</h2>
-          <p className="text-muted-foreground mt-1">{students.length} طالب مسجل</p>
+          <p className="text-muted-foreground mt-1">{t('teacher.registeredStudents', { count: students.length })}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Pending Link Requests Button */}
@@ -1421,7 +1431,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 dark:border-amber-800 bg-gradient-to-b from-amber-50 dark:from-amber-950/30 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
           >
             <UserPlus className="h-4 w-4" />
-            <span>طلبات الارتباط</span>
+            <span>{t('teacher.linkRequests')}</span>
             {pendingStudents.length > 0 ? (
               <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white shadow-sm shadow-amber-300/50">
                 {pendingStudents.length}
@@ -1437,7 +1447,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-2 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
           >
             <UserPlus className="h-4 w-4" />
-            إرسال طلب لطالب
+            {t('teacher.sendRequestToStudent')}
           </button>
           <div className="relative">
             <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1445,7 +1455,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               type="text"
               value={studentSearch}
               onChange={(e) => setStudentSearch(e.target.value)}
-              placeholder="بحث عن طالب..."
+              placeholder={t('teacher.searchStudent')}
               className="w-full sm:w-48 rounded-lg border bg-background pr-10 pl-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
               dir={dir}
             />
@@ -1459,7 +1469,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   ? 'bg-sky-700 text-white shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
-              title="عرض شبكي"
+              title={t('teacher.gridView')}
             >
               <LayoutGrid className="h-4 w-4" />
             </button>
@@ -1470,7 +1480,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   ? 'bg-sky-700 text-white shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
-              title="عرض جدول"
+              title={t('teacher.tableView')}
             >
               <List className="h-4 w-4" />
             </button>
@@ -1480,7 +1490,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             className="flex items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 whitespace-nowrap"
           >
             <Download className="h-4 w-4" />
-            تصدير الملخصات
+            {t('teacher.exportSummaries')}
           </button>
         </div>
       </motion.div>
@@ -1523,11 +1533,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       <UserPlus className="h-5 w-5 text-sky-700" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">طلبات الارتباط</h3>
+                      <h3 className="text-lg font-bold text-foreground">{t('teacher.linkRequests')}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {pendingStudents.length > 0
-                          ? `${pendingStudents.length} طلب بانتظار المراجعة`
-                          : 'لا توجد طلبات معلقة حالياً'}
+                          ? t('teacher.pendingRequestsCount', { count: pendingStudents.length })
+                          : t('teacher.noPendingRequests')}
                       </p>
                     </div>
                   </div>
@@ -1552,7 +1562,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       className="flex items-center gap-2 rounded-xl bg-sky-700/90 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-sky-200/50 hover:bg-sky-700 hover:shadow-md hover:shadow-sky-200/60 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
                     >
                       {processingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                      قبول الكل ({pendingStudents.length})
+                      {t('common.acceptAll')} ({pendingStudents.length})
                     </button>
                     <button
                       onClick={() => setConfirmRejectAllOpen(true)}
@@ -1560,7 +1570,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       className="flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/80 dark:bg-rose-950/30 px-4 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-100 hover:border-rose-300 transition-all duration-200 disabled:opacity-50"
                     >
                       {processingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                      رفض الكل
+                      {t('common.rejectAll')}
                     </button>
                   </motion.div>
                 )}
@@ -1572,8 +1582,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30 mb-4">
                       <UserPlus className="h-7 w-7 text-amber-300" />
                     </div>
-                    <p className="text-sm font-medium text-muted-foreground">لا توجد طلبات معلقة</p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">عندما يرسل طالب طلب ارتباط سيظهر هنا</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('teacher.noPendingRequestsShort')}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">{t('teacher.whenStudentSendsRequest')}</p>
                   </div>
                 ) : (
                   pendingStudents.map((student) => (
@@ -1600,7 +1610,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           onClick={() => handleApproveStudent(student.id)}
                           disabled={processingRequestId === student.id || processingBulk}
                           className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50 transition-all duration-200 active:scale-90"
-                          title="قبول"
+                          title={t('common.accept')}
                         >
                           {processingRequestId === student.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1612,7 +1622,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           onClick={() => handleRejectStudent(student.id)}
                           disabled={processingRequestId === student.id || processingBulk}
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 text-rose-500 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50 transition-all duration-200 active:scale-90"
-                          title="رفض"
+                          title={t('common.reject')}
                         >
                           {processingRequestId === student.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1651,9 +1661,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 mb-4">
                   <CheckCircle2 className="h-7 w-7 text-amber-600" />
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-2">قبول جميع الطلبات</h3>
+                <h3 className="text-lg font-bold text-foreground mb-2">{t('teacher.confirmAcceptAllTitle')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  هل أنت متأكد من قبول جميع طلبات الارتباط المعلقة ({pendingStudents.length} طلب)؟
+                  {t('teacher.confirmAcceptAllDesc', { count: pendingStudents.length })}
                 </p>
                 <div className="flex items-center gap-3 w-full">
                   <button
@@ -1661,14 +1671,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     disabled={processingBulk}
                     className="flex-1 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                   >
-                    {processingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : `قبول الكل (${pendingStudents.length})`}
+                    {processingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : `${t('common.acceptAll')} (${pendingStudents.length})`}
                   </button>
                   <button
                     onClick={() => setConfirmAcceptAllOpen(false)}
                     disabled={processingBulk}
                     className="flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors"
                   >
-                    إلغاء
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -1698,9 +1708,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
                   <AlertTriangle className="h-7 w-7 text-rose-600" />
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-2">رفض جميع الطلبات</h3>
+                <h3 className="text-lg font-bold text-foreground mb-2">{t('teacher.confirmRejectAllTitle')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  هل أنت متأكد من رفض جميع طلبات الارتباط المعلقة ({pendingStudents.length} طلب)؟ لا يمكن التراجع عن هذا الإجراء.
+                  {t('teacher.confirmRejectAllDesc', { count: pendingStudents.length })}
                 </p>
                 <div className="flex items-center gap-3 w-full">
                   <button
@@ -1708,14 +1718,14 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     disabled={processingBulk}
                     className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60 transition-colors"
                   >
-                    {processingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : `رفض الكل (${pendingStudents.length})`}
+                    {processingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : `${t('common.rejectAll')} (${pendingStudents.length})`}
                   </button>
                   <button
                     onClick={() => setConfirmRejectAllOpen(false)}
                     disabled={processingBulk}
                     className="flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors"
                   >
-                    إلغاء
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -1768,8 +1778,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-3">
                   <UserPlus className="h-6 w-6 text-sky-700" />
                 </div>
-                <h3 className="text-lg font-bold text-foreground">إرسال طلب ارتباط</h3>
-                <p className="text-xs text-muted-foreground mt-1">أرسل طلب ربط لطالب عبر بريده الإلكتروني</p>
+                <h3 className="text-lg font-bold text-foreground">{t('teacher.sendLinkRequestTitle')}</h3>
+                <p className="text-xs text-muted-foreground mt-1">{t('teacher.sendLinkRequestDesc')}</p>
               </div>
 
               {!studentPreview ? (
@@ -1784,7 +1794,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleSearchStudent();
                       }}
-                      placeholder="البريد الإلكتروني للطالب"
+                      placeholder={t('teacher.studentEmailPlaceholder')}
                       className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
                       dir="ltr"
                     />
@@ -1797,12 +1807,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     {searchingStudent ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        جاري البحث...
+                        {t('teacher.searchingStudent')}
                       </>
                     ) : (
                       <>
                         <Search className="h-4 w-4" />
-                        بحث عن الطالب
+                        {t('teacher.searchStudentButton')}
                       </>
                     )}
                   </button>
@@ -1821,7 +1831,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     showUsername={false}
                   />
                   <p className="text-xs text-muted-foreground text-center">
-                    سيتم إرسال إشعار للطالب ويمكنه قبول أو رفض طلب الارتباط
+                    {t('teacher.linkRequestNotice')}
                   </p>
                   <div className="flex items-center gap-2">
                     <button
@@ -1832,12 +1842,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       {sendingRequest ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          جاري الإرسال...
+                          {t('common.sending')}
                         </>
                       ) : (
                         <>
                           <UserPlus className="h-4 w-4" />
-                          إرسال الطلب
+                          {t('teacher.sendRequestBtn')}
                         </>
                       )}
                     </button>
@@ -1849,7 +1859,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       disabled={sendingRequest}
                       className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
                     >
-                      رجوع
+                      {t('common.goBack')}
                     </button>
                   </div>
                 </div>
@@ -1869,10 +1879,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
             <Users className="h-8 w-8 text-sky-700" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
-            {studentSearch ? 'لا توجد نتائج للبحث' : 'لا يوجد طلاب مسجلين'}
+            {studentSearch ? t('teacher.noSearchResults') : t('teacher.noRegisteredStudents')}
           </p>
           <p className="text-sm text-muted-foreground">
-            {studentSearch ? 'جرّب البحث بكلمات مختلفة' : 'شارك كود المعلم مع طلابك للتسجيل'}
+            {studentSearch ? t('common.tryDifferentSearch') : t('teacher.shareCodeWithStudents')}
           </p>
         </motion.div>
       ) : studentViewMode === 'grid' ? (
@@ -1903,13 +1913,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">آخر نتيجة</span>
+                    <span className="text-xs text-muted-foreground">{t('teacher.lastResult')}</span>
                     {pct !== null ? (
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${pctColorClass(pct)}`}>
                         {pct}%
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">لا توجد نتائج</span>
+                      <span className="text-xs text-muted-foreground">{t('teacher.noResultsShort')}</span>
                     )}
                   </div>
                 </div>
@@ -1924,10 +1934,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
               <table className="w-full">
                 <thead className="bg-muted/50 sticky top-0">
                   <tr className="text-xs text-muted-foreground">
-                    <th className="text-right font-medium p-3">الاسم</th>
-                    <th className="text-right font-medium p-3 hidden sm:table-cell">البريد الإلكتروني</th>
-                    <th className="text-right font-medium p-3">آخر نتيجة</th>
-                    <th className="text-right font-medium p-3">إجراءات</th>
+                    <th className="text-right font-medium p-3">{t('common.name')}</th>
+                    <th className="text-right font-medium p-3 hidden sm:table-cell">{t('common.email')}</th>
+                    <th className="text-right font-medium p-3">{t('teacher.lastResult')}</th>
+                    <th className="text-right font-medium p-3">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -1969,7 +1979,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                             className="flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 font-medium"
                           >
                             <Eye className="h-3.5 w-3.5" />
-                            عرض
+                            {t('common.view')}
                           </button>
                         </td>
                       </tr>
@@ -2001,7 +2011,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <Download className="h-4 w-4" />
-          تصدير كافة البيانات (Excel)
+          {t('teacher.exportAllData')}
         </button>
       </motion.div>
 
@@ -2012,11 +2022,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <div className="rounded-xl border bg-card p-4 sm:p-5 shadow-sm">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-sky-700" />
-              متوسط الأداء لكل اختبار
+              {t('teacher.avgPerQuiz')}
             </h3>
             {barChartData.length === 0 ? (
               <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-                لا توجد بيانات كافية
+                {t('teacher.noSufficientData')}
               </div>
             ) : (
               <div className="h-56 sm:h-72 min-h-[250px] overflow-x-auto" dir="ltr">
@@ -2037,7 +2047,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     />
                     <Tooltip
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      formatter={(value: any) => [`${value ?? 0}%`, 'متوسط الأداء']}
+                      formatter={(value: any) => [`${value ?? 0}%`, t('teacher.chartPerformanceAvg')]}
                       contentStyle={{ direction: 'rtl', textAlign: 'right' }}
                     />
                     <Bar
@@ -2058,11 +2068,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <div className="rounded-xl border bg-card p-4 sm:p-5 shadow-sm">
             <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
               <Award className="h-4 w-4 text-teal-600" />
-              توزيع أداء الطلاب
+              {t('teacher.studentPerformanceDistribution')}
             </h3>
             {pieChartData.length === 0 ? (
               <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-                لا توجد بيانات كافية
+                {t('teacher.noSufficientData')}
               </div>
             ) : (
               <div className="h-56 sm:h-72 min-h-[250px]" dir="ltr">
@@ -2102,22 +2112,22 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           <div className="flex items-center justify-between border-b p-4">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
               <ClipboardList className="h-4 w-4 text-teal-600" />
-              تفاصيل الاختبارات
+              {t('teacher.quizDetails')}
             </h3>
           </div>
           <div className="overflow-x-auto">
             {quizzes.length === 0 ? (
               <div className="p-6 text-center text-muted-foreground text-sm">
-                لا توجد اختبارات
+                {t('teacher.noQuizzes')}
               </div>
             ) : (
               <table className="w-full">
                 <thead className="bg-muted/50">
                   <tr className="text-xs text-muted-foreground">
-                    <th className="text-right font-medium p-3">اسم الاختبار</th>
-                    <th className="text-right font-medium p-3">عدد الطلاب</th>
-                    <th className="text-right font-medium p-3">متوسط الأداء</th>
-                    <th className="text-right font-medium p-3">تحميل</th>
+                    <th className="text-right font-medium p-3">{t('teacher.tableQuizName')}</th>
+                    <th className="text-right font-medium p-3">{t('teacher.tableStudentCount')}</th>
+                    <th className="text-right font-medium p-3">{t('teacher.tableAvgPerformance')}</th>
+                    <th className="text-right font-medium p-3">{t('teacher.tableDownload')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -2201,7 +2211,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           {loadingData ? (
             <div className="flex flex-col items-center justify-center py-32">
               <Loader2 className="h-10 w-10 animate-spin text-sky-700 mb-4" />
-              <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
+              <p className="text-muted-foreground text-sm">{t('teacher.loadingData')}</p>
             </div>
           ) : (
             <AnimatePresence mode="wait">
@@ -2281,7 +2291,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     className="flex items-center gap-1.5 text-xs font-medium text-sky-700 hover:text-sky-800 mb-2"
                   >
                     <ChevronRight className="h-3.5 w-3.5" />
-                    العودة للنتائج
+                    {t('teacher.backToResults')}
                   </button>
 
                   <div className="flex items-center gap-2 mb-3">
@@ -2301,7 +2311,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       const hasAiResult = aiResult !== undefined;
 
                       // Type label
-                      const typeLabel = q.type === 'mcq' ? 'اختيار من متعدد' : q.type === 'boolean' ? 'صح أو خطأ' : q.type === 'completion' ? 'أكمل' : 'توصيل';
+                      const typeLabel = questionTypeLabel(q.type, t);
                       const typeIcon = q.type === 'mcq' ? <ListChecks className="h-3 w-3" /> : q.type === 'boolean' ? <CheckCircle2 className="h-3 w-3" /> : q.type === 'completion' ? <PenLine className="h-3 w-3" /> : <ArrowLeftRight className="h-3 w-3" />;
 
                       return (
@@ -2315,7 +2325,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 mb-1">
-                                <span className="text-[10px] text-muted-foreground">سؤال {idx + 1}</span>
+                                <span className="text-[10px] text-muted-foreground">{t('teacher.questionLabel')} {idx + 1}</span>
                                 <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 px-1.5 py-0.5 text-[9px] font-medium text-teal-700 dark:text-teal-300">
                                   {typeIcon}
                                   {typeLabel}
@@ -2328,7 +2338,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           {/* Answer details */}
                           {q.type === 'matching' && q.pairs ? (
                             <div className="space-y-1.5">
-                              <p className="text-[10px] text-muted-foreground">إجابة الطالب:</p>
+                              <p className="text-[10px] text-muted-foreground">{t('teacher.studentAnswer')}</p>
                               {Object.entries((ans?.answer as Record<string, string>) || {}).map(([k, v]) => {
                                 const isPairCorrect = q.pairs?.find(p => p.key === k)?.value === v;
                                 return (
@@ -2344,7 +2354,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                               })}
                               {!ans?.isCorrect && (
                                 <div className="mt-1">
-                                  <p className="text-[10px] text-teal-700 font-medium">التوصيل الصحيح:</p>
+                                  <p className="text-[10px] text-teal-700 font-medium">{t('teacher.correctMatching')}</p>
                                   {q.pairs.map((p) => (
                                     <div key={p.key} className="flex items-center gap-1.5 text-[10px] text-teal-700 px-2 py-0.5">
                                       <span>{p.key}</span> <Link2 className="h-2.5 w-2.5" /> <span>{p.value}</span>
@@ -2356,11 +2366,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                           ) : (
                             <div className="space-y-1">
                               <p className="text-[10px] text-muted-foreground">
-                                إجابة الطالب: <span className="font-medium text-foreground">{String(ans?.answer || '—')}</span>
+                                {t('teacher.studentAnswer')} <span className="font-medium text-foreground">{String(ans?.answer || '—')}</span>
                               </p>
                               {q.correctAnswer && (
                                 <p className="text-[10px] text-teal-700">
-                                  الإجابة الصحيحة: <span className="font-medium">{q.correctAnswer}</span>
+                                  {t('teacher.correctAnswerIs')} <span className="font-medium">{q.correctAnswer}</span>
                                 </p>
                               )}
                             </div>
@@ -2382,7 +2392,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                       if (studentAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase()) {
                                         setAiGradingResults(prev => ({
                                           ...prev,
-                                          [idx]: { isCorrect: true, reasoning: 'الإجابة مطابقة تماماً للإجابة الصحيحة' }
+                                          [idx]: { isCorrect: true, reasoning: t('teacher.aiMatchExact') }
                                         }));
                                         return;
                                       }
@@ -2406,21 +2416,21 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                           [idx]: {
                                             isCorrect: data.data.isCorrect,
                                             reasoning: data.data.reasoning || (data.data.isCorrect
-                                              ? 'الذكاء الاصطناعي يرى أن إجابة الطالب صحيحة أو مكافئة للإجابة الصحيحة'
-                                              : 'الذكاء الاصطناعي يرى أن إجابة الطالب غير صحيحة أو لا تكافئ الإجابة الصحيحة'),
+                                              ? t('teacher.aiSeesCorrect')
+                                              : t('teacher.aiSeesIncorrect')),
                                           }
                                         }));
                                       } else {
                                         setAiGradingResults(prev => ({
                                           ...prev,
-                                          [idx]: { isCorrect: false, reasoning: 'لم يتمكن الذكاء الاصطناعي من التقييم' }
+                                          [idx]: { isCorrect: false, reasoning: t('teacher.aiCannotEvaluate') }
                                         }));
                                       }
                                     } catch {
-                                      toast.error('حدث خطأ أثناء التقييم بالذكاء الاصطناعي');
+                                      toast.error(t('teacher.toastAiGradingError'));
                                       setAiGradingResults(prev => ({
                                         ...prev,
-                                        [idx]: { isCorrect: false, reasoning: 'حدث خطأ في الاتصال' }
+                                        [idx]: { isCorrect: false, reasoning: t('teacher.connectionError') }
                                       }));
                                     } finally {
                                       setAiGradingIdx(null);
@@ -2434,7 +2444,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                   ) : (
                                     <Sparkles className="h-3 w-3" />
                                   )}
-                                  {aiGradingIdx === idx ? 'جاري التصحيح...' : 'AI تصحيح'}
+                                  {aiGradingIdx === idx ? t('teacher.aiGradingProgress') : t('teacher.aiGrading')}
                                 </button>
                               ) : (
                                 <div className="space-y-1.5">
@@ -2442,7 +2452,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                     aiResult.isCorrect ? 'bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300' : 'bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'
                                   }`}>
                                     <Sparkles className="h-3 w-3" />
-                                    <span className="font-medium">{aiResult.isCorrect ? 'الذكاء الاصطناعي: إجابة صحيحة' : 'الذكاء الاصطناعي: إجابة خاطئة'}</span>
+                                    <span className="font-medium">{aiResult.isCorrect ? t('teacher.aiCorrect') : t('teacher.aiIncorrect')}</span>
                                   </div>
                                   {aiResult.reasoning && (
                                     <p className="text-[10px] text-muted-foreground leading-relaxed">{aiResult.reasoning}</p>
@@ -2454,28 +2464,28 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                         // Override AI: mark as correct
                                         setAiGradingResults(prev => ({
                                           ...prev,
-                                          [idx]: { ...prev[idx], isCorrect: true, reasoning: (prev[idx]?.reasoning || '') + ' — تم التعديل يدوياً: صحيحة' }
+                                          [idx]: { ...prev[idx], isCorrect: true, reasoning: (prev[idx]?.reasoning || '') + ` — ${t('teacher.manuallyAdjustedCorrect')}` }
                                         }));
-                                        toast.success('تم تعديل التقييم: صحيحة');
+                                        toast.success(t('teacher.toastAdjustCorrect'));
                                       }}
                                       className="flex items-center gap-1 rounded-md bg-teal-100 dark:bg-teal-900/50 px-2 py-1 text-[10px] font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-200 transition-colors"
                                     >
                                       <CheckCircle2 className="h-2.5 w-2.5" />
-                                      تعديل: صحيحة
+                                      {t('teacher.adjustCorrect')}
                                     </button>
                                     <button
                                       onClick={() => {
                                         // Override AI: mark as incorrect
                                         setAiGradingResults(prev => ({
                                           ...prev,
-                                          [idx]: { ...prev[idx], isCorrect: false, reasoning: (prev[idx]?.reasoning || '') + ' — تم التعديل يدوياً: خاطئة' }
+                                          [idx]: { ...prev[idx], isCorrect: false, reasoning: (prev[idx]?.reasoning || '') + ` — ${t('teacher.manuallyAdjustedIncorrect')}` }
                                         }));
-                                        toast.success('تم تعديل التقييم: خاطئة');
+                                        toast.success(t('teacher.toastAdjustIncorrect'));
                                       }}
                                       className="flex items-center gap-1 rounded-md bg-rose-100 dark:bg-rose-900/50 px-2 py-1 text-[10px] font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-200 transition-colors"
                                     >
                                       <XCircle className="h-2.5 w-2.5" />
-                                      تعديل: خاطئة
+                                      {t('teacher.adjustIncorrect')}
                                     </button>
                                   </div>
                                 </div>
@@ -2487,7 +2497,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     })}
                     {(!viewingQuiz?.questions || viewingQuiz.questions.length === 0) && (
                       <div className="text-center py-6 text-muted-foreground text-xs">
-                        لا تتوفر تفاصيل الأسئلة لهذا الاختبار
+                        {t('teacher.noQuestionDetails')}
                       </div>
                     )}
                   </div>
@@ -2496,7 +2506,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 <div className="p-5 space-y-3 max-h-72 overflow-y-auto custom-scrollbar">
                   {getStudentScores(selectedStudent.id).length === 0 ? (
                     <div className="text-center py-6 text-muted-foreground text-sm">
-                      لا توجد نتائج لهذا الطالب
+                      {t('teacher.noResultsForStudent')}
                     </div>
                   ) : (
                     getStudentScores(selectedStudent.id).map((score) => {
@@ -2521,7 +2531,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                                 setViewingQuiz(quiz || null);
                               }}
                               className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
-                              title="عرض الإجابات"
+                              title={t('teacher.viewAnswers')}
                             >
                               <Eye className="h-3.5 w-3.5" />
                             </button>
@@ -2545,7 +2555,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   ) : (
                     <RotateCcw className="h-4 w-4" />
                   )}
-                  تصفير حالة الطالب
+                  {t('teacher.resetStudent')}
                 </button>
                 <button
                   onClick={() => setConfirmRemoveOpen(true)}
@@ -2557,13 +2567,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   ) : (
                     <Trash2 className="h-3 w-3" />
                   )}
-                  إزالة
+                  {t('common.remove')}
                 </button>
                 <button
                   onClick={() => { setStudentDetailOpen(false); setViewingScore(null); setViewingQuiz(null); setAiGradingResults({}); }}
                   className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
                 >
-                  إغلاق
+                  {t('common.close')}
                 </button>
               </div>
             </motion.div>
@@ -2596,9 +2606,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
                   <Trash2 className="h-7 w-7 text-rose-600" />
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-2">إزالة طالب</h3>
+                <h3 className="text-lg font-bold text-foreground mb-2">{t('teacher.removeStudentTitle')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  هل أنت متأكد من إزالة الطالب <span className="font-semibold text-foreground">{selectedStudent.name}</span> من قائمة المرتبطين بك؟ سيتم حذف جميع بيانات الارتباط.
+                  {t('teacher.removeStudentDesc', { name: selectedStudent.name })}
                 </p>
                 <div className="flex items-center gap-3 w-full">
                   <button
@@ -2608,13 +2618,13 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                     }}
                     className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-700"
                   >
-                    حذف
+                    {t('common.delete')}
                   </button>
                   <button
                     onClick={() => setConfirmRemoveOpen(false)}
                     className="flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:bg-muted transition-colors"
                   >
-                    إلغاء
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>

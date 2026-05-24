@@ -54,27 +54,27 @@ const itemVariants = {
 // -------------------------------------------------------
 // Relative time helper
 // -------------------------------------------------------
-function relativeTime(dateStr: string): string {
+function relativeTime(dateStr: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string): string {
   if (!dateStr) return '';
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return '';
   const diff = Date.now() - date.getTime();
-  if (diff < 0) return 'الآن';
+  if (diff < 0) return t('common.justNow');
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'الآن';
-  if (mins < 60) return `منذ ${mins} دقيقة`;
+  if (mins < 1) return t('common.justNow');
+  if (mins < 60) return t('common.minutesAgo', { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `منذ ${hours} ساعة`;
+  if (hours < 24) return t('common.hoursAgo', { n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `منذ ${days} يوم`;
-  return date.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+  if (days < 7) return t('common.daysAgo', { n: days });
+  return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }
 
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function ChatTab({ profile, role, subjectId, subject }: ChatTabProps) {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   const { openProfile } = useAppStore();
   // State
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -475,9 +475,9 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
         }
       } else {
         // Show toast notification for messages in other conversations
-        const senderName = (data.senderName as string) || msg.sender?.name || 'مستخدم';
+        const senderName = (data.senderName as string) || msg.sender?.name || t('common.user');
         const content = (data.content as string) || msg.content || '';
-        toast(`رسالة جديدة من ${senderName}`, {
+        toast(t('chat.newMessageFrom', { name: senderName }), {
           description: content.substring(0, 60) + (content.length > 60 ? '...' : ''),
           icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
           duration: 5000,
@@ -504,7 +504,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
     setMessages((prev) =>
       prev.map((m) =>
         m.id === data.messageId
-          ? { ...m, content: 'تم حذف هذه الرسالة', is_deleted: true }
+          ? { ...m, content: t('chat.messageDeleted'), is_deleted: true }
           : m
       )
     );
@@ -699,7 +699,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       }
     } catch (err) {
       console.error('Send message error:', err);
-      toast.error('فشل إرسال الرسالة');
+      toast.error(t('chat.toastSendFailed'));
       // Remove optimistic message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
       setNewMessage(content);
@@ -731,7 +731,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       // Optimistic update
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === msgId ? { ...m, content: 'تم حذف هذه الرسالة', is_deleted: true } : m
+          m.id === msgId ? { ...m, content: t('chat.messageDeleted'), is_deleted: true } : m
         )
       );
       // Notify via socket
@@ -743,7 +743,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       }
     } catch (err) {
       console.error('Delete message error:', err);
-      toast.error('فشل حذف الرسالة');
+      toast.error(t('chat.toastDeleteFailed'));
     }
   };
 
@@ -801,7 +801,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
       setEditContent('');
     } catch (err) {
       console.error('Edit message error:', err);
-      toast.error('فشل تعديل الرسالة');
+      toast.error(t('chat.toastEditFailed'));
     }
   };
 
@@ -844,7 +844,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
   // -------------------------------------------------------
   const renderMessage = (msg: ChatMessage, index: number) => {
     const isOwn = msg.sender_id === profile.id;
-    const senderName = formatNameWithTitle(msg.sender?.name || 'مستخدم', msg.sender?.role, msg.sender?.title_id, msg.sender?.gender, t);
+    const senderName = formatNameWithTitle(msg.sender?.name || t('common.user'), msg.sender?.role, msg.sender?.title_id, msg.sender?.gender, t);
     const showAvatar = !isOwn && (index === 0 || messages[index - 1]?.sender_id !== msg.sender_id);
     const isDeleted = (msg as unknown as Record<string, unknown>).is_deleted as boolean;
     const isEdited = (msg as unknown as Record<string, unknown>).is_edited as boolean;
@@ -926,7 +926,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               {isDeleted ? (
                 <span className="flex items-center gap-1.5">
                   <Trash2 className="h-3.5 w-3.5" />
-                  تم حذف هذه الرسالة
+                  {t('chat.messageDeleted')}
                 </span>
               ) : (
                 msg.content
@@ -937,11 +937,11 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           {/* Time + edited indicator */}
           <div className={`flex items-center gap-1.5 mt-1 ${isOwn ? 'ms-1' : 'me-1'}`}>
             <span className="text-[10px] text-muted-foreground/60">
-              {relativeTime(msg.created_at)}
+              {relativeTime(msg.created_at, t, locale)}
             </span>
             {isEdited && !isDeleted && (
               <span className="text-[10px] text-sky-600/70 font-medium">
-                {msg.edited_at ? `(معدّلة ${relativeTime(msg.edited_at)})` : '(معدّلة)'}
+                {msg.edited_at ? t('chat.editedWithTime', { time: relativeTime(msg.edited_at, t, locale) }) : t('chat.edited')}
               </span>
             )}
           </div>
@@ -974,14 +974,14 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                         className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted/50 transition-colors text-right"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        تعديل
+                        {t('common.edit')}
                       </button>
                       <button
                         onClick={() => handleDeleteMessage(msg.id)}
                         className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors text-right"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                        حذف
+                        {t('common.delete')}
                       </button>
                     </motion.div>
                   )}
@@ -1001,7 +1001,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
-        <p className="text-sm text-muted-foreground">جاري تحميل المحادثة...</p>
+        <p className="text-sm text-muted-foreground">{t('chat.loadingChat')}</p>
       </div>
     );
   }
@@ -1023,13 +1023,13 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
           </div>
           <h3 className="text-lg font-bold text-foreground mb-2">{t('chat.title')}</h3>
           <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-            محادثة جماعية لكل المسجلين في مقرر &quot;{subject.name}&quot;
+            {t('chat.groupChatDesc', { name: subject.name })}
           </p>
           {setupInfo ? (
             <div className="mt-5 max-w-sm w-full space-y-3">
               <div className="rounded-xl border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 p-4 text-right">
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">⚠️ جداول المحادثات لسه متعملتش</p>
-                <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">لازم تشغّل SQL في Supabase عشان المحادثات تشتغل</p>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">{t('chat.chatTablesNotExist')}</p>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">{t('chat.chatTablesHint')}</p>
                 {setupInfo.steps && (
                   <ol className="text-xs text-amber-700 dark:text-amber-300 space-y-1.5 mb-3">
                     {setupInfo.steps.map((step, i) => (
@@ -1044,7 +1044,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
                   >
-                    فتح SQL Editor في Supabase
+                    {t('chat.openSqlEditor')}
                   </a>
                 )}
               </div>
@@ -1052,12 +1052,12 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                 onClick={() => initConversation()}
                 className="text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 font-medium transition-colors"
               >
-                إعادة المحاولة ←
+                {t('chat.retrySetup')}
               </button>
             </div>
           ) : (
             <p className="text-xs text-muted-foreground/60 mt-3">
-              جاري التحقق من إعداد المحادثات...
+              {t('chat.checkingSetup')}
             </p>
           )}
         </motion.div>
@@ -1082,10 +1082,10 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             <Hash className="h-5 w-5 text-sky-700 dark:text-sky-300" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-foreground">محادثة المقرر</h3>
+            <h3 className="text-base font-bold text-foreground">{t('chat.courseChat')}</h3>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               <Users className="h-3 w-3" />
-              {participants.length} مشارك
+              {t('chat.participantCount', { count: participants.length })}
             </p>
           </div>
         </div>
@@ -1102,9 +1102,9 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
               : 'bg-rose-400'
           }`} />
           <span className="text-[10px] text-muted-foreground">
-            {status === 'connected' || status === 'realtime' ? 'متصل'
-              : status === 'connecting' ? 'جاري الاتصال...'
-              : 'غير متصل'}
+            {status === 'connected' || status === 'realtime' ? t('chat.connected')
+              : status === 'connecting' ? t('chat.connecting')
+              : t('chat.disconnected')}
           </span>
         </div>
       </motion.div>
@@ -1116,13 +1116,13 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-50 to-sky-100 border border-sky-200/50 mb-5 shadow-sm">
               <MessageCircle className="h-10 w-10 text-sky-600 dark:text-sky-400" />
             </div>
-            <h4 className="text-base font-bold text-foreground mb-1.5">ابدأ المحادثة!</h4>
+            <h4 className="text-base font-bold text-foreground mb-1.5">{t('chat.startConversation')}</h4>
             <p className="text-sm text-muted-foreground max-w-[250px] leading-relaxed">
-              كن أول من يرسل رسالة في محادثة مقرر &quot;{subject.name}&quot;
+              {t('chat.beFirstToSend', { name: subject.name })}
             </p>
             <div className="flex items-center gap-1.5 mt-4 text-xs text-muted-foreground/60">
               <Users className="h-3.5 w-3.5" />
-              <span>{participants.length} مشارك في هذه المحادثة</span>
+              <span>{t('chat.participantsInChat', { count: participants.length })}</span>
             </div>
           </div>
         ) : (
@@ -1147,7 +1147,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                 <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
               <span className="text-xs text-sky-800 dark:text-sky-200 font-medium">
-                {Array.from(typingUsers.values()).join('، ')} يكتب الآن...
+                {t('chat.typingNow', { names: Array.from(typingUsers.values()).join(t('common.listSeparator')) })}
               </span>
             </motion.div>
           )}

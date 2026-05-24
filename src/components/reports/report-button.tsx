@@ -12,16 +12,17 @@ import { useI18n } from '@/lib/i18n/context';
 // Report reasons
 // -------------------------------------------------------
 const REPORT_REASONS = [
-  { value: 'inappropriate', label: 'محتوى غير مناسب' },
-  { value: 'harassment', label: 'تحرش أو تنمر' },
-  { value: 'spam', label: 'رسائل مزعجة' },
-  { value: 'misinformation', label: 'معلومات مضللة' },
-  { value: 'cheating', label: 'غش أكاديمي' },
-  { value: 'other', label: 'سبب آخر' },
+  { value: 'inappropriate', labelKey: 'reports.reasons.inappropriate' },
+  { value: 'harassment', labelKey: 'reports.reasons.harassment' },
+  { value: 'spam', labelKey: 'reports.reasons.spam' },
+  { value: 'misinformation', labelKey: 'reports.reasons.misinformation' },
+  { value: 'cheating', labelKey: 'reports.reasons.cheating' },
+  { value: 'other', labelKey: 'reports.reasons.other' },
 ];
 
-function getReasonLabel(value: string): string {
-  return REPORT_REASONS.find((r) => r.value === value)?.label || value;
+function getReasonLabel(value: string, t: (key: string) => string): string {
+  const reason = REPORT_REASONS.find((r) => r.value === value);
+  return reason ? t(reason.labelKey) : value;
 }
 
 // -------------------------------------------------------
@@ -49,7 +50,7 @@ interface Attachment {
 // Component
 // -------------------------------------------------------
 export default function ReportButton({ targetType, targetId, compact, className, onReported }: ReportButtonProps) {
-  const { dir } = useI18n();
+  const { t, dir } = useI18n();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
@@ -65,7 +66,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
 
     const remaining = 3 - attachments.length;
     if (remaining <= 0) {
-      toast.error('الحد الأقصى 3 صور');
+      toast.error(t('reports.maxImages'));
       return;
     }
 
@@ -94,11 +95,11 @@ export default function ReportButton({ targetType, targetId, compact, className,
             type: result.data.type,
           }]);
         } else {
-          toast.error(result.error || 'فشل رفع الصورة');
+          toast.error(result.error || t('reports.imageUploadFailed'));
         }
       }
     } catch {
-      toast.error('حدث خطأ أثناء رفع الصور');
+      toast.error(t('reports.imageUploadError'));
     } finally {
       setUploading(false);
       // Reset file input
@@ -112,7 +113,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
 
   const handleSubmit = async () => {
     if (!reason) {
-      toast.error('يرجى اختيار سبب الإبلاغ');
+      toast.error(t('reports.selectReason'));
       return;
     }
 
@@ -138,7 +139,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
 
       const result = await res.json();
       if (result.success) {
-        toast.success('تم إرسال الإبلاغ وسيتم مراجعته');
+        toast.success(t('reports.reportSubmitted'));
         setOpen(false);
         setReason('');
         setDescription('');
@@ -146,10 +147,10 @@ export default function ReportButton({ targetType, targetId, compact, className,
         setConfirming(false);
         onReported?.();
       } else {
-        toast.error(result.error || 'فشل إرسال الإبلاغ');
+        toast.error(result.error || t('reports.submitFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setSubmitting(false);
     }
@@ -161,10 +162,10 @@ export default function ReportButton({ targetType, targetId, compact, className,
       <button
         onClick={() => { setOpen(true); setConfirming(false); }}
         className={`text-muted-foreground hover:text-rose-500 transition-colors ${compact ? 'p-1' : 'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs'} ${className || ''}`}
-        title="إبلاغ"
+        title={t('reports.report')}
       >
         <ShieldAlert className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
-        {!compact && <span>إبلاغ</span>}
+        {!compact && <span>{t('reports.report')}</span>}
       </button>
 
       {/* Modal */}
@@ -189,7 +190,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <ShieldAlert className="h-5 w-5 text-rose-500" />
-                  <h3 className="text-base font-bold text-foreground">إبلاغ</h3>
+                  <h3 className="text-base font-bold text-foreground">{t('reports.report')}</h3>
                 </div>
                 <button onClick={() => { setOpen(false); setConfirming(false); }} className="p-1 rounded-md hover:bg-muted transition-colors">
                   <X className="h-4 w-4" />
@@ -200,7 +201,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
                 <>
                   {/* Reason selection */}
                   <div className="space-y-2 mb-4">
-                    <label className="text-sm font-medium text-foreground">سبب الإبلاغ</label>
+                    <label className="text-sm font-medium text-foreground">{t('reports.reportReason')}</label>
                     <div className="grid grid-cols-2 gap-2">
                       {REPORT_REASONS.map((r) => (
                         <button
@@ -212,7 +213,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
                               : 'border-border bg-background text-muted-foreground hover:border-rose-200 dark:hover:border-rose-800'
                           }`}
                         >
-                          {r.label}
+                          {t(r.labelKey)}
                         </button>
                       ))}
                     </div>
@@ -220,11 +221,11 @@ export default function ReportButton({ targetType, targetId, compact, className,
 
                   {/* Description */}
                   <div className="space-y-2 mb-4">
-                    <label className="text-sm font-medium text-foreground">تفاصيل إضافية (اختياري)</label>
+                    <label className="text-sm font-medium text-foreground">{t('reports.additionalDetails')}</label>
                     <textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      placeholder="اشرح المشكلة بمزيد من التفصيل..."
+                      placeholder={t('reports.describeProblemPlaceholder')}
                       rows={3}
                       className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-rose-500"
                     />
@@ -232,7 +233,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
 
                   {/* Image evidence upload */}
                   <div className="space-y-2 mb-4">
-                    <label className="text-sm font-medium text-foreground">صور إثبات (اختياري — حتى 3 صور)</label>
+                    <label className="text-sm font-medium text-foreground">{t('reports.evidenceImages')}</label>
 
                     {/* Attachments preview */}
                     {attachments.length > 0 && (
@@ -266,7 +267,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
                       className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border bg-background text-xs text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
                     >
                       {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-                      {uploading ? 'جاري الرفع...' : 'إضافة صور'}
+                      {uploading ? t('reports.uploading') : t('reports.addImages')}
                     </button>
                   </div>
 
@@ -276,7 +277,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
                     disabled={!reason}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 disabled:opacity-50 transition-colors"
                   >
-                    التالي
+                    {t('common.next')}
                   </button>
                 </>
               ) : (
@@ -285,18 +286,18 @@ export default function ReportButton({ targetType, targetId, compact, className,
                   <div className="space-y-4 mb-4">
                     <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 p-4 space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-muted-foreground">السبب:</span>
-                        <span className="text-sm font-semibold text-rose-700 dark:text-rose-300">{getReasonLabel(reason)}</span>
+                        <span className="text-xs font-medium text-muted-foreground">{t('reports.reasonLabel')}</span>
+                        <span className="text-sm font-semibold text-rose-700 dark:text-rose-300">{getReasonLabel(reason, t)}</span>
                       </div>
                       {description.trim() && (
                         <div>
-                          <span className="text-xs font-medium text-muted-foreground">التفاصيل:</span>
+                          <span className="text-xs font-medium text-muted-foreground">{t('reports.detailsLabel')}</span>
                           <p className="text-sm text-foreground mt-1 whitespace-pre-wrap">{description.trim()}</p>
                         </div>
                       )}
                       {attachments.length > 0 && (
                         <div>
-                          <span className="text-xs font-medium text-muted-foreground">الصور المرفقة:</span>
+                          <span className="text-xs font-medium text-muted-foreground">{t('reports.attachedImagesLabel')}</span>
                           <div className="flex flex-wrap gap-2 mt-1">
                             {attachments.map((att, i) => (
                               <div key={i} className="rounded-lg overflow-hidden border border-border h-12 w-12">
@@ -308,7 +309,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground text-center">
-                      هل أنت متأكد من إرسال هذا الإبلاغ؟
+                      {t('reports.confirmSubmit')}
                     </p>
                   </div>
 
@@ -317,7 +318,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
                       onClick={() => setConfirming(false)}
                       className="flex-1 px-4 py-2.5 rounded-lg border border-border bg-background text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
                     >
-                      رجوع
+                      {t('common.goBack')}
                     </button>
                     <button
                       onClick={handleSubmit}
@@ -325,7 +326,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 disabled:opacity-50 transition-colors"
                     >
                       {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      تأكيد الإبلاغ
+                      {t('reports.confirmReport')}
                     </button>
                   </div>
                 </>

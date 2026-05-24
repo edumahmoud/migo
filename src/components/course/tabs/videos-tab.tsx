@@ -74,9 +74,9 @@ const itemVariants = {
 // -------------------------------------------------------
 // Helpers
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string = 'ar'): string {
   try {
-    return new Date(dateStr).toLocaleDateString('ar-SA', {
+    return new Date(dateStr).toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -86,7 +86,7 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function formatTimeAgo(dateStr: string): string {
+function formatTimeAgo(dateStr: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string = 'ar'): string {
   try {
     const now = new Date();
     const date = new Date(dateStr);
@@ -96,11 +96,11 @@ function formatTimeAgo(dateStr: string): string {
     const diffHour = Math.floor(diffMin / 60);
     const diffDay = Math.floor(diffHour / 24);
 
-    if (diffSec < 60) return 'الآن';
-    if (diffMin < 60) return `منذ ${diffMin} دقيقة`;
-    if (diffHour < 24) return `منذ ${diffHour} ساعة`;
-    if (diffDay < 7) return `منذ ${diffDay} يوم`;
-    return formatDate(dateStr);
+    if (diffSec < 60) return t('common.justNow');
+    if (diffMin < 60) return t('common.minutesAgo', { n: diffMin });
+    if (diffHour < 24) return t('common.hoursAgo', { n: diffHour });
+    if (diffDay < 7) return t('common.daysAgo', { n: diffDay });
+    return formatDate(dateStr, locale);
   } catch {
     return dateStr;
   }
@@ -136,7 +136,7 @@ interface SubjectVideoWithUploader extends SubjectVideo {
 // Main Component
 // -------------------------------------------------------
 export default function VideosTab({ profile, role, subjectId }: VideosTabProps) {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   // ─── App store for persisted video ID ───
   const { selectedVideoId, setSelectedVideoId } = useAppStore();
 
@@ -253,7 +253,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             ...v,
             uploader_name: uploader
               ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender, t)
-              : 'مستخدم',
+              : t('common.user'),
             comment_count: commentCountMap.get(v.id) || 0,
           };
         });
@@ -342,7 +342,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           ...video,
           uploader_name: uploader
             ? formatNameWithTitle(uploader.name, uploader.role, uploader.title_id, uploader.gender, t)
-            : 'مستخدم',
+            : t('common.user'),
           comment_count: count || 0,
         };
       } catch {
@@ -465,7 +465,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             ...c,
             user_name: user
               ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t)
-              : 'مستخدم',
+              : t('common.user'),
             user_role: user?.role ?? undefined,
             user_title_id: user?.title_id ?? undefined,
             user_gender: user?.gender ?? undefined,
@@ -509,7 +509,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           ...comment,
           user_name: user
             ? formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t)
-            : 'مستخدم',
+            : t('common.user'),
           user_role: user?.role ?? undefined,
           user_title_id: user?.title_id ?? undefined,
           user_gender: user?.gender ?? undefined,
@@ -530,7 +530,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           setComments((prev) => {
             if (prev.some((c) => c.id === newComment.id)) return prev;
             // Add placeholder, then enrich async
-            return [...prev, { ...newComment, user_name: 'مستخدم' }];
+            return [...prev, { ...newComment, user_name: t('common.user') }];
           });
           // Enrich with user profile
           const enriched = await fetchSingleComment(newComment.id);
@@ -699,14 +699,14 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         .eq('id', selectedVideo.id);
 
       if (error) {
-        toast.error('فشل تحديث بيانات الفيديو');
+        toast.error(t('course.toastVideoUpdateFailed'));
       } else {
-        toast.success('تم تحديث الفيديو بنجاح');
+        toast.success(t('course.toastVideoUpdated'));
         setEditModalOpen(false);
         fetchVideos();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setSaving(false);
     }
@@ -753,16 +753,16 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       const { error } = await supabase.from('subject_videos').delete().eq('id', videoId);
 
       if (error) {
-        toast.error('حدث خطأ أثناء حذف الفيديو');
+        toast.error(t('course.toastVideoDeleteFailed'));
         // Rollback optimistic delete
         if (videoToRemove) {
           setVideos((prev) => [videoToRemove, ...prev]);
         }
       } else {
-        toast.success('تم حذف الفيديو');
+        toast.success(t('course.toastVideoDeleted'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
       // Rollback optimistic delete
       if (videoToRemove) {
         setVideos((prev) => [videoToRemove, ...prev]);
@@ -784,13 +784,13 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         .eq('id', video.id);
 
       if (error) {
-        toast.error('حدث خطأ أثناء تغيير حالة التعليقات');
+        toast.error(t('course.toastCommentsToggleFailed'));
       } else {
-        toast.success(newValue ? 'تم تفعيل التعليقات' : 'تم إيقاف التعليقات');
+        toast.success(newValue ? t('course.toastCommentsEnabled') : t('course.toastCommentsDisabled'));
         fetchVideos();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     }
   };
 
@@ -814,13 +814,13 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       });
 
       if (error) {
-        toast.error('فشل إرسال التعليق');
+        toast.error(t('course.toastCommentSendFailed'));
       } else {
         setNewComment('');
         fetchComments(selectedVideo.id);
       }
     } catch {
-      toast.error('حدث خطأ أثناء إرسال التعليق');
+      toast.error(t('course.toastCommentSendError'));
     } finally {
       setSubmittingComment(false);
     }
@@ -844,15 +844,15 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         .eq('id', editingCommentId);
 
       if (error) {
-        toast.error('فشل تعديل التعليق');
+        toast.error(t('course.toastCommentEditFailed'));
       } else {
-        toast.success('تم تعديل التعليق');
+        toast.success(t('course.toastCommentEdited'));
         setEditingCommentId(null);
         setEditingCommentContent('');
         fetchComments(selectedVideo.id);
       }
     } catch {
-      toast.error('حدث خطأ أثناء تعديل التعليق');
+      toast.error(t('course.toastCommentEditError'));
     } finally {
       setSavingComment(false);
     }
@@ -872,15 +872,15 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       const { error } = await supabase.from('video_comments').delete().eq('id', commentId);
 
       if (error) {
-        toast.error('فشل حذف التعليق');
+        toast.error(t('course.toastCommentDeleteFailed'));
       } else {
-        toast.success('تم حذف التعليق');
+        toast.success(t('course.toastCommentDeleted'));
         if (selectedVideo) {
           fetchComments(selectedVideo.id);
         }
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setDeletingCommentId(null);
       setConfirmDeleteCommentId(null);
@@ -902,14 +902,14 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         .eq('id', commentId);
 
       if (error) {
-        toast.error('فشل الإبلاغ عن التعليق');
+        toast.error(t('course.toastCommentReportFailed'));
       } else {
-        toast.success('تم الإبلاغ عن التعليق وسيتم مراجعته');
+        toast.success(t('course.toastCommentReported'));
         // Update local state to reflect flag
         setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, is_flagged: true } : c));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     }
   };
 
@@ -952,7 +952,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-foreground">{t('course.videos')}</h3>
-          <p className="text-muted-foreground text-sm mt-1">{videos.length} فيديو</p>
+          <p className="text-muted-foreground text-sm mt-1">{t('course.videoCount', { count: videos.length })}</p>
         </div>
         {role === 'teacher' && (
           <Button
@@ -979,7 +979,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             <FileVideo className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('course.noVideos')}</p>
-          <p className="text-sm text-muted-foreground">لم يتم رفع فيديوهات بعد</p>
+          <p className="text-sm text-muted-foreground">{t('course.noVideosUploaded')}</p>
         </motion.div>
       ) : (
         <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
@@ -1008,7 +1008,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                         <div className="flex items-center gap-2 rounded-lg bg-black/60 px-3 py-1.5">
                           <Loader2 className="h-4 w-4 animate-spin text-white" />
-                          <span className="text-xs font-medium text-white">جاري الرفع...</span>
+                          <span className="text-xs font-medium text-white">{t('course.uploading')}</span>
                         </div>
                       </div>
                     )}
@@ -1043,7 +1043,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        {formatDate(video.created_at)}
+                        {formatDate(video.created_at, locale)}
                       </span>
                       {video.comment_count !== undefined && video.comment_count > 0 && (
                         <span className="flex items-center gap-1">
@@ -1078,7 +1078,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           <ChevronLeft className="h-4 w-4" />
-          العودة
+          {t('common.goBack')}
         </button>
 
         {/* Video player */}
@@ -1094,7 +1094,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             onPlay={() => handleVideoPlay(selectedVideo.id)}
           >
             <source src={selectedVideo.video_url} type={selectedVideo.video_type} />
-            متصفحك لا يدعم تشغيل الفيديو.
+            {t('course.videoNotSupported')}
           </video>
         </div>
 
@@ -1133,7 +1133,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             </span>
             <span className="flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" />
-              {formatDate(selectedVideo.created_at)}
+              {formatDate(selectedVideo.created_at, locale)}
             </span>
             <span className="flex items-center gap-1.5">
               <HardDrive className="h-3.5 w-3.5" />
@@ -1141,7 +1141,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             </span>
             <span className="flex items-center gap-1.5">
               <Eye className="h-3.5 w-3.5" />
-              {selectedVideo.view_count} مشاهدة
+              {t('course.viewsCount', { count: selectedVideo.view_count })}
             </span>
             {selectedVideo.duration && (
               <span className="flex items-center gap-1.5">
@@ -1162,7 +1162,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               className="flex items-center gap-1.5"
             >
               <Pencil className="h-3.5 w-3.5" />
-              تعديل
+              {t('common.edit')}
             </Button>
             <Button
               variant="outline"
@@ -1173,12 +1173,12 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               {selectedVideo.comments_enabled ? (
                 <>
                   <MessageSquareOff className="h-3.5 w-3.5" />
-                  إيقاف التعليقات
+                  {t('course.disableComments')}
                 </>
               ) : (
                 <>
                   <MessageSquare className="h-3.5 w-3.5" />
-                  تفعيل التعليقات
+                  {t('course.enableComments')}
                 </>
               )}
             </Button>
@@ -1189,7 +1189,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               className="flex items-center gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-800"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              حذف
+              {t('common.delete')}
             </Button>
           </div>
         )}
@@ -1199,7 +1199,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-              <h3 className="text-base font-bold text-foreground">التعليقات</h3>
+              <h3 className="text-base font-bold text-foreground">{t('course.commentsTitle')}</h3>
               {comments.length > 0 && (
                 <span className="rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2 py-0.5 text-[11px] font-medium">
                   {comments.length}
@@ -1213,7 +1213,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 <textarea
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="اكتب تعليقك..."
+                  placeholder={t('course.commentPlaceholder')}
                   rows={2}
                   className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40 resize-none"
                   onKeyDown={(e) => {
@@ -1246,8 +1246,8 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             ) : comments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <MessageSquare className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                <p className="text-sm text-muted-foreground">لا توجد تعليقات بعد</p>
-                <p className="text-xs text-muted-foreground/70">كن أول من يعلّق على هذا الفيديو</p>
+                <p className="text-sm text-muted-foreground">{t('course.noCommentsYet')}</p>
+                <p className="text-xs text-muted-foreground/70">{t('course.beFirstToComment')}</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
@@ -1270,14 +1270,14 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-sm font-medium text-foreground">
-                                {comment.user_name || 'مستخدم'}
+                                {comment.user_name || t('common.user')}
                               </span>
                               <span className="text-[11px] text-muted-foreground">
-                                {formatTimeAgo(comment.created_at)}
+                                {formatTimeAgo(comment.created_at, t, locale)}
                               </span>
                               {comment.updated_at !== comment.created_at && (
                                 <span className="text-[10px] text-muted-foreground/60">
-                                  (معدّل)
+                                  {t('course.edited')}
                                 </span>
                               )}
                             </div>
@@ -1298,14 +1298,14 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                                   onClick={handleSaveEditComment}
                                   disabled={savingComment || !editingCommentContent.trim()}
                                   className="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-60 transition-colors"
-                                  title="حفظ"
+                                  title={t('common.save')}
                                 >
                                   {savingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                                 </button>
                                 <button
                                   onClick={handleCancelEditComment}
                                   className="rounded-md p-1.5 text-muted-foreground hover:bg-muted transition-colors"
-                                  title="إلغاء"
+                                  title={t('common.cancel')}
                                 >
                                   <X className="h-4 w-4" />
                                 </button>
@@ -1322,7 +1322,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                                 <button
                                   onClick={() => handleEditComment(comment)}
                                   className="flex items-center justify-center rounded-md text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors p-1"
-                                  title="تعديل التعليق"
+                                  title={t('course.editComment')}
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </button>
@@ -1332,7 +1332,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                                   onClick={() => setConfirmDeleteCommentId(comment.id)}
                                   disabled={deletingCommentId === comment.id}
                                   className="flex items-center justify-center rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors p-1 disabled:opacity-60"
-                                  title="حذف التعليق"
+                                  title="{t('course.deleteCommentTitle')}"
                                 >
                                   {deletingCommentId === comment.id ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1353,7 +1353,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                               {comment.is_flagged && (
                                 <span className="flex items-center gap-1 text-amber-500 text-[10px] font-medium">
                                   <Flag className="h-3 w-3" />
-                                  مبلّغ
+                                  {t('course.flagged')}
                                 </span>
                               )}
                             </div>
@@ -1372,7 +1372,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         {!selectedVideo.comments_enabled && (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/20 py-8 text-center">
             <MessageSquareOff className="h-8 w-8 text-muted-foreground/40 mb-2" />
-            <p className="text-sm text-muted-foreground">التعليقات معطّلة على هذا الفيديو</p>
+            <p className="text-sm text-muted-foreground">{t('course.commentsDisabledOnVideo')}</p>
             {isTeacher && (
               <Button
                 variant="outline"
@@ -1381,7 +1381,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 className="mt-3 flex items-center gap-1.5"
               >
                 <MessageSquare className="h-3.5 w-3.5" />
-                تفعيل التعليقات
+                {t('course.enableComments')}
               </Button>
             )}
           </div>
@@ -1437,7 +1437,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               <div className="flex items-center justify-between border-b p-5 shrink-0">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <Upload className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  رفع فيديو
+                  {t('course.uploadVideo')}
                 </h3>
                 <button
                   onClick={() => {
@@ -1455,24 +1455,24 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 {/* Title */}
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">
-                    عنوان الفيديو <span className="text-rose-500">*</span>
+                    {t('course.videoTitle')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="أدخل عنوان الفيديو"
+                    placeholder={t('course.videoTitlePlaceholder')}
                     className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40"
                   />
                 </div>
 
                 {/* Description */}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('course.description')}</label>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="أدخل وصف الفيديو (اختياري)"
+                    placeholder={t('course.videoDescPlaceholder')}
                     rows={2}
                     className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40 resize-none"
                   />
@@ -1481,7 +1481,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 {/* File picker */}
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">
-                    ملف الفيديو <span className="text-rose-500">*</span>
+                    {t('course.videoFile')} <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <input
@@ -1508,14 +1508,14 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                           <button
                             onClick={() => setVideoFiles((prev) => prev.filter((_, idx) => idx !== i))}
                             className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                            title="إزالة"
+                            title={t('common.remove')}
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ))}
                       {videoFiles.length > 1 && (
-                        <p className="text-[11px] text-muted-foreground">{videoFiles.length} ملفات سيتم رفعها</p>
+                        <p className="text-[11px] text-muted-foreground">{t('course.filesToUpload', { count: videoFiles.length })}</p>
                       )}
                     </div>
                   )}
@@ -1524,7 +1524,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 {/* Thumbnail picker */}
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">
-                    صورة مصغّرة (اختياري)
+                    {t('course.thumbnail')}
                   </label>
                   <div className="relative">
                     <input
@@ -1548,7 +1548,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                       <button
                         onClick={() => { setThumbnailFile(null); if (thumbInputRef.current) thumbInputRef.current.value = ''; }}
                         className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                        title="إزالة"
+                        title={t('common.remove')}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -1560,7 +1560,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 {videoFiles.length > 0 && (
                   <div className="flex items-start gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-2.5">
                     <Upload className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
-                    <p className="text-xs text-sky-700 dark:text-sky-300">سيستمر الرفع في الخلفية ويمكنك التنقل في التطبيق أثناء ذلك</p>
+                    <p className="text-xs text-sky-700 dark:text-sky-300">{t('course.uploadInBackground')}</p>
                   </div>
                 )}
               </div>
@@ -1573,7 +1573,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                   className="flex items-center justify-center gap-2 w-full bg-sky-700 hover:bg-sky-800 text-white"
                 >
                   <Upload className="h-4 w-4" />
-                  رفع {videoFiles.length > 1 ? `${videoFiles.length} فيديوهات` : 'الفيديو'}
+                  {t('course.uploadCount', { count: videoFiles.length })}
                 </Button>
               </div>
             </motion.div>
@@ -1606,7 +1606,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  تعديل الفيديو
+                  {t('course.editVideo')}
                 </h3>
                 <button
                   onClick={() => {
@@ -1623,13 +1623,13 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 {/* Title */}
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">
-                    عنوان الفيديو <span className="text-rose-500">*</span>
+                    {t('course.videoTitle')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
-                    placeholder="أدخل عنوان الفيديو"
+                    placeholder={t('course.videoTitlePlaceholder')}
                     className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40"
                     disabled={saving}
                   />
@@ -1637,11 +1637,11 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
 
                 {/* Description */}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('course.description')}</label>
                   <textarea
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
-                    placeholder="أدخل وصف الفيديو (اختياري)"
+                    placeholder={t('course.videoDescPlaceholder')}
                     rows={3}
                     className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40 resize-none"
                     disabled={saving}
@@ -1657,9 +1657,9 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                       <MessageSquareOff className="h-4 w-4 text-muted-foreground" />
                     )}
                     <div>
-                      <p className="text-sm font-medium text-foreground">التعليقات</p>
+                      <p className="text-sm font-medium text-foreground">{t('course.commentsTitle')}</p>
                       <p className="text-[11px] text-muted-foreground">
-                        {editCommentsEnabled ? 'التعليقات مفعّلة' : 'التعليقات معطّلة'}
+                        {editCommentsEnabled ? t('course.commentsEnabled') : t('course.commentsDisabled')}
                       </p>
                     </div>
                   </div>
@@ -1687,12 +1687,12 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                   {saving ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      جاري الحفظ...
+                      {t('common.saving')}
                     </>
                   ) : (
                     <>
                       <Pencil className="h-4 w-4" />
-                      حفظ التعديلات
+                      {t('course.saveChanges')}
                     </>
                   )}
                 </Button>
@@ -1711,13 +1711,13 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       >
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف الفيديو</AlertDialogTitle>
+            <AlertDialogTitle>{t('course.deleteVideo')}</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف هذا الفيديو؟ سيتم حذف جميع التعليقات أيضاً. لا يمكن التراجع عن هذا الإجراء.
+              {t('course.deleteVideoConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -1727,7 +1727,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {deletingId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              حذف
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1742,13 +1742,13 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       >
         <AlertDialogContent dir={dir}>
           <AlertDialogHeader>
-            <AlertDialogTitle>حذف التعليق</AlertDialogTitle>
+            <AlertDialogTitle>{t('course.deleteCommentTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              هل أنت متأكد من حذف هذا التعليق؟ لا يمكن التراجع عن هذا الإجراء.
+              {t('course.deleteCommentConfirm')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-row gap-2 justify-end">
-            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
@@ -1758,7 +1758,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {deletingCommentId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              حذف
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

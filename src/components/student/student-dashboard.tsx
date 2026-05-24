@@ -108,10 +108,9 @@ const cardHover = {
 // -------------------------------------------------------
 // Helper: format date to Arabic-friendly string
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string): string {
   try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('ar-SA', {
+    return new Date(dateStr).toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -134,7 +133,7 @@ function scorePercentage(score: number, total: number): number {
 // -------------------------------------------------------
 export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
   // ─── i18n ───
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
 
   // ─── App store ───
   const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
@@ -264,7 +263,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // Enforce file size limit (10MB) immediately
     const MAX_FILE_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
-      toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB). يرجى اختيار ملف أصغر');
+      toast.error(t('student.fileSizeExceeded'));
       setSummaryFile(null);
       setSummaryFileBuffer(null);
       setSummaryFileName('');
@@ -315,7 +314,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             console.warn('[Summary] Auto-cleanup: removing stale pending summary:', ps.title);
             // Abort the fetch if still in progress
             try { ps.abortController.abort(); } catch { /* ignore */ }
-            toast.error(`انتهت مهلة إنشاء ملخص "${ps.title}". يرجى المحاولة مرة أخرى`, { duration: 8000, id: `stale-${ps.id}` });
+            toast.error(t('student.staleSummaryTimeout', { title: ps.title }), { duration: 8000, id: `stale-${ps.id}` });
             return false;
           }
           return ps.status !== 'cancelled';
@@ -916,7 +915,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           now - p.startedAt < maxAge
         );
         if (recent.length > 0) {
-          toast.info(`جاري التحقق من ${recent.length} ملخص قيد الإنشاء...`, { duration: 5000 });
+          toast.info(t('student.verifyingPendingSummaries', { count: recent.length }), { duration: 5000 });
           // Clear the stored pending summaries since we've acknowledged them
           sessionStorage.removeItem('pendingSummaries');
           // Re-fetch summaries to check if they've been created on the server
@@ -1170,24 +1169,24 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const handleCreateSummary = async () => {
     const title = summaryTitle.trim();
     if (!title) {
-      toast.error('يرجى إدخال عنوان الملخص');
+      toast.error(t('student.enterTitle'));
       return;
     }
 
     // For text mode, validate content upfront
     if (summaryInputMode === 'text') {
       if (!summaryText.trim()) {
-        toast.error('يرجى إدخال المحتوى أو لصقه');
+        toast.error(t('student.enterContent'));
         return;
       }
     } else if (summaryInputMode === 'file' || summaryInputMode === 'transcribe') {
       if (!summaryFile) {
-        toast.error('يرجى اختيار ملف PDF أو Word');
+        toast.error(t('student.chooseFile'));
         return;
       }
     } else if (summaryInputMode === 'existing') {
       if (!selectedExistingFile) {
-        toast.error('يرجى اختيار ملف من ملفاتك');
+        toast.error(t('student.chooseFileFromMy'));
         return;
       }
     }
@@ -1221,7 +1220,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       // Fallback: try to read now if we didn't get the buffer earlier
       const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (capturedFile.size > MAX_FILE_SIZE) {
-        toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB). يرجى اختيار ملف أصغر');
+        toast.error(t('student.fileSizeExceeded'));
         return;
       }
       try {
@@ -1229,7 +1228,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         console.log('[Summary] Fallback pre-read file data, size:', preReadFileData.byteLength, 'bytes');
       } catch (readErr) {
         console.error('[Summary] Failed to pre-read file data:', readErr);
-        toast.error('فشل في قراءة الملف. يرجى إعادة اختيار الملف والمحاولة مرة أخرى');
+        toast.error(t('student.fileReadError'));
         return;
       }
     }
@@ -1274,14 +1273,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     setExistingFileTranscribe(false);
 
     toast.info(inputMode === 'transcribe'
-      ? 'جاري استخراج النص من الملف في الخلفية...'
+      ? t('student.extractingInBackground')
       : inputMode === 'existing'
         ? (capturedExistingFileTranscribe
-          ? 'جاري استخراج النص من الملف المحدد في الخلفية...'
-          : 'جاري استخراج النص وتلخيص الملف المحدد في الخلفية...')
+          ? t('student.extractingSelectedBackground')
+          : t('student.extractAndSummarizeSelected'))
         : inputMode === 'file'
-          ? 'جاري استخراج النص وتوليد الملخص في الخلفية...'
-          : 'جاري توليد الملخص في الخلفية...'
+          ? t('student.extractingAndSummarizing')
+          : t('student.generatingInBackground')
     );
 
     // Run the rest in the background (no await — fire and track)
@@ -1305,7 +1304,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         const token = await waitForSession(isMobile ? 15000 : 10000);
 
         if (!token) {
-          throw new Error('انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مرة أخرى');
+          throw new Error(t('student.sessionExpiredError'));
         }
 
         let originalContent = '';
@@ -1367,7 +1366,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               // Note: capturedFile.arrayBuffer() may fail on mobile if File ref is invalid,
               // but preReadFileData should always be available from the onChange pre-read.
               if (!sourceBuffer) {
-                throw new Error('لم يتم العثور على بيانات الملف');
+                throw new Error(t('student.fileDataNotFound'));
               }
 
               console.log('[Summary] Trying SERVER-SIDE extraction as fallback');
@@ -1423,11 +1422,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           }
 
           if (!extractionSucceeded) {
-            throw new Error('فشل في استخراج النص من الملف. يرجى المحاولة مرة أخرى');
+            throw new Error(t('student.extractTextFailed'));
           }
 
           if (!originalContent.trim()) {
-            throw new Error('لم يتم العثور على نص في الملف. تأكد أن الملف ليس ممسوحاً ضوئياً');
+            throw new Error(t('student.noTextInFile'));
           }
 
           if (inputMode === 'transcribe') {
@@ -1482,7 +1481,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error, 'saved:', summaryData.data?.saved);
 
             if (!summaryRes.ok || !summaryData.success) {
-              throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
+              throw new Error(summaryData.error || t('common.errorServer'));
             }
 
             summaryContent = summaryData.data?.summary || '';
@@ -1566,7 +1565,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
               const fileRes = await fetch(capturedExistingFile.file_url, { signal: abortController.signal });
               if (!fileRes.ok) {
-                throw new Error('فشل في تحميل الملف من التخزين');
+                throw new Error(t('student.fileDownloadFailed'));
               }
               const arrayBuffer = await fileRes.arrayBuffer();
               console.log('[Summary] Fetched existing file (client-side), size:', arrayBuffer.byteLength, 'bytes, name:', capturedExistingFile.file_name);
@@ -1589,11 +1588,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           }
 
           if (!extractionSucceeded) {
-            throw new Error('فشل في استخراج النص من الملف. يرجى المحاولة مرة أخرى');
+            throw new Error(t('student.extractTextFailed'));
           }
 
           if (!originalContent.trim()) {
-            throw new Error('لم يتم العثور على نص في الملف. تأكد أن الملف ليس ممسوحاً ضوئياً');
+            throw new Error(t('student.noTextInFile'));
           }
 
           // ─── Decide: transcribe-only or AI summarize? ───
@@ -1645,7 +1644,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             const summaryData = await summaryRes.json();
 
             if (!summaryRes.ok || !summaryData.success) {
-              throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
+              throw new Error(summaryData.error || t('common.errorServer'));
             }
 
             summaryContent = summaryData.data?.summary || '';
@@ -1676,7 +1675,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           console.log('[Summary] API response:', summaryRes.status, summaryData.success ? 'success' : summaryData.error, 'saved:', summaryData.data?.saved);
 
           if (!summaryRes.ok || !summaryData.success) {
-            throw new Error(summaryData.error || `فشل الاتصال بالخادم (حالة ${summaryRes.status})`);
+            throw new Error(summaryData.error || t('common.errorServer'));
           }
 
           summaryContent = summaryData.data?.summary || '';
@@ -1689,8 +1688,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
         if (!summaryContent) {
           throw new Error(inputMode === 'transcribe'
-            ? 'لم يتم استخراج نص من الملف'
-            : 'لم يتم إنشاء محتوى الملخص — رد الذكاء الاصطناعي فارغ');
+            ? t('student.noTextExtracted')
+            : t('student.noSummaryContent'));
         }
 
         if (savedSummaryId) {
@@ -1759,8 +1758,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         }
 
         toast.success(inputMode === 'transcribe'
-          ? `تم تفريغ نص "${title}" بنجاح`
-          : `تم إنشاء ملخص "${title}" بنجاح`
+          ? t('student.transcribeSuccess', { title })
+          : t('student.summaryCreateSuccess', { title })
         );
         // Delay fetchSummaries to avoid race condition with optimistic update
         // The optimistic update above uses generation=0, but fetchSummaries
@@ -1776,11 +1775,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           // Client timeout fired — show timeout error message
           // (Manual cancellation doesn't show a toast — the cancel handler
           // already shows "cancelled" state before removing the pending item)
-          toast.error('انتهت مهلة إنشاء الملخص. يرجى المحاولة مرة أخرى', { duration: 8000, id: 'summary-error' });
+          toast.error(t('student.summaryTimeout'), { duration: 8000, id: 'summary-error' });
         } else if (err instanceof Error) {
           toast.error(err.message, { duration: 8000, id: 'summary-error' });
         } else {
-          toast.error(`فشل إنشاء ملخص "${title}"`, { duration: 8000, id: 'summary-error' });
+          toast.error(t('student.summaryCreateFailedWithTitle', { title }), { duration: 8000, id: 'summary-error' });
         }
       } finally {
         clearTimeout(clientTimeoutId);
@@ -1800,7 +1799,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     processInBackground().catch((err) => {
       console.error('[Summary] UNHANDLED processInBackground error:', err);
       removePendingSummary(pendingId);
-      toast.error(`حدث خطأ غير متوقع أثناء إنشاء ملخص "${title}"`, { duration: 8000, id: 'summary-error' });
+      toast.error(t('student.summaryUnexpectedError', { title }), { duration: 8000, id: 'summary-error' });
     });
   };
 
@@ -1828,26 +1827,26 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             'Authorization': `Bearer ${token}`,
           },
           body: JSON.stringify({
-            title: `اختبار: ${title}`,
+            title: t('summary.quizTitle', { title }),
             questions: quizData.data.questions,
             summaryId,
           }),
         });
         if (saveRes.ok) {
           fetchQuizzes();
-          toast.success(`تم إنشاء اختبار لملخص "${title}"`);
+          toast.success(t('student.quizCreatedForSummary', { title }));
         } else {
           // Fallback: try client-side insert
           console.warn('[Quiz] Server save failed, trying client-side...');
           const { error } = await supabase.from('quizzes').insert({
             user_id: profile.id,
-            title: `اختبار: ${title}`,
+            title: t('summary.quizTitle', { title }),
             questions: quizData.data.questions,
             summary_id: summaryId,
           });
           if (!error) {
             fetchQuizzes();
-            toast.success(`تم إنشاء اختبار لملخص "${title}"`);
+            toast.success(t('student.quizCreatedForSummary', { title }));
           }
         }
       }
@@ -1874,7 +1873,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم حذف الملخص بنجاح');
+        toast.success(t('summary.deleteSuccess'));
         // Add to recently deleted set to prevent stale re-fetch from re-adding it
         recentlyDeletedSummaryIdsRef.current.add(summaryId);
         setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
@@ -1888,9 +1887,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         // Fallback to direct Supabase delete
         const { error } = await supabase.from('summaries').delete().eq('id', summaryId);
         if (error) {
-          toast.error(data.error || 'حدث خطأ أثناء حذف الملخص');
+          toast.error(data.error || t('summary.deleteErrorGeneral'));
         } else {
-          toast.success('تم حذف الملخص بنجاح');
+          toast.success(t('summary.deleteSuccess'));
           recentlyDeletedSummaryIdsRef.current.add(summaryId);
           setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
           const remaining = summaries.filter(s => s.id !== summaryId);
@@ -1902,16 +1901,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       try {
         const { error } = await supabase.from('summaries').delete().eq('id', summaryId);
         if (error) {
-          toast.error('حدث خطأ أثناء حذف الملخص');
+          toast.error(t('summary.deleteErrorGeneral'));
         } else {
-          toast.success('تم حذف الملخص بنجاح');
+          toast.success(t('summary.deleteSuccess'));
           recentlyDeletedSummaryIdsRef.current.add(summaryId);
           setTimeout(() => recentlyDeletedSummaryIdsRef.current.delete(summaryId), 10000);
           const remaining = summaries.filter(s => s.id !== summaryId);
           safeSetSummaries(remaining, 0, true); // force=true
         }
       } catch {
-        toast.error('حدث خطأ غير متوقع');
+        toast.error(t('common.toastError'));
       }
     } finally {
       setDeletingSummaryId(null);
@@ -1926,7 +1925,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
     const totalQ = quizConfigTypes.mcq + quizConfigTypes.boolean + quizConfigTypes.completion + quizConfigTypes.matching;
     if (totalQ === 0) {
-      toast.error('يرجى اختيار نوع سؤال واحد على الأقل');
+      toast.error(t('student.selectQuestionType'));
       return;
     }
 
@@ -1954,7 +1953,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
 
       if (!content) {
-        toast.error('لم يتم العثور على محتوى الملخص');
+        toast.error(t('student.noSummaryContentForQuiz'));
         return;
       }
 
@@ -1970,7 +1969,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const quizData = await quizRes.json();
 
       if (!quizRes.ok || !quizData.success) {
-        toast.error(quizData.error || 'فشل إنشاء الاختبار');
+        toast.error(quizData.error || t('summary.quizCreateError'));
         return;
       }
 
@@ -1982,7 +1981,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           'Authorization': `Bearer ${quizToken}`,
         },
         body: JSON.stringify({
-          title: `اختبار: ${quizConfigSummaryTitle}`,
+          title: t('summary.quizTitle', { title: quizConfigSummaryTitle }),
           questions: quizData.data.questions,
           summaryId: quizConfigSummaryId,
           show_results: quizAnswerMode === 'after' ? false : true,
@@ -1992,7 +1991,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       });
 
       if (saveRes.ok) {
-        toast.success('تم إنشاء الاختبار بنجاح');
+        toast.success(t('summary.quizCreated'));
         fetchQuizzes();
         setQuizConfigOpen(false);
         setQuizConfigSummaryId(null);
@@ -2000,7 +1999,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         // Fallback: try client-side insert
         const { error } = await supabase.from('quizzes').insert({
           user_id: profile.id,
-          title: `اختبار: ${quizConfigSummaryTitle}`,
+          title: t('summary.quizTitle', { title: quizConfigSummaryTitle }),
           questions: quizData.data.questions,
           summary_id: quizConfigSummaryId,
           show_results: quizAnswerMode === 'after' ? false : true,
@@ -2008,16 +2007,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           // NOTE: shuffle_questions is client-side only, not stored in DB
         });
         if (!error) {
-          toast.success('تم إنشاء الاختبار بنجاح');
+          toast.success(t('summary.quizCreated'));
           fetchQuizzes();
           setQuizConfigOpen(false);
           setQuizConfigSummaryId(null);
         } else {
-          toast.error('فشل حفظ الاختبار');
+          toast.error(t('summary.quizSaveError'));
         }
       }
     } catch {
-      toast.error('حدث خطأ أثناء إنشاء الاختبار');
+      toast.error(t('summary.quizCreateGeneralError'));
     } finally {
       setCreatingQuizFromSummary(false);
     }
@@ -2034,7 +2033,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const handleSearchTeacher = async () => {
     const code = teacherCode.trim().toUpperCase();
     if (!code) {
-      toast.error('يرجى إدخال رمز المعلم');
+      toast.error(t('student.enterTeacherCode'));
       return;
     }
 
@@ -2051,7 +2050,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'لم يتم العثور على معلم بهذا الرمز');
+        toast.error(data.error || t('student.teacherNotFound'));
         return;
       }
 
@@ -2059,7 +2058,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       setTeacherPreview(data.teacher);
     } catch (err) {
       console.error('[handleSearchTeacher] Unexpected error:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setSearchingTeacher(false);
     }
@@ -2080,12 +2079,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إرسال طلب الارتباط');
+        toast.error(data.error || t('student.errorLinkingTeacher'));
         return;
       }
 
       // Success
-      toast.success(data.message || `تم إرسال طلب الارتباط بنجاح. في انتظار موافقة المعلم.`);
+      toast.success(data.message || t('student.linkRequestSent'));
 
       // Optimistically add the teacher to local state so it appears immediately
       if (teacherPreview) {
@@ -2100,7 +2099,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       setTimeout(() => { fetchLinkedTeachers(); fetchQuizzes(); }, 1000);
     } catch (err) {
       console.error('[handleConfirmLinkTeacher] Unexpected error:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setLinkingTeacher(false);
     }
@@ -2121,16 +2120,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إلغاء الربط');
+        toast.error(data.error || t('student.errorUnlinkingTeacher'));
       } else {
-        toast.success('تم إلغاء ربط المعلم بنجاح');
+        toast.success(t('student.unlinkSuccess'));
         setSelectedTeacher(null);
         setUnlinkConfirmOpen(false);
         fetchLinkedTeachers();
         fetchQuizzes();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setDeletingLinkId(null);
     }
@@ -2151,13 +2150,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إلغاء الطلب');
+        toast.error(data.error || t('student.errorCancelingRequest'));
       } else {
-        toast.success('تم إلغاء طلب الارتباط بنجاح');
+        toast.success(t('student.rejectSuccess'));
         fetchLinkedTeachers();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setCancelingRequestId(null);
     }
@@ -2178,13 +2177,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إزالة الطلب');
+        toast.error(data.error || t('student.errorDismissingRequest'));
       } else {
-        toast.success('تم إزالة الطلب المرفوض');
+        toast.success(t('student.dismissRejectedSuccess'));
         fetchLinkedTeachers();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setCancelingRequestId(null);
     }
@@ -2205,15 +2204,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول الطلب');
+        toast.error(data.error || t('student.errorAcceptingRequest'));
       } else {
-        toast.success(data.message || 'تم قبول المعلم بنجاح');
+        toast.success(data.message || t('student.acceptSuccess'));
         fetchIncomingLinkRequests();
         fetchLinkedTeachers();
         fetchQuizzes();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setProcessingIncomingId(null);
     }
@@ -2234,14 +2233,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض الطلب');
+        toast.error(data.error || t('student.errorRejectingRequest'));
       } else {
-        toast.success(data.message || 'تم رفض الطلب');
+        toast.success(data.message || t('student.rejectSuccess'));
         fetchIncomingLinkRequests();
         fetchLinkedTeachers();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setProcessingIncomingId(null);
     }
@@ -2262,16 +2261,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول جميع الطلبات');
+        toast.error(data.error || t('student.errorAcceptingAll'));
       } else {
-        toast.success(data.message || `تم قبول جميع الطلبات بنجاح`);
+        toast.success(data.message || t('student.acceptAllSuccess'));
         setConfirmIncomingAcceptAllOpen(false);
         fetchIncomingLinkRequests();
         fetchLinkedTeachers();
         fetchQuizzes();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setProcessingIncomingBulk(false);
     }
@@ -2292,15 +2291,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       const data = await response.json();
 
       if (!response.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض جميع الطلبات');
+        toast.error(data.error || t('student.errorRejectingAll'));
       } else {
-        toast.success(data.message || `تم رفض جميع الطلبات`);
+        toast.success(data.message || t('student.rejectAllSuccess'));
         setConfirmIncomingRejectAllOpen(false);
         fetchIncomingLinkRequests();
         fetchLinkedTeachers();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setProcessingIncomingBulk(false);
     }
@@ -2342,7 +2341,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // Get the current session token for authorization
     const deleteAccountToken = await waitForSession(15000);
     if (!deleteAccountToken) {
-      throw new Error('لا يوجد جلسة نشطة');
+      throw new Error(t('common.noActiveSession'));
     }
 
     // Call the server-side API to delete the account from the database
@@ -2356,7 +2355,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
     const data = await res.json();
     if (!res.ok || !data.success) {
-      throw new Error(data.error || 'فشل في حذف الحساب');
+      throw new Error(data.error || t('student.deleteAccountFailed'));
     }
 
     // Sign out after successful deletion
@@ -2447,7 +2446,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
       {/* Two columns: recent summaries & recent scores */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* أحدث الملخصات */}
+        {/* Latest Summaries */}
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
@@ -2459,7 +2458,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 onClick={() => setActiveSection('summaries')}
                 className="text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 font-medium flex items-center gap-1"
               >
-                عرض الكل
+                {t('common.viewAll')}
                 <ChevronLeft className="h-3 w-3" />
               </button>
             </div>
@@ -2476,10 +2475,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       )}
                       <span className="font-medium">{ps.title}</span>
                       <span className="text-sky-600/70 dark:text-sky-400">
-                        {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
-                        {ps.status === 'summarizing' && '• توليد الملخص...'}
-                        {ps.status === 'saving' && '• حفظ...'}
-                        {ps.status === 'cancelled' && '• تم الإلغاء'}
+                        {ps.status === 'extracting' && (ps.mode === 'transcribe' ? t('student.extractingTextTranscribe') : t('student.extractingText'))}
+                        {ps.status === 'summarizing' && t('student.generatingSummaryStatus')}
+                        {ps.status === 'saving' && t('student.savingProgress')}
+                        {ps.status === 'cancelled' && t('student.cancelledStatus')}
                       </span>
                       {ps.status !== 'cancelled' && ps.status !== 'saving' && (
                         <button
@@ -2487,7 +2486,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 transition-colors"
                         >
                           <XCircle className="h-3 w-3" />
-                          إلغاء
+                          {t('common.cancel')}
                         </button>
                       )}
                     </div>
@@ -2532,7 +2531,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
                           {summary.summary_content?.slice(0, 80) || summary.original_content?.slice(0, 80) || ''}...
                         </p>
-                        <p className="text-xs text-muted-foreground/60 mt-1">{formatDate(summary.created_at)}</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1">{formatDate(summary.created_at, locale)}</p>
                       </div>
                     </motion.button>
                   ))}
@@ -2542,19 +2541,19 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           </div>
         </motion.div>
 
-        {/* آخر النتائج */}
+        {/* Latest Results */}
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                آخر النتائج
+                {t('student.latestResults')}
               </h3>
             </div>
             <div className="max-h-80 overflow-y-auto custom-scrollbar">
               {scores.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground text-sm">
-                  لا توجد نتائج بعد
+                  {t('student.noResultsYet')}
                 </div>
               ) : (
                 <div className="divide-y">
@@ -2618,26 +2617,26 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           <div className="flex items-center gap-2 mb-2">
             <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-300" />
             <span className="text-sm font-medium text-sky-800 dark:text-sky-200">
-              جاري إنشاء {pendingSummaries.length} ملخص...
+              {t('student.creatingCount', { count: pendingSummaries.length })}
             </span>
           </div>
           {pendingSummaries.map(ps => (
             <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 dark:text-sky-200 py-1 ms-6">
               <span className="font-medium">{ps.title}</span>
               <span className="text-sky-600/70 dark:text-sky-400">
-                {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
-                {ps.status === 'summarizing' && '• توليد الملخص...'}
-                {ps.status === 'saving' && '• حفظ...'}
-                {ps.status === 'cancelled' && '• تم الإلغاء'}
+                {ps.status === 'extracting' && (ps.mode === 'transcribe' ? t('student.extractingTextTranscribe') : t('student.extractingText'))}
+                {ps.status === 'summarizing' && t('student.generatingSummaryStatus')}
+                {ps.status === 'saving' && t('student.savingProgress')}
+                {ps.status === 'cancelled' && t('student.cancelledStatus')}
               </span>
               {ps.status !== 'cancelled' && ps.status !== 'saving' && (
                 <button
                   onClick={() => cancelPendingSummary(ps.id)}
                   className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 transition-colors"
-                  title="إلغاء"
+                  title={t('common.cancel')}
                 >
                   <XCircle className="h-3 w-3" />
-                  إلغاء
+                  {t('common.cancel')}
                 </button>
               )}
             </div>
@@ -2655,13 +2654,13 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             <FileText className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('student.noSummaries')}</p>
-          <p className="text-sm text-muted-foreground mb-4">ابدأ بإنشاء ملخصك الأول من محتوى دراسي</p>
+          <p className="text-sm text-muted-foreground mb-4">{t('student.createFirstSummary')}</p>
           <button
             onClick={() => setNewSummaryOpen(true)}
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
-            إنشاء ملخص
+            {t('student.createSummaryBtn')}
           </button>
         </motion.div>
       ) : (
@@ -2696,7 +2695,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     setQuizConfigOpen(true);
                   }}
                   className="absolute top-3 left-12 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-teal-50 hover:text-teal-600"
-                  title="إنشاء اختبار"
+                  title={t('student.createQuiz')}
                 >
                   <ClipboardList className="h-3.5 w-3.5" />
                 </button>
@@ -2717,7 +2716,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
                       <Calendar className="h-3 w-3" />
-                      {formatDate(summary.created_at)}
+                      {formatDate(summary.created_at, locale)}
                     </div>
                     {(() => {
                       const quizResult = getScoreForSummary(summary.id);
@@ -2765,12 +2764,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-                  إنشاء اختبار
+                  {t('student.createQuiz')}
                 </h3>
                 <button
                   onClick={() => { if (!creatingQuizFromSummary) setQuizConfigOpen(false); }}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors touch-manipulation"
-                  aria-label="إغلاق"
+                  aria-label={t('common.close')}
                   disabled={creatingQuizFromSummary}
                 >
                   <X className="h-4 w-4" />
@@ -2781,18 +2780,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="p-5 space-y-5">
                 {/* Summary title */}
                 <div className="rounded-lg bg-teal-50/70 dark:bg-teal-950/30 border border-teal-100 p-3">
-                  <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">الملخص</p>
+                  <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">{t('student.summaryLabel')}</p>
                   <p className="text-sm font-medium text-teal-800 truncate">{quizConfigSummaryTitle}</p>
                 </div>
 
                 {/* Question types */}
                 <div className="space-y-3">
-                  <label className="text-sm font-medium text-foreground">أنواع الأسئلة وعددها</label>
+                  <label className="text-sm font-medium text-foreground">{t('summary.questionTypesAndCount')}</label>
                   {([
-                    { key: 'mcq' as const, label: 'اختيار من متعدد', icon: <ListChecks className="h-4 w-4" /> },
-                    { key: 'boolean' as const, label: 'صح أو خطأ', icon: <CheckCircle2 className="h-4 w-4" /> },
-                    { key: 'completion' as const, label: 'أكمل الجملة', icon: <Type className="h-4 w-4" /> },
-                    { key: 'matching' as const, label: 'توصيل', icon: <Link2 className="h-4 w-4" /> },
+                    { key: 'mcq' as const, label: t('summary.multipleChoice'), icon: <ListChecks className="h-4 w-4" /> },
+                    { key: 'boolean' as const, label: t('summary.trueFalse'), icon: <CheckCircle2 className="h-4 w-4" /> },
+                    { key: 'completion' as const, label: t('summary.fillBlank'), icon: <Type className="h-4 w-4" /> },
+                    { key: 'matching' as const, label: t('summary.matching'), icon: <Link2 className="h-4 w-4" /> },
                   ]).map((qt) => (
                     <div key={qt.key} className="flex items-center justify-between gap-3 rounded-lg border bg-card p-3">
                       <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -2820,7 +2819,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                 {/* Answer display mode */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">عرض الإجابات</label>
+                  <label className="text-sm font-medium text-foreground">{t('summary.showAnswers')}</label>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setQuizAnswerMode('after')}
@@ -2830,7 +2829,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
-                      بعد الاختبار
+                      {t('summary.afterQuiz')}
                     </button>
                     <button
                       onClick={() => setQuizAnswerMode('during')}
@@ -2840,16 +2839,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
-                      أثناء الاختبار
+                      {t('summary.duringQuiz')}
                     </button>
                   </div>
                 </div>
 
                 {/* Retake & Shuffle toggles */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">إعدادات إضافية</label>
+                  <label className="text-sm font-medium text-foreground">{t('summary.additionalSettings')}</label>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-3">
-                    <span className="text-sm font-medium text-foreground">السماح بإعادة الاختبار</span>
+                    <span className="text-sm font-medium text-foreground">{t('summary.allowRetake')}</span>
                     <button
                       type="button"
                       role="switch"
@@ -2867,7 +2866,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </button>
                   </div>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-3">
-                    <span className="text-sm font-medium text-foreground">ترتيب عشوائي للأسئلة</span>
+                    <span className="text-sm font-medium text-foreground">{t('summary.shuffleQuestions')}</span>
                     <button
                       type="button"
                       role="switch"
@@ -2895,12 +2894,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   {creatingQuizFromSummary ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      جاري الإنشاء...
+                      {t('common.creating')}...
                     </>
                   ) : (
                     <>
                       <ClipboardList className="h-4 w-4" />
-                      إنشاء الاختبار
+                      {t('summary.createQuiz')}
                     </>
                   )}
                 </button>
@@ -2947,12 +2946,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="p-5 space-y-4">
                 {/* Title */}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان الملخص</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('student.summaryTitleLabel')}</label>
                   <input
                     type="text"
                     value={summaryTitle}
                     onChange={(e) => setSummaryTitle(e.target.value)}
-                    placeholder="مثال: ملخص الفصل الثالث - الفيزياء"
+                    placeholder={t('student.summaryTitlePlaceholder')}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
                     dir={dir}
                   />
@@ -2960,7 +2959,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                 {/* Input mode toggle */}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">طريقة الإدخال</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('student.inputMethod')}</label>
                   <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => setSummaryInputMode('text')}
@@ -2972,7 +2971,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       }`}
                     >
                       <Type className="h-4 w-4" />
-                      لصق نص
+                      {t('student.pasteText')}
                     </button>
                     {/* File upload mode - available on all devices */}
                     <button
@@ -2985,7 +2984,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       }`}
                     >
                       <Upload className="h-4 w-4" />
-                      رفع ملف + تلخيص
+                      {t('student.uploadFileSummarize')}
                     </button>
                     {/* Transcribe mode - now available on mobile too */}
                     <button
@@ -2998,7 +2997,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       }`}
                     >
                       <BookOpen className="h-4 w-4" />
-                      تفريغ فقط
+                      {t('student.transcribeOnly')}
                     </button>
                     {/* Existing files mode - now available on mobile too */}
                     <button
@@ -3032,18 +3031,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       }`}
                     >
                       <FolderOpen className="h-4 w-4" />
-                      ملفاتي
+                      {t('student.myFiles')}
                     </button>
                   </div>
                   {summaryInputMode === 'transcribe' && (
                     <p className="text-xs text-teal-600/80 dark:text-teal-400 mt-2">
-                      سيتم استخراج النص من ملف PDF أو Word فقط دون تلخيص
+                      {t('student.transcribeOnlyDesc')}
                     </p>
                   )}
                   {summaryInputMode === 'existing' && (
                     <div className="mt-2 space-y-2">
                       <p className="text-xs text-sky-600/80 dark:text-sky-400">
-                        اختر ملفاً من ملفاتك المرفوعة مسبقاً
+                        {t('student.chooseFromMyFiles')}
                       </p>
                       {/* Sub-toggle: Summarize vs Transcribe */}
                       <div className="flex items-center gap-2">
@@ -3057,7 +3056,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           }`}
                         >
                           <CheckCircle2 className="h-3 w-3" />
-                          تلخيص بالذكاء الاصطناعي
+                          {t('student.aiSummarize')}
                         </button>
                         <button
                           type="button"
@@ -3069,12 +3068,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           }`}
                         >
                           <BookOpen className="h-3 w-3" />
-                          تفريغ النص فقط
+                          {t('student.transcribeTextOnly')}
                         </button>
                       </div>
                       {existingFileTranscribe && (
                         <p className="text-xs text-teal-600/70 dark:text-teal-400">
-                          سيتم استخراج النص من الملف فقط دون تلخيص
+                          {t('student.transcribeFileHint')}
                         </p>
                       )}
                     </div>
@@ -3085,12 +3084,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {summaryInputMode === 'text' && (
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">
-                      المحتوى
+                      {t('student.contentLabel')}
                     </label>
                     <textarea
                       value={summaryText}
                       onChange={(e) => setSummaryText(e.target.value)}
-                      placeholder="الصق المحتوى الدراسي هنا..."
+                      placeholder={t('student.contentPlaceholder')}
                       rows={6}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors resize-none"
   
@@ -3103,12 +3102,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {(summaryInputMode === 'file' || summaryInputMode === 'transcribe') && (
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">
-                      ملف PDF أو Word
+                      {t('student.pdfOrWordLabel')}
                     </label>
                     <p className="text-xs text-muted-foreground/70 mb-2">
                       {summaryInputMode === 'transcribe'
-                        ? 'سيتم استخراج النص من الملف فقط دون تلخيص'
-                        : 'سيتم استخراج النص من الملف تلقائياً ثم تلخيصه بالذكاء الاصطناعي'
+                        ? t('student.transcribeFileHint')
+                        : t('student.extractAndSummarizeHint')
                       }
                     </p>
                     <input
@@ -3139,8 +3138,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       ) : (
                         <>
                           <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-sky-400'}`} />
-                          <span className="text-sm text-muted-foreground">اضغط لاختيار ملف PDF أو Word</span>
-                          <span className="text-xs text-muted-foreground/60">الحد الأقصى 10 MB</span>
+                          <span className="text-sm text-muted-foreground">{t('student.clickToChooseFile')}</span>
+                          <span className="text-xs text-muted-foreground/60">{t('student.maxFileSize')}</span>
                         </>
                       )}
                     </button>
@@ -3151,18 +3150,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {summaryInputMode === 'existing' && (
                   <div>
                     <label className="text-sm font-medium text-foreground mb-1.5 block">
-                      اختر ملفاً من ملفاتك
+                      {t('student.chooseFileFromMy')}
                     </label>
                     {loadingExistingFiles ? (
                       <div className="flex items-center justify-center py-8 gap-2">
                         <Loader2 className="h-5 w-5 animate-spin text-sky-600 dark:text-sky-400" />
-                        <span className="text-sm text-muted-foreground">جاري تحميل الملفات...</span>
+                        <span className="text-sm text-muted-foreground">{t('student.loadingFiles')}</span>
                       </div>
                     ) : existingFiles.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30">
                         <FolderOpen className="h-8 w-8 text-sky-400" />
-                        <span className="text-sm text-muted-foreground">لا توجد ملفات مستندية مرفوعة</span>
-                        <span className="text-xs text-muted-foreground/60">ارفع ملفات PDF أو Word من قسم الملفات</span>
+                        <span className="text-sm text-muted-foreground">{t('student.noDocFiles')}</span>
+                        <span className="text-xs text-muted-foreground/60">{t('student.uploadFromFiles')}</span>
                       </div>
                     ) : (
                       <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2">
@@ -3191,11 +3190,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
                                 <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                                  <span>{isPdf ? 'PDF' : isDocx ? 'Word' : 'مستند'}</span>
+                                  <span>{isPdf ? 'PDF' : isDocx ? 'Word' : t('student.document')}</span>
                                   <span className="text-muted-foreground/40">•</span>
                                   <span>{(file.file_size / 1024).toFixed(0)} KB</span>
                                   <span className="text-muted-foreground/40">•</span>
-                                  <span>{formatDate(file.created_at)}</span>
+                                  <span>{formatDate(file.created_at, locale)}</span>
                                 </div>
                               </div>
                               {selectedExistingFile?.id === file.id && (
@@ -3227,9 +3226,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     {summaryInputMode === 'transcribe' ? <BookOpen className="h-4 w-4" /> :
                      summaryInputMode === 'existing' ? (existingFileTranscribe ? <BookOpen className="h-4 w-4" /> : <FolderOpen className="h-4 w-4" />) :
                      <CheckCircle2 className="h-4 w-4" />}
-                    {summaryInputMode === 'transcribe' ? 'تفريغ النص' :
-                     summaryInputMode === 'existing' ? (existingFileTranscribe ? 'تفريغ النص' : 'تلخيص الملف') :
-                     'إنشاء الملخص'}
+                    {summaryInputMode === 'transcribe' ? t('student.transcribeTextBtn') :
+                     summaryInputMode === 'existing' ? (existingFileTranscribe ? t('student.transcribeTextBtn') : t('student.summarizeFileBtn')) :
+                     t('student.createSummaryBtnLong')}
                   </>
                 </button>
                 <button
@@ -3238,7 +3237,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   }}
                   className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
                 >
-                  إلغاء
+                  {t('common.cancel')}
                 </button>
               </div>
             </motion.div>
@@ -3256,7 +3255,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {/* Header */}
       <motion.div variants={itemVariants}>
         <h2 className="text-xl sm:text-2xl font-bold text-foreground">{t('student.quizzesTitle')}</h2>
-        <p className="text-muted-foreground mt-1 text-sm sm:text-base">اختباراتك واختبارات المعلمين</p>
+        <p className="text-muted-foreground mt-1 text-sm sm:text-base">{t('student.quizzesDesc')}</p>
       </motion.div>
 
       {/* Quizzes grid */}
@@ -3268,16 +3267,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900/50 mb-4">
             <ClipboardList className="h-8 w-8 text-teal-600 dark:text-teal-400" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد اختبارات</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('student.noQuizzes')}</p>
           <p className="text-sm text-muted-foreground mb-4">
-            أنشئ ملخصاً أولاً وسيتم توليد اختبار تلقائياً
+            {t('student.createSummaryForQuiz')}
           </p>
           <button
             onClick={() => setActiveSection('summaries')}
             className="flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-teal-700"
           >
             <FileText className="h-4 w-4" />
-            إنشاء ملخص
+            {t('student.createSummaryBtn')}
           </button>
         </motion.div>
       ) : (
@@ -3309,7 +3308,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           {isCompleted && (
                             <span className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-teal-100 dark:bg-teal-900/50 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:text-teal-300">
                               <CheckCircle2 className="h-3 w-3" />
-                              مكتمل
+                              {t('common.completed')}
                             </span>
                           )}
                           <div className="flex items-start gap-3">
@@ -3321,12 +3320,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                               <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   <Hash className="h-3 w-3" />
-                                  {quiz.questions?.length || 0} أسئلة
+                                  {quiz.questions?.length || 0} {t('common.questions')}
                                 </span>
                                 {quiz.duration && (
                                   <span className="flex items-center gap-1">
                                     <Calendar className="h-3 w-3" />
-                                    {quiz.duration} دقيقة
+                                    {quiz.duration} {t('common.minutes')}
                                   </span>
                                 )}
                               </div>
@@ -3356,7 +3355,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                                   className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 transition-colors hover:bg-sky-100"
                                 >
                                   <Eye className="h-3.5 w-3.5" />
-                                  عرض النتائج
+                                  {t('student.viewResults')}
                                 </button>
                                 {quiz.allow_retake !== false && (
                                   <button
@@ -3364,7 +3363,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                                     className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-teal-700"
                                   >
                                     <Play className="h-3.5 w-3.5" />
-                                    إعادة الاختبار
+                                    {t('student.retakeQuiz')}
                                   </button>
                                 )}
                               </>
@@ -3374,7 +3373,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                                 className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-teal-700"
                               >
                                 <Play className="h-3.5 w-3.5" />
-                                ابدأ الاختبار
+                                {t('student.startQuiz')}
                               </button>
                             )}
                           </div>
@@ -3391,9 +3390,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <motion.div variants={itemVariants} className="mt-8">
                     <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                       <CheckCircle2 className="h-5 w-5 text-muted-foreground" />
-                      اختبارات منتهية
+                      {t('student.expiredQuizzes')}
                     </h3>
-                    <p className="text-sm text-muted-foreground mt-0.5">اختبارات مكتملة لا يمكن إعادتها</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">{t('student.completedNonRetakeable')}</p>
                   </motion.div>
                   <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {finishedQuizzes.map((quiz) => {
@@ -3405,7 +3404,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           <div className="group rounded-xl border border-muted bg-card/60 p-5 shadow-sm opacity-80 relative">
                             <span className="absolute top-3 left-3 flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
                               <CheckCircle2 className="h-3 w-3" />
-                              مكتمل
+                              {t('common.completed')}
                             </span>
                             <div className="flex items-start gap-3">
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/50">
@@ -3416,12 +3415,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                                 <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                                   <span className="flex items-center gap-1">
                                     <Hash className="h-3 w-3" />
-                                    {quiz.questions?.length || 0} أسئلة
+                                    {quiz.questions?.length || 0} {t('common.questions')}
                                   </span>
                                   {quiz.duration && (
                                     <span className="flex items-center gap-1">
                                       <Calendar className="h-3 w-3" />
-                                      {quiz.duration} دقيقة
+                                      {quiz.duration} {t('common.minutes')}
                                     </span>
                                   )}
                                 </div>
@@ -3446,7 +3445,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                                 className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 transition-colors hover:bg-sky-100"
                               >
                                 <Eye className="h-3.5 w-3.5" />
-                                عرض النتائج
+                                {t('student.viewResults')}
                               </button>
                             </div>
                           </div>
@@ -3475,7 +3474,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">{t('student.teachersTitle')}</h2>
-          <p className="text-muted-foreground mt-1">معلموك المسجلون في المنصة</p>
+          <p className="text-muted-foreground mt-1">{t('student.teachersDesc')}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Incoming Link Requests Button */}
@@ -3484,7 +3483,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 dark:border-amber-800 bg-gradient-to-b from-amber-50 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
           >
             <UserPlus className="h-4 w-4" />
-            <span>طلبات واردة</span>
+            <span>{t('student.incomingRequests')}</span>
             {incomingLinkRequests.length > 0 ? (
               <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white shadow-sm shadow-amber-300/50">
                 {incomingLinkRequests.length}
@@ -3516,7 +3515,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('student.noTeachers')}</p>
           <p className="text-sm text-muted-foreground mb-4">
-            اربط حسابك مع معلمك باستخدام الرمز الخاص به
+            {t('student.teachersLinkDesc')}
           </p>
           <button
             onClick={() => setLinkTeacherOpen(true)}
@@ -3566,11 +3565,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">طلبات الارتباط الواردة</h3>
+                      <h3 className="text-lg font-bold text-foreground">{t('student.incomingLinkRequests')}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {incomingLinkRequests.length > 0
-                          ? `${incomingLinkRequests.length} طلب بانتظار المراجعة`
-                          : 'لا توجد طلبات واردة حالياً'}
+                          ? t('student.pendingReviewCount', { count: incomingLinkRequests.length })
+                          : t('student.noIncomingRequests')}
                       </p>
                     </div>
                   </div>
@@ -3595,7 +3594,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       className="flex items-center gap-2 rounded-xl bg-sky-700/90 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-sky-200/50 hover:bg-sky-700 hover:shadow-md hover:shadow-sky-200/60 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
                     >
                       {processingIncomingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                      قبول الكل ({incomingLinkRequests.length})
+                      {t('student.acceptAllCount', { count: incomingLinkRequests.length })}
                     </button>
                     <button
                       onClick={() => setConfirmIncomingRejectAllOpen(true)}
@@ -3603,7 +3602,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       className="flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/80 dark:bg-rose-950/30 px-4 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-100 hover:border-rose-300 transition-all duration-200 disabled:opacity-50"
                     >
                       {processingIncomingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                      رفض الكل
+                      {t('common.rejectAll')}
                     </button>
                   </motion.div>
                 )}
@@ -3615,8 +3614,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30 mb-4">
                       <UserPlus className="h-7 w-7 text-amber-300" />
                     </div>
-                    <p className="text-sm font-medium text-muted-foreground">لا توجد طلبات واردة</p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">عندما يرسل معلم طلب ارتباط سيظهر هنا</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('student.noIncomingRequestsShort')}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">{t('student.whenTeacherSendsRequest')}</p>
                   </div>
                 ) : (
                   incomingLinkRequests.map(({ teacher, notificationId }) => (
@@ -3644,7 +3643,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           onClick={() => handleAcceptIncomingRequest(teacher.id, notificationId)}
                           disabled={processingIncomingId === teacher.id || processingIncomingBulk}
                           className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-50 transition-all duration-200 active:scale-90"
-                          title="قبول"
+                          title={t('common.accept')}
                         >
                           {processingIncomingId === teacher.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3656,7 +3655,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           onClick={() => handleRejectIncomingRequest(teacher.id, notificationId)}
                           disabled={processingIncomingId === teacher.id || processingIncomingBulk}
                           className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 text-rose-500 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50 transition-all duration-200 active:scale-90"
-                          title="رفض"
+                          title={t('common.reject')}
                         >
                           {processingIncomingId === teacher.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3695,9 +3694,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 mb-4">
                   <CheckCircle2 className="h-7 w-7 text-amber-600 dark:text-amber-400" />
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-2">قبول جميع الطلبات</h3>
+                <h3 className="text-lg font-bold text-foreground mb-2">{t('student.confirmAcceptAllTitle')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  هل أنت متأكد من قبول جميع طلبات الارتباط الواردة ({incomingLinkRequests.length} طلب)؟
+                  {t('student.confirmAcceptAllDesc', { count: incomingLinkRequests.length })}
                 </p>
                 <div className="flex items-center gap-3 w-full">
                   <button
@@ -3705,14 +3704,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     disabled={processingIncomingBulk}
                     className="flex-1 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                   >
-                    {processingIncomingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : `قبول الكل (${incomingLinkRequests.length})`}
+                    {processingIncomingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : t('student.acceptAllCount', { count: incomingLinkRequests.length })}
                   </button>
                   <button
                     onClick={() => setConfirmIncomingAcceptAllOpen(false)}
                     disabled={processingIncomingBulk}
                     className="flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors"
                   >
-                    إلغاء
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -3742,9 +3741,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
                   <AlertTriangle className="h-7 w-7 text-rose-600 dark:text-rose-400" />
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-2">رفض جميع الطلبات</h3>
+                <h3 className="text-lg font-bold text-foreground mb-2">{t('student.confirmRejectAllTitle')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  هل أنت متأكد من رفض جميع طلبات الارتباط الواردة ({incomingLinkRequests.length} طلب)؟ لا يمكن التراجع عن هذا الإجراء.
+                  {t('student.confirmRejectAllDesc', { count: incomingLinkRequests.length })}
                 </p>
                 <div className="flex items-center gap-3 w-full">
                   <button
@@ -3752,14 +3751,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     disabled={processingIncomingBulk}
                     className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60 transition-colors"
                   >
-                    {processingIncomingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : `رفض الكل (${incomingLinkRequests.length})`}
+                    {processingIncomingBulk ? <Loader2 className="h-4 w-4 animate-spin inline-block" /> : t('student.rejectAllCount', { count: incomingLinkRequests.length })}
                   </button>
                   <button
                     onClick={() => setConfirmIncomingRejectAllOpen(false)}
                     disabled={processingIncomingBulk}
                     className="flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors"
                   >
-                    إلغاء
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -3776,7 +3775,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
                 <Loader2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               </div>
-              <h3 className="font-semibold text-amber-800 dark:text-amber-200">طلبات الارتباط المعلقة</h3>
+              <h3 className="font-semibold text-amber-800 dark:text-amber-200">{t('student.pendingLinkRequests')}</h3>
               <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-bold text-amber-800 dark:text-amber-200">
                 {pendingLinkTeachers.length}
               </span>
@@ -3806,7 +3805,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       ) : (
                         <X className="h-3.5 w-3.5" />
                       )}
-                      إلغاء الطلب
+                      {t('student.cancelRequest')}
                     </button>
                   </div>
                 );
@@ -3824,7 +3823,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50">
                 <X className="h-4 w-4 text-rose-600 dark:text-rose-400" />
               </div>
-              <h3 className="font-semibold text-rose-800">طلبات مرفوضة</h3>
+              <h3 className="font-semibold text-rose-800">{t('student.rejectedLinkRequests')}</h3>
               <span className="rounded-full bg-rose-200 px-2 py-0.5 text-xs font-bold text-rose-800">
                 {rejectedLinkTeachers.length}
               </span>
@@ -3854,7 +3853,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       ) : (
                         <Trash2 className="h-3.5 w-3.5" />
                       )}
-                      إزالة
+                      {t('common.remove')}
                     </button>
                   </div>
                 );
@@ -3888,7 +3887,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <button
                     onClick={() => handleTeacherClick(teacher)}
                     className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                    title="تفاصيل المعلم"
+                    title={t('student.teacherDetails')}
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
@@ -3927,7 +3926,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <Users className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  بيانات المعلم
+                  {t('student.teacherDetails')}
                 </h3>
                 <button
                   onClick={() => {
@@ -3959,7 +3958,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <BookMarked className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                    المقررات
+                    {t('student.subjectsLabel')}
                   </h4>
                   {loadingTeacherSubjects ? (
                     <div className="flex items-center justify-center py-6">
@@ -3967,7 +3966,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </div>
                   ) : teacherSubjects.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 p-4 text-center">
-                      <p className="text-sm text-muted-foreground">لا توجد مقررات لهذا المعلم</p>
+                      <p className="text-sm text-muted-foreground">{t('student.noSubjectsForTeacher')}</p>
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
@@ -4004,7 +4003,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   ) : (
                     <div className="space-y-2">
                       <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
-                        هل أنت متأكد؟ لن تتمكن من رؤية اختباراته بعد الآن.
+                        {t('student.unlinkConfirm')}
                       </p>
                       <div className="flex items-center gap-2">
                         <button
@@ -4017,7 +4016,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           ) : (
                             <>
                               <Unlink className="h-3 w-3" />
-                              تأكيد
+                              {t('common.confirm')}
                             </>
                           )}
                         </button>
@@ -4026,7 +4025,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           disabled={deletingLinkId === selectedTeacher.id}
                           className="rounded-md border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors"
                         >
-                          تراجع
+                          {t('common.goBack')}
                         </button>
                       </div>
                     </div>
@@ -4066,7 +4065,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <UserPlus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  الارتباط بمعلم جديد
+                  {t('student.linkNewTeacherTitle')}
                 </h3>
                 <button
                   onClick={() => {
@@ -4091,11 +4090,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         <Search className="h-7 w-7 text-sky-700 dark:text-sky-300" />
                       </div>
                       <p className="text-sm text-muted-foreground text-center">
-                        أدخل رمز المعلم الخاص للبحث عنه
+                        {t('student.enterCodeToSearch')}
                       </p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-foreground mb-1.5 block">رمز المعلم</label>
+                      <label className="text-sm font-medium text-foreground mb-1.5 block">{t('student.teacherCodeLabel')}</label>
                       <input
                         type="text"
                         value={teacherCode}
@@ -4103,7 +4102,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           setTeacherCode(e.target.value.toUpperCase());
                           setTeacherPreview(null);
                         }}
-                        placeholder="مثال: ABC123"
+                        placeholder={t('student.teacherCodePlaceholderShort')}
                         className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors text-center tracking-widest font-mono"
                         disabled={searchingTeacher}
                         dir="ltr"
@@ -4121,7 +4120,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/40 dark:bg-sky-950/30 p-4 space-y-3">
                     <UserLink
                       userId={teacherPreview.id}
-                      name={teacherPreview.name || 'معلم'}
+                      name={teacherPreview.name || t('roles.teacher')}
                       avatarUrl={teacherPreview.avatar_url}
                       role="teacher"
                       gender={teacherPreview.gender}
@@ -4132,7 +4131,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     />
                     <div className="flex items-center gap-2 rounded-lg bg-sky-100/60 dark:bg-sky-900/50 px-3 py-2">
                       <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
-                      <span className="text-xs text-sky-800 dark:text-sky-200 font-medium">تم العثور على المعلم — اضغط "إرسال طلب" للتأكيد</span>
+                      <span className="text-xs text-sky-800 dark:text-sky-200 font-medium">{t('student.teacherFound')}</span>
                     </div>
                     <button
                       onClick={() => {
@@ -4142,7 +4141,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       disabled={linkingTeacher}
                       className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
                     >
-                      تغيير الرمز
+                      {t('student.changeCode')}
                     </button>
                   </div>
                 )}
@@ -4160,12 +4159,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       {searchingTeacher ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          جاري البحث...
+                          {t('student.searching')}...
                         </>
                       ) : (
                         <>
                           <Search className="h-4 w-4" />
-                          بحث
+                          {t('student.searchBtn')}
                         </>
                       )}
                     </button>
@@ -4180,12 +4179,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       {linkingTeacher ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          جاري إرسال الطلب...
+                          {t('student.sendingRequest')}...
                         </>
                       ) : (
                         <>
                           <Link2 className="h-4 w-4" />
-                          إرسال طلب
+                          {t('student.sendRequest')}
                         </>
                       )}
                     </button>
@@ -4201,7 +4200,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   disabled={linkingTeacher || searchingTeacher}
                   className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
                 >
-                  إلغاء
+                  {t('common.cancel')}
                 </button>
               </div>
             </motion.div>
@@ -4232,7 +4231,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       return (
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300 mb-4" />
-          <p className="text-muted-foreground text-sm">جاري تحميل البيانات...</p>
+          <p className="text-muted-foreground text-sm">{t('student.loadingData')}</p>
         </div>
       );
     }

@@ -72,12 +72,12 @@ const itemVariants = {
 };
 
 // -------------------------------------------------------
-// Helper: format date
+// Helper: format date (locale-aware)
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string): string {
   try {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('ar-SA', {
+    return date.toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -87,10 +87,10 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function formatTime(dateStr: string): string {
+function formatTime(dateStr: string, locale: string): string {
   try {
     const date = new Date(dateStr);
-    return date.toLocaleTimeString('ar-SA', {
+    return date.toLocaleTimeString(locale === 'en' ? 'en-US' : 'ar-SA', {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -99,15 +99,15 @@ function formatTime(dateStr: string): string {
   }
 }
 
-function formatDateTime(dateStr: string): string {
-  return `${formatDate(dateStr)} - ${formatTime(dateStr)}`;
+function formatDateTime(dateStr: string, locale: string): string {
+  return `${formatDate(dateStr, locale)} - ${formatTime(dateStr, locale)}`;
 }
 
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function AttendanceSection({ profile, role }: AttendanceSectionProps) {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   // ─── Shared state ───
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
@@ -300,7 +300,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
             return {
               ...r,
               student_name: formatNameWithTitle(
-                studentData?.name || 'طالب',
+                studentData?.name || t('roles.student'),
                 studentData?.role,
                 studentData?.title_id,
                 studentData?.gender,
@@ -369,8 +369,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
 
           const enriched: SessionWithDetails[] = sessions.map((s) => ({
             ...s,
-            subject_name: subjectMap.get(s.subject_id) || 'مقرر محذوف',
-            lecture_title: lectureMap.get(s.lecture_id) || 'محاضرة محذوفة',
+            subject_name: subjectMap.get(s.subject_id) || t('common.deletedCourse'),
+            lecture_title: lectureMap.get(s.lecture_id) || t('attendance.deletedLecture'),
             record_count: countMap.get(s.id) || 0,
           }));
           setPastSessions(enriched);
@@ -494,8 +494,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
 
             const enriched: SessionWithDetails[] = (sessions as AttendanceSession[]).map((s) => ({
               ...s,
-              subject_name: subjectMap.get(s.subject_id) || 'مقرر محذوف',
-              lecture_title: lectureMap.get(s.lecture_id) || 'محاضرة محذوفة',
+              subject_name: subjectMap.get(s.subject_id) || t('common.deletedCourse'),
+              lecture_title: lectureMap.get(s.lecture_id) || t('attendance.deletedLecture'),
             }));
             setStudentPastSessions(enriched);
           }
@@ -607,17 +607,17 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
   // -------------------------------------------------------
   const handleStartSession = async () => {
     if (!selectedSubjectId) {
-      toast.error('يرجى اختيار المقرر');
+      toast.error(t('attendance.toastSelectSubject'));
       return;
     }
     if (!selectedLectureId) {
-      toast.error('يرجى اختيار المحاضرة');
+      toast.error(t('attendance.toastSelectLecture'));
       return;
     }
 
     // Check if already has an active session
     if (activeSession) {
-      toast.error('لديك جلسة حضور نشطة بالفعل');
+      toast.error(t('attendance.toastAlreadyActive'));
       return;
     }
 
@@ -636,13 +636,13 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
 
       if (error) {
         if (error.code === '23505') {
-          toast.error('لديك جلسة حضور نشطة بالفعل');
+          toast.error(t('attendance.toastAlreadyActive'));
         } else {
-          toast.error('حدث خطأ أثناء بدء جلسة الحضور');
+          toast.error(t('attendance.toastStartError'));
           console.error('Start session error:', error);
         }
       } else {
-        toast.success('تم بدء جلسة الحضور بنجاح');
+        toast.success(t('attendance.toastStartSuccess'));
         setActiveSession(data as AttendanceSession);
         // Send notification to all students in the subject
         try {
@@ -664,7 +664,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         } catch { /* notification failure is non-critical */ }
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setStartingSession(false);
     }
@@ -684,16 +684,16 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         .eq('id', activeSession.id);
 
       if (error) {
-        toast.error('حدث خطأ أثناء إنهاء جلسة الحضور');
+        toast.error(t('attendance.toastEndError'));
       } else {
-        toast.success('تم إنهاء جلسة الحضور بنجاح');
+        toast.success(t('attendance.toastEndSuccess'));
         setActiveSession(null);
         setAttendanceRecords([]);
         setEnrolledStudents([]);
         fetchPastSessions();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setStoppingSession(false);
     }
@@ -714,20 +714,20 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
 
       if (error) {
         if (error.code === '23505') {
-          toast.error('تم تسجيل حضورك بالفعل');
+          toast.error(t('attendance.toastAlreadyCheckedIn'));
           setAlreadyCheckedIn(true);
           setCheckInSuccess(true);
         } else {
-          toast.error('حدث خطأ أثناء تسجيل الحضور');
+          toast.error(t('attendance.toastCheckInError'));
           console.error('Check-in error:', error);
         }
       } else {
-        toast.success('تم تسجيل الحضور بنجاح');
+        toast.success(t('attendance.toastCheckInSuccess'));
         setAlreadyCheckedIn(true);
         setCheckInSuccess(true);
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setCheckingIn(false);
     }
@@ -767,7 +767,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
             return {
               ...r,
               student_name: formatNameWithTitle(
-                studentData?.name || 'طالب',
+                studentData?.name || t('roles.student'),
                 studentData?.role,
                 studentData?.title_id,
                 studentData?.gender,
@@ -802,40 +802,40 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
       // Sheet 1: Attendance summary
       const summaryData = enrolledStudents.length > 0
         ? enrolledStudents.map((s) => ({
-            'اسم الطالب': s.name,
-            'البريد الإلكتروني': s.email,
-            'حالة الحضور': checkedInIds.has(s.id) ? 'حاضر' : 'غائب',
-            'وقت التسجيل': records.find((r) => r.student_id === s.id)
-              ? formatDateTime(records.find((r) => r.student_id === s.id)!.checked_in_at)
+            [t('attendance.excelStudentName')]: s.name,
+            [t('attendance.excelEmail')]: s.email,
+            [t('attendance.excelAttendanceStatus')]: checkedInIds.has(s.id) ? t('attendance.excelPresent') : t('attendance.excelAbsent'),
+            [t('attendance.excelCheckInTime')]: records.find((r) => r.student_id === s.id)
+              ? formatDateTime(records.find((r) => r.student_id === s.id)!.checked_in_at, locale)
               : '—',
           }))
         : records.map((r) => ({
-            'اسم الطالب': r.student_name || 'طالب',
-            'البريد الإلكتروني': r.student_email || '',
-            'حالة الحضور': 'حاضر',
-            'وقت التسجيل': formatDateTime(r.checked_in_at),
+            [t('attendance.excelStudentName')]: r.student_name || t('roles.student'),
+            [t('attendance.excelEmail')]: r.student_email || '',
+            [t('attendance.excelAttendanceStatus')]: t('attendance.excelPresent'),
+            [t('attendance.excelCheckInTime')]: formatDateTime(r.checked_in_at, locale),
           }));
 
       const ws1 = XLSX.utils.json_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(wb, ws1, 'سجل الحضور');
+      XLSX.utils.book_append_sheet(wb, ws1, t('attendance.excelAttendanceSheet'));
 
       // Sheet 2: Session info
       const infoData = [
-        { 'المعلومات': 'المقرر', 'القيمة': session.subject_name || '—' },
-        { 'المعلومات': 'المحاضرة', 'القيمة': session.lecture_title || '—' },
-        { 'المعلومات': 'بداية الجلسة', 'القيمة': formatDateTime(session.started_at) },
-        { 'المعلومات': 'نهاية الجلسة', 'القيمة': session.ended_at ? formatDateTime(session.ended_at) : '—' },
-        { 'المعلومات': 'عدد الحاضرين', 'القيمة': records.length },
-        { 'المعلومات': 'إجمالي الطلاب', 'القيمة': enrolledStudents.length || records.length },
+        { [t('attendance.excelInfo')]: t('attendance.excelSubject'), [t('attendance.excelValue')]: session.subject_name || '—' },
+        { [t('attendance.excelInfo')]: t('attendance.excelLecture'), [t('attendance.excelValue')]: session.lecture_title || '—' },
+        { [t('attendance.excelInfo')]: t('attendance.excelSessionStart'), [t('attendance.excelValue')]: formatDateTime(session.started_at, locale) },
+        { [t('attendance.excelInfo')]: t('attendance.excelSessionEnd'), [t('attendance.excelValue')]: session.ended_at ? formatDateTime(session.ended_at, locale) : '—' },
+        { [t('attendance.excelInfo')]: t('attendance.excelPresentCount'), [t('attendance.excelValue')]: records.length },
+        { [t('attendance.excelInfo')]: t('attendance.excelTotalStudents'), [t('attendance.excelValue')]: enrolledStudents.length || records.length },
       ];
       const ws2 = XLSX.utils.json_to_sheet(infoData);
-      XLSX.utils.book_append_sheet(wb, ws2, 'معلومات الجلسة');
+      XLSX.utils.book_append_sheet(wb, ws2, t('attendance.excelSessionInfo'));
 
-      const fileName = `حضور_${session.subject_name || 'جلسة'}_${session.lecture_title || ''}_${new Date(session.started_at).toISOString().split('T')[0]}.xlsx`;
+      const fileName = `attendance_${session.subject_name || 'session'}_${session.lecture_title || ''}_${new Date(session.started_at).toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
-      toast.success('تم تصدير سجل الحضور بنجاح');
+      toast.success(t('attendance.toastExportSuccess'));
     } catch {
-      toast.error('حدث خطأ أثناء تصدير البيانات');
+      toast.error(t('attendance.toastExportError'));
     }
   };
 
@@ -929,7 +929,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                     dir={dir}
                   >
                     <option value="">
-                      {loadingLectures ? 'جارٍ التحميل...' : t('attendance.selectLecture')}
+                      {loadingLectures ? t('common.loading') : t('attendance.selectLecture')}
                     </option>
                     {lectures.map((l) => (
                       <option key={l.id} value={l.id}>
@@ -948,7 +948,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                   {startingSession ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      جارٍ البدء...
+                      {t('attendance.starting')}
                     </>
                   ) : (
                     <>
@@ -968,7 +968,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <Clock className="h-4 w-4 text-sky-700" />
-                سجل جلسات الحضور السابقة
+                {t('attendance.previousSessionsTitle')}
               </h3>
             </div>
             {loadingPastSessions ? (
@@ -980,8 +980,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 mb-3">
                   <ClipboardCheck className="h-6 w-6 text-sky-700" />
                 </div>
-                <p className="text-sm font-medium text-foreground">لا توجد جلسات سابقة</p>
-                <p className="text-xs text-muted-foreground mt-1">ستظهر هنا بعد إنهاء جلسات الحضور</p>
+                <p className="text-sm font-medium text-foreground">{t('attendance.noPreviousSessions')}</p>
+                <p className="text-xs text-muted-foreground mt-1">{t('attendance.noPreviousSessionsDesc')}</p>
               </div>
             ) : (
               <div className="max-h-96 overflow-y-auto custom-scrollbar">
@@ -999,24 +999,24 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                           {session.lecture_title}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {session.subject_name} • {formatDateTime(session.started_at)}
+                          {session.subject_name} • {formatDateTime(session.started_at, locale)}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <span className="text-xs bg-sky-100 text-sky-800 rounded-full px-2.5 py-0.5 font-bold">
-                          {session.record_count} حاضر
+                          {t('attendance.presentCount', { count: session.record_count ?? 0 })}
                         </span>
                         <button
                           onClick={() => handleViewPastSession(session)}
                           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
-                          title="عرض التفاصيل"
+                          title={t('attendance.viewDetails')}
                         >
                           <Eye className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleExportExcel(session, [])}
                           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
-                          title="تصدير Excel"
+                          title={t('attendance.exportExcel')}
                         >
                           <Download className="h-4 w-4" />
                         </button>
@@ -1054,13 +1054,13 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-600" />
                 </span>
-                <span className="text-sm font-bold text-sky-800">جلسة حضور نشطة</span>
+                <span className="text-sm font-bold text-sky-800">{t('attendance.activeSessionTitle')}</span>
               </div>
               <h3 className="text-lg font-bold text-foreground">{lectureTitle}</h3>
               <p className="text-sm text-muted-foreground mt-1">{subjectName}</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
                 <Clock className="h-3 w-3" />
-                بدأت في: {formatDateTime(activeSession!.started_at)}
+                {t('attendance.excelSessionStart')}: {formatDateTime(activeSession!.started_at, locale)}
               </div>
             </div>
 
@@ -1068,7 +1068,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
               {/* Live counter */}
               <div className="flex flex-col items-center rounded-xl bg-white border border-sky-200 px-5 py-3 shadow-sm">
                 <span className="text-2xl font-bold text-sky-800">{attendanceRecords.length}</span>
-                <span className="text-xs text-muted-foreground">حاضر من {enrolledStudents.length}</span>
+                <span className="text-xs text-muted-foreground">{t('attendance.presentOf', { total: enrolledStudents.length })}</span>
               </div>
 
               {/* Stop button */}
@@ -1082,7 +1082,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                 ) : (
                   <StopCircle className="h-4 w-4" />
                 )}
-                إنهاء الجلسة
+                {t('attendance.endSession')}
               </button>
             </div>
           </div>
@@ -1093,14 +1093,15 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
           <div className="flex items-center justify-between border-b p-4">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
               <Users className="h-4 w-4 text-sky-700" />
-              قائمة الطلاب
+              {t('course.students')}
+              <Users className="h-4 w-4" />
             </h3>
             <button
               onClick={handleExportActiveSession}
               className="flex items-center gap-1.5 text-xs font-medium text-sky-700 hover:text-sky-800 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              تصدير Excel
+              {t('attendance.exportExcel')}
             </button>
           </div>
           {loadingRecords ? (
@@ -1112,7 +1113,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
                 <Users className="h-6 w-6 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium text-foreground">لا يوجد طلاب مسجلون في هذا المقرر</p>
+              <p className="text-sm font-medium text-foreground">{t('attendance.noPreviousSessions')}</p>
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto custom-scrollbar">
@@ -1134,17 +1135,17 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                         {isCheckedIn ? (
                           <div className="flex items-center gap-1.5">
                             <CheckCircle2 className="h-4 w-4 text-sky-700" />
-                            <span className="text-xs font-medium text-sky-800">حاضر</span>
+                            <span className="text-xs font-medium text-sky-800">{t('attendance.present')}</span>
                             {record && (
                               <span className="text-xs text-muted-foreground">
-                                {formatTime(record.checked_in_at)}
+                                {formatTime(record.checked_in_at, locale)}
                               </span>
                             )}
                           </div>
                         ) : (
                           <div className="flex items-center gap-1.5">
                             <XCircle className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">لم يسجل بعد</span>
+                            <span className="text-xs text-muted-foreground">{t('common.noData')}</span>
                           </div>
                         )}
                       </div>
@@ -1185,17 +1186,17 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
       <motion.div variants={itemVariants} className="rounded-xl border bg-card p-5 shadow-sm">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 overflow-x-auto">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">بداية الجلسة</p>
-            <p className="text-sm font-medium text-foreground">{formatDateTime(selectedPastSession!.started_at)}</p>
+            <p className="text-xs text-muted-foreground mb-1">{t('attendance.excelSessionStart')}</p>
+            <p className="text-sm font-medium text-foreground">{formatDateTime(selectedPastSession!.started_at, locale)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-1">نهاية الجلسة</p>
+            <p className="text-xs text-muted-foreground mb-1">{t('attendance.excelSessionEnd')}</p>
             <p className="text-sm font-medium text-foreground">
-              {selectedPastSession!.ended_at ? formatDateTime(selectedPastSession!.ended_at) : '—'}
+              {selectedPastSession!.ended_at ? formatDateTime(selectedPastSession!.ended_at, locale) : '—'}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground mb-1">عدد الحاضرين</p>
+            <p className="text-xs text-muted-foreground mb-1">{t('attendance.presentCountLabel')}</p>
             <p className="text-sm font-bold text-sky-800">{selectedPastSession!.record_count}</p>
           </div>
           <div className="flex items-end">
@@ -1204,7 +1205,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
               className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
             >
               <Download className="h-4 w-4" />
-              تصدير Excel
+              {t('attendance.exportExcel')}
             </button>
           </div>
         </div>
@@ -1215,7 +1216,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
         <div className="flex items-center justify-between border-b p-4">
           <h3 className="font-semibold text-foreground flex items-center gap-2">
             <UserCheck className="h-4 w-4 text-sky-700" />
-            سجل الحضور
+            {t('attendance.attendanceRecord')}
           </h3>
         </div>
         {loadingPastSessionRecords ? (
@@ -1227,21 +1228,21 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
               <UserX className="h-6 w-6 text-muted-foreground" />
             </div>
-            <p className="text-sm font-medium text-foreground">لم يسجل أي طالب حضوره</p>
+            <p className="text-sm font-medium text-foreground">{t('attendance.noPreviousSessions')}</p>
           </div>
         ) : (
           <div className="max-h-96 overflow-y-auto custom-scrollbar">
             <div className="divide-y">
               {pastSessionRecords.map((record) => (
                 <div key={record.id} className="flex items-center gap-3 p-3">
-                  <UserAvatar name={record.student_name || 'مستخدم'} avatarUrl={record.student_avatar} size="sm" />
+                  <UserAvatar name={record.student_name || t('common.user')} avatarUrl={record.student_avatar} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground truncate">{record.student_name}</p>
                     <p className="text-xs text-muted-foreground truncate">{record.student_email}</p>
                   </div>
                   <div className="shrink-0 flex items-center gap-1.5">
                     <CheckCircle2 className="h-4 w-4 text-sky-700" />
-                    <span className="text-xs text-muted-foreground">{formatTime(record.checked_in_at)}</span>
+                    <span className="text-xs text-muted-foreground">{formatTime(record.checked_in_at, locale)}</span>
                   </div>
                 </div>
               ))}
@@ -1259,8 +1260,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       {/* Header */}
       <motion.div variants={itemVariants}>
-        <h2 className="text-2xl font-bold text-foreground">الحضور</h2>
-        <p className="text-muted-foreground mt-1">تسجيل حضورك ومتابعة سجلاتك</p>
+        <h2 className="text-2xl font-bold text-foreground">{t('attendance.title')}</h2>
+        <p className="text-muted-foreground mt-1">{t('attendance.studentViewTitle')}</p>
       </motion.div>
 
       {/* Active session check loading */}
@@ -1277,14 +1278,14 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-sky-600" />
               </span>
-              <span className="text-sm font-bold text-sky-800">جلسة حضور نشطة</span>
+              <span className="text-sm font-bold text-sky-800">{t('attendance.activeSessionTitle')}</span>
             </div>
 
             <h3 className="text-lg font-bold text-foreground">{studentSessionLecture}</h3>
             <p className="text-sm text-muted-foreground mt-1">{studentSessionSubject}</p>
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
               <Clock className="h-3 w-3" />
-              بدأت في: {formatDateTime(studentActiveSession.started_at)}
+              {t('attendance.excelSessionStart')}: {formatDateTime(studentActiveSession.started_at, locale)}
             </div>
 
             {/* Check-in area */}
@@ -1305,9 +1306,9 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                     >
                       <CheckCircle2 className="h-12 w-12 text-sky-700" />
                     </motion.div>
-                    <p className="text-lg font-bold text-sky-800">تم تسجيل حضورك بنجاح!</p>
+                    <p className="text-lg font-bold text-sky-800">{t('attendance.checkedInSuccess')}</p>
                     <p className="text-sm text-sky-700/80">
-                      {formatDateTime(new Date().toISOString())}
+                      {formatDateTime(new Date().toISOString(), locale)}
                     </p>
                   </motion.div>
                 ) : (
@@ -1326,16 +1327,16 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                       {checkingIn ? (
                         <>
                           <Loader2 className="h-5 w-5 animate-spin" />
-                          جارٍ التسجيل...
+                          {t('common.saving')}
                         </>
                       ) : (
                         <>
                           <UserCheck className="h-5 w-5" />
-                          تسجيل الحضور
+                          {t('attendance.checkIn')}
                         </>
                       )}
                     </button>
-                    <p className="text-xs text-muted-foreground">اضغط لتسجيل حضورك في هذه المحاضرة</p>
+                    <p className="text-xs text-muted-foreground">{t('attendance.checkInHint')}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1349,9 +1350,9 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
               <ClipboardCheck className="h-8 w-8 text-sky-700" />
             </div>
-            <p className="text-lg font-semibold text-foreground mb-1">لا توجد جلسة حضور نشطة</p>
+            <p className="text-lg font-semibold text-foreground mb-1">{t('attendance.noActiveSession')}</p>
             <p className="text-sm text-muted-foreground">
-              سيظهر زر التسجيل عندما يبدأ المعلم جلسة حضور
+              {t('attendance.noActiveSession')}
             </p>
           </div>
         </motion.div>
@@ -1363,7 +1364,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
           <div className="flex items-center justify-between border-b p-4">
             <h3 className="font-semibold text-foreground flex items-center gap-2">
               <Calendar className="h-4 w-4 text-sky-700" />
-              سجل الحضور السابق
+              {t('attendance.pastAttendance')}
             </h3>
           </div>
           {loadingStudentHistory ? (
@@ -1375,8 +1376,8 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-3">
                 <Calendar className="h-6 w-6 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium text-foreground">لا يوجد سجل حضور بعد</p>
-              <p className="text-xs text-muted-foreground mt-1">سيظهر هنا بعد تسجيل حضورك في المحاضرات</p>
+              <p className="text-sm font-medium text-foreground">{t('attendance.noPreviousSessions')}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('attendance.noPastAttendance')}</p>
             </div>
           ) : (
             <div className="max-h-96 overflow-y-auto custom-scrollbar">
@@ -1390,14 +1391,14 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">
-                          {sessionInfo?.lecture_title || 'محاضرة'}
+                          {sessionInfo?.lecture_title || t('attendance.lectureFallback')}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {sessionInfo?.subject_name || 'مقرر'} • {formatDate(record.checked_in_at)}
+                          {sessionInfo?.subject_name || t('attendance.subject')} • {formatDate(record.checked_in_at, locale)}
                         </p>
                       </div>
                       <span className="shrink-0 text-xs bg-sky-100 text-sky-800 rounded-full px-2.5 py-0.5 font-medium">
-                        {formatTime(record.checked_in_at)}
+                        {formatTime(record.checked_in_at, locale)}
                       </span>
                     </div>
                   );

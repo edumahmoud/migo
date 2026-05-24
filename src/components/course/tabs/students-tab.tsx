@@ -153,7 +153,7 @@ function ConfirmDialog({
 // Main Component
 // -------------------------------------------------------
 export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   // Students state
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -326,14 +326,14 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إضافة الطالب');
+        toast.error(data.error || t('studentsTab.toastAddFailed'));
       } else {
-        toast.success('تم إضافة الطالب بنجاح');
+        toast.success(t('studentsTab.toastStudentAdded'));
         setAddSearchResults((prev) => prev.filter((s) => s.id !== studentId));
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setAddingId(null);
     }
@@ -352,9 +352,9 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء إزالة الطالب');
+        toast.error(data.error || t('studentsTab.toastRemoveFailed'));
       } else {
-        toast.success('تم إزالة الطالب من المقرر');
+        toast.success(t('studentsTab.toastStudentRemoved'));
         fetchStudents();
         setSelectedStudentIds((prev) => {
           const next = new Set(prev);
@@ -363,7 +363,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
         });
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setRemovingId(null);
       setRemoveConfirmId(null);
@@ -383,14 +383,14 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول الطلب');
+        toast.error(data.error || t('studentsTab.toastApproveFailed'));
       } else {
-        toast.success('تم قبول الطالب بنجاح');
+        toast.success(t('studentsTab.toastStudentAccepted'));
         setPendingRequests((prev) => prev.filter((s) => s.id !== studentId));
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setProcessingId(null);
     }
@@ -409,13 +409,13 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض الطلب');
+        toast.error(data.error || t('studentsTab.toastRejectFailed'));
       } else {
-        toast.success('تم رفض الطلب');
+        toast.success(t('studentsTab.toastRequestRejected'));
         setPendingRequests((prev) => prev.filter((s) => s.id !== studentId));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setProcessingId(null);
     }
@@ -434,14 +434,14 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء قبول جميع الطلبات');
+        toast.error(data.error || t('studentsTab.toastAcceptAllFailed'));
       } else {
-        toast.success(data.message || `تم قبول ${pendingRequests.length} طلب بنجاح`);
+        toast.success(data.message || t('studentsTab.toastAcceptAllSuccess', { count: pendingRequests.length }));
         setPendingRequests([]);
         fetchStudents();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setBulkProcessing(false);
       setAcceptAllConfirmOpen(false);
@@ -461,13 +461,13 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        toast.error(data.error || 'حدث خطأ أثناء رفض جميع الطلبات');
+        toast.error(data.error || t('studentsTab.toastRejectAllFailed'));
       } else {
-        toast.success(data.message || `تم رفض ${pendingRequests.length} طلب`);
+        toast.success(data.message || t('studentsTab.toastRejectAllSuccess', { count: pendingRequests.length }));
         setPendingRequests([]);
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setBulkProcessing(false);
       setRejectAllConfirmOpen(false);
@@ -493,14 +493,14 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
         else successCount++;
       }
       if (errorCount === 0) {
-        toast.success(`تم حذف ${successCount} طالب من المقرر`);
+        toast.success(t('studentsTab.toastBulkDeleteSuccess', { count: successCount }));
       } else {
-        toast.error(`تم حذف ${successCount} طالب، فشل حذف ${errorCount}`);
+        toast.error(t('studentsTab.toastBulkDeletePartial', { success: successCount, failed: errorCount }));
       }
       setSelectedStudentIds(new Set());
       fetchStudents();
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setBulkProcessing(false);
       setBulkDeleteConfirmOpen(false);
@@ -542,7 +542,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '';
     try {
-      return new Date(dateStr).toLocaleDateString('ar-SA', {
+      return new Date(dateStr).toLocaleDateString(locale, {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -591,7 +591,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       setPerformanceData({
         avgGrade,
         submissions: (scores || []).map((s: { quiz_title: string; score: number; total: number; completed_at: string }) => ({
-          assignmentName: s.quiz_title || 'اختبار',
+          assignmentName: s.quiz_title || t('studentsTab.quiz'),
           grade: s.score,
           total: s.total,
           submittedAt: s.completed_at,
@@ -628,7 +628,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h3 className="text-xl font-bold text-foreground">{t('course.students')}</h3>
-          <p className="text-muted-foreground text-sm mt-1">{students.length} طالب مسجل</p>
+          <p className="text-muted-foreground text-sm mt-1">{t('studentsTab.enrolledCount', { count: students.length })}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Pending Requests Side Button - always visible */}
@@ -638,7 +638,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 bg-gradient-to-b from-amber-50 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
             >
               <UserPlus className="h-4 w-4" />
-              <span>طلبات الانضمام</span>
+              <span>{t('studentsTab.joinRequests')}</span>
               {pendingRequests.length > 0 ? (
                 <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white shadow-sm shadow-amber-300/50">
                   {pendingRequests.length}
@@ -660,7 +660,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             }`}
           >
             <UserPlus className="h-4 w-4" />
-            إضافة طالب
+            {t('studentsTab.addStudent')}
           </button>
         </div>
       </motion.div>
@@ -679,7 +679,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <UserPlus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                  إضافة طالب جديد للمقرر
+                  {t('studentsTab.addNewStudent')}
                 </h4>
                 <button
                   onClick={() => { setShowAddSearch(false); setAddSearchQuery(''); setAddSearchResults([]); }}
@@ -694,7 +694,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                   type="text"
                   value={addSearchQuery}
                   onChange={(e) => handleAddSearch(e.target.value)}
-                  placeholder="البحث عن طالب بالاسم أو البريد الإلكتروني..."
+                  placeholder={t('studentsTab.searchStudent')}
                   className="w-full rounded-lg border bg-background pr-9 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                   dir={dir}
                   autoFocus
@@ -708,7 +708,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                       <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300" />
                     </div>
                   ) : addSearchResults.length === 0 ? (
-                    <div className="p-4 text-center text-muted-foreground text-sm">لا توجد نتائج</div>
+                    <div className="p-4 text-center text-muted-foreground text-sm">{t('studentsTab.noResults')}</div>
                   ) : (
                     <div className="divide-y">
                       {addSearchResults.map((student) => (
@@ -729,7 +729,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                             className="flex items-center gap-1 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                           >
                             {addingId === student.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
-                            إضافة
+                            {t('studentsTab.add')}
                           </button>
                         </div>
                       ))}
@@ -750,7 +750,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             type="text"
             value={enrolledSearchQuery}
             onChange={(e) => setEnrolledSearchQuery(e.target.value)}
-            placeholder="البحث في الطلاب المسجلين بالاسم أو البريد الإلكتروني..."
+            placeholder={t('studentsTab.searchEnrolled')}
             className="w-full rounded-lg border bg-background pr-9 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir={dir}
           />
@@ -770,8 +770,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <Users className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا يوجد طلاب مسجلون</p>
-          <p className="text-sm text-muted-foreground">ابحث عن طالب وأضفه للمقرر</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('studentsTab.noStudentsEnrolled')}</p>
+          <p className="text-sm text-muted-foreground">{t('studentsTab.searchToAdd')}</p>
         </motion.div>
       ) : filteredStudents.length === 0 ? (
         <motion.div
@@ -779,7 +779,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
           className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-12"
         >
           <Search className="h-8 w-8 text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">لا توجد نتائج مطابقة للبحث</p>
+          <p className="text-sm text-muted-foreground">{t('studentsTab.noMatchingResults')}</p>
         </motion.div>
       ) : (
         <motion.div variants={containerVariants} className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -797,9 +797,9 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                 {selectedStudentIds.size === filteredStudents.length && filteredStudents.length > 0 && <Check className="h-3 w-3" />}
               </button>
             </div>
-            <div className="col-span-5">الطالب</div>
-            <div className="col-span-4">البريد الإلكتروني</div>
-            <div className="col-span-2">إجراءات</div>
+            <div className="col-span-5">{t('studentsTab.student')}</div>
+            <div className="col-span-4">{t('studentsTab.email')}</div>
+            <div className="col-span-2">{t('studentsTab.actions')}</div>
           </div>
           <div className="divide-y max-h-[500px] overflow-y-auto">
             {filteredStudents.map((student, index) => (
@@ -845,14 +845,14 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                       fetchStudentPerformance(student.id);
                     }}
                     className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
-                    title="أداء الطالب"
+                    title={t('studentsTab.performance')}
                   >
                     <BarChart3 className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => handleOpenProfile(student.id)}
                     className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                    title="الملف الشخصي"
+                    title={t('studentsTab.profile')}
                   >
                     <Users className="h-3.5 w-3.5" />
                   </button>
@@ -860,7 +860,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                     onClick={() => setRemoveConfirmId(student.id)}
                     disabled={removingId === student.id}
                     className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                    title="إزالة"
+                    title={t('studentsTab.remove')}
                   >
                     {removingId === student.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserMinus className="h-3.5 w-3.5" />}
                   </button>
@@ -871,7 +871,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
           {/* Footer with count */}
           {enrolledSearchQuery.trim() && filteredStudents.length !== students.length && (
             <div className="px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground text-center">
-              عرض {filteredStudents.length} من {students.length} طالب
+              {t('studentsTab.showingOf', { shown: filteredStudents.length, total: students.length })}
             </div>
           )}
         </motion.div>
@@ -894,14 +894,14 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
                 <span className="text-xs font-bold">{selectedStudentIds.size}</span>
               </div>
-              <span className="text-sm font-semibold text-foreground">طالب محدد</span>
+              <span className="text-sm font-semibold text-foreground">{t('studentsTab.selectedStudents')}</span>
             </div>
             <div className="h-6 w-px bg-border" />
             <button
               onClick={toggleSelectAll}
               className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
             >
-              {selectedStudentIds.size === students.length ? 'إلغاء تحديد الكل' : 'تحديد الكل'}
+              {selectedStudentIds.size === students.length ? t('studentsTab.deselectAll') : t('studentsTab.selectAll')}
             </button>
             <button
               onClick={() => setBulkDeleteConfirmOpen(true)}
@@ -913,7 +913,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               ) : (
                 <Trash2 className="h-3 w-3" />
               )}
-              حذف المحدد ({selectedStudentIds.size})
+              {t('studentsTab.deleteSelected', { count: selectedStudentIds.size })}
             </button>
             <button
               onClick={() => setSelectedStudentIds(new Set())}
@@ -931,10 +931,10 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
 
       <ConfirmDialog
         open={removeConfirmId !== null}
-        title="حذف طالب من المقرر"
-        message={removeConfirmId ? `هل أنت متأكد من إزالة الطالب ${students.find(s => s.id === removeConfirmId)?.name || ''} من هذا المقرر؟` : ''}
-        confirmLabel="حذف"
-        cancelLabel="إلغاء"
+        title={t('studentsTab.removeStudentTitle')}
+        message={removeConfirmId ? t('studentsTab.removeStudentConfirm', { name: students.find(s => s.id === removeConfirmId)?.name || '' }) : ''}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
         onConfirm={() => { if (removeConfirmId) handleRemove(removeConfirmId); }}
         onCancel={() => setRemoveConfirmId(null)}
         variant="danger"
@@ -942,10 +942,10 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
 
       <ConfirmDialog
         open={bulkDeleteConfirmOpen}
-        title="حذف طلاب من المقرر"
-        message={`هل أنت متأكد من حذف ${selectedStudentIds.size} طالب من هذا المقرر؟`}
-        confirmLabel="حذف"
-        cancelLabel="إلغاء"
+        title={t('studentsTab.removeStudentsTitle')}
+        message={t('studentsTab.removeStudentsConfirm', { count: selectedStudentIds.size })}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
         onConfirm={handleBulkDelete}
         onCancel={() => setBulkDeleteConfirmOpen(false)}
         variant="danger"
@@ -953,10 +953,10 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
 
       <ConfirmDialog
         open={acceptAllConfirmOpen}
-        title="قبول جميع الطلبات"
-        message={`هل أنت متأكد من قبول جميع طلبات الانضمام (${pendingRequests.length} طلب)؟`}
-        confirmLabel={`قبول الكل (${pendingRequests.length})`}
-        cancelLabel="إلغاء"
+        title={t('studentsTab.acceptAllTitle')}
+        message={t('studentsTab.acceptAllConfirm', { count: pendingRequests.length })}
+        confirmLabel={t('studentsTab.acceptAllLabel', { count: pendingRequests.length })}
+        cancelLabel={t('common.cancel')}
         onConfirm={handleAcceptAll}
         onCancel={() => setAcceptAllConfirmOpen(false)}
         variant="warning"
@@ -964,10 +964,10 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
 
       <ConfirmDialog
         open={rejectAllConfirmOpen}
-        title="رفض جميع الطلبات"
-        message={`هل أنت متأكد من رفض جميع طلبات الانضمام (${pendingRequests.length} طلب)؟`}
-        confirmLabel={`رفض الكل (${pendingRequests.length})`}
-        cancelLabel="إلغاء"
+        title={t('studentsTab.rejectAllTitle')}
+        message={t('studentsTab.rejectAllConfirm', { count: pendingRequests.length })}
+        confirmLabel={t('studentsTab.rejectAllLabel', { count: pendingRequests.length })}
+        cancelLabel={t('common.cancel')}
         onConfirm={handleRejectAll}
         onCancel={() => setRejectAllConfirmOpen(false)}
         variant="danger"
@@ -997,7 +997,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               <div className="flex items-center justify-between border-b p-5">
                 <div className="flex items-center gap-3">
                   <BarChart3 className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  <h3 className="text-lg font-bold text-foreground">أداء الطالب</h3>
+                  <h3 className="text-lg font-bold text-foreground">{t('studentsTab.performance')}</h3>
                 </div>
                 <button
                   onClick={() => { setPerformanceStudentId(null); setPerformanceData(null); }}
@@ -1021,7 +1021,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                         <Award className="h-6 w-6 text-sky-700 dark:text-sky-300" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-xs text-muted-foreground">متوسط الدرجات</p>
+                        <p className="text-xs text-muted-foreground">{t('studentsTab.avgGrade')}</p>
                         <p className="text-2xl font-bold text-foreground">
                           {performanceData.avgGrade !== null ? `${performanceData.avgGrade}%` : '—'}
                         </p>
@@ -1034,12 +1034,12 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                         <UserCheck className="h-6 w-6 text-teal-600 dark:text-teal-400" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-xs text-muted-foreground">الحضور</p>
+                        <p className="text-xs text-muted-foreground">{t('studentsTab.attendance')}</p>
                         <p className="text-lg font-bold text-foreground">
                           {performanceData.attendance.present} / {performanceData.attendance.total}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          نسبة الحضور: {performanceData.attendance.percentage}%
+                          {t('studentsTab.attendanceRate', { rate: performanceData.attendance.percentage })}
                         </p>
                       </div>
                       {/* Progress bar for attendance */}
@@ -1060,10 +1060,10 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                     <div>
                       <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                         <ClipboardList className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                        التسليمات ({performanceData.submissions.length})
+                        {t('studentsTab.submissions', { count: performanceData.submissions.length })}
                       </h4>
                       {performanceData.submissions.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">لا توجد تسليمات</p>
+                        <p className="text-sm text-muted-foreground text-center py-4">{t('studentsTab.noSubmissions')}</p>
                       ) : (
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                           {performanceData.submissions.map((sub, i) => {
@@ -1089,7 +1089,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                     </div>
                   </>
                 ) : (
-                  <p className="text-center text-muted-foreground py-4">لا توجد بيانات</p>
+                  <p className="text-center text-muted-foreground py-4">{t('studentsTab.noData')}</p>
                 )}
               </div>
             </motion.div>
@@ -1145,11 +1145,11 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                       <UserPlus className="h-5.5 w-5.5 text-sky-700 dark:text-sky-300" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">طلبات الانضمام</h3>
+                      <h3 className="text-lg font-bold text-foreground">{t('studentsTab.joinRequests')}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {pendingRequests.length > 0
-                          ? `${pendingRequests.length} طلب بانتظار المراجعة`
-                          : 'لا توجد طلبات معلقة حالياً'}
+                          ? t('studentsTab.pendingReview', { count: pendingRequests.length })
+                          : t('studentsTab.noPendingRequests')}
                       </p>
                     </div>
                   </div>
@@ -1174,7 +1174,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                       className="flex items-center gap-2 rounded-xl bg-sky-700/90 px-4 py-2.5 text-xs font-semibold text-white shadow-sm shadow-sky-200/50 hover:bg-sky-700 hover:shadow-md hover:shadow-sky-200/60 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
                     >
                       {bulkProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                      قبول الكل ({pendingRequests.length})
+                      {t('studentsTab.acceptAllLabel', { count: pendingRequests.length })}
                     </button>
                     <button
                       onClick={() => setRejectAllConfirmOpen(true)}
@@ -1182,7 +1182,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                       className="flex items-center gap-2 rounded-xl border border-rose-200/80 bg-white/80 px-4 py-2.5 text-xs font-semibold text-rose-500 hover:bg-rose-50 hover:border-rose-300 transition-all duration-200 disabled:opacity-50"
                     >
                       {bulkProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                      رفض الكل
+                      {t('common.rejectAll')}
                     </button>
                   </motion.div>
                 )}
@@ -1198,7 +1198,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                     <div className="relative">
                       <div className="h-12 w-12 rounded-full border-2 border-sky-200 dark:border-sky-800 border-t-sky-600 animate-spin" />
                     </div>
-                    <p className="text-sm text-muted-foreground mt-4">جارٍ تحميل الطلبات...</p>
+                    <p className="text-sm text-muted-foreground mt-4">{t('studentsTab.loadingRequests')}</p>
                   </div>
                 ) : pendingRequests.length === 0 ? (
                   <motion.div
@@ -1210,11 +1210,11 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                     <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-50 to-teal-50 border border-sky-100/50 mb-5 shadow-sm">
                       <CheckCircle2 className="h-10 w-10 text-sky-400" />
                     </div>
-                    <p className="text-base font-semibold text-foreground mb-1.5">كل شيء جاهز! 🎉</p>
+                    <p className="text-base font-semibold text-foreground mb-1.5">{t('studentsTab.allSet')}</p>
                     <p className="text-sm text-muted-foreground text-center leading-relaxed">
-                      لا توجد طلبات انضمام معلقة
+                      {t('studentsTab.noPendingJoinRequests')}
                       <br />
-                      عندما يطلب طالب الانضمام سيظهر هنا
+                      {t('studentsTab.whenStudentRequests')}
                     </p>
                   </motion.div>
                 ) : (
@@ -1231,7 +1231,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                         <div className="flex items-center gap-3.5 mb-3.5">
                           <UserLink
                             userId={student.id}
-                            name={student.name || 'مستخدم'}
+                            name={student.name || t('common.user')}
                             avatarUrl={student.avatar_url}
                             role="student"
                             gender={student.gender}
@@ -1248,7 +1248,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                             className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-sky-700/90 px-3 py-2.5 text-xs font-bold text-white shadow-sm shadow-sky-200/50 hover:bg-sky-700 hover:shadow-md hover:shadow-sky-200/60 active:scale-[0.98] disabled:opacity-50 disabled:shadow-none transition-all duration-200"
                           >
                             {processingId === student.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserCheck className="h-4 w-4" />}
-                            قبول
+                            {t('common.accept')}
                           </button>
                           <button
                             onClick={() => handleRejectRequest(student.id)}
@@ -1256,7 +1256,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                             className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-rose-200/80 bg-white/80 px-3 py-2.5 text-xs font-bold text-rose-500 hover:bg-rose-50 hover:border-rose-300 active:scale-[0.98] disabled:opacity-50 transition-all duration-200"
                           >
                             {processingId === student.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-4 w-4" />}
-                            رفض
+                            {t('common.reject')}
                           </button>
                         </div>
                       </motion.div>
@@ -1269,7 +1269,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               {pendingRequests.length > 0 && (
                 <div className="shrink-0 px-6 py-3 bg-muted/20 border-t border-border/30">
                   <p className="text-[11px] text-muted-foreground/60 text-center">
-                    اضغط على «قبول» لإضافة الطالب للمقرر أو «رفض» لإلغاء الطلب
+                    {t('studentsTab.pressAcceptToAdd')}
                   </p>
                 </div>
               )}

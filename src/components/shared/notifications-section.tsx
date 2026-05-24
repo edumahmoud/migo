@@ -27,7 +27,7 @@ import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string): string {
   const now = new Date();
   const date = new Date(dateStr);
   const diffMs = now.getTime() - date.getTime();
@@ -35,11 +35,11 @@ function timeAgo(dateStr: string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return 'الآن';
-  if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
-  if (diffHours < 24) return `منذ ${diffHours} ساعة`;
-  if (diffDays < 7) return `منذ ${diffDays} يوم`;
-  return date.toLocaleDateString('ar-SA');
+  if (diffMins < 1) return t('common.justNow');
+  if (diffMins < 60) return t('common.minutesAgo', { n: diffMins });
+  if (diffHours < 24) return t('common.hoursAgo', { n: diffHours });
+  if (diffDays < 7) return t('common.daysAgo', { n: diffDays });
+  return date.toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US');
 }
 
 function getNotifIcon(type: string, title?: string) {
@@ -61,7 +61,7 @@ function getNotifIcon(type: string, title?: string) {
 }
 
 export default function NotificationsSection() {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   const { user } = useAuthStore();
   const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore();
   const {
@@ -359,13 +359,13 @@ export default function NotificationsSection() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم قبول طلب الارتباط');
+        toast.success(t('notifications.toastAcceptSuccess'));
         setLinkRequestModal(null);
       } else {
-        toast.error(data.error || 'حدث خطأ');
+        toast.error(data.error || t('common.toastError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setProcessingAction(false);
     }
@@ -383,13 +383,13 @@ export default function NotificationsSection() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم رفض طلب الارتباط');
+        toast.success(t('notifications.toastRejectSuccess'));
         setLinkRequestModal(null);
       } else {
-        toast.error(data.error || 'حدث خطأ');
+        toast.error(data.error || t('common.toastError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setProcessingAction(false);
     }
@@ -417,7 +417,7 @@ export default function NotificationsSection() {
             <div>
               <h2 className="text-lg font-bold text-foreground">{t('notifications.title')}</h2>
               <p className="text-xs text-muted-foreground">
-                {bellUnreadCount > 0 ? `${bellUnreadCount} إشعار غير مقروء` : 'لا توجد إشعارات جديدة'}
+                {bellUnreadCount > 0 ? t('notifications.unreadCount', { count: bellUnreadCount }) : t('notifications.allRead')}
               </p>
             </div>
           </div>
@@ -428,7 +428,7 @@ export default function NotificationsSection() {
                 className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-50 transition-colors"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
-                تعيين الكل كمقروء
+                {t('notifications.markAllRead')}
               </button>
             )}
             {bellNotifications.length > 0 && (
@@ -437,7 +437,7 @@ export default function NotificationsSection() {
                 className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                مسح الكل
+                {t('notifications.clearAll')}
               </button>
             )}
           </div>
@@ -451,7 +451,7 @@ export default function NotificationsSection() {
                 <BellOff className="h-8 w-8 text-sky-400" />
               </div>
               <p className="text-sm font-medium text-muted-foreground">{t('notifications.noNotifications')}</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">ستظهر الإشعارات الجديدة هنا</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">{t('notifications.noNotificationsDesc')}</p>
             </div>
           </motion.div>
         ) : (
@@ -483,7 +483,7 @@ export default function NotificationsSection() {
                     {notif.message}
                   </p>
                   <p className="text-[11px] text-muted-foreground/60 mt-2">
-                    {timeAgo(notif.createdAt)}
+                    {timeAgo(notif.createdAt, t, locale)}
                   </p>
                 </div>
                 <button
@@ -492,7 +492,7 @@ export default function NotificationsSection() {
                     clearNotification(notif.id);
                   }}
                   className="opacity-0 group-hover:opacity-100 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-all"
-                  aria-label="حذف الإشعار"
+                  aria-label={t('notifications.deleteNotification')}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -526,11 +526,10 @@ export default function NotificationsSection() {
                   <Loader2 className="h-12 w-12 text-sky-600 animate-spin mb-4" />
                 ) : (
                   <>
-                    <h3 className="text-lg font-bold text-foreground mb-1">طلب ارتباط</h3>
+                    <h3 className="text-lg font-bold text-foreground mb-1">{t('notifications.linkRequest')}</h3>
                     <p className="text-sm text-muted-foreground mb-6">
-                      أرسل {linkRequestModal.teacher?.gender === 'female' ? 'المعلمة' : 'المعلم'}{' '}
-                      <span className="font-semibold text-foreground">{formatNameWithTitle(linkRequestModal.teacher?.name || 'معلم', 'teacher', linkRequestModal.teacher?.title_id, linkRequestModal.teacher?.gender, t)}</span>{' '}
-                      طلب ارتباط بك
+                      {t('notifications.linkRequestDesc', { gender: linkRequestModal.teacher?.gender === 'female' ? t('roles.teacherFemale') : t('roles.teacher'), name: '' })}{' '}
+                      <span className="font-semibold text-foreground">{formatNameWithTitle(linkRequestModal.teacher?.name || t('roles.teacher'), 'teacher', linkRequestModal.teacher?.title_id, linkRequestModal.teacher?.gender, t)}</span>
                     </p>
                     <div className="flex items-center gap-3 w-full">
                       <button
@@ -538,14 +537,14 @@ export default function NotificationsSection() {
                         disabled={processingAction}
                         className="flex-1 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                       >
-                        {processingAction ? <Loader2 className="h-4 w-4 animate-spin inline" /> : 'قبول'}
+                        {processingAction ? <Loader2 className="h-4 w-4 animate-spin inline" /> : t('notifications.acceptBtn')}
                       </button>
                       <button
                         onClick={handleRejectLinkRequest}
                         disabled={processingAction}
                         className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60 transition-colors"
                       >
-                        {processingAction ? <Loader2 className="h-4 w-4 animate-spin inline" /> : 'رفض'}
+                        {processingAction ? <Loader2 className="h-4 w-4 animate-spin inline" /> : t('notifications.rejectBtn')}
                       </button>
                     </div>
                   </>

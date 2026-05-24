@@ -130,16 +130,16 @@ const SUBJECT_COLORS = [
 
 // Filter options (shared with subjects-section)
 const LEVEL_OPTIONS = [
-  { value: 'الفرقة الأولى', label: 'الفرقة الأولى' },
-  { value: 'الفرقة الثانية', label: 'الفرقة الثانية' },
-  { value: 'الفرقة الثالثة', label: 'الفرقة الثالثة' },
-  { value: 'الفرقة الرابعة', label: 'الفرقة الرابعة' },
-  { value: 'الفرقة الخامسة', label: 'الفرقة الخامسة' },
+  { value: 'الفرقة الأولى', labelKey: 'levels.first' },
+  { value: 'الفرقة الثانية', labelKey: 'levels.second' },
+  { value: 'الفرقة الثالثة', labelKey: 'levels.third' },
+  { value: 'الفرقة الرابعة', labelKey: 'levels.fourth' },
+  { value: 'الفرقة الخامسة', labelKey: 'levels.fifth' },
 ];
 
 const SUB_LEVEL_OPTIONS = [
-  { value: 'المستوى الأول', label: 'المستوى الأول' },
-  { value: 'المستوى الثاني', label: 'المستوى الثاني' },
+  { value: 'المستوى الأول', labelKey: 'sublevels.first' },
+  { value: 'المستوى الثاني', labelKey: 'sublevels.second' },
 ];
 
 // -------------------------------------------------------
@@ -176,7 +176,7 @@ const modalContentVariants = {
 // Main Component
 // -------------------------------------------------------
 export default function CoursePage({ profile, role }: CoursePageProps) {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   const { selectedSubjectId, courseTab, setSelectedSubjectId, setCourseTab, openProfile } = useAppStore();
   const [subject, setSubject] = useState<Subject | null>(null);
   const [loading, setLoading] = useState(true);
@@ -335,7 +335,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const handleSaveSubject = async () => {
     const name = editName.trim();
     if (!name) {
-      toast.error('يرجى إدخال اسم المقرر');
+      toast.error(t('course.toastSubjectNameRequired'));
       return;
     }
     setSavingSubject(true);
@@ -353,15 +353,15 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
 
       if (error) {
         console.error('Error updating subject:', error);
-        toast.error('حدث خطأ أثناء تحديث المقرر');
+        toast.error(t('course.toastSubjectUpdateFailed'));
       } else {
-        toast.success('تم تحديث المقرر بنجاح');
+        toast.success(t('course.toastSubjectUpdated'));
         setSubject((prev) => prev ? { ...prev, name, description: editDesc.trim() || undefined, color: editColor, level: editLevel || undefined, sub_level: editSubLevel || undefined } : prev);
         setEditModalOpen(false);
       }
     } catch (err) {
       console.error('Save subject error:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setSavingSubject(false);
     }
@@ -377,14 +377,14 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       const { error } = await supabase.from('subjects').delete().eq('id', subject.id);
       if (error) {
         console.error('Delete subject error:', error);
-        toast.error('حدث خطأ أثناء حذف المقرر');
+        toast.error(t('course.toastSubjectDeleteFailed'));
       } else {
-        toast.success('تم حذف المقرر بنجاح');
+        toast.success(t('course.toastSubjectDeleted'));
         handleBack();
       }
     } catch (err) {
       console.error('Delete subject catch error:', err);
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setDeletingSubject(false);
       setDeleteConfirmOpen(false);
@@ -413,10 +413,10 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         toast.success(data.message);
         handleBack();
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء الانسحاب من المقرر');
+        toast.error(data.error || t('course.toastLeaveFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.toastError'));
     } finally {
       setLeavingCourse(false);
       setLeaveConfirmOpen(false);
@@ -443,14 +443,14 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
           <BookOpen className="h-8 w-8 text-sky-700 dark:text-sky-300" />
         </div>
-        <p className="text-lg font-semibold text-foreground mb-1">لم يتم العثور على المقرر</p>
-        <p className="text-sm text-muted-foreground mb-4">قد يكون المقرر محذوفاً أو غير متاح</p>
+        <p className="text-lg font-semibold text-foreground mb-1">{t('course.subjectNotFound')}</p>
+        <p className="text-sm text-muted-foreground mb-4">{t('course.subjectNotFoundDesc')}</p>
         <button
           onClick={handleBack}
           className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <ChevronLeft className="h-4 w-4" />
-          العودة للمقررات
+          {t('course.backToSubjects')}
         </button>
       </div>
     );
@@ -536,7 +536,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
             <button
               onClick={handleBack}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/15 backdrop-blur-sm text-white transition-all hover:bg-black/25 active:scale-95"
-              aria-label="العودة للمقررات"
+              aria-label={t('course.backToSubjects')}
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -550,7 +550,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   <button
                     onClick={handleOpenEditModal}
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-black/15 backdrop-blur-sm text-white transition-all hover:bg-black/25 active:scale-95"
-                    title="تعديل المقرر"
+                    title={t('course.editSubject')}
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
@@ -559,7 +559,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     onClick={() => setDeleteConfirmOpen(true)}
                     disabled={deletingSubject}
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white transition-all hover:bg-rose-400/40 active:scale-95"
-                    title="حذف المقرر"
+                    title={t('course.deleteSubject')}
                   >
                     {deletingSubject ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -575,10 +575,10 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 <button
                   onClick={() => setLeaveConfirmOpen(true)}
                   className="flex items-center gap-1.5 rounded-full bg-black/10 backdrop-blur-sm px-3 py-1.5 text-xs text-white/90 hover:bg-rose-500/40 hover:text-white transition-colors"
-                  title="انسحاب من المقرر"
+                  title={t('course.leaveSubject')}
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  انسحاب
+                  {t('course.leave')}
                 </button>
               )}
 
@@ -598,7 +598,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       className="flex items-center gap-1 text-xs"
                     >
                       <Check className="h-3.5 w-3.5" />
-                      تم النسخ
+                      {t('course.copied')}
                     </motion.span>
                   ) : (
                     <Copy className="h-3.5 w-3.5 opacity-70 transition-opacity group-hover:opacity-100" />
@@ -619,7 +619,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   </button>
                   {coTeachers.map((ct) => {
                     const ctName = formatNameWithTitle(
-                      ct.teacher_name || 'معلم',
+                      ct.teacher_name || t('roles.teacher'),
                       'teacher',
                       ct.teacher_title_id,
                       ct.teacher_gender,
@@ -664,7 +664,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   {subject.sub_level && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 px-2.5 py-0.5 text-xs text-white font-medium">
                       <Calendar className="h-3 w-3" />
-                      {subject.sub_level === 'مستوى أول' ? 'المستوى الأول' : subject.sub_level === 'مستوى ثاني' ? 'المستوى الثاني' : subject.sub_level}
+                      {subject.sub_level === 'مستوى أول' ? t('sublevels.first') : subject.sub_level === 'مستوى ثاني' ? t('sublevels.second') : subject.sub_level}
                     </span>
                   )}
                 </div>
@@ -774,8 +774,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       <Pencil className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">تعديل المقرر</h3>
-                      <p className="text-xs text-muted-foreground">تعديل بيانات المقرر الدراسي</p>
+                      <h3 className="text-lg font-bold text-foreground">{t('course.editSubject')}</h3>
+                      <p className="text-xs text-muted-foreground">{t('course.editSubjectDesc')}</p>
                     </div>
                   </div>
                   <button
@@ -791,13 +791,13 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 {/* Subject name */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">
-                    اسم المقرر <span className="text-rose-500">*</span>
+                    {t('course.subjectName')} <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    placeholder="مثال: الرياضيات 101"
+                    placeholder={t('course.subjectNamePlaceholder')}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
                     dir={dir}
                     disabled={savingSubject}
@@ -810,12 +810,12 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 {/* Description */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">
-                    الوصف
+                    {t('course.description')}
                   </label>
                   <textarea
                     value={editDesc}
                     onChange={(e) => setEditDesc(e.target.value)}
-                    placeholder="وصف اختياري للمقرر..."
+                    placeholder={t('course.subjectDescPlaceholder')}
                     rows={3}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none"
                     dir={dir}
@@ -827,7 +827,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      الفرقة (السنة الدراسية)
+                      {t('course.academicYear')}
                     </label>
                     <select
                       value={editLevel}
@@ -836,15 +836,15 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       dir={dir}
                       disabled={savingSubject}
                     >
-                      <option value="">بدون فرقة</option>
+                      <option value="">{t('course.noYear')}</option>
                       {LEVEL_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
-                      المستوى الدراسي
+                      {t('course.studyLevel')}
                     </label>
                     <select
                       value={editSubLevel}
@@ -853,9 +853,9 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       dir={dir}
                       disabled={savingSubject}
                     >
-                      <option value="">بدون ترم</option>
+                      <option value="">{t('course.noTerm')}</option>
                       {SUB_LEVEL_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
                       ))}
                     </select>
                   </div>
@@ -864,7 +864,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 {/* Color picker */}
                 <div className="space-y-2.5">
                   <label className="text-sm font-semibold text-foreground">
-                    لون المقرر
+                      {t('course.subjectColor')}
                   </label>
                   <div className="flex items-center gap-2.5 flex-wrap">
                     {SUBJECT_COLORS.map((color) => (
@@ -903,12 +903,12 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   {savingSubject ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      جاري الحفظ...
+                      {t('common.saving')}
                     </>
                   ) : (
                     <>
                       <Check className="h-4 w-4" />
-                      حفظ التعديلات
+                      {t('common.saveChanges')}
                     </>
                   )}
                 </button>
@@ -946,9 +946,9 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
                   <Trash2 className="h-7 w-7 text-rose-600 dark:text-rose-400" />
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-2">حذف المقرر</h3>
+                <h3 className="text-lg font-bold text-foreground mb-2">{t('course.deleteSubject')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  هل أنت متأكد من حذف مقرر &quot;{subject.name}&quot;؟ سيتم حذف جميع البيانات المرتبطة بهذا المقرر ولا يمكن التراجع عن هذا الإجراء.
+                  {t('course.deleteSubjectConfirm', { name: subject.name })}
                 </p>
                 <div className="flex items-center gap-3 w-full">
                   <button
@@ -959,12 +959,12 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     {deletingSubject ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        جاري الحذف...
+                        {t('common.deleting')}
                       </>
                     ) : (
                       <>
                         <Trash2 className="h-4 w-4" />
-                        حذف
+                        {t('common.delete')}
                       </>
                     )}
                   </button>
@@ -973,7 +973,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     disabled={deletingSubject}
                     className="flex-1 rounded-xl border py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
                   >
-                    إلغاء
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>
@@ -1010,12 +1010,12 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
                   <LogOut className="h-7 w-7 text-rose-600 dark:text-rose-400" />
                 </div>
-                <h3 className="text-lg font-bold text-foreground mb-2">انسحاب من المقرر</h3>
+                <h3 className="text-lg font-bold text-foreground mb-2">{t('course.leaveSubject')}</h3>
                 <p className="text-sm text-muted-foreground mb-2">
-                  هل أنت متأكد من الانسحاب من مقرر &quot;{subject.name}&quot;؟
+                  {t('course.leaveSubjectConfirm', { name: subject.name })}
                 </p>
                 <p className="text-xs text-muted-foreground/70 mb-6">
-                  لن تتمكن من الوصول إلى محتوى المقرر بعد الآن، وسيتم إزالة جميع درجاتك ومشاركاتك.
+                  {t('course.leaveSubjectWarning')}
                 </p>
                 <div className="flex items-center gap-3 w-full">
                   <button
@@ -1026,12 +1026,12 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     {leavingCourse ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        جاري الانسحاب...
+                        {t('course.leaving')}
                       </>
                     ) : (
                       <>
                         <LogOut className="h-4 w-4" />
-                        نعم، انسحاب
+                        {t('course.yesLeave')}
                       </>
                     )}
                   </button>
@@ -1040,7 +1040,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     disabled={leavingCourse}
                     className="flex-1 rounded-xl border py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
                   >
-                    إلغاء
+                    {t('common.cancel')}
                   </button>
                 </div>
               </div>

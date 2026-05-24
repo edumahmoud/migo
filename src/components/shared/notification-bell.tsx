@@ -71,7 +71,7 @@ const notifTypeToTab: Record<string, CourseTab> = {
   report: 'overview',
 };
 
-function timeAgo(dateStr: string): string {
+function timeAgo(dateStr: string, t: (key: string, params?: Record<string, string | number>) => string): string {
   const now = new Date();
   const date = new Date(dateStr);
   const diffMs = now.getTime() - date.getTime();
@@ -79,10 +79,10 @@ function timeAgo(dateStr: string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return 'الآن';
-  if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
-  if (diffHours < 24) return `منذ ${diffHours} ساعة`;
-  if (diffDays < 7) return `منذ ${diffDays} يوم`;
+  if (diffMins < 1) return t('common.justNow');
+  if (diffMins < 60) return t('common.minutesAgo', { n: diffMins });
+  if (diffHours < 24) return t('common.hoursAgo', { n: diffHours });
+  if (diffDays < 7) return t('common.daysAgo', { n: diffDays });
   return date.toLocaleDateString('ar-SA');
 }
 
@@ -190,13 +190,13 @@ export default function NotificationBell() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم قبول طلب الارتباط');
+        toast.success(t('notifications.toastAcceptSuccess'));
         setLinkRequestModal(null);
       } else {
-        toast.error(data.error || 'حدث خطأ');
+        toast.error(data.error || t('common.toastError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setProcessingAction(false);
     }
@@ -215,13 +215,13 @@ export default function NotificationBell() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم رفض طلب الارتباط');
+        toast.success(t('notifications.toastRejectSuccess'));
         setLinkRequestModal(null);
       } else {
-        toast.error(data.error || 'حدث خطأ');
+        toast.error(data.error || t('common.toastError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setProcessingAction(false);
     }
@@ -609,7 +609,7 @@ export default function NotificationBell() {
                     className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-sky-700 hover:bg-sky-50 transition-colors"
                   >
                     <CheckCheck className="h-3.5 w-3.5" />
-                    تعيين الكل كمقروء
+                    {t('notifications.markAllRead')}
                   </button>
                 )}
                 {bellNotifications.length > 0 && (
@@ -618,7 +618,7 @@ export default function NotificationBell() {
                     className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    مسح الكل
+                    {t('notifications.clearAll')}
                   </button>
                 )}
               </div>
@@ -631,8 +631,8 @@ export default function NotificationBell() {
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
                     <BellOff className="h-7 w-7 opacity-40" />
                   </div>
-                  <p className="text-sm font-medium">لا توجد إشعارات</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">ستظهر الإشعارات الجديدة هنا</p>
+                  <p className="text-sm font-medium">{t('notifications.noNotifications')}</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">{t('notifications.noNotificationsDesc')}</p>
                 </div>
               ) : (
                 <div className="divide-y">
@@ -658,7 +658,7 @@ export default function NotificationBell() {
                           {notif.message}
                         </p>
                         <p className="text-xs text-muted-foreground/60 mt-1">
-                          {timeAgo(notif.createdAt)}
+                          {timeAgo(notif.createdAt, t)}
                         </p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
@@ -671,7 +671,7 @@ export default function NotificationBell() {
                             clearNotification(notif.id);
                           }}
                           className="touch-target opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-md text-muted-foreground hover:text-rose-500 transition-all"
-                          aria-label="حذف الإشعار"
+                          aria-label={t('notifications.deleteNotification')}
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>
@@ -687,8 +687,8 @@ export default function NotificationBell() {
               <div className="border-t px-3 py-2 text-center">
                 <p className="text-xs text-muted-foreground/60">
                   {bellUnreadCount > 0
-                    ? `${bellUnreadCount} إشعار غير مقروء`
-                    : 'تم قراءة جميع الإشعارات'}
+                    ? t('notifications.unreadCount', { count: bellUnreadCount })
+                    : t('notifications.allRead')}
                 </p>
               </div>
             )}
@@ -721,10 +721,10 @@ export default function NotificationBell() {
                   <Loader2 className="h-12 w-12 text-sky-500 animate-spin mb-4" />
                 ) : (
                   <>
-                    <UserAvatar name={linkRequestModal.teacher?.name || 'معلم'} avatarUrl={linkRequestModal.teacher?.avatar_url} size="lg" />
-                    <h3 className="text-lg font-bold text-foreground mt-3 mb-1">طلب ارتباط</h3>
+                    <UserAvatar name={linkRequestModal.teacher?.name || t('roles.teacher')} avatarUrl={linkRequestModal.teacher?.avatar_url} size="lg" />
+                    <h3 className="text-lg font-bold text-foreground mt-3 mb-1">{t('notifications.linkRequest')}</h3>
                     <p className="text-sm text-muted-foreground mb-6">
-                      أرسل {linkRequestModal.teacher?.gender === 'female' ? 'المعلمة' : 'المعلم'} <span className="font-semibold text-foreground">{formatNameWithTitle(linkRequestModal.teacher?.name || 'معلم', 'teacher', linkRequestModal.teacher?.title_id, linkRequestModal.teacher?.gender, t)}</span> طلب ارتباط بك
+                      {t('notifications.linkRequestDesc', { gender: linkRequestModal.teacher?.gender === 'female' ? t('admin.teacherFemale') : t('roles.teacher'), name: formatNameWithTitle(linkRequestModal.teacher?.name || t('roles.teacher'), 'teacher', linkRequestModal.teacher?.title_id, linkRequestModal.teacher?.gender, t) })}
                     </p>
                     <div className="flex items-center gap-3 w-full">
                       <button
@@ -733,7 +733,7 @@ export default function NotificationBell() {
                         className="flex-1 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
                       >
                         {processingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                        قبول
+                        {t('notifications.acceptBtn')}
                       </button>
                       <button
                         onClick={handleRejectLinkRequest}
@@ -741,7 +741,7 @@ export default function NotificationBell() {
                         className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60 transition-colors flex items-center justify-center gap-2"
                       >
                         {processingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                        رفض
+                        {t('notifications.rejectBtn')}
                       </button>
                     </div>
                   </>

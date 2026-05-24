@@ -80,9 +80,9 @@ const itemVariants = {
 // -------------------------------------------------------
 // File type categories
 // -------------------------------------------------------
-type FileCategory = 'الكل' | 'صور' | 'مستندات' | 'فيديوهات' | 'صوتيات' | 'أخرى';
+type FileCategory = 'all' | 'images' | 'documents' | 'videos' | 'audio' | 'other';
 
-const FILE_CATEGORIES: FileCategory[] = ['الكل', 'صور', 'مستندات', 'فيديوهات', 'صوتيات', 'أخرى'];
+const FILE_CATEGORIES: FileCategory[] = ['all', 'images', 'documents', 'videos', 'audio', 'other'];
 
 function getFileCategory(fileType: string): FileCategory {
   const lower = fileType.toLowerCase();
@@ -95,7 +95,7 @@ function getFileCategory(fileType: string): FileCategory {
     lower.includes('svg') ||
     lower.includes('webp')
   ) {
-    return 'صور';
+    return 'images';
   }
   if (
     lower.includes('pdf') ||
@@ -109,15 +109,15 @@ function getFileCategory(fileType: string): FileCategory {
     lower.includes('powerpoint') ||
     lower.includes('sheet')
   ) {
-    return 'مستندات';
+    return 'documents';
   }
   if (lower.includes('video') || lower.includes('mp4') || lower.includes('avi') || lower.includes('mov') || lower.includes('webm')) {
-    return 'فيديوهات';
+    return 'videos';
   }
   if (lower.includes('audio') || lower.includes('mp3') || lower.includes('wav') || lower.includes('ogg') || lower.includes('mpeg')) {
-    return 'صوتيات';
+    return 'audio';
   }
-  return 'أخرى';
+  return 'other';
 }
 
 // -------------------------------------------------------
@@ -169,10 +169,10 @@ function formatFileSize(bytes: number): string {
 // -------------------------------------------------------
 // Date helper (Arabic locale)
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string = 'ar'): string {
   try {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('ar-SA', {
+    return date.toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -234,13 +234,23 @@ interface PendingUpload {
 // Main Component
 // -------------------------------------------------------
 export default function PersonalFilesSection({ profile, role }: PersonalFilesSectionProps) {
-  const { t, dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   const { openProfile } = useAppStore();
   const isMobile = useIsMobile();
 
+  // Category label mapping for i18n
+  const categoryLabels: Record<FileCategory, string> = {
+    all: t('files.categoryAll'),
+    images: t('files.categoryImages'),
+    documents: t('files.categoryDocuments'),
+    videos: t('files.categoryVideos'),
+    audio: t('files.categoryAudio'),
+    other: t('files.categoryOther'),
+  };
+
   // ─── Tab state ───
   const [activeTab, setActiveTab] = useState<'my-files' | 'shared'>('my-files');
-  const [categoryFilter, setCategoryFilter] = useState<FileCategory>('الكل');
+  const [categoryFilter, setCategoryFilter] = useState<FileCategory>('all');
   const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'public' | 'private'>('all');
 
   // ─── My files state ───
@@ -549,7 +559,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       result = result.filter((f) => f.visibility !== 'public');
     }
     // Filter by category
-    if (categoryFilter !== 'الكل') {
+    if (categoryFilter !== 'all') {
       result = result.filter((f) => getFileCategory(f.file_type) === categoryFilter);
     }
     return result;
@@ -581,7 +591,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
     }
     if (oversized.length > 0) {
-      toast.error(`الملفات التالية تتجاوز 50 ميجابايت: ${oversized.join('، ')}`);
+      toast.error(t('files.toastOversizedFiles', { files: oversized.join(t('common.listSeparator')) }));
     }
     if (validFiles.length === 0) return;
 
@@ -604,7 +614,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
     }
     if (duplicateNames.length > 0) {
-      toast.error(`يوجد ملف(ات) بنفس الاسم والامتداد (${duplicateNames.join('، ')}). يرجى تغيير الاسم قبل الرفع.`);
+      toast.error(t('files.toastDuplicateNames', { files: duplicateNames.join(t('common.listSeparator')) }));
     }
 
     // ─── CRITICAL MOBILE FIX: Pre-read file data into ArrayBuffers ───
@@ -644,7 +654,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           uploading: false,
           done: false,
           // Mark duplicate name+extension files as error — user must rename before upload
-          error: hasDuplicateName ? `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير الاسم قبل الرفع.` : undefined,
+          error: hasDuplicateName ? t('files.toastDuplicateName', { name: displayName }) : undefined,
           errorCode: hasDuplicateName ? 'duplicate_name' as const : undefined,
         };
       })
@@ -672,7 +682,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         const stillDuplicate = files.some(f => f.file_name.toLowerCase() === newDisplayName.toLowerCase()) ||
           prev.some(other => other.id !== id && (other.customName.trim() + (other.extension ? '.' + other.extension : '')).toLowerCase() === newDisplayName.toLowerCase());
         if (stillDuplicate) {
-          return { ...p, customName: name, error: `يوجد ملف بنفس الاسم والامتداد (${newDisplayName}). يرجى تغيير الاسم قبل الرفع.`, errorCode: 'duplicate_name' as const };
+          return { ...p, customName: name, error: t('files.toastDuplicateName', { name: newDisplayName }), errorCode: 'duplicate_name' as const };
         }
         // Name is now unique — clear the duplicate error
         return { ...p, customName: name, error: p.errorCode === 'duplicate_name' ? undefined : p.error, errorCode: p.errorCode === 'duplicate_name' ? undefined : p.errorCode };
@@ -716,14 +726,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     // Skip files with duplicate_name error — they must be renamed first
     const toUpload = pendingUploadsRef.current.filter((p) => !p.done && !p.uploading && p.errorCode !== 'duplicate_name' && !p.error);
     if (toUpload.length === 0) {
-      toast.info('لا يوجد ملفات للرفع');
+      toast.info(t('files.toastNoFilesToUpload'));
       return;
     }
 
     // Get auth token — use waitForSession for mobile PWA where session hydration can be slow
     const token = await waitForSession(15000);
     if (!token) {
-      toast.error('يرجى تسجيل الدخول أولاً');
+      toast.error(t('files.toastLoginRequired'));
       return;
     }
 
@@ -731,7 +741,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
     if (!supabaseUrl || !supabaseAnonKey) {
-      toast.error('إعدادات التخزين غير مكتملة');
+      toast.error(t('files.toastStorageConfigIncomplete'));
       return;
     }
 
@@ -807,7 +817,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             arrayBuffer = await item.file.arrayBuffer();
           } catch (readErr) {
             console.error(`[Upload] File object is invalid for "${fileName}":`, readErr);
-            throw new Error(`فشل في قراءة بيانات الملف "${fileName}". يرجى إعادة تحديد الملف`);
+            throw new Error(t('files.toastFileReadFailed', { name: fileName }));
           }
         }
 
@@ -855,11 +865,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             let result: { success: boolean; data?: Record<string, unknown>; error?: string };
             if (res.ok) {
               try { result = await res.json(); }
-              catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+              catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
             } else {
               const errorText = await res.text();
               try { result = JSON.parse(errorText); }
-              catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+              catch { result = { success: false, error: t('files.toastHttpError', { status: res.status }) }; }
             }
 
             if (result.success && result.data?.id) {
@@ -903,7 +913,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
               xhr.addEventListener('error', () => reject(new Error('Network error')));
               xhr.addEventListener('abort', () => reject(new Error('Aborted')));
-              xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+              xhr.addEventListener('timeout', () => reject(new Error(t('files.toastUploadTimeout'))));
 
               const storageUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
               xhr.open('POST', storageUrl);
@@ -951,7 +961,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           }
 
           if (!storageUploadSuccess) {
-            throw new Error('فشل رفع الملف — تعذر الاتصال بخدمة التخزين');
+            throw new Error(t('files.toastUploadFailed'));
           }
 
           throttledProgressUpdate(item.id, 92);
@@ -984,11 +994,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             let result: { success: boolean; data?: Record<string, unknown>; error?: string };
             if (res.ok) {
               try { result = await res.json(); }
-              catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+              catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
             } else {
               const errorText = await res.text();
               try { result = JSON.parse(errorText); }
-              catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+              catch { result = { success: false, error: t('files.toastHttpError', { status: res.status }) }; }
             }
             clearTimeout(timeoutId2);
 
@@ -998,7 +1008,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             } else {
               console.error('[Upload] Create record error:', result.error);
               await supabase.storage.from('user-files').remove([storagePath]);
-              throw new Error(result.error || 'فشل حفظ بيانات الملف');
+              throw new Error(result.error || t('files.toastFileSaveFailed'));
             }
           } finally {
             clearTimeout(timeoutId2);
@@ -1046,10 +1056,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             signal: controller.signal,
           });
           let result: { success: boolean; data?: { created: number; skipped: number }; error?: string };
-          try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+          try { result = await res.json(); } catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
           if (result.success && result.data) {
             if (result.data.skipped > 0) {
-              toast.info(`تم إسناد ${result.data.created} ملف للمقررات، تم تخطي ${result.data.skipped} (موجودة مسبقاً)`);
+              toast.info(t('files.toastFilesAssigned', { created: result.data.created, skipped: result.data.skipped }));
             }
           } else {
             console.error('Bulk assign error:', result.error);
@@ -1068,14 +1078,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       const failed = current.filter((p) => p.progress === -1);
       const blocked = current.filter((p) => p.errorCode === 'duplicate_name');
       if (successful.length > 0 && failed.length === 0 && blocked.length === 0) {
-        toast.success('تم رفع الملفات بنجاح');
+        toast.success(t('files.toastUploadSuccess'));
       } else if (successful.length > 0 && failed.length > 0) {
-        toast.error(`تم رفع ${successful.length} ملف، فشل ${failed.length} ملف`);
+        toast.error(t('files.toastUploadPartial', { success: successful.length, failed: failed.length }));
       } else if (failed.length > 0) {
-        toast.error('فشل رفع جميع الملفات');
+        toast.error(t('files.toastUploadAllFailed'));
       }
       if (blocked.length > 0) {
-        toast.error(`يوجد ${blocked.length} ملف(ات) بأسماء مكررة — يرجى تغيير الاسم أولاً`);
+        toast.error(t('files.toastBlockedFiles', { count: blocked.length }));
       }
       return current;
     });
@@ -1119,12 +1129,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       // 5. Delete the user_files record
       const { error } = await supabase.from('user_files').delete().eq('id', fileId);
       if (error) {
-        toast.error('حدث خطأ أثناء حذف الملف');
+        toast.error(t('files.toastDeleteFailed'));
       } else {
-        toast.success('تم حذف الملف بنجاح');
+        toast.success(t('files.toastDeleteSuccess'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setDeletingFileId(null);
       setConfirmDeleteId(null);
@@ -1147,12 +1157,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         .update({ file_name: newName, updated_at: new Date().toISOString() })
         .eq('id', fileId);
       if (error) {
-        toast.error('حدث خطأ أثناء إعادة التسمية');
+        toast.error(t('files.toastRenameFailed'));
       } else {
-        toast.success('تم إعادة التسمية بنجاح');
+        toast.success(t('files.toastRenameSuccess'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setRenaming(false);
       setRenamingFileId(null);
@@ -1173,7 +1183,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           .select('id')
           .eq('user_file_id', fileId);
         if (linkedSubjectFiles && linkedSubjectFiles.length > 0) {
-          toast.error('لا يمكن جعل الملف خاصاً لأنه مسند لمقرر. يجب إزالة الإسناد أولاً.');
+          toast.error(t('files.toastCannotMakePrivate'));
           return;
         }
       }
@@ -1184,12 +1194,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         .eq('id', fileId);
       if (error) {
         // Column might not exist yet
-        toast.error('حدث خطأ أثناء تغيير الخصوصية');
+        toast.error(t('files.toastVisibilityError'));
       } else {
-        toast.success(newVisibility === 'public' ? 'تم جعل الملف عاماً' : 'تم جعل الملف خاصاً');
+        toast.success(t('files.toastVisibilityChanged'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     }
   };
 
@@ -1204,7 +1214,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       const newUsers = selectedShareUsers.filter((u) => !alreadySharedIds.has(u.id));
 
       if (newUsers.length === 0) {
-        toast.info('تمت المشاركة مع هؤلاء المستخدمين مسبقاً');
+        toast.info(t('files.toastAlreadyShared'));
         setSelectedShareUsers([]);
         setShareSearchQuery('');
         setShareSearchResults([]);
@@ -1226,15 +1236,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       });
 
       let result: { success: boolean; data?: { created: number; skipped: number }; error?: string };
-      try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+      try { result = await res.json(); } catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
       if (result.success && result.data) {
         const { created, skipped } = result.data;
-        let msg = `تمت المشاركة بنجاح`;
-        if (created > 0) msg += ` (${created} مشاركة جديدة)`;
-        if (skipped > 0) msg += ` - تم تخطي ${skipped} مشاركة موجودة`;
+        let msg = t('files.toastShareSuccess');
+        if (created > 0) msg += t('files.toastShareNewCount', { created });
+        if (skipped > 0) msg += t('files.toastShareSkipped', { skipped });
         toast.success(msg);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء المشاركة');
+        toast.error(result.error || t('files.toastShareFailed'));
       }
 
       setSelectedShareUsers([]);
@@ -1242,7 +1252,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       setShareSearchResults([]);
       if (sharingFileId) fetchFileShares(sharingFileId);
     } catch {
-      toast.error('حدث خطأ أثناء المشاركة');
+      toast.error(t('files.toastShareFailed'));
     } finally {
       setSharingUsers(false);
     }
@@ -1269,24 +1279,24 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       });
 
       let result: { success: boolean; data?: { created: number; updated: number; user: { name?: string; email?: string } }; error?: string };
-      try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+      try { result = await res.json(); } catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
       if (result.success && result.data) {
         const { created, updated, user } = result.data;
         if (created > 0) {
-          toast.success(`تمت المشاركة مع ${user?.name || user?.email || 'المستخدم'} بنجاح`);
+          toast.success(t('files.toastShareWithEmailSuccess', { name: user?.name || user?.email || t('common.user') }));
         } else if (updated > 0) {
-          toast.success(`تم تحديث صلاحية المشاركة مع ${user?.name || user?.email || 'المستخدم'}`);
+          toast.success(t('files.toastSharePermissionUpdated', { name: user?.name || user?.email || t('common.user') }));
         } else {
-          toast.info('المشاركة موجودة مسبقاً');
+          toast.info(t('files.toastShareExists'));
         }
         setShareByEmail('');
         setShareByEmailPermission('view');
         if (sharingFileId) fetchFileShares(sharingFileId);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء المشاركة');
+        toast.error(result.error || t('files.toastShareFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setShareByEmailLoading(false);
     }
@@ -1319,19 +1329,19 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         });
 
         let result: { success: boolean; data?: { created: number; updated: number }; error?: string };
-        try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+        try { result = await res.json(); } catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
         if (result.success && result.data) {
           totalCreated += result.data.created || 0;
           totalUpdated += result.data.updated || 0;
         } else {
-          lastError = result.error || 'خطأ غير معروف';
+          lastError = result.error || t('common.errorUnexpected');
         }
       }
 
       if (totalCreated > 0) {
-        toast.success(`تمت المشاركة بنجاح (${totalCreated} مشاركة جديدة)`);
+        toast.success(t('files.toastBulkShareSuccess', { created: totalCreated }));
       } else if (totalUpdated > 0) {
-        toast.success(`تم تحديث ${totalUpdated} صلاحية مشاركة`);
+        toast.success(t('files.toastBulkShareUpdated', { updated: totalUpdated }));
       } else if (lastError) {
         toast.error(lastError);
       }
@@ -1339,7 +1349,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       setBulkShareByEmail('');
       setBulkShareByEmailPermission('view');
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setBulkShareByEmailLoading(false);
     }
@@ -1353,13 +1363,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     try {
       const { error } = await supabase.from('file_shares').delete().eq('id', shareId);
       if (error) {
-        toast.error('حدث خطأ أثناء إزالة المشاركة');
+        toast.error(t('files.toastRemoveShareFailed'));
       } else {
-        toast.success('تم إزالة المشاركة بنجاح');
+        toast.success(t('files.toastRemoveShareSuccess'));
         if (sharingFileId) fetchFileShares(sharingFileId);
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setRemovingShareId(null);
     }
@@ -1493,7 +1503,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       const linkedFiles = coursesResult.data;
       if (linkedFiles && linkedFiles.length > 0) {
         setDetailsFileCourses(linkedFiles.map((sf: Record<string, unknown>) => ({
-          name: (sf.subjects as Record<string, string>)?.name || 'مقرر محذوف',
+          name: (sf.subjects as Record<string, string>)?.name || t('common.deletedCourse'),
           assignedAt: sf.created_at as string,
           visibility: (sf.visibility as string) ?? 'public',
         })));
@@ -1533,7 +1543,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     if (!isBulk) {
       const file = files.find((f) => f.id === fileId);
       if (!file || file.visibility !== 'public') {
-        toast.error('فقط الملفات العامة يمكن إسنادها للمقررات');
+        toast.error(t('files.toastOnlyPublicFiles'));
         return;
       }
     }
@@ -1598,21 +1608,21 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         }),
       });
       let result: { success: boolean; data?: { created: number; skipped: number }; error?: string };
-      try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+      try { result = await res.json(); } catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
       if (result.success && result.data) {
         const { created, skipped } = result.data;
-        let msg = `تم إسناد ${created} ملف بنجاح`;
-        if (skipped > 0) msg += ` (تم تخطي ${skipped} إسناد موجود)`;
+        let msg = t('files.toastAssignSuccess', { created });
+        if (skipped > 0) msg += t('files.toastAssignSkipped', { skipped });
         toast.success(msg);
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء الإسناد');
+        toast.error(result.error || t('files.toastAssignFailed'));
       }
       setAssignModalOpen(false);
       setBulkAssignMode(false);
       setSelectedFileIds(new Set());
       fetchFiles();
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setAssigning(false);
     }
@@ -1701,7 +1711,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     try {
       const fileIdsToShare = Array.from(selectedFileIds);
       if (fileIdsToShare.length === 0) {
-        toast.error('لا توجد ملفات للمشاركة');
+        toast.error(t('files.toastNoFilesToShare'));
         return;
       }
       const headers = await getAuthHeaders(15000);
@@ -1717,20 +1727,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         }),
       });
       let result: { success: boolean; data?: { created: number; skipped: number }; error?: string };
-      try { result = await res.json(); } catch { result = { success: false, error: 'خطأ في استجابة السيرفر' }; }
+      try { result = await res.json(); } catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
       if (result.success && result.data) {
         const { created, skipped } = result.data;
-        let msg = `تمت المشاركة بنجاح (${created} مشاركة جديدة)`;
-        if (skipped > 0) msg += ` - تم تخطي ${skipped} مشاركة موجودة`;
+        let msg = t('files.toastBulkShareSuccess', { created });
+        if (skipped > 0) msg += t('files.toastShareSkipped', { skipped });
         toast.success(msg);
         setBulkShareModalOpen(false);
         setBulkShareSelectedUsers([]);
         setSelectedFileIds(new Set());
       } else {
-        toast.error(result.error || 'حدث خطأ أثناء المشاركة');
+        toast.error(result.error || t('files.toastShareFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setBulkShareLoading(false);
     }
@@ -1787,11 +1797,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         const { error } = await supabase.from('user_files').delete().eq('id', fileId);
         if (!error) deleted++;
       }
-      toast.success(`تم حذف ${deleted} ملف`);
+      toast.success(t('files.toastBulkDeleteSuccess', { count: deleted }));
       setSelectedFileIds(new Set());
       setConfirmBulkDelete(false);
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setBulkActionLoading(false);
     }
@@ -1809,7 +1819,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         for (const fileId of selectedFileIds) {
           const { data: linked } = await supabase.from('subject_files').select('id').eq('user_file_id', fileId);
           if (linked && linked.length > 0) {
-            toast.error('بعض الملفات المحددة مسندة لمقررات ولا يمكن جعلها خاصة');
+            toast.error(t('files.toastSomeFilesAssigned'));
             setBulkActionLoading(false);
             return;
           }
@@ -1823,10 +1833,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           .eq('id', fileId);
         if (!error) updated++;
       }
-      toast.success(updated > 1 ? `تم تغيير خصوصية ${updated} ملف` : 'تم تغيير خصوصية الملف');
+      toast.success(t('files.toastBulkVisibilityChanged', { count: updated }));
       setSelectedFileIds(new Set());
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('common.errorUnexpected'));
     } finally {
       setBulkActionLoading(false);
     }
@@ -1883,9 +1893,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   function getPermissionLabel(permission: 'view' | 'edit' | 'download') {
     switch (permission) {
-      case 'view': return 'عرض';
-      case 'edit': return 'تعديل';
-      case 'download': return 'تحميل';
+      case 'view': return t('common.view');
+      case 'edit': return t('common.edit');
+      case 'download': return t('common.download');
     }
   }
 
@@ -1943,7 +1953,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                 <span>{formatFileSize(file.file_size)}</span>
                 <span>•</span>
-                <span>{formatDate(file.created_at)}</span>
+                <span>{formatDate(file.created_at, locale)}</span>
               </div>
             </div>
 
@@ -1952,7 +1962,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <button
                 onClick={(e) => { e.stopPropagation(); handlePreview(file); }}
                 className="touch-target shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-sky-700 hover:bg-sky-50 transition-colors touch-manipulation"
-                title="معاينة"
+                title={t('files.preview')}
               >
                 <Eye className="h-4 w-4" />
               </button>
@@ -1991,39 +2001,39 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   }}
                 >
                   <Pencil className="h-4 w-4 me-2" />
-                  تعديل
+                  {t('files.edit')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => openDetailsModal(file)}>
                   <Info className="h-4 w-4 me-2" />
-                  تفاصيل
+                  {t('files.details')}
                 </DropdownMenuItem>
                 {file.visibility === 'public' && (
                   <DropdownMenuItem onClick={() => openShareModal(file.id)}>
                     <Share2 className="h-4 w-4 me-2" />
-                    مشاركة
+                    {t('files.share')}
                   </DropdownMenuItem>
                 )}
                 {(profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') && file.visibility === 'public' && (
                   <DropdownMenuItem onClick={() => openAssignModal(file.id)}>
                     <FolderPlus className="h-4 w-4 me-2" />
-                    اسناد لمقرر
+                    {t('files.assignToCourseShort')}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => handlePreview(file)}>
                   <Maximize2 className="h-4 w-4 me-2" />
-                  معاينة
+                  {t('files.preview')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => handleToggleVisibility(file.id, file.visibility || 'private')}>
                   {file.visibility === 'public' ? (
                     <>
                       <Lock className="h-4 w-4 me-2" />
-                      جعله خاصاً
+                      {t('files.makePrivateShort')}
                     </>
                   ) : (
                     <>
                       <Globe className="h-4 w-4 me-2" />
-                      جعله عاماً
+                      {t('files.makePublicShort')}
                     </>
                   )}
                 </DropdownMenuItem>
@@ -2033,7 +2043,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   className="text-rose-600 focus:text-rose-600 focus:bg-rose-50"
                 >
                   <Trash2 className="h-4 w-4 me-2" />
-                  حذف
+                  {t('common.delete')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -2051,12 +2061,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   : 'bg-amber-50 text-amber-700'
               }`}>
                 {file.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                {file.visibility === 'public' ? 'عام' : 'خاص'}
+                {file.visibility === 'public' ? t('files.public') : t('files.private')}
               </span>
             </div>
-            {categoryFilter === 'الكل' && (
+            {categoryFilter === 'all' && (
               <span className="inline-flex items-center rounded-full bg-sky-50 text-sky-800 px-2 py-0.5 text-[10px] font-medium">
-                {fileCategory}
+                {categoryLabels[fileCategory]}
               </span>
             )}
           </div>
@@ -2069,19 +2079,19 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/90 backdrop-blur-sm z-20"
             >
               <div className="flex items-center gap-2 p-3">
-                <span className="text-sm font-medium text-foreground">حذف هذا الملف؟</span>
+                <span className="text-sm font-medium text-foreground">{t('files.deleteThisFile')}</span>
                 <button
                   onClick={() => handleDeleteFile(file.id)}
                   disabled={deletingFileId === file.id}
                   className="flex items-center gap-1 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 disabled:opacity-60"
                 >
-                  {deletingFileId === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تأكيد'}
+                  {deletingFileId === file.id ? <Loader2 className="h-3 w-3 animate-spin" /> : t('common.confirm')}
                 </button>
                 <button
                   onClick={() => setConfirmDeleteId(null)}
                   className="flex items-center rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80"
                 >
-                  إلغاء
+                  {t('common.cancel')}
                 </button>
               </div>
             </motion.div>
@@ -2103,7 +2113,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       >
         <div>
           <h2 className="text-2xl font-bold text-foreground">{t('files.title')}</h2>
-          <p className="text-muted-foreground mt-1">إدارة ملفاتك الشخصية ومشاركتها</p>
+          <p className="text-muted-foreground mt-1">{t('files.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -2119,9 +2129,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {/* Visibility filter tabs */}
       <motion.div variants={itemVariants} className="flex items-center gap-2">
         {([
-          { key: 'all' as const, label: 'الكل', icon: null, count: files.length },
-          { key: 'public' as const, label: 'عام', icon: <Globe className="h-3 w-3" />, count: files.filter((f) => f.visibility === 'public').length },
-          { key: 'private' as const, label: 'خاص', icon: <Lock className="h-3 w-3" />, count: files.filter((f) => f.visibility !== 'public').length },
+          { key: 'all' as const, label: t('files.categoryAll'), icon: null, count: files.length },
+          { key: 'public' as const, label: t('files.public'), icon: <Globe className="h-3 w-3" />, count: files.filter((f) => f.visibility === 'public').length },
+          { key: 'private' as const, label: t('files.private'), icon: <Lock className="h-3 w-3" />, count: files.filter((f) => f.visibility !== 'public').length },
         ]).map((vf) => (
           <button
             key={vf.key}
@@ -2148,7 +2158,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {/* Category filter tabs */}
       <motion.div variants={itemVariants} className="flex items-center gap-2 overflow-x-auto pb-1">
         {FILE_CATEGORIES.map((cat) => {
-          const count = cat === 'الكل' ? files.length : files.filter((f) => getFileCategory(f.file_type) === cat).length;
+          const count = cat === 'all' ? files.length : files.filter((f) => getFileCategory(f.file_type) === cat).length;
           return (
             <button
               key={cat}
@@ -2159,7 +2169,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
-              {cat}
+              {categoryLabels[cat]}
               <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700' : 'text-muted-foreground'}`}>
                 ({count})
               </span>
@@ -2177,7 +2187,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <CheckSquare className="h-4 w-4" />
-              تحديد
+              {t('course.select')}
             </button>
           ) : (
             <>
@@ -2190,18 +2200,18 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 ) : (
                   <Square className="h-4 w-4" />
                 )}
-                تحديد الكل
+                {t('course.selectAll')}
               </button>
               {selectedFileIds.size > 0 && (
                 <span className="text-xs text-sky-700 font-medium">
-                  تم تحديد {selectedFileIds.size} ملف
+                  {t('files.selectedCount', { count: selectedFileIds.size })}
                 </span>
               )}
               <button
                 onClick={() => { setSelectionMode(false); setSelectedFileIds(new Set()); }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                إلغاء
+                {t('common.cancel')}
               </button>
             </>
           )}
@@ -2221,11 +2231,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
             <FileText className="h-8 w-8 text-sky-700" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملفات بعد</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('files.noFilesYet')}</p>
           <p className="text-sm text-muted-foreground">
-            {visibilityFilter !== 'all' && categoryFilter === 'الكل'
-              ? visibilityFilter === 'public' ? 'لا توجد ملفات عامة' : 'لا توجد ملفات خاصة'
-              : categoryFilter !== 'الكل' ? 'لا توجد ملفات في هذا التصنيف' : 'ارفع ملفاتك الأولى من زر الرفع أعلاه'}
+            {visibilityFilter !== 'all'
+              ? (visibilityFilter === 'public' ? t('files.noPublicFiles') : t('files.noPrivateFiles'))
+              : categoryFilter !== 'all' ? t('files.noFilesInCategory') : t('files.uploadFirstFiles')}
           </p>
         </motion.div>
       ) : (
@@ -2250,24 +2260,24 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             dir={dir}
           >
             <span className="text-sm font-medium text-foreground whitespace-nowrap">
-              تم تحديد {selectedFileIds.size} ملف
+              {t('files.selectedCount', { count: selectedFileIds.size })}
             </span>
             <div className="h-6 w-px bg-border" />
             {confirmBulkDelete ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-rose-600 font-medium">حذف الملفات المحددة؟</span>
+                <span className="text-xs text-rose-600 font-medium">{t('files.deleteSelectedFiles')}</span>
                 <button
                   onClick={handleBulkDelete}
                   disabled={bulkActionLoading}
                   className="flex items-center gap-1 rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700 disabled:opacity-60"
                 >
-                  {bulkActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'تأكيد'}
+                  {bulkActionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : t('common.confirm')}
                 </button>
                 <button
                   onClick={() => setConfirmBulkDelete(false)}
                   className="rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80"
                 >
-                  إلغاء
+                  {t('common.cancel')}
                 </button>
               </div>
             ) : (
@@ -2275,7 +2285,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <DropdownMenu dir={dir}>
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center gap-1.5 rounded-md bg-sky-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-sky-800 transition-colors">
-                      إجراءات
+                      {t('files.bulkActions')}
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-48">
@@ -2284,7 +2294,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
                     >
                       <Trash2 className="h-4 w-4 me-2" />
-                      حذف
+                      {t('common.delete')}
                     </DropdownMenuItem>
                     {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility !== 'public') && (
                       <DropdownMenuItem
@@ -2293,7 +2303,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         className="cursor-pointer"
                       >
                         <Globe className="h-4 w-4 me-2" />
-                        جعل عاماً
+                        {t('files.makePublic')}
                       </DropdownMenuItem>
                     )}
                     {Array.from(selectedFileIds).some(id => files.find(f => f.id === id)?.visibility === 'public') && (
@@ -2303,7 +2313,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         className="cursor-pointer"
                       >
                         <Lock className="h-4 w-4 me-2" />
-                        جعل خاصاً
+                        {t('files.makePrivate')}
                       </DropdownMenuItem>
                     )}
                     {(profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') && Array.from(selectedFileIds).every(id => files.find(f => f.id === id)?.visibility === 'public') && (
@@ -2312,7 +2322,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         className="cursor-pointer"
                       >
                         <FolderPlus className="h-4 w-4 me-2" />
-                        إسناد لمقررات
+                        {t('files.assignToCourses')}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
@@ -2325,7 +2335,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       className="cursor-pointer"
                     >
                       <Download className="h-4 w-4 me-2" />
-                      تحميل
+                      {t('files.download')}
                     </DropdownMenuItem>
                     {Array.from(selectedFileIds).every(id => files.find(f => f.id === id)?.visibility === 'public') && (
                       <DropdownMenuItem
@@ -2333,7 +2343,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         className="cursor-pointer"
                       >
                         <Share2 className="h-4 w-4 me-2" />
-                        مشاركة مع مستخدمين
+                        {t('files.shareWithUsers')}
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
@@ -2343,7 +2353,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   className="flex items-center gap-1 rounded-md bg-muted text-muted-foreground px-3 py-1.5 text-xs font-medium hover:bg-muted/80 transition-colors"
                 >
                   <X className="h-3 w-3" />
-                  إلغاء التحديد
+                  {t('files.cancelSelection')}
                 </button>
               </>
             )}
@@ -2360,8 +2370,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       {/* Header */}
       <motion.div variants={itemVariants}>
-        <h2 className="text-2xl font-bold text-foreground">مشاركة معي</h2>
-        <p className="text-muted-foreground mt-1">الملفات التي شاركها معك الآخرون</p>
+        <h2 className="text-2xl font-bold text-foreground">{t('files.sharedWithMe')}</h2>
+        <p className="text-muted-foreground mt-1">{t('files.sharedWithMeDesc')}</p>
       </motion.div>
 
       {/* Shared files list */}
@@ -2377,8 +2387,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 mb-4">
             <Share2 className="h-8 w-8 text-sky-700" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملفات مشاركة</p>
-          <p className="text-sm text-muted-foreground">عندما يشاركك أحد ملفاً سيظهر هنا</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('files.noSharedFiles')}</p>
+          <p className="text-sm text-muted-foreground">{t('files.sharedFilesWillAppear')}</p>
         </motion.div>
       ) : (
         <motion.div
@@ -2390,17 +2400,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <div className="group relative rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all">
                 {/* Shared by info */}
                 <div className="flex items-center gap-2 mb-3 pb-3 border-b">
-                  <UserAvatar name={file.shared_by_user?.name || 'مستخدم'} avatarUrl={file.shared_by_user?.avatar_url} size="xs" />
+                  <UserAvatar name={file.shared_by_user?.name || t('common.user')} avatarUrl={file.shared_by_user?.avatar_url} size="xs" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground truncate">
-                      شارك معك{' '}
+                      {t('files.sharedBy')}{' '}
                       <button
                         onClick={() => file.shared_by_user?.id && openProfile(file.shared_by_user.id)}
                         className="font-medium text-foreground hover:text-sky-700 transition-colors cursor-pointer"
                       >
-                        {formatNameWithTitle(file.shared_by_user?.name || 'مستخدم', file.shared_by_user?.role, file.shared_by_user?.title_id, file.shared_by_user?.gender, t)}
+                        {formatNameWithTitle(file.shared_by_user?.name || t('common.user'), file.shared_by_user?.role, file.shared_by_user?.title_id, file.shared_by_user?.gender, t)}
                       </button>
-                      {' هذا الملف'}
+                      {t('files.sharedBy')}
                     </p>
                   </div>
                   {file.permission && (
@@ -2423,7 +2433,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                       <span>{formatFileSize(file.file_size)}</span>
                       <span>•</span>
-                      <span>{formatDate(file.created_at)}</span>
+                      <span>{formatDate(file.created_at, locale)}</span>
                     </div>
                   </div>
                 </div>
@@ -2436,7 +2446,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-sky-700 transition-colors w-full"
                     >
                       <Users className="h-3.5 w-3.5" />
-                      <span>مشارك مع {file.total_recipients_count || (file.other_recipients.length + 1)} شخص</span>
+                      <span>{t('files.sharedWithCount', { count: file.total_recipients_count || (file.other_recipients.length + 1) })}</span>
                       <span className="flex -space-x-1.5 space-x-reverse ms-1">
                         {file.other_recipients.slice(0, 3).map((r) => (
                           <span key={r.id} className="inline-block h-5 w-5 rounded-full bg-muted border-2 border-background overflow-hidden">
@@ -2467,7 +2477,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-sky-50 text-sky-800 px-3 py-2 text-xs font-medium hover:bg-sky-100 transition-colors"
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
-                    معاينة
+                    {t('files.preview')}
                   </button>
                   {/* Download button */}
                   <button
@@ -2475,7 +2485,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-muted text-muted-foreground px-3 py-2 text-xs font-medium hover:bg-muted/80 transition-colors"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    تحميل
+                    {t('files.download')}
                   </button>
                 </div>
               </div>
@@ -2517,7 +2527,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Upload className="h-5 w-5 text-sky-700" />
-                رفع ملفات
+                {t('files.uploadFiles')}
               </h3>
               <button
                 onClick={() => {
@@ -2538,15 +2548,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {(profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') && (
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">
-                  اسناد لمقررات (اختياري)
+                  {t('files.assignToCoursesOptional')}
                 </label>
                 {loadingSubjects ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    جارٍ تحميل المقررات...
+                    {t('common.loading')}
                   </div>
                 ) : subjects.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">لا توجد مقررات متاحة</p>
+                  <p className="text-xs text-muted-foreground">{t('files.noCoursesAvailable')}</p>
                 ) : (
                   <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar rounded-lg border p-2">
                     {subjects.map((s) => (
@@ -2587,9 +2597,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-sky-300 bg-sky-50/30 p-6 transition-colors hover:border-sky-400 hover:bg-sky-50/50 active:bg-sky-50/70 touch-manipulation"
                 >
                   <Upload className="h-8 w-8 text-sky-400" />
-                  <span className="text-sm font-medium text-muted-foreground">اضغط لاختيار ملفات</span>
-                  <span className="text-xs text-muted-foreground">يمكنك اختيار أكثر من ملف</span>
-                  <span className="text-[10px] text-muted-foreground/70">الحد الأقصى 50 ميجابايت لكل ملف</span>
+                  <span className="text-sm font-medium text-muted-foreground">{t('files.clickToSelectFiles')}</span>
+                  <span className="text-xs text-muted-foreground">{t('files.canSelectMultiple')}</span>
+                  <span className="text-[10px] text-muted-foreground/70">{t('files.maxFileSize')}</span>
                 </button>
               </div>
 
@@ -2623,7 +2633,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                                 ? 'border-amber-300 bg-amber-50/50 text-amber-900 focus:ring-amber-500 focus:border-amber-500'
                                 : 'border-border bg-background text-foreground focus:ring-sky-600'
                             }`}
-                            placeholder="اسم الملف"
+                            placeholder={t('files.fileNamePlaceholder')}
                             dir={dir}
                           />
                           {item.extension && (
@@ -2672,7 +2682,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                             <span className={`text-[10px] font-medium ${
                               item.progress === -1 ? 'text-rose-500' : item.done ? 'text-sky-700' : 'text-sky-700'
                             }`}>
-                              {item.progress === -1 ? 'فشل' : `${Math.round(item.progress)}%`}
+                              {item.progress === -1 ? t('files.failed') : `${Math.round(item.progress)}%`}
                             </span>
                           </div>
                           <Progress
@@ -2697,9 +2707,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {pendingUploads.length > 0 && (
               <div className="border-t p-4 flex items-center justify-between shrink-0">
                 <span className="text-sm text-muted-foreground">
-                  {pendingUploads.filter((p) => p.done).length}/{pendingUploads.length} مكتمل
+                  {t('files.completed', { done: pendingUploads.filter((p) => p.done).length, total: pendingUploads.length })}
                   {pendingUploads.some((p) => p.errorCode === 'duplicate_name') && (
-                    <span className="text-amber-600 text-xs ms-1">({pendingUploads.filter((p) => p.errorCode === 'duplicate_name').length} بحاجة لتغيير الاسم)</span>
+                    <span className="text-amber-600 text-xs ms-1">({t('files.needRename', { count: pendingUploads.filter((p) => p.errorCode === 'duplicate_name').length })})</span>
                   )}
                 </span>
                 <div className="flex items-center gap-2">
@@ -2711,7 +2721,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     }}
                     className="rounded-lg border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
                   >
-                    إغلاق
+                    {t('files.close')}
                   </button>
                   {/* Upload All / Retry button — visible whenever there are uploadable files (no duplicate_name errors) and nothing is currently uploading */}
                   {pendingUploads.some((p) => !p.done && !p.uploading && p.errorCode !== 'duplicate_name' && !p.error) && (
@@ -2721,7 +2731,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-800 active:bg-sky-900 transition-colors touch-manipulation min-h-[44px]"
                     >
                       <Upload className="h-4 w-4" />
-                      {pendingUploads.some((p) => p.progress === -1 && p.errorCode !== 'duplicate_name') ? 'إعادة المحاولة' : 'رفع الكل'}
+                      {pendingUploads.some((p) => p.progress === -1 && p.errorCode !== 'duplicate_name') ? t('files.retryAll') : t('files.uploadAll')}
                     </button>
                   )}
                 </div>
@@ -2758,7 +2768,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Info className="h-5 w-5 text-sky-700" />
-                تفاصيل الملف
+                {t('files.fileDetails')}
               </h3>
               <button
                 onClick={() => setDetailsFile(null)}
@@ -2783,31 +2793,31 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <div className="rounded-lg bg-muted/30 p-3">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                     <HardDrive className="h-3.5 w-3.5" />
-                    الحجم
+                    {t('files.size')}
                   </div>
                   <p className="text-sm font-medium text-foreground">{formatFileSize(detailsFile.file_size)}</p>
                 </div>
                 <div className="rounded-lg bg-muted/30 p-3">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                     <Calendar className="h-3.5 w-3.5" />
-                    تاريخ الرفع
+                    {t('files.uploadDate')}
                   </div>
-                  <p className="text-sm font-medium text-foreground">{formatDate(detailsFile.created_at)}</p>
+                  <p className="text-sm font-medium text-foreground">{formatDate(detailsFile.created_at, locale)}</p>
                 </div>
                 <div className="rounded-lg bg-muted/30 p-3">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                     <File className="h-3.5 w-3.5" />
-                    النوع
+                    {t('files.type')}
                   </div>
                   <p className="text-sm font-medium text-foreground">{getFileCategory(detailsFile.file_type)}</p>
                 </div>
                 <div className="rounded-lg bg-muted/30 p-3">
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                     {detailsFile.visibility === 'public' ? <Globe className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                    الخصوصية
+                    {t('files.privacy')}
                   </div>
                   <p className="text-sm font-medium text-foreground">
-                    {detailsFile.visibility === 'public' ? 'عام' : 'خاص'}
+                    {detailsFile.visibility === 'public' ? t('files.public') : t('files.private')}
                   </p>
                 </div>
               </div>
@@ -2816,7 +2826,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
                     <FolderPlus className="h-3.5 w-3.5" />
-                    المقررات المسند إليها
+                    {t('files.assignedCourses')}
                   </div>
                   <div className="space-y-2">
                     {detailsFileCourses.map((course, idx) => (
@@ -2829,9 +2839,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                               : 'bg-amber-50 text-amber-700'
                           }`}>
                             {course.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                            {course.visibility === 'public' ? 'عام' : 'خاص'}
+                            {course.visibility === 'public' ? t('files.public') : t('files.private')}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{formatDate(course.assignedAt)}</span>
+                          <span className="text-[10px] text-muted-foreground">{formatDate(course.assignedAt, locale)}</span>
                         </div>
                       </div>
                     ))}
@@ -2842,27 +2852,27 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
                   <Users className="h-3.5 w-3.5" />
-                  مشارك مع المستخدمين
+                  {t('files.sharedWithUsers')}
                 </div>
                 {detailsFileShares.length > 0 ? (
                   <div className="space-y-2">
                     {detailsFileShares.map((share) => (
                       <div key={share.id} className="flex items-center justify-between rounded-lg bg-muted/30 p-2.5">
                         <div className="flex items-center gap-2 min-w-0">
-                          <UserAvatar name={share.shared_with_user?.name || 'مستخدم'} avatarUrl={share.shared_with_user?.avatar_url} size="xs" />
-                          <span className="text-sm font-medium text-foreground truncate">{formatNameWithTitle(share.shared_with_user?.name || 'مستخدم', share.shared_with_user?.role, share.shared_with_user?.title_id, share.shared_with_user?.gender, t)}</span>
+                          <UserAvatar name={share.shared_with_user?.name || t('common.user')} avatarUrl={share.shared_with_user?.avatar_url} size="xs" />
+                          <span className="text-sm font-medium text-foreground truncate">{formatNameWithTitle(share.shared_with_user?.name || t('common.user'), share.shared_with_user?.role, share.shared_with_user?.title_id, share.shared_with_user?.gender, t)}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                             {getPermissionLabel(share.permission)}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{formatDate(share.created_at)}</span>
+                          <span className="text-[10px] text-muted-foreground">{formatDate(share.created_at, locale)}</span>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground/60">لا يوجد مستخدمون مشاركون</p>
+                  <p className="text-xs text-muted-foreground/60">{t('files.noSharedUsers')}</p>
                 )}
               </div>
 
@@ -2872,7 +2882,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 className="flex items-center justify-center gap-2 w-full rounded-lg bg-sky-700 text-white px-4 py-2.5 text-sm font-medium hover:bg-sky-800 transition-colors"
               >
                 <Download className="h-4 w-4" />
-                تحميل الملف
+                {t('files.downloadFile')}
               </button>
             </div>
           </motion.div>
@@ -2907,7 +2917,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Share2 className="h-5 w-5 text-sky-700" />
-                مشاركة الملف
+                {t('files.shareFile')}
               </h3>
               <button
                 onClick={closeShareModal}
@@ -2938,7 +2948,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
               {/* Permission selection */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">صلاحية المشاركة</label>
+                <label className="text-sm font-medium text-foreground mb-2 block">{t('files.sharePermission')}</label>
                 <div className="flex items-center gap-2">
                   {(['view', 'edit', 'download'] as const).map((perm) => (
                     <button
@@ -2959,14 +2969,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
               {/* Search users */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">البحث عن مستخدم</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('files.searchUser')}</label>
                 <div className="relative">
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <input
                     type="text"
                     value={shareSearchQuery}
                     onChange={(e) => handleSearchUsers(e.target.value)}
-                    placeholder="ابحث بالاسم أو البريد الإلكتروني..."
+                    placeholder={t('files.searchUserPlaceholder')}
                     className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                     dir={dir}
                     disabled={searchingUsers}
@@ -2985,13 +2995,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         onClick={() => addShareUser(user)}
                         className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors text-right"
                       >
-                        <UserAvatar name={user.name || 'مستخدم'} avatarUrl={user.avatar_url} size="xs" />
+                        <UserAvatar name={user.name || t('common.user')} avatarUrl={user.avatar_url} size="xs" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-foreground truncate">{formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t)}</p>
                           <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
                         </div>
                         <Badge variant="outline" className="text-[10px] shrink-0">
-                          {user.role === 'superadmin' ? 'مدير المنصة' : user.role === 'teacher' ? 'معلم' : user.role === 'student' ? 'طالب' : user.role === 'admin' ? 'مشرف' : user.role}
+                          {user.role === 'superadmin' ? t('roles.superadmin') : user.role === 'teacher' ? t('roles.teacher') : user.role === 'student' ? t('roles.student') : user.role === 'admin' ? t('roles.admin') : user.role}
                         </Badge>
                       </button>
                     ))}
@@ -3005,21 +3015,21 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">أو شارك بالبريد الإلكتروني</span>
+                  <span className="bg-background px-2 text-muted-foreground">{t('files.orShareByEmail')}</span>
                 </div>
               </div>
 
               {/* Share by email */}
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">البريد الإلكتروني</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('files.email')}</label>
                   <div className="relative">
                     <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <input
                       type="email"
                       value={shareByEmail}
                       onChange={(e) => setShareByEmail(e.target.value)}
-                      placeholder="أدخل البريد الإلكتروني للمستخدم..."
+                      placeholder={t('files.enterEmailPlaceholder')}
                       className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                       dir="ltr"
                       disabled={shareByEmailLoading}
@@ -3032,7 +3042,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">صلاحية المشاركة بالبريد</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('files.emailSharePermission')}</label>
                   <div className="flex items-center gap-2">
                     {(['view', 'edit', 'download'] as const).map((perm) => (
                       <button
@@ -3060,14 +3070,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   ) : (
                     <Mail className="h-4 w-4" />
                   )}
-                  مشاركة بالبريد الإلكتروني
+                  {t('files.shareByEmail')}
                 </button>
               </div>
 
               {/* Selected users badges */}
               {selectedShareUsers.length > 0 && (
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">المستخدمون المحددون</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('files.selectedUsers')}</label>
                   <div className="flex flex-wrap gap-2">
                     {selectedShareUsers.map((user) => (
                       <Badge
@@ -3095,7 +3105,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     ) : (
                       <Share2 className="h-4 w-4" />
                     )}
-                    مشاركة مع {selectedShareUsers.length} مستخدم
+                    {t('files.shareWithCountUsers', { count: selectedShareUsers.length })}
                   </button>
                 </div>
               )}
@@ -3107,17 +3117,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 </div>
               ) : fileShares.length > 0 ? (
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-2 block">مشارك مع</label>
+                  <label className="text-sm font-medium text-foreground mb-2 block">{t('files.sharedWith')}</label>
                   <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
                     {fileShares.map((share) => (
                       <div
                         key={share.id}
                         className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5"
                       >
-                        <UserAvatar name={share.shared_with_user?.name || 'مستخدم'} avatarUrl={share.shared_with_user?.avatar_url} size="xs" />
+                        <UserAvatar name={share.shared_with_user?.name || t('common.user')} avatarUrl={share.shared_with_user?.avatar_url} size="xs" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-foreground truncate">
-                            {formatNameWithTitle(share.shared_with_user?.name || 'مستخدم', share.shared_with_user?.role, share.shared_with_user?.title_id, share.shared_with_user?.gender, t)}
+                            {formatNameWithTitle(share.shared_with_user?.name || t('common.user'), share.shared_with_user?.role, share.shared_with_user?.title_id, share.shared_with_user?.gender, t)}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
                             {getPermissionLabel(share.permission)}
@@ -3127,7 +3137,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                           onClick={() => handleRemoveShare(share.id)}
                           disabled={removingShareId === share.id}
                           className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 hover:text-rose-500 disabled:opacity-60"
-                          title="إزالة المشاركة"
+                          title={t('files.removeShare')}
                         >
                           {removingShareId === share.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -3172,7 +3182,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div className="flex items-center justify-between border-b p-5">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <FolderPlus className="h-5 w-5 text-sky-700" />
-                اسناد لمقرر
+                {t('files.assignToCourse')}
               </h3>
               <button
                 onClick={() => { if (!assigning) setAssignModalOpen(false); }}
@@ -3189,7 +3199,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     <FolderPlus className="h-4 w-4 text-sky-700" />
                   </div>
                   <p className="text-sm font-medium text-foreground">
-                    {selectedFileIds.size} ملف محدد
+                    {t('files.selectedFilesCount', { count: selectedFileIds.size })}
                   </p>
                 </div>
               ) : (() => {
@@ -3212,9 +3222,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
               {/* Course checkboxes */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">اختر المقررات</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('files.selectCourses')}</label>
                 {assignSubjects.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">لا توجد مقررات متاحة</p>
+                  <p className="text-xs text-muted-foreground">{t('files.noCoursesAvailable')}</p>
                 ) : (
                   <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar rounded-lg border p-2">
                     {assignSubjects.map((s) => (
@@ -3240,7 +3250,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
               {role === 'student' && (
                 <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2">
-                  سيتم جعل الملف عاماً تلقائياً عند إسناده للمقرر
+                  {t('files.fileWillBePublic')}
                 </p>
               )}
 
@@ -3254,7 +3264,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 ) : (
                   <FolderPlus className="h-4 w-4" />
                 )}
-                اسناد
+                {t('files.assign')}
               </button>
             </div>
           </motion.div>
@@ -3291,14 +3301,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                   <span>{formatFileSize(previewFile.file_size)}</span>
                   <span>•</span>
-                  <span>{formatDate(previewFile.created_at)}</span>
+                  <span>{formatDate(previewFile.created_at, locale)}</span>
                 </div>
                 {/* Show shared by info for shared files */}
                 {previewFile.shared_by_user && (
                   <div className="flex items-center gap-1.5 mt-1.5">
-                    <UserAvatar name={previewFile.shared_by_user.name || 'مستخدم'} avatarUrl={previewFile.shared_by_user.avatar_url} size="xs" />
+                    <UserAvatar name={previewFile.shared_by_user.name || t('common.user')} avatarUrl={previewFile.shared_by_user.avatar_url} size="xs" />
                     <span className="text-xs text-muted-foreground">
-                      شارك معك {formatNameWithTitle(previewFile.shared_by_user.name || 'مستخدم', previewFile.shared_by_user.role, previewFile.shared_by_user.title_id, previewFile.shared_by_user.gender, t)}
+                      {t('files.sharedBy')} {formatNameWithTitle(previewFile.shared_by_user.name || t('common.user'), previewFile.shared_by_user.role, previewFile.shared_by_user.title_id, previewFile.shared_by_user.gender, t)}
                     </span>
                   </div>
                 )}
@@ -3307,7 +3317,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <button
                   onClick={() => handleDownload(previewFile)}
                   className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-                  title="تحميل"
+                  title={t('common.download')}
                 >
                   <Download className="h-4 w-4" />
                 </button>
@@ -3342,7 +3352,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     controls
                     className="max-w-full max-h-[70vh] rounded-lg"
                   >
-                    متصفحك لا يدعم تشغيل الفيديو
+                    {t('files.videoNotSupported')}
                   </video>
                 </div>
               ) : previewFile.file_type.toLowerCase().includes('audio') ? (
@@ -3355,20 +3365,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       controls
                       className="w-full"
                     >
-                      متصفحك لا يدعم تشغيل الصوت
+                      {t('files.audioNotSupported')}
                     </audio>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center p-8 min-h-[300px] space-y-3">
                   <File className="h-16 w-16 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">لا يمكن معاينة هذا الملف مباشرة</p>
+                  <p className="text-sm text-muted-foreground">{t('files.toastCannotPreview')}</p>
                   <button
                     onClick={() => handleDownload(previewFile)}
                     className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white hover:bg-sky-800 transition-colors"
                   >
                     <Download className="h-4 w-4" />
-                    تحميل الملف
+                    {t('files.downloadFile')}
                   </button>
                 </div>
               )}
@@ -3405,7 +3415,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Share2 className="h-5 w-5 text-sky-700" />
-                مشاركة جماعية
+                {t('files.bulkShare')}
               </h3>
               <button
                 onClick={() => { if (!bulkShareLoading) setBulkShareModalOpen(false); }}
@@ -3424,17 +3434,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">
-                    {selectedFileIds.size} ملف محدد
+                    {t('files.selectedFilesCount', { count: selectedFileIds.size })}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {selectedFileIds.size} ملف قابل للمشاركة
+                    {t('files.shareableFilesCount', { count: selectedFileIds.size })}
                   </p>
                 </div>
               </div>
 
               {/* Permission selection */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-2 block">صلاحية المشاركة</label>
+                <label className="text-sm font-medium text-foreground mb-2 block">{t('files.sharePermission')}</label>
                 <div className="flex items-center gap-2">
                   {(['view', 'edit', 'download'] as const).map((perm) => (
                     <button
@@ -3455,14 +3465,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
               {/* Search users */}
               <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">البحث عن مستخدمين</label>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">{t('files.searchUsers')}</label>
                 <div className="relative">
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <input
                     type="text"
                     value={bulkShareSearchQuery}
                     onChange={(e) => handleBulkShareSearch(e.target.value)}
-                    placeholder="ابحث بالاسم أو البريد الإلكتروني..."
+                    placeholder={t('files.searchUserPlaceholder')}
                     className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                     dir={dir}
                     disabled={bulkShareSearching}
@@ -3480,13 +3490,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         onClick={() => addBulkShareUser(user)}
                         className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors text-right"
                       >
-                        <UserAvatar name={user.name || 'مستخدم'} avatarUrl={user.avatar_url} size="xs" />
+                        <UserAvatar name={user.name || t('common.user')} avatarUrl={user.avatar_url} size="xs" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-foreground truncate">{formatNameWithTitle(user.name, user.role, user.title_id, user.gender, t)}</p>
                           <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
                         </div>
                         <Badge variant="outline" className="text-[10px] shrink-0">
-                          {user.role === 'superadmin' ? 'مدير المنصة' : user.role === 'teacher' ? 'معلم' : user.role === 'student' ? 'طالب' : user.role === 'admin' ? 'مشرف' : user.role}
+                          {user.role === 'superadmin' ? t('roles.superadmin') : user.role === 'teacher' ? t('roles.teacher') : user.role === 'student' ? t('roles.student') : user.role === 'admin' ? t('roles.admin') : user.role}
                         </Badge>
                       </button>
                     ))}
@@ -3497,7 +3507,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {/* Selected users badges */}
               {bulkShareSelectedUsers.length > 0 && (
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">المستخدمون المحددون</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('files.selectedUsers')}</label>
                   <div className="flex flex-wrap gap-2">
                     {bulkShareSelectedUsers.map((user) => (
                       <Badge
@@ -3529,7 +3539,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 ) : (
                   <Share2 className="h-4 w-4" />
                 )}
-                مشاركة {selectedFileIds.size} ملف مع {bulkShareSelectedUsers.length} مستخدم
+                {t('files.bulkShareFilesWithUsers', { fileCount: selectedFileIds.size, userCount: bulkShareSelectedUsers.length })}
               </button>
 
               {/* Divider */}
@@ -3538,21 +3548,21 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">أو شارك بالبريد الإلكتروني</span>
+                  <span className="bg-background px-2 text-muted-foreground">{t('files.orShareByEmail')}</span>
                 </div>
               </div>
 
               {/* Bulk share by email */}
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">البريد الإلكتروني</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('files.email')}</label>
                   <div className="relative">
                     <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <input
                       type="email"
                       value={bulkShareByEmail}
                       onChange={(e) => setBulkShareByEmail(e.target.value)}
-                      placeholder="أدخل البريد الإلكتروني للمستخدم..."
+                      placeholder={t('files.enterEmailPlaceholder')}
                       className="w-full rounded-lg border bg-background pr-10 pl-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                       dir="ltr"
                       disabled={bulkShareByEmailLoading}
@@ -3565,7 +3575,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">صلاحية المشاركة بالبريد</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('files.emailSharePermission')}</label>
                   <div className="flex items-center gap-2">
                     {(['view', 'edit', 'download'] as const).map((perm) => (
                       <button
@@ -3593,7 +3603,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   ) : (
                     <Mail className="h-4 w-4" />
                   )}
-                  مشاركة {selectedFileIds.size} ملف بالبريد الإلكتروني
+                  {t('files.bulkShareByEmailAction', { count: selectedFileIds.size })}
                 </button>
               </div>
             </div>
@@ -3629,7 +3639,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Users className="h-5 w-5 text-sky-700" />
-                المستلمون
+                {t('files.recipients')}
               </h3>
               <button
                 onClick={() => setShowRecipientsFile(null)}
@@ -3657,15 +3667,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
                     <Share2 className="h-3.5 w-3.5" />
-                    صاحب الملف
+                    {t('files.fileOwner')}
                   </div>
                   <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
-                    <UserAvatar name={showRecipientsFile.shared_by_user.name || 'مستخدم'} avatarUrl={showRecipientsFile.shared_by_user.avatar_url} size="xs" />
+                    <UserAvatar name={showRecipientsFile.shared_by_user.name || t('common.user')} avatarUrl={showRecipientsFile.shared_by_user.avatar_url} size="xs" />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground truncate">
-                        {formatNameWithTitle(showRecipientsFile.shared_by_user.name || 'مستخدم', showRecipientsFile.shared_by_user.role, showRecipientsFile.shared_by_user.title_id, showRecipientsFile.shared_by_user.gender, t)}
+                        {formatNameWithTitle(showRecipientsFile.shared_by_user.name || t('common.user'), showRecipientsFile.shared_by_user.role, showRecipientsFile.shared_by_user.title_id, showRecipientsFile.shared_by_user.gender, t)}
                       </p>
-                      <p className="text-[10px] text-muted-foreground">صاحب الملف</p>
+                      <p className="text-[10px] text-muted-foreground">{t('files.owner')}</p>
                     </div>
                   </div>
                 </div>
@@ -3675,16 +3685,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <div>
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
                   <Users className="h-3.5 w-3.5" />
-                  مشارك مع ({showRecipientsFile.total_recipients_count || (showRecipientsFile.other_recipients?.length || 0) + 1} شخص)
+                  {t('files.sharedWithPeople', { count: showRecipientsFile.total_recipients_count || (showRecipientsFile.other_recipients?.length || 0) + 1 })}
                 </div>
                 {showRecipientsFile.other_recipients && showRecipientsFile.other_recipients.length > 0 ? (
                   <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                     {showRecipientsFile.other_recipients.map((recipient) => (
                       <div key={recipient.id} className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
-                        <UserAvatar name={recipient.name || 'مستخدم'} avatarUrl={recipient.avatar_url} size="xs" />
+                        <UserAvatar name={recipient.name || t('common.user')} avatarUrl={recipient.avatar_url} size="xs" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-foreground truncate">
-                            {formatNameWithTitle(recipient.name || 'مستخدم', recipient.role, recipient.title_id, recipient.gender, t)}
+                            {formatNameWithTitle(recipient.name || t('common.user'), recipient.role, recipient.title_id, recipient.gender, t)}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
                             {getPermissionLabel(recipient.permission as 'view' | 'edit' | 'download')}
@@ -3697,7 +3707,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground/60">أنت المستلم الوحيد لهذا الملف</p>
+                  <p className="text-xs text-muted-foreground/60">{t('files.soleRecipient')}</p>
                 )}
               </div>
             </div>
@@ -3722,7 +3732,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
         >
-          ملفاتي
+          {t('files.myFiles')}
         </button>
         <button
           onClick={() => setActiveTab('shared')}
@@ -3732,7 +3742,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               : 'bg-muted text-muted-foreground hover:bg-muted/80'
           }`}
         >
-          مشاركة معي
+          {t('files.sharedWithMe')}
           {sharedWithMe.length > 0 && (
             <span className={`inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[18px] h-[18px] px-1 ${
               activeTab === 'shared'

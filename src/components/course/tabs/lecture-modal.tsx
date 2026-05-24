@@ -57,15 +57,15 @@ interface LectureModalProps {
 // -------------------------------------------------------
 // Helpers
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string): string {
   try {
-    return new Date(dateStr).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(dateStr).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
   } catch { return dateStr; }
 }
 
-function formatTime(dateStr: string): string {
+function formatTime(dateStr: string, locale: string): string {
   try {
-    return new Date(dateStr).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+    return new Date(dateStr).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   } catch { return ''; }
 }
 
@@ -80,17 +80,17 @@ function cleanDescription(description: string | null | undefined): string {
   if (!description) return '';
   return description.replace(TIME_META_REGEX, '').trim();
 }
-function formatTimeArabic(time24: string): string {
+function formatTimeArabic(time24: string, t: (key: string, params?: Record<string, string | number>) => string): string {
   if (!time24) return '';
   try {
     const [h, m] = time24.split(':').map(Number);
-    const period = h >= 12 ? 'م' : 'ص';
+    const period = h >= 12 ? t('lecture.pm') : t('lecture.am');
     const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
     return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
   } catch { return time24; }
 }
 
-function formatDuration(startedAt: string, endedAt?: string | null): string {
+function formatDuration(startedAt: string, endedAt?: string | null, t?: (key: string, params?: Record<string, string | number>) => string): string {
   try {
     const start = new Date(startedAt);
     const end = endedAt ? new Date(endedAt) : new Date();
@@ -98,8 +98,12 @@ function formatDuration(startedAt: string, endedAt?: string | null): string {
     const minutes = Math.floor(diffMs / 60000);
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
-    if (hours > 0) return `${hours} س ${mins} د`;
-    return `${mins} دقيقة`;
+    if (t) {
+      if (hours > 0) return t('lecture.durationShort', { h: hours, m: mins });
+      return t('lecture.durationMinutes', { m: mins });
+    }
+    if (hours > 0) return `${hours}h ${mins}m`;
+    return `${mins}m`;
   } catch { return '—'; }
 }
 
@@ -124,7 +128,8 @@ function uploadFileWithProgress(
   url: string,
   formData: FormData,
   headers: Record<string, string>,
-  onProgress: (percent: number) => void
+  onProgress: (percent: number) => void,
+  t: (key: string, params?: Record<string, unknown>) => string
 ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
@@ -147,24 +152,24 @@ function uploadFileWithProgress(
       // FIX: Check HTTP status code before parsing response
       if (xhr.status >= 200 && xhr.status < 300) {
         try { resolve(JSON.parse(xhr.responseText)); }
-        catch { resolve({ success: false, error: 'حدث خطأ غير متوقع' }); }
+        catch { resolve({ success: false, error: t('lecture.toastUnexpectedError') }); }
       } else {
         // Server returned an error status — parse the error message
         try {
           const result = JSON.parse(xhr.responseText);
-          resolve({ success: false, error: result.error || `خطأ HTTP: ${xhr.status}` });
+          resolve({ success: false, error: result.error || t('lecture.httpError', { status: xhr.status }) });
         } catch {
-          resolve({ success: false, error: `خطأ HTTP: ${xhr.status}` });
+          resolve({ success: false, error: t('lecture.httpError', { status: xhr.status }) });
         }
       }
     };
 
     xhr.onerror = () => {
-      resolve({ success: false, error: 'حدث خطأ في الاتصال' });
+      resolve({ success: false, error: t('lecture.connectionError') });
     };
 
     xhr.ontimeout = () => {
-      resolve({ success: false, error: 'انتهت مهلة الرفع' });
+      resolve({ success: false, error: t('lecture.uploadTimeout') });
     };
 
     xhr.send(formData);
@@ -229,7 +234,7 @@ export default function LectureModal({
   totalStudents,
   onRefresh,
 }: LectureModalProps) {
-  const { dir } = useI18n();
+  const { t, dir, locale } = useI18n();
   const isActive = lecture.attendance_session?.status === 'active';
   const hasSession = !!lecture.attendance_session;
 
@@ -298,7 +303,7 @@ export default function LectureModal({
         } catch {}
         const enriched = records.map((r) => ({
           ...r,
-          student_name: studentMap.get(r.student_id)?.name || 'طالب',
+          student_name: studentMap.get(r.student_id)?.name || t('lecture.student'),
           student_email: studentMap.get(r.student_id)?.email || '',
         }));
         setAttendanceRecords(enriched);
@@ -390,15 +395,15 @@ export default function LectureModal({
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم تسجيل حضور الطالب بنجاح');
+        toast.success(t('lecture.toastManualRegisterSuccess'));
         fetchAttendanceRecords();
         // Remove the student from the absent list immediately
         setAbsentStudents((prev) => prev.filter((s) => s.id !== studentId));
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء تسجيل الحضور');
+        toast.error(data.error || t('lecture.toastManualRegisterFailed'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(t('lecture.toastUnexpectedError'));
     } finally {
       setManualRegistering(null);
     }
@@ -430,7 +435,7 @@ export default function LectureModal({
         } catch {}
         const enriched = notesList.map((n) => ({
           ...n,
-          author_name: authorMap.get(n.user_id) || 'معلم',
+          author_name: authorMap.get(n.user_id) || t('lecture.teacher'),
         })) as LectureNoteWithAuthor[];
         // Filter notes: teacher sees all, student sees only public
         setNotes(role === 'teacher' ? enriched : enriched.filter((n) => n.visibility === 'public'));
@@ -498,7 +503,7 @@ export default function LectureModal({
   // ─── Add note ───
   const handleAddNote = async () => {
     const content = newNote.trim();
-    if (!content) { toast.error('يرجى كتابة ملاحظة'); return; }
+    if (!content) { toast.error(t('lecture.toastNoteRequired')); return; }
     setSavingNote(true);
     try {
       const { error } = await supabase.from('lecture_notes').insert({
@@ -507,9 +512,9 @@ export default function LectureModal({
         content,
         visibility: noteVisibility,
       });
-      if (error) { toast.error('حدث خطأ أثناء حفظ الملاحظة'); }
-      else { toast.success('تم إضافة الملاحظة'); setNewNote(''); fetchNotes(); }
-    } catch { toast.error('حدث خطأ غير متوقع'); }
+      if (error) { toast.error(t('lecture.toastNoteSaveFailed')); }
+      else { toast.success(t('lecture.toastNoteAdded')); setNewNote(''); fetchNotes(); }
+    } catch { toast.error(t('lecture.toastUnexpectedError')); }
     finally { setSavingNote(false); }
   };
 
@@ -547,7 +552,7 @@ export default function LectureModal({
           progress: 0,
           status: (isDuplicate || isDuplicateInPending) ? 'error' as const : 'pending' as const,
           error: (isDuplicate || isDuplicateInPending)
-            ? `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`
+            ? t('lecture.duplicateFileName', { name: displayName })
             : undefined,
           errorCode: (isDuplicate || isDuplicateInPending) ? 'duplicate_name' as const : undefined,
         };
@@ -556,7 +561,7 @@ export default function LectureModal({
     // Show warning for duplicates
     const duplicateFiles = newFiles.filter(f => f.errorCode === 'duplicate_name');
     if (duplicateFiles.length > 0) {
-      toast.error(`يوجد ${duplicateFiles.length} ملف(ات) بنفس الاسم والامتداد. يرجى تغيير الاسم قبل الرفع.`);
+      toast.error(t('lecture.duplicateFilesCount', { count: duplicateFiles.length }));
     }
     setPendingFiles((prev) => [...prev, ...newFiles]);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -584,7 +589,7 @@ export default function LectureModal({
     // Wait for valid auth session — critical on mobile PWA where session hydration is slow
     const token = await waitForSession(15000);
     if (!token) {
-      toast.error('يرجى تسجيل الدخول أولاً');
+      toast.error(t('lecture.toastLoginRequired'));
       setUploadingFiles(false);
       return;
     }
@@ -618,7 +623,7 @@ export default function LectureModal({
             arrayBuffer = await pf.file.arrayBuffer();
           } catch (readErr) {
             console.error(`[LectureUpload] File object is invalid for "${fileName}":`, readErr);
-            throw new Error(`فشل في قراءة بيانات الملف "${fileName}". يرجى إعادة تحديد الملف`);
+            throw new Error(t('lecture.toastFileReadFailed', { name: fileName }));
           }
         }
 
@@ -645,7 +650,7 @@ export default function LectureModal({
             formData.append('file', uploadBlob, fileName);
             formData.append('subjectId', subjectId);
             formData.append('uploadedBy', profile.id);
-            formData.append('category', 'محاضرات');
+            formData.append('category', t('lecture.category'));
             formData.append('customName', pf.customName.trim());
 
             const controller = new AbortController();
@@ -666,11 +671,11 @@ export default function LectureModal({
             let result: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
             if (res.ok) {
               try { result = await res.json(); }
-              catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+              catch { result = { success: false, error: t('lecture.unexpectedServerError') }; }
             } else {
               const errorText = await res.text();
               try { result = JSON.parse(errorText); }
-              catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+              catch { result = { success: false, error: t('lecture.httpError', { status: res.status }) }; }
             }
 
             if (result.success && result.data) {
@@ -686,7 +691,7 @@ export default function LectureModal({
               console.log(`[LectureUpload] Server-side upload succeeded for ${displayName}`);
             } else if (result.code === 'DUPLICATE_NAME') {
               // DUPLICATE_NAME error — store error code for retry UI
-              const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+              const duplicateMsg = t('lecture.duplicateFileName', { name: displayName });
               setPendingFiles((prev) =>
                 prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p))
               );
@@ -750,7 +755,7 @@ export default function LectureModal({
                   else reject(new Error(`HTTP ${xhr.status}`));
                 });
                 xhr.addEventListener('error', () => reject(new Error('Network error')));
-                xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+                xhr.addEventListener('timeout', () => reject(new Error(t('lecture.uploadTimeout'))));
 
                 const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
                 xhr.open('POST', storageUploadUrl);
@@ -771,7 +776,7 @@ export default function LectureModal({
           }
 
           if (!storageUploadSuccess) {
-            throw new Error('فشل رفع الملف — تعذر الاتصال بخدمة التخزين');
+            throw new Error(t('lecture.storageConnectFailed'));
           }
 
           // Create DB record via API
@@ -791,7 +796,7 @@ export default function LectureModal({
               body: JSON.stringify({
                 subjectId,
                 uploadedBy: profile.id,
-                category: 'محاضرات',
+                category: t('lecture.category'),
                 customName: pf.customName.trim(),
                 displayName,
                 fileUrl,
@@ -807,11 +812,11 @@ export default function LectureModal({
             let createResult: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
             if (createRes.ok) {
               try { createResult = await createRes.json(); }
-              catch { createResult = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+              catch { createResult = { success: false, error: t('lecture.unexpectedServerError') }; }
             } else {
               const errorText = await createRes.text();
               try { createResult = JSON.parse(errorText); }
-              catch { createResult = { success: false, error: `خطأ HTTP: ${createRes.status}` }; }
+              catch { createResult = { success: false, error: t('lecture.httpError', { status: createRes.status }) }; }
             }
 
             if (createRes.ok && createResult.success && createResult.data) {
@@ -825,7 +830,7 @@ export default function LectureModal({
               uploadSucceeded = true;
             } else if (createResult.code === 'DUPLICATE_NAME') {
               // DUPLICATE_NAME error from JSON mode — store error code for retry UI
-              const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+              const duplicateMsg = t('lecture.duplicateFileName', { name: displayName });
               setPendingFiles((prev) =>
                 prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p))
               );
@@ -834,7 +839,7 @@ export default function LectureModal({
             } else {
               console.error('[LectureUpload] Create record error:', createResult.error);
               await supabase.storage.from('user-files').remove([storagePath]);
-              throw new Error(createResult.error || 'فشل حفظ بيانات الملف');
+              throw new Error(createResult.error || t('lecture.fileUploadFailed'));
             }
           } finally {
             clearTimeout(recordTimeout);
@@ -847,7 +852,7 @@ export default function LectureModal({
           );
         }
       } catch (err) {
-        const errMsg = err instanceof Error ? err.message : 'حدث خطأ غير متوقع';
+        const errMsg = err instanceof Error ? err.message : t('lecture.toastUnexpectedError');
         setPendingFiles((prev) =>
           prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const, error: errMsg } : p))
         );
@@ -859,9 +864,9 @@ export default function LectureModal({
     onRefresh();
     const failedCount = pendingFiles.filter(f => f.status === 'error').length;
     if (failedCount === 0) {
-      toast.success('تم رفع الملفات بنجاح');
+      toast.success(t('lecture.toastFilesUploaded'));
     } else {
-      toast.error(`فشل رفع ${failedCount} من ${pendingFiles.length} ملف`);
+      toast.error(t('lecture.toastFilesPartialFailed', { failed: failedCount, total: pendingFiles.length }));
     }
 
     // Clear done files after a short delay
@@ -872,22 +877,22 @@ export default function LectureModal({
 
   // ─── Export attendance to Excel ───
   const handleExportExcel = async () => {
-    if (attendanceRecords.length === 0) { toast.error('لا توجد بيانات حضور للتصدير'); return; }
+    if (attendanceRecords.length === 0) { toast.error(t('lecture.toastNoAttendanceExport')); return; }
     setExporting(true);
     try {
       const XLSX = await import('xlsx');
       const wb = XLSX.utils.book_new();
       const data = attendanceRecords.map((r) => ({
-        'اسم الطالب': r.student_name || 'طالب',
-        'البريد الإلكتروني': r.student_email || '—',
-        'وقت التسجيل': formatTime(r.checked_in_at),
-        'طريقة التسجيل': r.check_in_method === 'qr' ? 'مسح QR' : r.check_in_method === 'gps' ? 'GPS' : r.check_in_method === 'manual' ? 'يدوي' : '—',
+        [t('lecture.excelStudentName')]: r.student_name || t('lecture.student'),
+        [t('lecture.excelEmail')]: r.student_email || '—',
+        [t('lecture.excelCheckInTime')]: formatTime(r.checked_in_at, locale),
+        [t('lecture.excelCheckInMethod')]: r.check_in_method === 'qr' ? t('lecture.excelMethodQR') : r.check_in_method === 'gps' ? t('lecture.excelMethodGPS') : r.check_in_method === 'manual' ? t('lecture.excelMethodManual') : '—',
       }));
       const ws = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, 'سجل الحضور');
-      XLSX.writeFile(wb, `حضور_${lecture.title}_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('تم تصدير سجل الحضور بنجاح');
-    } catch { toast.error('حدث خطأ أثناء التصدير'); }
+      XLSX.utils.book_append_sheet(wb, ws, t('lecture.excelAttendanceSheet'));
+      XLSX.writeFile(wb, `${t('lecture.excelAttendanceSheet')}_${lecture.title}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success(t('lecture.toastAttendanceExportSuccess'));
+    } catch { toast.error(t('lecture.toastExportFailed')); }
     finally { setExporting(false); }
   };
 
@@ -943,17 +948,17 @@ export default function LectureModal({
                       <h2 className="text-lg font-bold text-foreground truncate">{lecture.title}</h2>
                       <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground mt-0.5">
                         {lecture.lecture_date && (
-                          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date)}</span>
+                          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date, locale)}</span>
                         )}
                         {extractLectureTime(lecture.description) && (
-                          <span className="flex items-center gap-1 text-sky-800 dark:text-sky-200 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description))}</span>
+                          <span className="flex items-center gap-1 text-sky-800 dark:text-sky-200 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description), t)}</span>
                         )}
                         {lecture.attendance_session && (
-                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatTime(lecture.attendance_session.started_at)}</span>
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatTime(lecture.attendance_session.started_at, locale)}</span>
                         )}
                         {hasSession && (
                           <span className="flex items-center gap-1">
-                            {isActive ? `المدة: ${formatDuration(lecture.attendance_session!.started_at)}` : lecture.attendance_session?.ended_at ? `المدة: ${formatDuration(lecture.attendance_session!.started_at, lecture.attendance_session!.ended_at)}` : ''}
+                            {isActive ? formatDuration(lecture.attendance_session!.started_at, undefined, t) : lecture.attendance_session?.ended_at ? formatDuration(lecture.attendance_session!.started_at, lecture.attendance_session!.ended_at, t) : ''}
                           </span>
                         )}
                       </div>
@@ -968,10 +973,10 @@ export default function LectureModal({
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
                         </span>
-                        جارية
+                        {t('lecture.active')}
                       </Badge>
                     ) : hasSession ? (
-                      <Badge variant="outline" className="text-muted-foreground">منتهية</Badge>
+                      <Badge variant="outline" className="text-muted-foreground">{t('lecture.finished')}</Badge>
                     ) : null}
 
                     <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
@@ -992,8 +997,8 @@ export default function LectureModal({
                 {!hasSession && role === 'teacher' && (
                   <div className="rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 p-8 text-center">
                     <Users className="h-10 w-10 text-sky-400 mx-auto mb-3" />
-                    <p className="text-sm font-semibold text-foreground mb-1">لم يتم فتح المحاضرة بعد</p>
-                    <p className="text-xs text-muted-foreground">اضغط على زر &quot;بدء المحاضرة&quot; في البطاقة لبدء تسجيل الحضور</p>
+                    <p className="text-sm font-semibold text-foreground mb-1">{t('lecture.notOpenedYet')}</p>
+                    <p className="text-xs text-muted-foreground">{t('lecture.pressStartToBegin')}</p>
                   </div>
                 )}
 
@@ -1001,7 +1006,7 @@ export default function LectureModal({
                 {!hasSession && role === 'student' && (
                   <div className="rounded-xl border border-dashed border-muted-300 bg-muted/30 p-6 text-center">
                     <Clock className="h-8 w-8 text-muted-400 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">لم يتم فتح المحاضرة بعد من قبل المعلم</p>
+                    <p className="text-sm text-muted-foreground">{t('lecture.notOpenedByTeacher')}</p>
                   </div>
                 )}
 
@@ -1011,22 +1016,22 @@ export default function LectureModal({
                     <div className="rounded-xl border bg-sky-50/50 dark:bg-sky-950/30 p-3 text-center">
                       <UserCheck className="h-5 w-5 text-sky-700 dark:text-sky-300 mx-auto mb-1" />
                       <p className="text-xl font-bold text-sky-800 dark:text-sky-200">{presentCount}</p>
-                      <p className="text-[10px] text-sky-700 dark:text-sky-300 font-medium">حاضر</p>
+                      <p className="text-[10px] text-sky-700 dark:text-sky-300 font-medium">{t('lecture.present')}</p>
                     </div>
                     <div className="rounded-xl border bg-rose-50/50 dark:bg-rose-950/30 p-3 text-center">
                       <UserX className="h-5 w-5 text-rose-600 dark:text-rose-400 mx-auto mb-1" />
                       <p className="text-xl font-bold text-rose-700 dark:text-rose-300">{absentCount}</p>
-                      <p className="text-[10px] text-rose-600 dark:text-rose-400 font-medium">غائب</p>
+                      <p className="text-[10px] text-rose-600 dark:text-rose-400 font-medium">{t('lecture.absent')}</p>
                     </div>
                     <div className="rounded-xl border bg-amber-50/50 dark:bg-amber-950/30 p-3 text-center">
                       <Users className="h-5 w-5 text-amber-600 dark:text-amber-400 mx-auto mb-1" />
                       <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{totalStudents}</p>
-                      <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">إجمالي</p>
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{t('lecture.total')}</p>
                     </div>
                     <div className="rounded-xl border bg-teal-50/50 dark:bg-teal-950/30 p-3 text-center">
                       <Percent className="h-5 w-5 text-teal-600 dark:text-teal-400 mx-auto mb-1" />
                       <p className="text-xl font-bold text-teal-700 dark:text-teal-300">{attendancePercent}%</p>
-                      <p className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">نسبة الحضور</p>
+                      <p className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">{t('lecture.attendanceRate')}</p>
                     </div>
                   </div>
                 )}
@@ -1037,7 +1042,7 @@ export default function LectureModal({
                     <div className="flex items-center justify-between bg-muted/50 px-4 py-3 border-b">
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                         <Upload className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                        ملفات المحاضرة
+                        {t('lecture.lectureFiles')}
                       </h4>
                       <button
                         onClick={() => fileInputRef.current?.click()}
@@ -1045,7 +1050,7 @@ export default function LectureModal({
                         className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 hover:bg-sky-100 disabled:opacity-60 transition-colors"
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        إضافة ملفات
+                        {t('lecture.addFiles')}
                       </button>
                       <input
                         ref={fileInputRef}
@@ -1107,7 +1112,7 @@ export default function LectureModal({
                                     type="text"
                                     value={pf.customName}
                                     onChange={(e) => updatePendingFileName(idx, e.target.value)}
-                                    placeholder="اسم الملف (بدون الامتداد)"
+                                    placeholder={t('lecture.fileNamePlaceholder')}
                                     className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                                     dir={dir}
                                     disabled={pf.status === 'uploading'}
@@ -1125,7 +1130,7 @@ export default function LectureModal({
                                   onClick={async () => {
                                     // Re-upload this single file — same as handleUploadFiles but for one file
                                     const token = await waitForSession(15000);
-                                    if (!token) { toast.error('يرجى تسجيل الدخول أولاً'); return; }
+                                    if (!token) { toast.error(t('lecture.toastLoginRequired')); return; }
 
                                     setPendingFiles((prev) =>
                                       prev.map((p, j) => (j === idx ? { ...p, status: 'uploading' as const, progress: 0 } : p))
@@ -1140,7 +1145,7 @@ export default function LectureModal({
 
                                       // Client-side pre-validation
                                       if (existingSubjectFileNames.includes(dName.toLowerCase())) {
-                                        const dupMsg = `يوجد ملف بنفس الاسم والامتداد (${dName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                                        const dupMsg = t('lecture.duplicateFileName', { name: dName });
                                         setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: dupMsg, errorCode: 'duplicate_name' as const } : p)));
                                         toast.error(dupMsg);
                                         return;
@@ -1151,7 +1156,7 @@ export default function LectureModal({
                                         aBuffer = pf.fileData;
                                       } else {
                                         try { aBuffer = await pf.file.arrayBuffer(); }
-                                        catch { throw new Error('تعذر قراءة بيانات الملف'); }
+                                        catch { throw new Error(t('lecture.fileReadError')); }
                                       }
                                       const uBlob = new Blob([aBuffer], { type: fType });
 
@@ -1164,7 +1169,7 @@ export default function LectureModal({
                                           fd.append('file', uBlob, fName);
                                           fd.append('subjectId', subjectId);
                                           fd.append('uploadedBy', profile.id);
-                                          fd.append('category', 'محاضرات');
+                                          fd.append('category', t('lecture.category'));
                                           fd.append('customName', pf.customName.trim());
                                           const ctrl = new AbortController();
                                           const tid = setTimeout(() => ctrl.abort(), 60000);
@@ -1176,15 +1181,15 @@ export default function LectureModal({
                                           });
                                           clearTimeout(tid);
                                           let res: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
-                                          if (r.ok) { try { res = await r.json(); } catch { res = { success: false, error: 'خطأ' }; } }
-                                          else { const t = await r.text(); try { res = JSON.parse(t); } catch { res = { success: false, error: `خطأ HTTP: ${r.status}` }; } }
+                                          if (r.ok) { try { res = await r.json(); } catch { res = { success: false, error: t('lecture.unexpectedServerError') }; } }
+                                          else { const txt = await r.text(); try { res = JSON.parse(txt); } catch { res = { success: false, error: t('lecture.httpError', { status: r.status }) }; } }
 
                                           if (res.success && res.data) {
                                             const fD = res.data as { file_url: string; file_name: string };
                                             await supabase.from('lecture_notes').insert({ lecture_id: lecture.id, user_id: profile.id, content: `[FILE|||${fD.file_url}|||${fD.file_name}]`, visibility: 'public' });
                                             succeeded = true;
                                           } else if (res.code === 'DUPLICATE_NAME') {
-                                            const dupMsg = `يوجد ملف بنفس الاسم والامتداد (${dName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                                            const dupMsg = t('lecture.duplicateFileName', { name: dName });
                                             setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: dupMsg, errorCode: 'duplicate_name' as const } : p)));
                                             toast.error(dupMsg);
                                             return;
@@ -1209,19 +1214,19 @@ export default function LectureModal({
                                           try {
                                             const cR = await fetch('/api/files/course-upload', {
                                               method: 'POST', headers: rH,
-                                              body: JSON.stringify({ subjectId, uploadedBy: profile.id, category: 'محاضرات', customName: pf.customName.trim(), displayName: dName, fileUrl: fUrl, storagePath: sPath, fileSize: fSize, fileType: fType }),
+                                              body: JSON.stringify({ subjectId, uploadedBy: profile.id, category: t('lecture.category'), customName: pf.customName.trim(), displayName: dName, fileUrl: fUrl, storagePath: sPath, fileSize: fSize, fileType: fType }),
                                               signal: rC.signal,
                                             });
                                             clearTimeout(rT);
                                             let cRes: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
-                                            if (cR.ok) { try { cRes = await cR.json(); } catch { cRes = { success: false, error: 'خطأ' }; } }
-                                            else { const t = await cR.text(); try { cRes = JSON.parse(t); } catch { cRes = { success: false, error: `خطأ HTTP: ${cR.status}` }; } }
+                                            if (cR.ok) { try { cRes = await cR.json(); } catch { cRes = { success: false, error: t('lecture.unexpectedServerError') }; } }
+                                            else { const txt = await cR.text(); try { cRes = JSON.parse(txt); } catch { cRes = { success: false, error: t('lecture.httpError', { status: cR.status }) }; } }
                                             if (cR.ok && cRes.success && cRes.data) {
                                               const fD = cRes.data as { file_url: string; file_name: string };
                                               await supabase.from('lecture_notes').insert({ lecture_id: lecture.id, user_id: profile.id, content: `[FILE|||${fD.file_url}|||${fD.file_name}]`, visibility: 'public' });
                                               succeeded = true;
                                             } else if (cRes.code === 'DUPLICATE_NAME') {
-                                              const dupMsg = `يوجد ملف بنفس الاسم والامتداد (${dName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                                              const dupMsg = t('lecture.duplicateFileName', { name: dName });
                                               setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: dupMsg, errorCode: 'duplicate_name' as const } : p)));
                                               await supabase.storage.from('user-files').remove([sPath]);
                                               toast.error(dupMsg);
@@ -1233,7 +1238,7 @@ export default function LectureModal({
 
                                       if (succeeded) {
                                         setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'done' as const, progress: 100 } : p)));
-                                        toast.success(`تم رفع الملف "${dName}" بنجاح`);
+                                        toast.success(t('lecture.toastFileUploaded', { name: dName }));
                                         fetchNotes();
                                         onRefresh();
                                         // Refresh existing file names after successful upload
@@ -1246,19 +1251,19 @@ export default function LectureModal({
                                           setPendingFiles((prev) => prev.filter((p) => p.status !== 'done'));
                                         }, 1500);
                                       } else {
-                                        setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: 'فشل رفع الملف — يرجى المحاولة مرة أخرى' } : p)));
+                                        setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: t('lecture.fileUploadFailed') } : p)));
                                       }
                                     } catch (err) {
-                                      const errMsg = err instanceof Error ? err.message : 'خطأ غير معروف';
+                                      const errMsg = err instanceof Error ? err.message : t('lecture.unknownError');
                                       setPendingFiles((prev) => prev.map((p, j) => (j === idx ? { ...p, status: 'error' as const, error: errMsg } : p)));
-                                      toast.error(`فشل إعادة المحاولة: ${errMsg}`);
+                                      toast.error(t('lecture.fileRetryFailed', { error: errMsg }));
                                     }
                                   }}
                                   disabled={uploadingFiles}
                                   className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-800 disabled:opacity-60 transition-colors"
                                 >
                                   <RefreshCw className="h-3 w-3" />
-                                  إعادة المحاولة
+                                  {t('lecture.retry')}
                                 </button>
                               )}
                               {/* Progress bar */}
@@ -1274,7 +1279,7 @@ export default function LectureModal({
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <span className="text-[10px] text-muted-foreground">
-                                      {pf.status === 'done' ? 'تم الرفع ✓' : 'جارٍ الرفع...'}
+                                      {pf.status === 'done' ? t('lecture.uploaded') : t('lecture.uploading')}
                                     </span>
                                     <span className={`text-[10px] font-medium ${
                                       pf.status === 'done' ? 'text-sky-700 dark:text-sky-300' : 'text-amber-600 dark:text-amber-400'
@@ -1295,7 +1300,7 @@ export default function LectureModal({
                               className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                             >
                               {uploadingFiles ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                              {uploadingFiles ? 'جارٍ الرفع...' : 'رفع الملفات'}
+                              {uploadingFiles ? t('lecture.uploading') : t('lecture.uploadFiles')}
                             </button>
                           )}
                         </div>
@@ -1315,7 +1320,7 @@ export default function LectureModal({
                                 <div className="flex items-center gap-2 mb-1">
                                   <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                                   <span className="text-xs font-medium text-foreground">{note.author_name}</span>
-                                  <span className="text-[10px] text-muted-foreground ms-auto">{formatTime(note.created_at)}</span>
+                                  <span className="text-[10px] text-muted-foreground ms-auto">{formatTime(note.created_at, locale)}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <button
@@ -1328,7 +1333,7 @@ export default function LectureModal({
                                   <button
                                     onClick={() => downloadWithCustomName(fileRef.url, fileRef.name)}
                                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
-                                    title="تحميل"
+                                    title={t('lecture.download')}
                                   >
                                     <Download className="h-4 w-4" />
                                   </button>
@@ -1341,7 +1346,7 @@ export default function LectureModal({
 
                       {/* No files message */}
                       {pendingFiles.length === 0 && fileNotes.length === 0 && (
-                        <p className="text-xs text-muted-foreground text-center py-3">لا توجد ملفات مرفقة بعد</p>
+                        <p className="text-xs text-muted-foreground text-center py-3">{t('lecture.noFilesAttached')}</p>
                       )}
                     </div>
                   </div>
@@ -1353,7 +1358,7 @@ export default function LectureModal({
                     <div className="flex items-center bg-muted/50 px-4 py-3 border-b">
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                         <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                        ملفات المحاضرة
+                        {t('lecture.lectureFiles')}
                       </h4>
                     </div>
                     <div className="p-4 space-y-2">
@@ -1377,7 +1382,7 @@ export default function LectureModal({
                               <button
                                 onClick={() => downloadWithCustomName(fileRef.url, fileRef.name)}
                                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
-                                title="تحميل"
+                                title={t('lecture.download')}
                               >
                                 <Download className="h-3.5 w-3.5" />
                               </button>
@@ -1394,7 +1399,7 @@ export default function LectureModal({
                   <div className="flex items-center justify-between bg-muted/50 px-4 py-3 border-b">
                     <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                       <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                      الملاحظات
+                      {t('lecture.notes')}
                     </h4>
                   </div>
                   <div className="p-4 space-y-3">
@@ -1411,7 +1416,7 @@ export default function LectureModal({
                             }`}
                           >
                             <Unlock className="h-3 w-3" />
-                            عامة
+                            {t('lecture.publicNote')}
                           </button>
                           <button
                             onClick={() => setNoteVisibility('private')}
@@ -1422,7 +1427,7 @@ export default function LectureModal({
                             }`}
                           >
                             <Lock className="h-3 w-3" />
-                            خاصة
+                            {t('lecture.privateNote')}
                           </button>
                         </div>
                         <div className="flex gap-2">
@@ -1430,7 +1435,7 @@ export default function LectureModal({
                             type="text"
                             value={newNote}
                             onChange={(e) => setNewNote(e.target.value)}
-                            placeholder={noteVisibility === 'public' ? 'اكتب ملاحظة عامة يراها جميع الطلاب...' : 'اكتب ملاحظة خاصة بك...'}
+                            placeholder={noteVisibility === 'public' ? t('lecture.notePlaceholderPublic') : t('lecture.notePlaceholderPrivate')}
                             className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                             dir={dir}
                             disabled={savingNote}
@@ -1451,7 +1456,7 @@ export default function LectureModal({
                     {loadingNotes ? (
                       <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
                     ) : textNotes.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-3">لا توجد ملاحظات بعد</p>
+                      <p className="text-xs text-muted-foreground text-center py-3">{t('lecture.noNotesYet')}</p>
                     ) : (
                       <div className="space-y-2 max-h-64 overflow-y-auto">
                         {textNotes.map((note) => (
@@ -1465,10 +1470,10 @@ export default function LectureModal({
                               <span className="text-xs font-medium text-foreground">{note.author_name}</span>
                               {note.visibility === 'private' && (
                                 <Badge variant="outline" className="text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-[9px] py-0">
-                                  <Lock className="h-2.5 w-2.5 ms-0.5" />خاص
+                                  <Lock className="h-2.5 w-2.5 ms-0.5" />{t('lecture.privateLabel')}
                                 </Badge>
                               )}
-                              <span className="text-[10px] text-muted-foreground ms-auto">{formatTime(note.created_at)}</span>
+                              <span className="text-[10px] text-muted-foreground ms-auto">{formatTime(note.created_at, locale)}</span>
                             </div>
                             <p className="text-sm text-foreground">{note.content}</p>
                           </div>
@@ -1484,7 +1489,7 @@ export default function LectureModal({
                     <div className="flex items-center justify-between bg-muted/50 px-4 py-3 border-b">
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                         <Users className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                        سجل الحضور
+                        {t('lecture.attendanceRecord')}
                       </h4>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-sky-800 dark:text-sky-200">{presentCount}/{totalStudents}</span>
@@ -1498,7 +1503,7 @@ export default function LectureModal({
                             className="flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition-colors"
                           >
                             <UserPlus className="h-3.5 w-3.5" />
-                            تسجيل يدوي
+                            {t('lecture.manualRegister')}
                           </button>
                         )}
                         {role === 'teacher' && (
@@ -1508,7 +1513,7 @@ export default function LectureModal({
                             className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-60 transition-colors"
                           >
                             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                            تحميل Excel
+                            {t('lecture.downloadExcel')}
                           </button>
                         )}
                       </div>
@@ -1517,13 +1522,13 @@ export default function LectureModal({
                       {loadingRecords ? (
                         <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300" /></div>
                       ) : attendanceRecords.length === 0 ? (
-                        <div className="py-8 text-center text-sm text-muted-foreground">لم يسجل أي طالب حضوراً بعد</div>
+                        <div className="py-8 text-center text-sm text-muted-foreground">{t('lecture.noAttendanceYet')}</div>
                       ) : (
                         <div className="divide-y">
                           {attendanceRecords.map((record) => (
                             <div key={record.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
                               <div className="flex items-center gap-3 min-w-0">
-                                <UserAvatar name={record.student_name || 'مستخدم'} avatarUrl={record.student_avatar} size="sm" />
+                                <UserAvatar name={record.student_name || t('common.user')} avatarUrl={record.student_avatar} size="sm" />
                                 <div className="min-w-0">
                                   <p className="text-sm font-medium text-foreground truncate">{record.student_name}</p>
                                   <p className="text-xs text-muted-foreground truncate">{record.student_email}</p>
@@ -1533,10 +1538,10 @@ export default function LectureModal({
                                 {record.check_in_method && (
                                   <Badge variant="outline" className="text-[9px]">
                                     <MapPin className="h-2.5 w-2.5 me-0.5" />
-                                    {record.check_in_method === 'qr' ? 'QR' : record.check_in_method === 'gps' ? 'GPS' : record.check_in_method === 'manual' ? 'يدوي' : '—'}
+                                    {record.check_in_method === 'qr' ? 'QR' : record.check_in_method === 'gps' ? 'GPS' : record.check_in_method === 'manual' ? t('lecture.manualMethod') : '—'}
                                   </Badge>
                                 )}
-                                <span className="text-xs text-muted-foreground whitespace-nowrap">{formatTime(record.checked_in_at)}</span>
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">{formatTime(record.checked_in_at, locale)}</span>
                               </div>
                             </div>
                           ))}
@@ -1577,8 +1582,8 @@ export default function LectureModal({
                     <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-foreground">تسجيل حضور يدوي</h3>
-                    <p className="text-xs text-muted-foreground">سجّل حضور طالب تحسباً لأي ظروف</p>
+                    <h3 className="text-sm font-bold text-foreground">{t('lecture.manualRegisterTitle')}</h3>
+                    <p className="text-xs text-muted-foreground">{t('lecture.manualRegisterDesc')}</p>
                   </div>
                 </div>
                 <button
@@ -1597,7 +1602,7 @@ export default function LectureModal({
                     type="text"
                     value={manualSearchQuery}
                     onChange={(e) => setManualSearchQuery(e.target.value)}
-                    placeholder="ابحث بالاسم..."
+                    placeholder={t('lecture.searchByName')}
                     className="w-full rounded-xl border bg-background pr-10 pl-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
                     dir={dir}
                     autoFocus
@@ -1614,8 +1619,8 @@ export default function LectureModal({
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-3">
                       <CheckCircle2 className="h-6 w-6 text-sky-700 dark:text-sky-300" />
                     </div>
-                    <p className="text-sm font-medium text-foreground">جميع الطلاب مسجلون ✓</p>
-                    <p className="text-xs text-muted-foreground mt-1">لا يوجد طلاب غائبون</p>
+                    <p className="text-sm font-medium text-foreground">{t('lecture.allStudentsRegistered')}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t('lecture.noAbsentStudents')}</p>
                   </div>
                 ) : (
                   <div className="divide-y">
@@ -1640,7 +1645,7 @@ export default function LectureModal({
                           className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-800 disabled:opacity-60 transition-colors shrink-0"
                         >
                           {manualRegistering === student.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3" />}
-                          تسجيل
+                          {t('lecture.register')}
                         </button>
                       </div>
                     ))}
@@ -1649,7 +1654,7 @@ export default function LectureModal({
                       student.name.toLowerCase().includes(manualSearchQuery.trim().toLowerCase()) ||
                       student.email.toLowerCase().includes(manualSearchQuery.trim().toLowerCase())
                     ).length === 0 && manualSearchQuery.trim() && (
-                      <div className="py-8 text-center text-xs text-muted-foreground">لا توجد نتائج مطابقة للبحث</div>
+                      <div className="py-8 text-center text-xs text-muted-foreground">{t('lecture.noSearchResults')}</div>
                     )}
                   </div>
                 )}
@@ -1658,13 +1663,13 @@ export default function LectureModal({
               {/* Footer */}
               <div className="border-t px-5 py-3 flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">
-                  {absentStudents.length > 0 ? `${absentStudents.length} طالب غائب` : ''}
+                  {absentStudents.length > 0 ? t('lecture.absentCount', { count: absentStudents.length }) : ''}
                 </span>
                 <button
                   onClick={() => setManualDialogOpen(false)}
                   className="rounded-xl border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
                 >
-                  إغلاق
+                  {t('lecture.close')}
                 </button>
               </div>
             </motion.div>
@@ -1703,7 +1708,7 @@ export default function LectureModal({
                     className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    تحميل
+                    {t('lecture.download')}
                   </button>
                   <button
                     onClick={() => setPreviewFile(null)}
@@ -1731,13 +1736,13 @@ export default function LectureModal({
                 ) : (
                   <div className="text-center py-16">
                     <FileText className="h-16 w-16 text-muted-300 mx-auto mb-4" />
-                    <p className="text-sm text-muted-foreground mb-4">لا يمكن معاينة هذا الملف مباشرة</p>
+                    <p className="text-sm text-muted-foreground mb-4">{t('lecture.cannotPreview')}</p>
                     <button
                       onClick={() => downloadWithCustomName(previewFile.url, previewFile.name)}
                       className="inline-flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 transition-colors"
                     >
                       <Download className="h-4 w-4" />
-                      تحميل الملف
+                      {t('lecture.downloadFile')}
                     </button>
                   </div>
                 )}
