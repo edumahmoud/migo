@@ -5,6 +5,16 @@ import { Moon, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslations } from '@/i18n/use-translations';
 
+/**
+ * ThemeToggle — a simple toggle button that flips between light and dark mode.
+ *
+ * IMPORTANT: This component does NOT initialize the theme on mount.
+ * Theme initialization happens in the inline <script> in layout.tsx,
+ * which runs BEFORE React hydrates. This prevents dark mode from
+ * being activated unexpectedly when the dropdown opens for the first time.
+ *
+ * On mount, we only READ the current DOM state to sync our local state.
+ */
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -13,8 +23,7 @@ export default function ThemeToggle() {
   useEffect(() => {
     setMounted(true);
     // READ the current theme state — do NOT apply/modify the DOM on mount.
-    // The theme is already initialized by the inline script in layout.tsx
-    // or by a previous ThemeToggle instance. We only sync our local state.
+    // The theme is already initialized by the inline script in layout.tsx.
     const isDark = document.documentElement.classList.contains('dark');
     setDark(isDark);
   }, []);

@@ -1,14 +1,18 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  // NOTE: We don't use next-themes ThemeProvider in this app.
+  // Theme is managed manually via document.documentElement.classList.add/remove('dark')
+  // and localStorage('attendo-theme'). We detect the current theme from the DOM directly.
+  const isDark = typeof document !== 'undefined' 
+    ? document.documentElement.classList.contains('dark') 
+    : false
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={isDark ? "dark" : "light"}
       className="toaster group"
       style={
         {
