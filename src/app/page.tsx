@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, Megaphone, Ban, TrendingUp, MessageCircle, Building2, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
+import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import { useStatusStore } from '@/stores/status-store';
@@ -147,47 +147,6 @@ class AppErrorBoundary extends React.Component<
 }
 
 type AuthMode = 'login' | 'register' | 'forgot-password' | 'update-password';
-
-// Admin navigation items (shared between admin-dashboard and profile page sidebar)
-// Using labelKey for i18n
-const adminNavItems = [
-  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'users', labelKey: 'nav.users', icon: <Users className="h-5 w-5" /> },
-  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'announcements', labelKey: 'nav.announcements', icon: <Megaphone className="h-5 w-5" /> },
-  { id: 'banned', labelKey: 'nav.banned', icon: <Ban className="h-5 w-5" /> },
-  { id: 'reports', labelKey: 'nav.reports', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
-  { id: 'institution', labelKey: 'nav.institution', icon: <Building2 className="h-5 w-5" /> },
-];
-
-// Teacher navigation items (for profile page sidebar)
-const teacherNavItems = [
-  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'students', labelKey: 'nav.students', icon: <Users className="h-5 w-5" /> },
-  { id: 'tracking', labelKey: 'nav.tracking', icon: <Activity className="h-5 w-5" /> },
-  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'analytics', labelKey: 'nav.analytics', icon: <TrendingUp className="h-5 w-5" /> },
-  { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
-];
-
-// Student navigation items (for profile page sidebar)
-const studentNavItems = [
-  { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
-  { id: 'tracking', labelKey: 'nav.studentTracking', icon: <Activity className="h-5 w-5" /> },
-  { id: 'chat', labelKey: 'nav.chat', icon: <MessageCircle className="h-5 w-5" /> },
-  { id: 'teachers', labelKey: 'nav.teachers', icon: <Users className="h-5 w-5" /> },
-  { id: 'summaries', labelKey: 'nav.summaries', icon: <FileText className="h-5 w-5" /> },
-  { id: 'assignments', labelKey: 'nav.assignments', icon: <FileSpreadsheet className="h-5 w-5" /> },
-  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
-  { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
-  { id: 'settings', labelKey: 'nav.settings', icon: <Settings className="h-5 w-5" /> },
-];
 
 function HomeContent() {
   const { user, loading, initialized, initialize, signOut, sessionKickedMessage, banInfo, passwordRecoveryMode, clearPasswordRecovery } = useAuthStore();
@@ -820,15 +779,6 @@ function HomeContent() {
 
   // Profile view — includes AppSidebar so the toggle button works
   if (currentPage === 'profile' && profileUserId) {
-    const profileNavItems = (() => {
-      const items = user.role === 'superadmin' || user.role === 'admin'
-        ? adminNavItems
-        : user.role === 'teacher'
-          ? teacherNavItems
-          : studentNavItems;
-      return items.map(item => ({ ...item, label: t(item.labelKey) }));
-    })();
-
     const profileActiveSection = (() => {
       if (user.role === 'superadmin' || user.role === 'admin') return storedAdminSection || 'dashboard';
       if (user.role === 'teacher') return storedTeacherSection || 'dashboard';
@@ -893,7 +843,6 @@ function HomeContent() {
           role={user.role as 'student' | 'teacher' | 'admin' | 'superadmin'}
           activeSection={profileActiveSection}
           onSectionChange={profileSectionChangeHandler}
-          customNavItems={profileNavItems}
         />
         <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${isRTL ? '' : ''} ${
           sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
