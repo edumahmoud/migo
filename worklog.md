@@ -1019,3 +1019,33 @@ All instances of `text-right` replaced with `text-end` in:
 - `shared/supabase-config-error.tsx`: same pattern
 
 **Verification**: Zero `text-right` instances remain in the 22 target files.
+---
+Task ID: 1
+Agent: main
+Task: Three surgical UI fixes + VLM fallback for image-heavy PDFs
+
+Work Log:
+- Replaced MoreVertical delete button with DropdownMenu in teacher-summaries-section.tsx
+  - Moved ⋮ from `start-3` to `end-3` (RTL/LTR responsive)
+  - Added "Rename" and "Delete" options in dropdown
+  - Added rename dialog with Input + save/cancel buttons
+  - Added handleRenameSummary function using PATCH /api/summaries
+- Same changes applied to student-dashboard.tsx
+  - Moved ⋮ to end-3 with dropdown containing Rename, Create Quiz, Delete
+  - Added rename dialog
+- Added PATCH handler in /api/summaries/route.ts for renaming summaries
+- Centered text under "no summaries" empty state (added text-center to <p> elements)
+- Added VLM fallback for image-heavy/scanned PDFs:
+  - Created /api/files/extract-pdf-vlm/route.ts using z-ai-web-dev-sdk
+  - VLM reads PDF via file_url type and extracts text from images
+  - Triggers when pdfjs-dist returns < 50 chars for PDF files
+  - Applied in teacher-summaries-section.tsx (file + existing file flows)
+  - Applied in student-dashboard.tsx (file + existing file flows)
+  - Applied in question-bank-section.tsx
+- Added translation keys: renameSummary, renameSummaryTitle, newTitle, renameSuccess, renameFailed
+
+Stage Summary:
+- Commit: 6dd050c pushed to main
+- All three user requests fulfilled
+- Dropdown menu now properly positioned with RTL/LTR support
+- VLM fallback enables text extraction from scanned/image-only PDFs

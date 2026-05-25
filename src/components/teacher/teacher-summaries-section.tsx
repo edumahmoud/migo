@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Eye,
   MoreVertical,
+  Pencil,
 } from 'lucide-react';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
@@ -40,6 +41,20 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { useIsMobile } from '@/hooks/use-mobile';
 import SummaryView from '@/components/shared/summary-view';
 import { useAppStore } from '@/stores/app-store';
@@ -128,6 +143,11 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   // ─── Deleting ───
   const [deletingSummaryId, setDeletingSummaryId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // ─── Renaming ───
+  const [renameSummaryId, setRenameSummaryId] = useState<string | null>(null);
+  const [renameTitleValue, setRenameTitleValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
 
   // Track recently deleted IDs to filter them from stale re-fetch results
   const recentlyDeletedIdsRef = useRef<Set<string>>(new Set());
@@ -382,6 +402,34 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   };
 
   // -------------------------------------------------------
+  // Rename summary
+  // -------------------------------------------------------
+  const handleRenameSummary = async () => {
+    if (!renameSummaryId || !renameTitleValue.trim()) return;
+    setRenaming(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch('/api/summaries', {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ summaryId: renameSummaryId, title: renameTitleValue.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(t('renameSuccess'));
+        setSummaries(prev => prev.map(s => s.id === renameSummaryId ? { ...s, title: renameTitleValue.trim() } : s));
+        setRenameSummaryId(null);
+      } else {
+        toast.error(data.error || t('renameFailed'));
+      }
+    } catch {
+      toast.error(t('renameFailed'));
+    } finally {
+      setRenaming(false);
+    }
+  };
+
+  // -------------------------------------------------------
   // Cancel pending summary
   // -------------------------------------------------------
   const cancelPendingSummary = (pendingId: string) => {
@@ -607,6 +655,41 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
             } catch { /* Server fallback failed */ }
           }
 
+          // Fallback: VLM-based extraction for scanned/image-heavy PDFs
+          // If extraction failed OR returned very little text (< 50 chars) for a PDF, try VLM
+          if ((!extractionSucceeded || originalContent.trim().length < 50) && sourceFileType === 'pdf' && sourceFileUrl) {
+            try {
+              console.log('[SummaryUpload] Trying VLM fallback for image-heavy PDF, current text length:', originalContent.trim().length);
+              const vlmController = new AbortController();
+              const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
+
+              const vlmRes = await fetch('/api/files/extract-pdf-vlm', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  url: sourceFileUrl,
+                  fileName: capturedFileName,
+                }),
+                signal: vlmController.signal,
+              });
+
+              clearTimeout(vlmTimeoutId);
+              const vlmData = await vlmRes.json();
+
+              if (vlmRes.ok && vlmData.success && vlmData.data?.text) {
+                originalContent = vlmData.data.text;
+                sourceFileType = vlmData.data.sourceFileType || sourceFileType;
+                extractionSucceeded = true;
+                console.log('[SummaryUpload] VLM extraction succeeded, text length:', originalContent.length);
+              }
+            } catch (vlmErr) {
+              console.warn('[SummaryUpload] VLM extraction also failed:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
+            }
+          }
+
           if (!extractionSucceeded) {
             throw new Error(t('textExtractionFailed'));
           }
@@ -724,6 +807,41 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               sourceFileType = result.sourceFileType || sourceFileType;
               extractionSucceeded = true;
             } catch { /* Client extraction also failed */ }
+          }
+
+          // Fallback: VLM-based extraction for scanned/image-heavy PDFs
+          if ((!extractionSucceeded || originalContent.trim().length < 50) && sourceFileType === 'pdf' && capturedExistingFile.file_url) {
+            try {
+              console.log('[SummaryUpload] Trying VLM fallback for existing file, current text length:', originalContent.trim().length);
+              const vlmController = new AbortController();
+              const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
+
+              const vlmRes = await fetch('/api/files/extract-pdf-vlm', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  url: capturedExistingFile.file_url,
+                  fileName: capturedExistingFile.file_name,
+                  ...(capturedExistingFile.storage_path ? { storagePath: capturedExistingFile.storage_path } : {}),
+                }),
+                signal: vlmController.signal,
+              });
+
+              clearTimeout(vlmTimeoutId);
+              const vlmData = await vlmRes.json();
+
+              if (vlmRes.ok && vlmData.success && vlmData.data?.text) {
+                originalContent = vlmData.data.text;
+                sourceFileType = vlmData.data.sourceFileType || sourceFileType;
+                extractionSucceeded = true;
+                console.log('[SummaryUpload] VLM extraction succeeded for existing file, text length:', originalContent.length);
+              }
+            } catch (vlmErr) {
+              console.warn('[SummaryUpload] VLM extraction failed for existing file:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
+            }
           }
 
           if (!extractionSucceeded) {
@@ -982,8 +1100,8 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <FileText className="h-8 w-8 text-sky-700" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">{t('noSummaries')}</p>
-          <p className="text-sm text-muted-foreground mb-4">{t('startByTranscribing')}</p>
+          <p className="text-lg font-semibold text-foreground mb-1 text-center">{t('noSummaries')}</p>
+          <p className="text-sm text-muted-foreground mb-4 text-center">{t('startByTranscribing')}</p>
           <button
             onClick={() => setNewSummaryOpen(true)}
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
@@ -1002,22 +1120,44 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                   className="group relative rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                   onClick={() => setViewingSummaryId(summary.id)}
                 >
-                  {/* Delete button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmDeleteId(summary.id);
-                    }}
-                    disabled={deletingSummaryId === summary.id}
-                    className="absolute top-3 start-3 rounded-md p-1.5 text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-50 transition-colors focus:opacity-100"
-                    title={tc('delete')}
-                  >
-                    {deletingSummaryId === summary.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <MoreVertical className="h-4 w-4" />
-                    )}
-                  </button>
+                  {/* Options dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        onClick={(e) => e.stopPropagation()}
+                        disabled={deletingSummaryId === summary.id}
+                        className="absolute top-3 end-3 rounded-md p-1.5 text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors focus:opacity-100"
+                      >
+                        {deletingSummaryId === summary.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <MoreVertical className="h-4 w-4" />
+                        )}
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align={direction === 'rtl' ? 'start' : 'end'}>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenameSummaryId(summary.id);
+                          setRenameTitleValue(summary.title);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4 me-2" />
+                        {t('renameSummary')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmDeleteId(summary.id);
+                        }}
+                        className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950"
+                      >
+                        <Trash2 className="h-4 w-4 me-2" />
+                        {tc('delete')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
                   {/* Badge */}
                   <div className="flex items-center gap-2 mb-3">
@@ -1369,6 +1509,31 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Rename Summary Dialog */}
+      <Dialog open={!!renameSummaryId} onOpenChange={(open) => { if (!open) setRenameSummaryId(null); }}>
+        <DialogContent dir={direction}>
+          <DialogHeader>
+            <DialogTitle>{t('renameSummaryTitle')}</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameTitleValue}
+            onChange={(e) => setRenameTitleValue(e.target.value)}
+            placeholder={t('newTitle')}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSummary(); }}
+            disabled={renaming}
+          />
+          <DialogFooter className="flex-row gap-2 justify-end">
+            <Button variant="outline" onClick={() => setRenameSummaryId(null)} disabled={renaming}>
+              {tc('cancel')}
+            </Button>
+            <Button onClick={handleRenameSummary} disabled={renaming || !renameTitleValue.trim()}>
+              {renaming ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Pencil className="h-4 w-4 me-2" />}
+              {t('renameSummary')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Summary Confirmation Dialog */}
       <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>

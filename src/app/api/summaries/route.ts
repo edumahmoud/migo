@@ -330,6 +330,97 @@ export async function DELETE(request: NextRequest) {
 }
 
 /**
+ * PATCH /api/summaries
+ *
+ * Rename a summary by updating its title.
+ * Uses the service role key (bypasses RLS) to ensure
+ * the user can always rename their own summaries.
+ *
+ * Body: { summaryId: string, title: string }
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    const authResult = await authenticateRequest(request);
+    if (!authResult.success) return authErrorResponse(authResult);
+
+    // Rate limiting
+    const rateLimit = checkRateLimit(request, authResult.user.id);
+    const rateLimitHeaders = getRateLimitHeaders(rateLimit.remaining, rateLimit.retryAfterMs);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'طلبات كثيرة جداً. يرجى المحاولة لاحقاً' },
+        { status: 429, headers: rateLimitHeaders }
+      );
+    }
+
+    const body = await request.json();
+    const { summaryId, title } = body;
+
+    if (!summaryId) {
+      return NextResponse.json(
+        { success: false, error: 'معرف الملخص مطلوب' },
+        { status: 400 }
+      );
+    }
+
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'العنوان لا يمكن أن يكون فارغاً' },
+        { status: 400 }
+      );
+    }
+
+    // Verify ownership
+    const { data: existing, error: fetchError } = await supabaseServer
+      .from('summaries')
+      .select('id, user_id')
+      .eq('id', summaryId)
+      .single();
+
+    if (fetchError || !existing) {
+      return NextResponse.json(
+        { success: false, error: 'الملخص غير موجود' },
+        { status: 404 }
+      );
+    }
+
+    if (existing.user_id !== authResult.user.id) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح بتعديل هذا الملخص' },
+        { status: 403 }
+      );
+    }
+
+    // Update only the title field
+    const { data: updated, error: updateError } = await supabaseServer
+      .from('summaries')
+      .update({ title: title.trim() })
+      .eq('id', summaryId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('[Summaries API] PATCH update error:', updateError.message);
+      return NextResponse.json(
+        { success: false, error: 'فشل تحديث عنوان الملخص' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: updated,
+    }, { headers: rateLimitHeaders });
+  } catch (error) {
+    console.error('[Summaries API] PATCH error:', error);
+    return NextResponse.json(
+      { success: false, error: 'حدث خطأ غير متوقع' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * POST /api/summaries
  *
  * Create a new summary record directly (used by transcribe-only mode).

@@ -35,6 +35,7 @@ import {
   ListChecks,
   File,
   MoreVertical,
+  Pencil,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession as waitForSessionShared, getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -52,6 +53,21 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import SubjectsSection from '@/components/shared/subjects-section';
 import PersonalFilesSection from '@/components/shared/personal-files-section';
 import AssignmentsSection from '@/components/shared/assignments-section';
@@ -307,6 +323,11 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // ─── Deleting summary state ───
   const [deletingSummaryId, setDeletingSummaryId] = useState<string | null>(null);
   const [confirmDeleteSummaryId, setConfirmDeleteSummaryId] = useState<string | null>(null);
+
+  // ─── Renaming summary state ───
+  const [renameSummaryId, setRenameSummaryId] = useState<string | null>(null);
+  const [renameTitleValue, setRenameTitleValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
 
   // ─── Background summary processing state ───
   const [pendingSummaries, setPendingSummaries] = useState<PendingSummary[]>([]);
@@ -1507,6 +1528,40 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             }
           }
 
+          // Fallback: VLM-based extraction for scanned/image-heavy PDFs
+          if ((!extractionSucceeded || originalContent.trim().length < 50) && sourceFileType === 'pdf' && sourceFileUrl) {
+            try {
+              console.log('[Summary] Trying VLM fallback for image-heavy PDF, current text length:', originalContent.trim().length);
+              const vlmController = new AbortController();
+              const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
+
+              const vlmRes = await fetch('/api/files/extract-pdf-vlm', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  url: sourceFileUrl,
+                  fileName: capturedFileName,
+                }),
+                signal: vlmController.signal,
+              });
+
+              clearTimeout(vlmTimeoutId);
+              const vlmData = await vlmRes.json();
+
+              if (vlmRes.ok && vlmData.success && vlmData.data?.text) {
+                originalContent = vlmData.data.text;
+                sourceFileType = vlmData.data.sourceFileType || sourceFileType;
+                extractionSucceeded = true;
+                console.log('[Summary] VLM extraction succeeded, text length:', originalContent.length);
+              }
+            } catch (vlmErr) {
+              console.warn('[Summary] VLM extraction also failed:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
+            }
+          }
+
           if (!extractionSucceeded) {
             throw new Error(t('student.extractTextFailed'));
           }
@@ -1670,6 +1725,41 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             } catch (err) {
               const errMsg = err instanceof Error ? err.message : String(err);
               console.error('[Summary] Client-side extraction also failed:', errMsg);
+            }
+          }
+
+          // Fallback: VLM-based extraction for scanned/image-heavy PDFs (existing file)
+          if ((!extractionSucceeded || originalContent.trim().length < 50) && sourceFileType === 'pdf' && capturedExistingFile.file_url) {
+            try {
+              console.log('[Summary] Trying VLM fallback for existing file, current text length:', originalContent.trim().length);
+              const vlmController = new AbortController();
+              const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
+
+              const vlmRes = await fetch('/api/files/extract-pdf-vlm', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  url: capturedExistingFile.file_url,
+                  fileName: capturedExistingFile.file_name,
+                  ...(capturedExistingFile.storage_path ? { storagePath: capturedExistingFile.storage_path } : {}),
+                }),
+                signal: vlmController.signal,
+              });
+
+              clearTimeout(vlmTimeoutId);
+              const vlmData = await vlmRes.json();
+
+              if (vlmRes.ok && vlmData.success && vlmData.data?.text) {
+                originalContent = vlmData.data.text;
+                sourceFileType = vlmData.data.sourceFileType || sourceFileType;
+                extractionSucceeded = true;
+                console.log('[Summary] VLM extraction succeeded for existing file, text length:', originalContent.length);
+              }
+            } catch (vlmErr) {
+              console.warn('[Summary] VLM extraction failed for existing file:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
             }
           }
 
@@ -2009,6 +2099,37 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
     } finally {
       setDeletingSummaryId(null);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Rename summary
+  // -------------------------------------------------------
+  const handleRenameSummary = async () => {
+    if (!renameSummaryId || !renameTitleValue.trim()) return;
+    setRenaming(true);
+    try {
+      const token = await waitForSessionShared(15000);
+      const res = await fetch('/api/summaries', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ summaryId: renameSummaryId, title: renameTitleValue.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(t('summary.renameSuccess'));
+        setSummaries(prev => prev.map(s => s.id === renameSummaryId ? { ...s, title: renameTitleValue.trim() } : s));
+        setRenameSummaryId(null);
+      } else {
+        toast.error(data.error || t('summary.renameFailed'));
+      }
+    } catch {
+      toast.error(t('summary.renameFailed'));
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -2748,8 +2869,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <FileText className="h-8 w-8 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">{t('student.noSummaries')}</p>
-          <p className="text-sm text-muted-foreground mb-4">{t('student.createFirstSummary')}</p>
+          <p className="text-lg font-semibold text-foreground mb-1 text-center">{t('student.noSummaries')}</p>
+          <p className="text-sm text-muted-foreground mb-4 text-center">{t('student.createFirstSummary')}</p>
           <button
             onClick={() => setNewSummaryOpen(true)}
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
@@ -2763,38 +2884,57 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           {summaries.map((summary) => (
             <motion.div key={summary.id} variants={itemVariants} {...cardHover}>
               <div className="group relative rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow">
-                {/* Delete button — always visible on mobile, hover-only on desktop */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setConfirmDeleteSummaryId(summary.id);
-                  }}
-                  disabled={deletingSummaryId === summary.id}
-                  className="absolute top-3 start-3 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-rose-50 hover:text-rose-600"
-                  title={t('common.delete')}
-                >
-                  {deletingSummaryId === summary.id ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <MoreVertical className="h-3.5 w-3.5" />
-                  )}
-                </button>
-
-                {/* Create Quiz button — always visible on mobile, hover-only on desktop */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setQuizConfigSummaryId(summary.id);
-                    setQuizConfigSummaryTitle(summary.title);
-                    setQuizConfigTypes({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
-                    setQuizAnswerMode('after');
-                    setQuizConfigOpen(true);
-                  }}
-                  className="absolute top-3 start-12 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-teal-50 hover:text-teal-600"
-                  title={t('student.createQuiz')}
-                >
-                  <ClipboardList className="h-3.5 w-3.5" />
-                </button>
+                {/* Options dropdown — positioned at end (right in LTR, left in RTL) */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      onClick={(e) => e.stopPropagation()}
+                      disabled={deletingSummaryId === summary.id}
+                      className="absolute top-3 end-3 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      {deletingSummaryId === summary.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <MoreVertical className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align={direction === 'rtl' ? 'start' : 'end'}>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenameSummaryId(summary.id);
+                        setRenameTitleValue(summary.title);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4 me-2" />
+                      {t('summary.renameSummary')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setQuizConfigSummaryId(summary.id);
+                        setQuizConfigSummaryTitle(summary.title);
+                        setQuizConfigTypes({ mcq: 2, boolean: 2, completion: 2, matching: 2 });
+                        setQuizAnswerMode('after');
+                        setQuizConfigOpen(true);
+                      }}
+                    >
+                      <ClipboardList className="h-4 w-4 me-2" />
+                      {t('student.createQuiz')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteSummaryId(summary.id);
+                      }}
+                      className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950"
+                    >
+                      <Trash2 className="h-4 w-4 me-2" />
+                      {t('common.delete')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 <button
                   onClick={() => setViewingSummaryId(summary.id)}
@@ -4455,6 +4595,31 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         onSectionChange={handleSectionChange}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
       />
+
+      {/* Rename Summary Dialog */}
+      <Dialog open={!!renameSummaryId} onOpenChange={(open) => { if (!open) setRenameSummaryId(null); }}>
+        <DialogContent dir={direction}>
+          <DialogHeader>
+            <DialogTitle>{t('summary.renameSummaryTitle')}</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameTitleValue}
+            onChange={(e) => setRenameTitleValue(e.target.value)}
+            placeholder={t('summary.newTitle')}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSummary(); }}
+            disabled={renaming}
+          />
+          <DialogFooter className="flex-row gap-2 justify-end">
+            <Button variant="outline" onClick={() => setRenameSummaryId(null)} disabled={renaming}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={handleRenameSummary} disabled={renaming || !renameTitleValue.trim()}>
+              {renaming ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Pencil className="h-4 w-4 me-2" />}
+              {t('summary.renameSummary')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Summary Confirmation Dialog */}
       <AlertDialog open={!!confirmDeleteSummaryId} onOpenChange={(open) => { if (!open) setConfirmDeleteSummaryId(null); }}>

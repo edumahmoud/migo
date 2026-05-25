@@ -1259,7 +1259,12 @@
     "questionTypesAndCount": "{count} question types",
     "showAnswers": "Show Answers",
     "shuffleQuestions": "Shuffle Questions",
-    "trueFalse": "True or False"
+    "trueFalse": "True or False",
+    "renameSummary": "Rename",
+    "renameSummaryTitle": "Rename Summary",
+    "newTitle": "New Title",
+    "renameSuccess": "Title renamed successfully",
+    "renameFailed": "Failed to rename title"
   },
   "settings": {
     "settings": "Settings",

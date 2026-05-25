@@ -1259,7 +1259,12 @@
     "questionTypesAndCount": "{count} أنواع أسئلة",
     "showAnswers": "إظهار الإجابات",
     "shuffleQuestions": "خلط الأسئلة",
-    "trueFalse": "صح أم خطأ"
+    "trueFalse": "صح أم خطأ",
+    "renameSummary": "تعديل الاسم",
+    "renameSummaryTitle": "تعديل اسم الملخص",
+    "newTitle": "الاسم الجديد",
+    "renameSuccess": "تم تعديل الاسم بنجاح",
+    "renameFailed": "فشل تعديل الاسم"
   },
   "settings": {
     "settings": "الإعدادات",

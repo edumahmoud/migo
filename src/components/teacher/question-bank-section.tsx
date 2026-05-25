@@ -646,6 +646,35 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         }
       }
 
+      // Fallback: VLM-based extraction for scanned/image-heavy PDFs
+      if (!content || content.trim().length < 50) {
+        try {
+          console.log('[QB AI] Trying VLM fallback for image-heavy PDF...');
+          const vlmController = new AbortController();
+          const vlmTimeoutId = setTimeout(() => vlmController.abort(), 55000);
+
+          const vlmRes = await fetchWithRetry('/api/files/extract-pdf-vlm', {
+            method: 'POST',
+            headers,
+            signal: vlmController.signal,
+            timeoutMs: 55000,
+            body: JSON.stringify({
+              url: selectedCourseFile.file_url,
+              fileName: selectedCourseFile.file_name,
+            }),
+          });
+
+          clearTimeout(vlmTimeoutId);
+          const vlmData = await vlmRes.json();
+          if (vlmRes.ok && vlmData.success && vlmData.data?.text && vlmData.data.text.trim().length >= 50) {
+            content = vlmData.data.text;
+            console.log('[QB AI] VLM extraction succeeded, text length:', content!.length);
+          }
+        } catch (vlmErr) {
+          console.warn('[QB AI] VLM extraction also failed:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
+        }
+      }
+
       if (!content || content.trim().length < 50) {
         toast.error(t('questionBank.toastExtractionFailed'));
         setGeneratingFromAi(false);

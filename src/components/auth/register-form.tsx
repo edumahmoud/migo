@@ -401,7 +401,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 variant="outline"
                 disabled={isLoading || isGoogleLoading}
                 onClick={handleGoogleSignIn}
-                className="w-full h-11 text-base font-medium border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/50 hover:border-gray-300 dark:hover:border-border transition-all duration-200"
+                className="w-full h-11 text-base font-medium border-gray-200 dark:border-border bg-white dark:bg-input/30 hover:bg-gray-100 dark:hover:bg-muted/50 hover:border-gray-300 dark:hover:border-border active:bg-gray-200 dark:active:bg-muted active:scale-[0.98] transition-all duration-200 text-gray-700 dark:text-foreground hover:text-gray-900 dark:hover:text-foreground"
               >
                 {isGoogleLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin text-gray-500 dark:text-muted-foreground" />
