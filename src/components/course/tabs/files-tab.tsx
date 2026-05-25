@@ -131,6 +131,53 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getFileTypeLabel(fileType: string): string {
+  const lower = fileType.toLowerCase();
+  if (lower.includes('pdf')) return 'PDF';
+  if (lower.includes('word') || lower.includes('document') && lower.includes('wordprocessing') || lower.includes('doc')) return 'DOCX';
+  if (lower.includes('spreadsheet') || lower.includes('excel') || lower.includes('sheet')) return 'XLSX';
+  if (lower.includes('presentation') || lower.includes('powerpoint')) return 'PPTX';
+  if (lower.includes('text/plain')) return 'TXT';
+  if (lower.includes('image/png')) return 'PNG';
+  if (lower.includes('image/jpeg') || lower.includes('image/jpg')) return 'JPG';
+  if (lower.includes('image/gif')) return 'GIF';
+  if (lower.includes('image/svg')) return 'SVG';
+  if (lower.includes('image/webp')) return 'WEBP';
+  if (lower.includes('image/')) return 'IMG';
+  if (lower.includes('video/mp4')) return 'MP4';
+  if (lower.includes('video/avi')) return 'AVI';
+  if (lower.includes('video/quicktime') || lower.includes('video/mov')) return 'MOV';
+  if (lower.includes('video/webm')) return 'WEBM';
+  if (lower.includes('video/')) return 'VID';
+  if (lower.includes('audio/mpeg') || lower.includes('audio/mp3')) return 'MP3';
+  if (lower.includes('audio/wav')) return 'WAV';
+  if (lower.includes('audio/ogg')) return 'OGG';
+  if (lower.includes('audio/')) return 'AUD';
+  if (lower.includes('zip') || lower.includes('compressed') || lower.includes('archive')) return 'ZIP';
+  if (lower.includes('rar')) return 'RAR';
+  if (lower.includes('7z')) return '7Z';
+  // Fallback: use the part after the last '/' or '.'
+  const mimeSuffix = lower.split('/').pop() || '';
+  if (mimeSuffix && mimeSuffix.length <= 5) return mimeSuffix.toUpperCase();
+  if (mimeSuffix.includes('document')) return 'DOC';
+  if (mimeSuffix.includes('sheet')) return 'XLS';
+  if (mimeSuffix.includes('presentation')) return 'PPT';
+  return 'FILE';
+}
+
+function getFileTypeBadgeColor(fileType: string): string {
+  const lower = fileType.toLowerCase();
+  if (lower.includes('pdf')) return 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300';
+  if (lower.includes('word') || lower.includes('document') && lower.includes('wordprocessing') || lower.includes('doc')) return 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300';
+  if (lower.includes('spreadsheet') || lower.includes('excel') || lower.includes('sheet')) return 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300';
+  if (lower.includes('presentation') || lower.includes('powerpoint')) return 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300';
+  if (lower.includes('image/')) return 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300';
+  if (lower.includes('video/')) return 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300';
+  if (lower.includes('audio/')) return 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300';
+  if (lower.includes('zip') || lower.includes('compressed') || lower.includes('rar') || lower.includes('7z')) return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300';
+  return 'bg-muted text-muted-foreground';
+}
+
 function getFileIcon(fileType: string) {
   const lower = fileType.toLowerCase();
   if (
@@ -681,11 +728,9 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
                     <span>{formatFileSize(file.file_size)}</span>
                     <span title={t('course.assignDateTitle')}>{formatDate(file.created_at, locale)}</span>
-                    {file.category && (
-                      <span className="rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2 py-0.5 text-[10px] font-medium">
-                        {file.category}
-                      </span>
-                    )}
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${getFileTypeBadgeColor(file.file_type)}`}>
+                      {getFileTypeLabel(file.file_type)}
+                    </span>
                     {/* Uploader name */}
                     <span className="flex items-center gap-1">
                       <User className="h-3 w-3" />

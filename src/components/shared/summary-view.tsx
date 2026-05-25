@@ -495,14 +495,10 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [copied, setCopied] = useState(false);
   const [refining, setRefining] = useState(false);
 
-  // ─── AI Progress trackers (resolve i18n keys at render time) ───
-  const aiPhasesSummary = AI_PHASES_SUMMARY.map(p => ({ ...p, label: t(p.label) }));
-  const aiPhasesRefine = AI_PHASES_REFINE.map(p => ({ ...p, label: t(p.label) }));
-  const aiPhasesQuiz = AI_PHASES_QUIZ.map(p => ({ ...p, label: t(p.label) }));
-
-  const summaryProgress = useAiProgress(regenerating, aiPhasesSummary, 60000);
-  const refineProgress = useAiProgress(refining, aiPhasesRefine, 60000);
-  const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, aiPhasesQuiz, 60000);
+  // ─── AI Progress trackers (pass raw constant arrays for stable references) ───
+  const summaryProgress = useAiProgress(regenerating, AI_PHASES_SUMMARY, 60000);
+  const refineProgress = useAiProgress(refining, AI_PHASES_REFINE, 60000);
+  const quizProgress = useAiProgress(generatingQuiz || regeneratingQuiz, AI_PHASES_QUIZ, 60000);
 
   // ─── Tab state ───
   const [summaryTab, setSummaryTab] = useState<'summary' | 'quiz' | 'completed'>('summary');
@@ -1471,7 +1467,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <StepProgress
                   percent={summaryProgress.progress.percent}
                   phase={summaryProgress.progress.phase}
-                  steps={aiPhasesSummary}
+                  steps={AI_PHASES_SUMMARY}
                   color="sky"
                   pleaseWaitText={t('summary.pleaseWait')}
                 />
@@ -1481,7 +1477,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <StepProgress
                   percent={refineProgress.progress.percent}
                   phase={refineProgress.progress.phase}
-                  steps={aiPhasesRefine}
+                  steps={AI_PHASES_REFINE}
                   color="teal"
                   pleaseWaitText={t('summary.pleaseWait')}
                 />
@@ -1586,7 +1582,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                 <StepProgress
                   percent={quizProgress.progress.percent}
                   phase={quizProgress.progress.phase}
-                  steps={aiPhasesQuiz}
+                  steps={AI_PHASES_QUIZ}
                   color="teal"
                   pleaseWaitText={t('summary.pleaseWait')}
                 />
