@@ -1,65 +1,55 @@
-# Worklog: Fix Summary Disappearing Bug
+# Work Log: File Card Redesign
 
-## Bug Description
-Summaries created from files would appear briefly then disappear, showing "تم التفريغ او التلخيص ولكن فشل الحفظ" (transcription/summarization completed but save failed).
+## Task: Redesign file cards in personal-files-section.tsx
 
-## Root Cause
-1. User uploads file → text extracted → AI summarizes → DB save fails (Vercel 60s timeout, `db_save_timeout`, etc.)
-2. `savedSummaryId` is null → client-side retry via POST /api/summaries also fails (single attempt)
-3. Summary gets `temp-{timestamp}` ID and is added optimistically to local state
-4. After 30 seconds, `recentlyAddedSummaryIdsRef` protection expires
-5. Next `fetchSummaries()` returns server data without the temp ID → summary disappears
+### Changes Made
 
-## Changes Applied
+#### 1. Added state for file share & course counts (line ~347-349)
+- Added `fileShareCounts` state: `Record<string, number>` 
+- Added `fileCourseCounts` state: `Record<string, number>`
 
-### File 1: `/home/z/my-project/src/components/student/student-dashboard.tsx`
+#### 2. Added `fetchFileCounts` function (line ~546-583)
+- Batch-fetches share counts from `file_shares` table for all file IDs
+- Batch-fetches course assignment counts from `subject_files` table for all file IDs
+- Aggregates counts per file into Record maps
 
-**Change A** (lines 1871-1908): Replaced single client-side retry with robust multi-retry mechanism
-- Added exponential backoff (2s, 4s, 8s, 16s, 32s delays)
-- Up to 5 retry attempts via `/api/summaries` POST
-- Uses fresh `waitForSession()` token instead of potentially-expired one
-- Removed `abortController.signal` from retry fetch (not needed, potentially expired)
+#### 3. Added effect to fetch counts when files change (line ~530-538)
+- Triggers `fetchFileCounts` whenever the `files` array changes
+- Clears counts when files array is empty
 
-**Change B** (lines 1925-1927): Enhanced optimistic update protection
-- Temp IDs now get 24-hour protection window (86400000ms marker) instead of 30 seconds
-- Added localStorage recovery: unsaved summaries are saved to `unsaved_summaries_{userId}` key
-- Stores all summary data needed for re-save attempt
+#### 4. Redesigned `renderFileCard` function (line ~1961-2165)
 
-**Change C** (lines 446-463): Enhanced `safeSetSummaries` protection logic
-- Added `TEMP_ID_PROTECTION_MS = 86400000` for temp IDs
-- Different protection logic for temp IDs vs real IDs
-- Temp IDs check if a "real version" exists in fetched data (by title + content match)
-- Prevents duplicate display when real version appears
+**Row 1: File icon + file name + DropdownMenu**
+- File icon (h-10 w-10, slightly smaller than before h-11 w-11)
+- File name (bold via `font-bold`, truncated)
+- Checkbox (in selection mode only)
+- DropdownMenu with MoreVertical trigger
 
-**Change D** (after line 1037): Added recovery useEffect
-- Checks localStorage for unsaved summaries on mount
-- Retries saving each unsaved summary via `/api/summaries` POST
-- Replaces temp IDs with real IDs in local state on success
-- Cleans up localStorage when all saves succeed
-- Refreshes from server after successful recovery
-- Delayed 5 seconds to avoid conflicting with initial load
+**Row 2: Details row - size • date • type badge • category badge**
+- File size (formatted)
+- Date (formatted with locale)
+- File type badge (uppercase, e.g., PDF, DOCX) with `bg-muted`
+- Category badge (emerald color, always visible) using `categoryLabels` mapping
 
-### File 2: `/home/z/my-project/src/components/teacher/teacher-summaries-section.tsx`
+**Row 3: Badges row - visibility + share count + course count**
+- Visibility badge (public=sky, private=amber) with Globe/Lock icon
+- Share count badge (violet, with Users icon) - only shown when shareCount > 0
+- Course assignment badge (orange, with FolderPlus icon) - only shown when courseCount > 0
 
-**Change A** (lines 936-967): Same multi-retry pattern as student dashboard
-- 5 retry attempts with exponential backoff
-- Fresh `waitForSession()` token per attempt
-- No `abortController.signal` on retry fetch
+#### 5. Moved preview button into DropdownMenu
+- Removed the inline Eye/preview button that was shown next to the file name
+- Preview action is now the first item in the dropdown menu (with Eye icon)
+- Only shown for previewable file types (image, PDF, video, audio)
+- Previously the dropdown had preview with Maximize2 icon - replaced with Eye icon for consistency
 
-**Change B** (lines 987-988): Same enhanced optimistic update protection
-- 24-hour marker for temp IDs
-- localStorage recovery for unsaved summaries
+#### 6. Category name always visible
+- Removed the `categoryFilter === 'all'` condition that previously hid the category badge
+- Category badge is now always shown in Row 2 with emerald color scheme
+- Uses the existing `categoryLabels` i18n mapping
 
-**Change C** (lines 210-226): Same enhanced `fetchSummaries` protection logic
-- Temp ID protection with 86400000ms window
-- Real version detection to prevent duplicates
-
-**Change D** (after line 366): Same recovery useEffect as student dashboard
-- Checks and recovers unsaved summaries from localStorage
-- Replaces temp IDs with real IDs
-- Refreshes data after recovery
-
-## Verification
-- TypeScript compilation passed with no errors (`npx tsc --noEmit`)
-- All changes are minimal and targeted — only the described modifications were made
-- No other logic was modified
+### Preserved Functionality
+- All dropdown actions: Rename, Details, Share, Assign to Course, Preview, Visibility Toggle, Delete
+- Multi-select mode with checkbox
+- Rename inline editing
+- Delete confirmation overlay
+- All state management and API calls
