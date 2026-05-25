@@ -68,7 +68,6 @@ import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
-import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
@@ -154,7 +153,6 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // ─── Stores ───
   const { teacherSection: storedTeacherSection, setTeacherSection: storeSetTeacherSection, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
-  const { t } = useTranslations();
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<TeacherSection>(storedTeacherSection || 'dashboard');

@@ -42,7 +42,6 @@ import {
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
-import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // fetchWithRetry — resilient fetch with automatic retry on network errors
@@ -474,7 +473,7 @@ function ScrollToTopButton() {
 // Main Component
 // -------------------------------------------------------
 export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode }: SummaryViewProps) {
-  const { t } = useTranslations();
+  const { t, direction } = useTranslations();
   // ─── State ───
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -497,9 +496,9 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   const [refining, setRefining] = useState(false);
 
   // ─── AI Progress trackers (resolve i18n keys at render time) ───
-  const aiPhasesSummary = AI_PHASES_SUMMARY_KEYS.map(p => ({ ...p, label: t(p.labelKey) }));
-  const aiPhasesRefine = AI_PHASES_REFINE_KEYS.map(p => ({ ...p, label: t(p.labelKey) }));
-  const aiPhasesQuiz = AI_PHASES_QUIZ_KEYS.map(p => ({ ...p, label: t(p.labelKey) }));
+  const aiPhasesSummary = AI_PHASES_SUMMARY.map(p => ({ ...p, label: t(p.label) }));
+  const aiPhasesRefine = AI_PHASES_REFINE.map(p => ({ ...p, label: t(p.label) }));
+  const aiPhasesQuiz = AI_PHASES_QUIZ.map(p => ({ ...p, label: t(p.label) }));
 
   const summaryProgress = useAiProgress(regenerating, aiPhasesSummary, 60000);
   const refineProgress = useAiProgress(refining, aiPhasesRefine, 60000);

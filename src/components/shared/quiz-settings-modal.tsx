@@ -113,7 +113,7 @@ export default function QuizSettingsModal({
   onClose,
   onUpdate,
 }: QuizSettingsModalProps) {
-  const { t } = useTranslations();
+  const { t, direction } = useTranslations();
   const [allowRetake, setAllowRetake] = useState(quiz.allow_retake ?? true);
   const [showResults, setShowResults] = useState(quiz.show_results ?? true);
   const [shuffleQuestions, setShuffleQuestions] = useState(quiz.shuffle_questions ?? true);

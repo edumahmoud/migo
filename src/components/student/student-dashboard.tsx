@@ -55,7 +55,6 @@ import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
-import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
 import { extractPdfTextClient, extractTextFromFile } from '@/lib/pdf-client';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -158,9 +157,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
-
-  // ─── Translations ───
-  const { t } = useTranslations();
 
   // ─── Data state ───
   // RADICAL FIX: Initialize summaries from localStorage cache SYNCHRONOUSLY.

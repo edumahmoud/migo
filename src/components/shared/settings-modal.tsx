@@ -32,7 +32,6 @@ import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
 import { getRoleLabel } from '@/components/shared/user-avatar';
-import { getRoleLabel } from '@/components/shared/user-avatar';
 
 // -------------------------------------------------------
 // Types

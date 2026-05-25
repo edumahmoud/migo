@@ -612,7 +612,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && (error.message.includes('timeout') || error.message.includes('مهلة')) ? error.message : t('common.unexpectedError');
       if (!silent) toast.error(message);
     } finally {
       if (!silent) setLoadingData(false);
@@ -645,7 +645,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && (error.message.includes('timeout') || error.message.includes('مهلة')) ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setChangingRole(false);
@@ -926,7 +926,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && (error.message.includes('timeout') || error.message.includes('مهلة')) ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setDeletingUserId(null);
@@ -959,7 +959,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && (error.message.includes('timeout') || error.message.includes('مهلة')) ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setDeletingSubjectId(null);
@@ -988,7 +988,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && (error.message.includes('timeout') || error.message.includes('مهلة')) ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setUnbanningEmail(null);
@@ -1055,7 +1055,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('admin.toastBanFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && (error.message.includes('timeout') || error.message.includes('مهلة')) ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setBanningUserId(null);
@@ -1118,7 +1118,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('admin.toastAnnouncementCreateFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && (error.message.includes('timeout') || error.message.includes('مهلة')) ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setCreatingAnnouncement(false);
@@ -1145,7 +1145,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('admin.toastAnnouncementToggleFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && (error.message.includes('timeout') || error.message.includes('مهلة')) ? error.message : t('common.unexpectedError');
       toast.error(message);
     }
   };
@@ -1171,7 +1171,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('admin.toastAnnouncementDeleteFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && (error.message.includes('timeout') || error.message.includes('مهلة')) ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setDeletingAnnouncementId(null);

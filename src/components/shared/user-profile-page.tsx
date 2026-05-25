@@ -932,9 +932,9 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                         <CheckCircle2 className="h-8 w-8 text-teal-500" />
                       </div>
                       <div className="text-center">
-                        <p className="text-muted-foreground text-sm font-medium">{tp('noPendingRequests')}</p>
+                        <p className="text-muted-foreground text-sm font-medium">{t('noPendingRequests')}</p>
                         <p className="text-muted-foreground/60 text-xs mt-1">
-                          {tp('noPendingRequestsDesc')}
+                          {t('noPendingRequestsDesc')}
                         </p>
                       </div>
                     </CardContent>
@@ -961,7 +961,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                   showAvatar={true}
                                   showRole={false}
                                 />
-                                <span className="text-muted-foreground text-xs shrink-0">{tp('request')}</span>
+                                <span className="text-muted-foreground text-xs shrink-0">{t('request')}</span>
                               </div>
 
                               {/* File name */}
@@ -993,7 +993,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                   ) : (
                                     <CheckCircle2 className="h-3.5 w-3.5" />
                                   )}
-                                  {tp('approve')}
+                                  {t('approve')}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1007,7 +1007,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                   ) : (
                                     <XCircle className="h-3.5 w-3.5" />
                                   )}
-                                  {tp('reject')}
+                                  {t('reject')}
                                 </Button>
                               </div>
                             </div>

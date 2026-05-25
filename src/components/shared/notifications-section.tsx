@@ -42,7 +42,7 @@ function timeAgo(dateStr: string, t: (key: string, params?: Record<string, strin
   return date.toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US');
 }
 
-function getNotifIcon(type: string, title?: string) {
+function getNotifIcon(type: string, title: string | undefined, t: (key: string) => string) {
   if (type === 'link_request' || title?.includes(t('notifications.keywordLinkRequest')) || title?.includes(t('notifications.keywordLink'))) {
     return <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-400" />;
   }
@@ -476,7 +476,7 @@ export default function NotificationsSection() {
                 <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
                   !notif.read ? 'bg-sky-100 dark:bg-sky-900/30' : 'bg-muted/50'
                 }`}>
-                  {getNotifIcon(notif.type, notif.title)}
+                  {getNotifIcon(notif.type, notif.title, t)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">

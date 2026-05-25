@@ -27,7 +27,7 @@ function getMissingEnvVars(): string[] {
   // If the public vars are missing, we know configuration is incomplete.
   // We'll still show it in the list as informational.
   if (missing.length > 0) {
-    missing.push(t('supabaseServiceRoleKey'));
+    missing.push('SUPABASE_SERVICE_ROLE_KEY');
   }
 
   return missing;

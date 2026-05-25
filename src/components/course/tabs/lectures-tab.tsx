@@ -951,8 +951,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: Math.min(percent, 70) } : p)));
                     }
                   },
-                  t,
-                  tc
+                  (key: string, params?: Record<string, unknown>) => t(key, params as Record<string, string | number | Date>),
+                  (key: string, params?: Record<string, unknown>) => tc(key, params as Record<string, string | number | Date>),
                 );
 
                 if (xhrResult.success && xhrResult.data) {

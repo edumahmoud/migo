@@ -127,8 +127,11 @@ const staggerContainer = {
 // Main Component
 // -------------------------------------------------------
 export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizViewProps) {
+  // ─── App store ───
+  const { setCurrentPage } = useAppStore();
+
   // ─── Translations ───
-  const { t } = useTranslations();
+  const { t, direction } = useTranslations();
 
   // ─── Dynamic type labels ───
   const typeLabels: Record<QuizQuestion['type'], string> = {
@@ -137,11 +140,6 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     completion: t('quiz.questionTypes.completion'),
     matching: t('quiz.questionTypes.matching'),
   };
-
-  // ─── App store ───
-  const { setCurrentPage } = useAppStore();
-  const { t, direction } = useTranslations();
-  const typeLabels = getTypeLabels(t);
 
   // ─── Quiz state ───
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -1824,7 +1822,7 @@ function CompletionQuestion({
   onCheck,
   evaluating,
 }: CompletionQuestionProps) {
-  const { t } = useTranslations();
+  const { t, direction } = useTranslations();
   return (
     <div className="space-y-3">
       <div className="relative">

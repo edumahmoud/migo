@@ -21,7 +21,7 @@ export function getAcademicTitles(t: (key: string) => string) {
   return ACADEMIC_TITLE_KEYS.map(item => ({
     value: item.value,
     label: t(`academicTitles.${item.key}`),
-    femaleLabel: t(`roles.${item.key === 'teacher' ? 'teacherWithGender.female' : item.key === 'dr' ? 'doctorFemale' : item.key === 'prof' ? 'professorFemale' : item.key === 'assoc_prof' ? 'associateProfessorFemale' : item.key === 'assist_prof' ? 'assistantProfessorFemale' : item.key === 'lecturer' ? 'lecturerFemale' : 'teachingAssistantFemale'}`),
+    femaleLabel: t(`roles.${item.key === 'teacher' ? 'teacherWithGender.female' : item.value === 'dr' ? 'doctorFemale' : item.value === 'prof' ? 'professorFemale' : item.value === 'assoc_prof' ? 'associateProfessorFemale' : item.value === 'assist_prof' ? 'assistantProfessorFemale' : item.key === 'lecturer' ? 'lecturerFemale' : item.value === 'teaching_assist' ? 'teachingAssistantFemale' : 'teachingAssistantFemale'}`),
   }));
 }
 

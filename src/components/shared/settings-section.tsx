@@ -788,7 +788,7 @@ export default function SettingsSection({
           new Notification(t('settings.push.testTitle'), {
             body: t('settings.push.testLocalBody'),
             icon: '/icons/icon-192x192.png',
-            dir,
+            dir: direction === 'rtl' ? 'rtl' as const : 'ltr' as const,
           });
           toast.info(t('settings.push.testLocal'));
         } else {
