@@ -146,9 +146,7 @@ function BottomNavItemButton({
   return (
     <motion.button
       onClick={handleClick}
-      className={`relative flex flex-col items-center justify-end flex-1 min-w-0 rounded-xl transition-colors duration-200 ${
-        isCenter ? 'pb-1' : 'gap-0.5 py-1.5'
-      }`}
+      className={`relative flex flex-col items-center flex-1 min-w-0 rounded-xl transition-colors duration-200 gap-0.5 py-1.5`}
       whileTap={{ scale: 0.9 }}
       aria-label={t(item.labelKey)}
       aria-current={isActive ? 'page' : undefined}
@@ -169,45 +167,61 @@ function BottomNavItemButton({
         </AnimatePresence>
       )}
 
-      {/* Icon container */}
-      <span
-        className={`relative z-10 transition-colors duration-200 ${
-          isCenter
-            ? `absolute -top-8 flex items-center justify-center h-12 w-12 rounded-full shadow-lg ${isActive ? 'bg-primary text-primary-foreground shadow-primary/30' : 'bg-muted text-muted-foreground shadow-black/10'}`
-            : isActive ? 'text-primary' : 'text-muted-foreground'
-        }`}
-      >
-        {item.icon}
+      {/* Center: floating circle icon (absolute, raised above bar) */}
+      {isCenter && (
+        <span
+          className={`absolute -top-6 z-10 flex items-center justify-center h-12 w-12 rounded-full shadow-lg transition-colors duration-200 ${
+            isActive
+              ? 'bg-primary text-primary-foreground shadow-primary/30'
+              : 'bg-muted text-muted-foreground shadow-black/10'
+          }`}
+        >
+          {item.icon}
+        </span>
+      )}
 
-        {/* Chat unread badge */}
-        {item.id === 'chat' && chatUnreadCount > 0 && (
-          <motion.span
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0 }}
-            className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-amber-500 text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
-          >
-            {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
-          </motion.span>
-        )}
-        {/* Reports unread badge — still available in sidebar */}
-        {item.id === 'reports' && reportsUnreadCount > 0 && (
-          <motion.span
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0 }}
-            className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-rose-500 text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
-          >
-            {reportsUnreadCount > 99 ? '99+' : reportsUnreadCount}
-          </motion.span>
-        )}
-      </span>
+      {/* Icon container for non-center items */}
+      {!isCenter && (
+        <span
+          className={`relative z-10 transition-colors duration-200 ${
+            isActive ? 'text-primary' : 'text-muted-foreground'
+          }`}
+        >
+          {item.icon}
 
-      {/* Label — center label uses mt-auto to push it down to align with other labels */}
+          {/* Chat unread badge */}
+          {item.id === 'chat' && chatUnreadCount > 0 && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-amber-500 text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
+            >
+              {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+            </motion.span>
+          )}
+          {/* Reports unread badge — still available in sidebar */}
+          {item.id === 'reports' && reportsUnreadCount > 0 && (
+            <motion.span
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              className="absolute -top-1.5 -start-1.5 flex items-center justify-center rounded-full bg-rose-500 text-white font-bold h-4 min-w-4 text-[9px] px-1 leading-none shadow-sm"
+            >
+              {reportsUnreadCount > 99 ? '99+' : reportsUnreadCount}
+            </motion.span>
+          )}
+        </span>
+      )}
+
+      {/* Center: invisible spacer to keep label aligned with other items' labels */}
+      {isCenter && <span className="h-5 w-5" aria-hidden="true" />}
+
+      {/* Label */}
       <span
         className={`relative z-10 text-[10px] font-medium leading-tight transition-colors duration-200 ${
           isActive ? 'text-primary' : 'text-muted-foreground'
-        } ${isCenter ? 'mt-1' : ''}`}
+        }`}
       >
         {t(item.labelKey)}
       </span>
