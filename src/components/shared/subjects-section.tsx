@@ -29,7 +29,6 @@ import { useTranslations } from '@/i18n/use-translations';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject } from '@/lib/types';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
-import { useI18n } from '@/lib/i18n/context';
 
 // -------------------------------------------------------
 // Auth helpers
@@ -154,7 +153,18 @@ const modalContentVariants = {
 // -------------------------------------------------------
 
 export default function SubjectsSection({ profile, role }: SubjectsSectionProps) {
-  const { t } = useTranslations();
+  const { t, direction, locale } = useTranslations();
+
+  // Filter options for level/sub_level dropdowns - uses DB values for filtering, translated labels for display
+  const LEVEL_OPTIONS = LEVEL_VALUES.map((val, i) => ({
+    value: val,
+    label: t(`course.level${i + 1}`),
+  }));
+  const SUB_LEVEL_OPTIONS = SUB_LEVEL_VALUES.map((val, i) => ({
+    value: val,
+    label: t(`course.subLevel${i + 1}`),
+  }));
+
   // ─── App store ───
   const { setSelectedSubjectId: setStoreSelectedSubjectId } = useAppStore();
 
@@ -961,7 +971,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 value={filterLevel}
                 onChange={(e) => setFilterLevel(e.target.value)}
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
-                dir={dir}
+                dir={direction}
               >
                 <option value="">{t('common.all')}</option>
                 {LEVEL_OPTIONS.map((opt) => (
@@ -977,7 +987,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 value={filterSubLevel}
                 onChange={(e) => setFilterSubLevel(e.target.value)}
                 className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
-                dir={dir}
+                dir={direction}
               >
                 <option value="">{t('common.all')}</option>
                 {SUB_LEVEL_OPTIONS.map((opt) => (
@@ -1233,7 +1243,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <motion.div variants={cardVariants} className="space-y-4">
                 <div className="flex items-center gap-2 pt-2">
                   <div className="h-px flex-1 bg-border" />
-                  <span className="text-xs font-medium text-muted-foreground">طلبات ال{t('dashboard.joinSubject')}</span>
+                  <span className="text-xs font-medium text-muted-foreground">{t('pendingRequests')}</span>
                   <div className="h-px flex-1 bg-border" />
                 </div>
 
@@ -1285,7 +1295,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-1 text-xs text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
                               >
                                 {leavingSubjectId === subject.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                                {t('common.cancel')} الطلب
+                                {t('cancelRequest')}
                               </button>
                             </div>
 
@@ -1449,7 +1459,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     onChange={(e) => setNewSubjectName(e.target.value)}
                     placeholder={t('course.subjectName')}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                    dir={dir}
+                    dir={direction}
                     disabled={creatingSubject}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !creatingSubject) handleCreateSubject();
@@ -1465,10 +1475,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   <textarea
                     value={newSubjectDesc}
                     onChange={(e) => setNewSubjectDesc(e.target.value)}
-                    placeholder="وصف {t('common.confirm')}ي للمقرر..."
+                    placeholder={t('subjectDescPlaceholder')}
                     rows={2}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none"
-                    dir={dir}
+                    dir={direction}
                     disabled={creatingSubject}
                   />
                 </div>
@@ -1528,7 +1538,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       value={newSubjectLevel}
                       onChange={(e) => setNewSubjectLevel(e.target.value)}
                       className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
-                      dir={dir}
+                      dir={direction}
                       disabled={creatingSubject}
                     >
                       <option value="">{t('common.none')}</option>
@@ -1545,7 +1555,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       value={newSubjectSubLevel}
                       onChange={(e) => setNewSubjectSubLevel(e.target.value)}
                       className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
-                      dir={dir}
+                      dir={direction}
                       disabled={creatingSubject}
                     >
                       <option value="">{t('subjects.noSublevel')}</option>
@@ -1653,7 +1663,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               animate="visible"
               exit="exit"
               className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden"
-              dir={dir}
+              dir={direction}
             >
               {/* Modal gradient header */}
               <div
@@ -1867,7 +1877,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               animate="visible"
               exit="exit"
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 mb-4">
@@ -1878,7 +1888,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   {t('subjects.leaveConfirmDesc')} &quot;{leaveConfirmOpen.subjectName}&quot;?
                 </p>
                 <p className="text-xs text-muted-foreground/70 mb-6">
-                  لن تتمكن من الوصول إلى محتوى المقرر بعد الآن، وسيتم {t('common.delete')} جميع درجاتك ومشاركاتك.
+                  {t('leaveSubjectWarning')}
                 </p>
                 <div className="flex items-center gap-3 w-full">
                   <button

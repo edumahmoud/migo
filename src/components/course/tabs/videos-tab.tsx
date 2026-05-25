@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectVideo, VideoComment } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -136,7 +136,7 @@ interface SubjectVideoWithUploader extends SubjectVideo {
 // Main Component
 // -------------------------------------------------------
 export default function VideosTab({ profile, role, subjectId }: VideosTabProps) {
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
   // ─── App store for persisted video ID ───
   const { selectedVideoId, setSelectedVideoId } = useAppStore();
 
@@ -1399,7 +1399,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       initial="hidden"
       animate="visible"
       className="space-y-6 mt-6"
-      dir={dir}
+      dir={direction}
     >
       {selectedVideo ? (
         <div key="player">
@@ -1431,7 +1431,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[90vh] rounded-2xl border bg-background shadow-xl my-4 sm:my-0 flex flex-col"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5 shrink-0">
@@ -1600,7 +1600,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -1709,7 +1709,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           if (!open) setConfirmDeleteId(null);
         }}
       >
-        <AlertDialogContent dir={dir}>
+        <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('course.deleteVideo')}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1740,7 +1740,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
           if (!open) setConfirmDeleteCommentId(null);
         }}
       >
-        <AlertDialogContent dir={dir}>
+        <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('course.deleteCommentTitle')}</AlertDialogTitle>
             <AlertDialogDescription>

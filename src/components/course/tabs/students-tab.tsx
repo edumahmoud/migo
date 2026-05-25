@@ -29,7 +29,7 @@ import type { UserProfile, Subject } from '@/lib/types';
 import StudentProfileModal from '@/components/course/tabs/student-profile-modal';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -88,7 +88,7 @@ function ConfirmDialog({
   onCancel: () => void;
   variant?: 'danger' | 'warning';
 }) {
-  const { dir } = useI18n();
+  const { direction } = useTranslations();
   if (!open) return null;
   return (
     <AnimatePresence>
@@ -109,7 +109,7 @@ function ConfirmDialog({
             exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', duration: 0.4 }}
             className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-            dir={dir}
+            dir={direction}
           >
             <div className="flex flex-col items-center text-center">
               <div className={`flex h-14 w-14 items-center justify-center rounded-full mb-4 ${
@@ -153,7 +153,7 @@ function ConfirmDialog({
 // Main Component
 // -------------------------------------------------------
 export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
   // Students state
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -696,7 +696,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
                   onChange={(e) => handleAddSearch(e.target.value)}
                   placeholder={t('studentsTab.searchStudent')}
                   className="w-full rounded-lg border bg-background pe-9 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                  dir={dir}
+                  dir={direction}
                   autoFocus
                 />
               </div>
@@ -752,7 +752,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             onChange={(e) => setEnrolledSearchQuery(e.target.value)}
             placeholder={t('studentsTab.searchEnrolled')}
             className="w-full rounded-lg border bg-background pe-9 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-            dir={dir}
+            dir={direction}
           />
         </motion.div>
       )}
@@ -887,8 +887,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background/95 backdrop-blur-md shadow-2xl px-5 py-3"
-            dir={dir}
+            className="fixed bottom-20 sm:bottom-6 start-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background/95 backdrop-blur-md shadow-2xl px-5 py-3"
+            dir={direction}
           >
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
@@ -991,7 +991,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               transition={{ type: 'spring', duration: 0.4 }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl max-h-[80vh] overflow-y-auto"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -1135,7 +1135,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               exit={{ scale: 0.92, opacity: 0, y: 20, pointerEvents: 'none' as const }}
               transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl border border-border/50 bg-background shadow-2xl shadow-black/8 overflow-hidden"
-              dir={dir}
+              dir={direction}
             >
               {/* Modal Header - warm gradient */}
               <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-sky-50/30 to-transparent">

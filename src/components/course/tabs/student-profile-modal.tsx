@@ -24,7 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type { UserProfile, Score, AttendanceRecord, AttendanceSession, Submission, StudentPerformance } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -49,7 +49,7 @@ function formatDate(dateStr: string): string {
 // Main Component
 // -------------------------------------------------------
 export default function StudentProfileModal({ studentId, subjectId, open, onClose }: StudentProfileModalProps) {
-  const { dir } = useI18n();
+  const { t, direction } = useTranslations('course');
   const [performance, setPerformance] = useState<StudentPerformance | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -184,11 +184,11 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir={dir}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir={direction}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-            ملف الطالب
+            {t("studentProfileTitle")}
           </DialogTitle>
         </DialogHeader>
 
@@ -197,10 +197,10 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
             <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
           </div>
         ) : !performance ? (
-          <div className="text-center py-12 text-muted-foreground">لم يتم العثور على بيانات الطالب</div>
+          <div className="text-center py-12 text-muted-foreground">{t('studentDataNotFound')}</div>
         ) : (
           <ScrollArea className="max-h-[70vh]">
-            <div className="space-y-5 pr-1">
+            <div className="space-y-5 pe-1">
               {/* Student info */}
               <UserLink
                 userId={performance.student.id}
@@ -217,7 +217,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
               <div className="rounded-xl border bg-sky-50/50 dark:bg-sky-950/30 p-4 space-y-3">
                 <h5 className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                  الأداء العام
+                  {t("overallPerformance")}
                 </h5>
                 <div className="flex items-center gap-4">
                   <div className="flex flex-col items-center">
@@ -241,16 +241,16 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                         <span className="text-sm font-bold text-sky-800 dark:text-sky-200">{performance.average_score}%</span>
                       </div>
                     </div>
-                    <span className="text-xs text-muted-foreground mt-1">متوسط الأداء</span>
+                    <span className="text-xs text-muted-foreground mt-1">{t('averagePerformance')}</span>
                   </div>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">الحضور</span>
+                      <span className="text-muted-foreground">{t('attendance')}</span>
                       <span className="font-medium text-foreground">{performance.attendance_percentage}%</span>
                     </div>
                     <Progress value={performance.attendance_percentage} className="h-2" />
                     <p className="text-xs text-muted-foreground">
-                      {performance.attended_sessions} من {performance.total_sessions} جلسة
+                      {performance.attended_sessions} {t("attendanceFrom", { count: performance.total_sessions })} {t('sessions')}
                     </p>
                   </div>
                 </div>
@@ -261,7 +261,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                 <div className="space-y-2">
                   <h5 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                    نتائج الاختبارات
+                    {t("quizResults")}
                   </h5>
                   <div className="space-y-2">
                     {performance.scores.map((score) => {
@@ -293,14 +293,14 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                 <div className="space-y-2">
                   <h5 className="text-sm font-semibold text-foreground flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                    التسليمات
+                    {t("submissionsLabel")}
                   </h5>
                   <div className="space-y-2">
                     {performance.submissions.map((sub) => (
                       <div key={sub.id} className="flex items-center justify-between rounded-lg border p-3">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-foreground truncate">
-                            تسليم واجب
+                            {t("assignmentSubmission")}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">{formatDate(sub.submitted_at)}</p>
                         </div>
@@ -312,7 +312,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                             sub.status === 'graded' ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200' :
                             sub.status === 'submitted' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
                           }`}>
-                            {sub.status === 'graded' ? 'تم التقييم' : sub.status === 'submitted' ? 'تم التسليم' : 'تم الإرجاع'}
+                            {sub.status === 'graded' ? t('gradedStatus') : sub.status === 'submitted' ? t('submittedStatus') : t('returnedStatus')}
                           </Badge>
                         </div>
                       </div>
@@ -324,7 +324,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
               {/* Empty states */}
               {performance.scores.length === 0 && performance.submissions.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground text-sm">
-                  لا توجد بيانات أداء كافية بعد
+                  {t("noPerformanceData")}
                 </div>
               )}
             </div>

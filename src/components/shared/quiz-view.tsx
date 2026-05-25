@@ -140,7 +140,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
   // ─── App store ───
   const { setCurrentPage } = useAppStore();
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
   const typeLabels = getTypeLabels(t);
 
   // ─── Quiz state ───
@@ -1158,7 +1158,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   // -------------------------------------------------------
   if (!loading && (error || !quiz)) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={dir}>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={direction}>
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50">
           <XCircle className="h-8 w-8 text-rose-600 dark:text-rose-400" />
         </div>
@@ -1190,7 +1190,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   // -------------------------------------------------------
   if (alreadyTaken && !reviewMode) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={dir}>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={direction}>
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
           <CheckCircle2 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
         </div>
@@ -1239,7 +1239,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         animate="visible"
         variants={staggerContainer}
         className="mx-auto max-w-2xl space-y-4 sm:space-y-6 p-3 sm:p-8"
-        dir={dir}
+        dir={direction}
       >
         {/* Score display */}
         <motion.div variants={fadeInUp} className="flex flex-col items-center gap-4">
@@ -1346,7 +1346,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       animate="visible"
       variants={staggerContainer}
       className="mx-auto max-w-2xl space-y-4 sm:space-y-6 p-3 sm:p-6"
-      dir={dir}
+      dir={direction}
     >
       {/* Header */}
       <motion.div variants={fadeInUp} className="space-y-3">
@@ -1599,7 +1599,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="mr-auto"
+                      className="me-auto"
                     >
                       <Button
                         onClick={handleNext}
@@ -1744,8 +1744,8 @@ function BooleanQuestion({
 }: BooleanQuestionProps) {
   const { t } = useTranslations();
   const options = [
-    { label: t('quiz.questionTypes.trueFalse').split(' ')[0], value: 'صح', icon: <CheckCircle2 className="h-5 w-5" /> },
-    { label: t('quiz.questionTypes.trueFalse').split(' ').pop(), value: 'خطأ', icon: <XCircle className="h-5 w-5" /> },
+    { label: t('quiz.trueValue'), value: 'صح', icon: <CheckCircle2 className="h-5 w-5" /> },
+    { label: t('quiz.falseValue'), value: 'خطأ', icon: <XCircle className="h-5 w-5" /> },
   ];
 
   return (
@@ -1834,7 +1834,7 @@ function CompletionQuestion({
           placeholder={t('quiz.typeAnswer')}
           disabled={answered || evaluating}
           className="h-12 text-base border-sky-200 dark:border-sky-800 focus:border-sky-600 dark:focus:border-sky-500 focus:ring-sky-600/20"
-          dir={dir}
+          dir={direction}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !answered && !evaluating) {
               onCheck();

@@ -34,7 +34,7 @@ import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectTeacher, CourseTab } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Lazy-load tab components for performance
@@ -128,20 +128,6 @@ const SUBJECT_COLORS = [
   '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16',
 ];
 
-// Filter options (shared with subjects-section)
-const LEVEL_OPTIONS = [
-  { value: 'الفرقة الأولى', labelKey: 'levels.first' },
-  { value: 'الفرقة الثانية', labelKey: 'levels.second' },
-  { value: 'الفرقة الثالثة', labelKey: 'levels.third' },
-  { value: 'الفرقة الرابعة', labelKey: 'levels.fourth' },
-  { value: 'الفرقة الخامسة', labelKey: 'levels.fifth' },
-];
-
-const SUB_LEVEL_OPTIONS = [
-  { value: 'المستوى الأول', labelKey: 'sublevels.first' },
-  { value: 'المستوى الثاني', labelKey: 'sublevels.second' },
-];
-
 // -------------------------------------------------------
 // Animation variants
 // -------------------------------------------------------
@@ -176,8 +162,32 @@ const modalContentVariants = {
 // Main Component
 // -------------------------------------------------------
 export default function CoursePage({ profile, role }: CoursePageProps) {
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
   const { selectedSubjectId, courseTab, setSelectedSubjectId, setCourseTab, openProfile } = useAppStore();
+
+  // Translation-derived level values (locale-aware)
+  const t_level1 = t('course.level1');
+  const t_level2 = t('course.level2');
+  const t_level3 = t('course.level3');
+  const t_level4 = t('course.level4');
+  const t_level5 = t('course.level5');
+  const t_subLevel1 = t('course.subLevel1');
+  const t_subLevel2 = t('course.subLevel2');
+
+  // Filter options (locale-aware)
+  const LEVEL_OPTIONS = [
+    { value: t_level1, labelKey: 'levels.first' },
+    { value: t_level2, labelKey: 'levels.second' },
+    { value: t_level3, labelKey: 'levels.third' },
+    { value: t_level4, labelKey: 'levels.fourth' },
+    { value: t_level5, labelKey: 'levels.fifth' },
+  ];
+
+  const SUB_LEVEL_OPTIONS = [
+    { value: t_subLevel1, labelKey: 'sublevels.first' },
+    { value: t_subLevel2, labelKey: 'sublevels.second' },
+  ];
+
   const [subject, setSubject] = useState<Subject | null>(null);
   const [loading, setLoading] = useState(true);
   const [teacherName, setTeacherName] = useState<string>('');
@@ -664,7 +674,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   {subject.sub_level && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 px-2.5 py-0.5 text-xs text-white font-medium">
                       <Calendar className="h-3 w-3" />
-                      {subject.sub_level === 'مستوى أول' ? t('sublevels.first') : subject.sub_level === 'مستوى ثاني' ? t('sublevels.second') : subject.sub_level}
+                      {subject.sub_level === t_subLevel1 ? t('sublevels.first') : subject.sub_level === t_subLevel2 ? t('sublevels.second') : subject.sub_level}
                     </span>
                   )}
                 </div>
@@ -756,7 +766,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               animate="visible"
               exit="exit"
               className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden"
-              dir={dir}
+              dir={direction}
             >
               {/* Modal gradient header */}
               <div
@@ -799,7 +809,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder={t('course.subjectNamePlaceholder')}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                    dir={dir}
+                    dir={direction}
                     disabled={savingSubject}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !savingSubject) handleSaveSubject();
@@ -818,7 +828,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     placeholder={t('course.subjectDescPlaceholder')}
                     rows={3}
                     className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none"
-                    dir={dir}
+                    dir={direction}
                     disabled={savingSubject}
                   />
                 </div>
@@ -833,7 +843,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       value={editLevel}
                       onChange={(e) => setEditLevel(e.target.value)}
                       className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
-                      dir={dir}
+                      dir={direction}
                       disabled={savingSubject}
                     >
                       <option value="">{t('course.noYear')}</option>
@@ -850,7 +860,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       value={editSubLevel}
                       onChange={(e) => setEditSubLevel(e.target.value)}
                       className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
-                      dir={dir}
+                      dir={direction}
                       disabled={savingSubject}
                     >
                       <option value="">{t('course.noTerm')}</option>
@@ -940,7 +950,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               animate="visible"
               exit="exit"
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
@@ -1004,7 +1014,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               animate="visible"
               exit="exit"
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">

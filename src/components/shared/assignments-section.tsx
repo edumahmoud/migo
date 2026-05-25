@@ -28,7 +28,7 @@ import { waitForSession } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import type { UserProfile, Assignment, Submission, Subject, UserFile } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -115,18 +115,16 @@ function toUTCISOString(localDatetime: string): string {
   return d.toISOString();
 }
 
-function getCountdown(dueDate: string): { text: string; urgent: boolean; expired: boolean } {
+function getCountdown(dueDate: string): { days: number; hours: number; minutes: number; urgent: boolean; expired: boolean } {
   const now = new Date();
   const due = new Date(dueDate);
   const diffMs = due.getTime() - now.getTime();
-  if (diffMs <= 0) return { text: 'انتهى', urgent: false, expired: true };
+  if (diffMs <= 0) return { days: 0, hours: 0, minutes: 0, urgent: false, expired: true };
   const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
   const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
   const urgent = diffMs < 24 * 60 * 60 * 1000;
-  if (days > 0) return { text: `${days} يوم ${hours} ساعة`, urgent, expired: false };
-  if (hours > 0) return { text: `${hours} ساعة ${minutes} دقيقة`, urgent, expired: false };
-  return { text: `${minutes} دقيقة`, urgent, expired: false };
+  return { days, hours, minutes, urgent, expired: false };
 }
 
 function isPastDue(dueDate: string): boolean {
@@ -159,7 +157,16 @@ interface SubmissionWithStudent extends Submission {
 // Main Component
 // -------------------------------------------------------
 export default function AssignmentsSection({ profile, role }: AssignmentsSectionProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations('course');
+  const { t: tc } = useTranslations('common');
+
+  // Format countdown text using translation keys
+  const formatCountdown = (cd: { days: number; hours: number; minutes: number; expired: boolean }) => {
+    if (cd.expired) return tc('expired');
+    if (cd.days > 0) return `${cd.days} ${tc('day')} ${cd.hours} ${tc('hour')}`;
+    if (cd.hours > 0) return `${cd.hours} ${tc('hour')} ${cd.minutes} ${tc('minute')}`;
+    return `${cd.minutes} ${tc('minute')}`;
+  };
   // ─── Data state ───
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -305,7 +312,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           enriched.push({
             ...sub,
             student_name: formatNameWithTitle(
-              studentData?.name || 'طالب',
+              studentData?.name || t('studentFallback'),
               studentData?.role,
               studentData?.title_id,
               studentData?.gender,
@@ -473,15 +480,15 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
   const handleCreate = async () => {
     const title = newTitle.trim();
     if (!title) {
-      toast.error('يرجى إدخال عنوان المهمة');
+      toast.error(t('enterAssignmentTitle'));
       return;
     }
     if (!newSubjectId) {
-      toast.error('يرجى اختيار المقرر');
+      toast.error(t('selectSubjectToast'));
       return;
     }
     if (!newDueDatetime) {
-      toast.error('يرجى تحديد الموعد النهائي');
+      toast.error(t('setDeadlineToast'));
       return;
     }
     setCreating(true);
@@ -500,9 +507,9 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         allow_file_submission: newAllowFile,
       });
       if (error) {
-        toast.error('حدث خطأ أثناء إنشاء المهمة');
+        toast.error(t('errorCreatingAssignment'));
       } else {
-        toast.success('تم إنشاء المهمة بنجاح');
+        toast.success(t('assignmentCreatedSuccess'));
         // Send notification to all students in the subject
         try {
           const { getCachedAuthHeaders } = await import('@/lib/client-auth');
@@ -528,7 +535,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         fetchAssignments();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setCreating(false);
     }
@@ -554,8 +561,8 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
   const handleEdit = async () => {
     if (!editId) return;
     const title = editTitle.trim();
-    if (!title) { toast.error('يرجى إدخال عنوان المهمة'); return; }
-    if (!editDueDatetime) { toast.error('يرجى تحديد الموعد النهائي'); return; }
+    if (!title) { toast.error(t('enterAssignmentTitle')); return; }
+    if (!editDueDatetime) { toast.error(t('setDeadlineToast')); return; }
     setSaving(true);
     try {
       const dueDateValue = editDueDatetime
@@ -572,9 +579,9 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           allow_file_submission: editAllowFile,
         })
         .eq('id', editId);
-      if (error) toast.error('حدث خطأ أثناء تعديل المهمة');
+      if (error) toast.error(t('errorEditingAssignment'));
       else {
-        toast.success('تم تعديل المهمة بنجاح');
+        toast.success(t('assignmentEditedSuccess'));
         setEditOpen(false);
         setEditId(null);
         fetchAssignments();
@@ -590,7 +597,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         }
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setSaving(false);
     }
@@ -603,9 +610,9 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
     setDeletingId(assignmentId);
     try {
       const { error } = await supabase.from('assignments').delete().eq('id', assignmentId);
-      if (error) toast.error('حدث خطأ أثناء حذف المهمة');
+      if (error) toast.error(t('errorDeletingAssignment'));
       else {
-        toast.success('تم حذف المهمة بنجاح');
+        toast.success(t('assignmentDeletedSuccess'));
         if (selectedAssignment?.id === assignmentId) {
           setSelectedAssignment(null);
           setSubmissions([]);
@@ -613,7 +620,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         fetchAssignments();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setDeletingId(null);
       setDeleteConfirmId(null);
@@ -626,11 +633,11 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
   const handleSaveGrade = async (submissionId: string) => {
     const scoreVal = Number(gradeScore);
     if (isNaN(scoreVal) || scoreVal < 0) {
-      toast.error('يرجى إدخال درجة صحيحة');
+      toast.error(t('enterValidGrade'));
       return;
     }
     if (selectedAssignment && scoreVal > selectedAssignment.max_score) {
-      toast.error(`الدرجة يجب ألا تتجاوز ${selectedAssignment.max_score}`);
+      toast.error(t('gradeMustNotExceed', { max: selectedAssignment.max_score }));
       return;
     }
     setSavingGrade(true);
@@ -644,9 +651,9 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           graded_at: new Date().toISOString(),
         })
         .eq('id', submissionId);
-      if (error) toast.error('حدث خطأ أثناء حفظ الدرجة');
+      if (error) toast.error(t('failedToSaveGrade'));
       else {
-        toast.success('تم حفظ الدرجة بنجاح');
+        toast.success(t('gradeSavedSuccess'));
         // Send notification to the student
         const gradedSubmission = submissions.find((s) => s.id === submissionId);
         if (gradedSubmission && selectedAssignment) {
@@ -674,7 +681,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         if (selectedAssignment) fetchSubmissions(selectedAssignment.id);
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setSavingGrade(false);
     }
@@ -688,27 +695,27 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
 
     // Check deadline
     if (selectedAssignment.due_date && isPastDue(selectedAssignment.due_date)) {
-      toast.error('انتهى الموعد النهائي لهذه المهمة');
+      toast.error(t('deadlineExpiredForAssignment'));
       return;
     }
 
     if (mySubmissions[selectedAssignment.id]) {
-      toast.error('لقد قمت بتسليم هذه المهمة مسبقاً');
+      toast.error(t('alreadySubmitted'));
       return;
     }
 
     if (submitMode === 'text' && !submitContent.trim() && !submitFile) {
-      toast.error('يرجى إدخال محتوى أو رفع ملف');
+      toast.error(t('enterContentOrFile'));
       return;
     }
 
     if (submitMode === 'upload' && !submitFile) {
-      toast.error('يرجى اختيار ملف للرفع');
+      toast.error(t('selectFileToUpload'));
       return;
     }
 
     if (submitMode === 'existing' && !selectedExistingFile) {
-      toast.error('يرجى اختيار ملف من ملفاتك');
+      toast.error(t('selectFileFromYourFiles'));
       return;
     }
 
@@ -721,7 +728,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         // Use waitForSession for mobile PWA reliability
         const uploadToken = await waitForSession(15000);
         if (!uploadToken) {
-          toast.error('يرجى تسجيل الدخول أولاً');
+          toast.error(t('loginFirst'));
           setSubmitting(false);
           return;
         }
@@ -752,15 +759,15 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           clearTimeout(uploadTimeoutId);
 
           if (!uploadRes.ok) {
-            const errorData = await uploadRes.json().catch(() => ({ error: 'حدث خطأ أثناء رفع الملف' }));
-            toast.error(errorData.error || 'حدث خطأ أثناء رفع الملف');
+            const errorData = await uploadRes.json().catch(() => ({ error: t('errorUploadingFile') }));
+            toast.error(errorData.error || t('errorUploadingFile'));
             setSubmitting(false);
             return;
           }
 
           const uploadResult = await uploadRes.json();
           if (!uploadResult.success) {
-            toast.error(uploadResult.error || 'حدث خطأ أثناء رفع الملف');
+            toast.error(uploadResult.error || t('errorUploadingFile'));
             setSubmitting(false);
             return;
           }
@@ -768,9 +775,9 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         } catch (uploadErr) {
           clearTimeout(uploadTimeoutId);
           if (uploadErr instanceof Error && uploadErr.name === 'AbortError') {
-            toast.error('انتهت مهلة رفع الملف. يرجى المحاولة مرة أخرى');
+            toast.error(t('uploadTimeoutRetry'));
           } else {
-            toast.error('حدث خطأ أثناء رفع الملف. يرجى المحاولة مرة أخرى');
+            toast.error(t('errorUploadingFileRetry'));
           }
           setSubmitting(false);
           return;
@@ -792,9 +799,9 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         status: 'submitted',
       });
       if (error) {
-        toast.error('حدث خطأ أثناء تسليم المهمة');
+        toast.error(t('errorSubmittingAssignment'));
       } else {
-        toast.success('تم تسليم المهمة بنجاح');
+        toast.success(t('submissionSuccess'));
         // Send notification to teacher
         try {
           const { getCachedAuthHeaders } = await import('@/lib/client-auth');
@@ -820,7 +827,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         fetchMySubmissions();
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setSubmitting(false);
     }
@@ -878,7 +885,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
 
   const getSubjectNameAll = (subjectId: string): string => {
     const s = subjects.find((sub) => sub.id === subjectId) || allSubjects.find((sub) => sub.id === subjectId);
-    return s?.name || 'مقرر';
+    return s?.name || t('subjectFallback');
   };
 
   // -------------------------------------------------------
@@ -891,21 +898,21 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         return (
           <span className={`inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 font-medium ${sizeClasses}`}>
             <Clock className={size === 'sm' ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-            تم التسليم
+            {t('submittedStatus')}
           </span>
         );
       case 'graded':
         return (
           <span className={`inline-flex items-center gap-1 rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 font-medium ${sizeClasses}`}>
             <CheckCircle2 className={size === 'sm' ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-            تم التقييم
+            {t('gradedStatus')}
           </span>
         );
       case 'returned':
         return (
           <span className={`inline-flex items-center gap-1 rounded-full bg-blue-100 text-blue-700 font-medium ${sizeClasses}`}>
             <MessageSquare className={size === 'sm' ? 'h-2.5 w-2.5' : 'h-3 w-3'} />
-            تم الإرجاع
+            {t('returnedStatus')}
           </span>
         );
     }
@@ -923,14 +930,14 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-700 font-medium text-[10px] px-1.5 py-0.5">
             <AlertCircle className="h-2.5 w-2.5" />
-            انتهى الموعد
+            {t('expiredStatus')}
           </span>
         );
       }
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-700 font-medium text-[10px] px-1.5 py-0.5">
           <AlertCircle className="h-2.5 w-2.5" />
-          لم يسلم
+          {t('notSubmittedStatus')}
         </span>
       );
     }
@@ -955,9 +962,9 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">{t('assignments.title')}</h2>
+          <h2 className="text-2xl font-bold text-foreground">{t('tabAssignments')}</h2>
           <p className="text-muted-foreground mt-1">
-            {role === 'teacher' ? 'إدارة مهامك وتقييم التسليمات' : 'جميع مهامك مرتبة حسب الوقت المتبقي'}
+            {role === 'teacher' ? t('manageAssignmentsDesc') : t('allAssignmentsSortedDesc')}
           </p>
         </div>
         {role === 'teacher' && (
@@ -966,7 +973,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
-            {t('assignments.newAssignment')}
+            {t('addAssignment')}
           </button>
         )}
       </motion.div>
@@ -984,7 +991,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           }`}
         >
           <CheckCircle className="h-3.5 w-3.5" />
-          نشطة
+          {t('active')}
           <span className={`text-xs rounded-full px-1.5 py-0.5 ${
             activeTab === 'active' ? 'bg-white/20' : 'bg-muted'
           }`}>
@@ -1000,7 +1007,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           }`}
         >
           <AlertCircle className="h-3.5 w-3.5" />
-          منتهية
+          {t('expired')}
           <span className={`text-xs rounded-full px-1.5 py-0.5 ${
             activeTab === 'expired' ? 'bg-white/20' : 'bg-muted'
           }`}>
@@ -1013,9 +1020,9 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       {role === 'student' && assignments.length > 0 && (
         <motion.div variants={itemVariants} className="flex gap-1.5 flex-wrap">
           {([
-            { key: 'all' as const, label: 'الكل' },
-            { key: 'submitted' as const, label: 'تم تسليمها' },
-            { key: 'not_submitted' as const, label: 'لم يتم التسليم' },
+            { key: 'all' as const, label: tc('all') },
+            { key: 'submitted' as const, label: t('submittedStatus') },
+            { key: 'not_submitted' as const, label: t('notSubmittedFilter') },
           ]).map((opt) => (
             <button
               key={opt.key}
@@ -1047,17 +1054,17 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
             {submissionFilter !== 'all'
-              ? 'لا توجد مهام مطابقة للفلتر'
+              ? t('noMatchingAssignments')
               : activeTab === 'active'
-                ? (role === 'teacher' ? 'لا توجد مهام نشطة' : 'لا توجد مهام نشطة')
-                : 'لا توجد مهام منتهية'}
+                ? t('noActiveAssignments')
+                : t('noExpiredAssignments')}
           </p>
           <p className="text-sm text-muted-foreground">
             {submissionFilter !== 'all'
-              ? 'جرّب تغيير الفلتر'
+              ? t('tryChangingFilter')
               : activeTab === 'active'
-                ? (role === 'teacher' ? 'ابدأ بإنشاء مهمتك الأولى' : 'لم يتم إضافة مهام بعد')
-                : 'لم تنتهِ صلاحية أي مهمة بعد'}
+                ? (role === 'teacher' ? t('createFirstAssignment') : t('noAssignmentsAddedYet'))
+                : t('noAssignmentsExpiredYet')}
           </p>
         </motion.div>
       ) : (
@@ -1092,7 +1099,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                       <button
                         onClick={(e) => { e.stopPropagation(); openEditModal(assignment); }}
                         className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:text-sky-700 dark:hover:text-sky-300"
-                        title="تعديل"
+                        title={tc('edit')}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
@@ -1100,7 +1107,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                         onClick={(e) => { e.stopPropagation(); setDeleteConfirmId(assignment.id); }}
                         disabled={deletingId === assignment.id}
                         className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600"
-                        title="حذف"
+                        title={tc('delete')}
                       >
                         {deletingId === assignment.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1144,16 +1151,16 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                         {formatDateTime(assignment.due_date)}
                         {!pastDue && countdown && (
                           <span className={`font-medium ${countdown.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}`}>
-                            ({countdown.text})
+                            ({formatCountdown(countdown)})
                           </span>
                         )}
-                        {pastDue && <span className="font-medium text-rose-600">(انتهى)</span>}
+                        {pastDue && <span className="font-medium text-rose-600">({t('expiredParens')})</span>}
                       </div>
                     )}
                     {role === 'teacher' ? (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Users className="h-3 w-3" />
-                        <span>{submissionCounts[assignment.id] || 0} {t('assignments.submit')}</span>
+                        <span>{submissionCounts[assignment.id] || 0} {t('submissions')}</span>
                       </div>
                     ) : (
                       getStudentStatusBadge(assignment)
@@ -1182,13 +1189,13 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 mx-auto mb-4">
                 <Trash2 className="h-6 w-6 text-rose-600" />
               </div>
-              <h3 className="text-lg font-bold text-foreground mb-2">حذف المهمة</h3>
-              <p className="text-sm text-muted-foreground mb-6">هل أنت متأكد من حذف هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.</p>
+              <h3 className="text-lg font-bold text-foreground mb-2">{t('deleteAssignmentTitle')}</h3>
+              <p className="text-sm text-muted-foreground mb-6">{t('deleteAssignmentConfirm')}</p>
               <div className="flex items-center gap-3 justify-center">
                 <button
                   onClick={() => handleDelete(deleteConfirmId)}
@@ -1196,13 +1203,13 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   className="flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-60"
                 >
                   {deletingId === deleteConfirmId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                  حذف
+                  {tc('delete')}
                 </button>
                 <button
                   onClick={() => setDeleteConfirmId(null)}
                   className="rounded-lg border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
                 >
-                  إلغاء
+                  {tc('cancel')}
                 </button>
               </div>
             </motion.div>
@@ -1251,7 +1258,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
           className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
         >
           <Pencil className="h-3 w-3" />
-          تعديل المهمة
+          {t('editAssignment')}
         </button>
       </motion.div>
 
@@ -1259,26 +1266,26 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       <motion.div variants={itemVariants} className="rounded-xl border bg-card p-5 space-y-3">
         {selectedAssignment!.description && (
           <div>
-            <h4 className="text-sm font-semibold text-foreground mb-1">الوصف</h4>
+            <h4 className="text-sm font-semibold text-foreground mb-1">{t('description')}</h4>
             <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedAssignment!.description}</p>
           </div>
         )}
         <div className="flex items-center gap-4 flex-wrap text-sm">
           <div className="flex items-center gap-1.5">
             <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-            <span className="text-muted-foreground">الدرجة القصوى:</span>
+            <span className="text-muted-foreground">{t('maxScoreColon')}</span>
             <span className="font-semibold text-foreground">{selectedAssignment!.max_score}</span>
           </div>
           <div className="flex items-center gap-1.5">
             {selectedAssignment!.allow_file_submission ? (
               <>
                 <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                <span className="text-sky-700 dark:text-sky-300 font-medium">يسمح برفع ملفات</span>
+                <span className="text-sky-700 dark:text-sky-300 font-medium">{t('fileUploadAllowed')}</span>
               </>
             ) : (
               <>
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">تسليم نصي فقط</span>
+                <span className="text-muted-foreground">{t('textSubmissionOnly')}</span>
               </>
             )}
           </div>
@@ -1289,7 +1296,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
       <motion.div variants={itemVariants}>
         <h3 className="text-lg font-bold text-foreground flex items-center gap-2 mb-4">
           <Users className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-          التسليمات
+          {t('submissions')}
           {submissions.length > 0 && (
             <span className="text-xs font-normal text-muted-foreground bg-muted rounded-full px-2 py-0.5">
               {submissions.length}
@@ -1306,24 +1313,24 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-3">
               <Users className="h-7 w-7 text-sky-700 dark:text-sky-300" />
             </div>
-            <p className="text-base font-semibold text-foreground mb-1">لا توجد تسليمات بعد</p>
-            <p className="text-sm text-muted-foreground">سيظهر تسليمات الطلاب هنا</p>
+            <p className="text-base font-semibold text-foreground mb-1">{t('noSubmissionsYet')}</p>
+            <p className="text-sm text-muted-foreground">{t('submissionsWillAppearHere')}</p>
           </div>
         ) : (
           <div className="rounded-xl border bg-card overflow-x-auto">
             <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground min-w-[600px]">
-              <div className="col-span-3">الطالب</div>
-              <div className="col-span-2">تاريخ التسليم</div>
-              <div className="col-span-2">الحالة</div>
-              <div className="col-span-2">الدرجة</div>
-              <div className="col-span-3">إجراءات</div>
+              <div className="col-span-3">{t('student')}</div>
+              <div className="col-span-2">{t('submissionDate')}</div>
+              <div className="col-span-2">{t('status')}</div>
+              <div className="col-span-2">{t('grade')}</div>
+              <div className="col-span-3">{t('actions')}</div>
             </div>
 
             <div className="divide-y">
               {submissions.map((sub) => (
                 <div key={sub.id} className="px-4 py-3 space-y-2 sm:space-y-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center min-w-[600px]">
                   <div className="col-span-3 flex items-center gap-2">
-                    <UserAvatar name={sub.student_name || 'مستخدم'} avatarUrl={sub.student_avatar} size="sm" />
+                    <UserAvatar name={sub.student_name || t('userFallback')} avatarUrl={sub.student_avatar} size="sm" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{sub.student_name}</p>
                       <p className="text-xs text-muted-foreground truncate sm:hidden">
@@ -1359,7 +1366,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                         className="flex items-center gap-1 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
                       >
                         <Award className="h-3 w-3" />
-                        تقييم
+                        {t('evaluate')}
                       </button>
                     )}
                     {sub.content && (
@@ -1370,7 +1377,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                         className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
                       >
                         <MessageSquare className="h-3 w-3" />
-                        المحتوى
+                        {t('content')}
                       </button>
                     )}
                     {sub.file_id && (
@@ -1382,7 +1389,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                         className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
                       >
                         <FileText className="h-3 w-3" />
-                        معاينة الملف
+                        {t('filePreview')}
                       </button>
                     )}
                   </div>
@@ -1391,11 +1398,11 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     <div className="col-span-12 mt-2 rounded-lg border bg-muted/30 p-3 space-y-3">
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                         <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                        تقييم تسليم {sub.student_name}
+                        {t('gradeSubmissionFor')} {sub.student_name}
                       </h4>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="text-xs font-medium text-muted-foreground mb-1 block">الدرجة</label>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">{t('grade')}</label>
                           <input
                             type="number"
                             min={0}
@@ -1408,14 +1415,14 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                           />
                         </div>
                         <div>
-                          <label className="text-xs font-medium text-muted-foreground mb-1 block">ملاحظات</label>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">{t('feedbackLabel')}</label>
                           <textarea
                             value={gradeFeedback}
                             onChange={(e) => setGradeFeedback(e.target.value)}
-                            placeholder="أضف ملاحظاتك هنا..."
+                            placeholder={t('feedbackPlaceholder')}
                             rows={2}
                             className="w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
-                            dir={dir}
+                            dir={direction}
                           />
                         </div>
                       </div>
@@ -1430,7 +1437,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                           ) : (
                             <CheckCircle2 className="h-3 w-3" />
                           )}
-                          حفظ الدرجة
+                          {t('saveGrade')}
                         </button>
                         <button
                           onClick={() => {
@@ -1440,7 +1447,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                           }}
                           className="rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
                         >
-                          إلغاء
+                          {tc('cancel')}
                         </button>
                       </div>
                     </div>
@@ -1490,17 +1497,17 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   <span className={`flex items-center gap-1 ${pastDue ? 'text-rose-600' : countdown?.urgent ? 'text-amber-600' : ''}`}>
                     <Calendar className="h-3.5 w-3.5" />
                     {formatDateTime(selectedAssignment!.due_date)}
-                    {pastDue && <span className="font-medium">(انتهى)</span>}
+                    {pastDue && <span className="font-medium">({t('expiredParens')})</span>}
                     {!pastDue && countdown && (
                       <span className={`font-medium ${countdown.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}`}>
-                        ({countdown.text} متبقي)
+                        ({formatCountdown(countdown)} {t('remaining')})
                       </span>
                     )}
                   </span>
                 )}
                 <span className="flex items-center gap-1">
                   <Award className="h-3.5 w-3.5" />
-                  {selectedAssignment!.max_score} درجة
+                  {selectedAssignment!.max_score} {t('pointsUnit')}
                 </span>
               </div>
             </div>
@@ -1511,26 +1518,26 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         <motion.div variants={itemVariants} className="rounded-xl border bg-card p-5 space-y-3">
           {selectedAssignment!.description && (
             <div>
-              <h4 className="text-sm font-semibold text-foreground mb-1">الوصف</h4>
+              <h4 className="text-sm font-semibold text-foreground mb-1">{t('description')}</h4>
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedAssignment!.description}</p>
             </div>
           )}
           <div className="flex items-center gap-4 flex-wrap text-sm">
             <div className="flex items-center gap-1.5">
               <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <span className="text-muted-foreground">الدرجة القصوى:</span>
+              <span className="text-muted-foreground">{t('maxScoreColon')}</span>
               <span className="font-semibold text-foreground">{selectedAssignment!.max_score}</span>
             </div>
             <div className="flex items-center gap-1.5">
               {selectedAssignment!.allow_file_submission ? (
                 <>
                   <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                  <span className="text-sky-700 dark:text-sky-300 font-medium">يسمح برفع ملفات</span>
+                  <span className="text-sky-700 dark:text-sky-300 font-medium">{t('fileUploadAllowed')}</span>
                 </>
               ) : (
                 <>
                   <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">تسليم نصي فقط</span>
+                  <span className="text-muted-foreground">{t('textSubmissionOnly')}</span>
                 </>
               )}
             </div>
@@ -1541,7 +1548,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         {pastDue && !mySub && (
           <motion.div variants={itemVariants} className="rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-rose-600 shrink-0" />
-            <p className="text-sm text-rose-700 font-medium">انتهى الموعد النهائي لهذه المهمة. لا يمكنك التسليم الآن.</p>
+            <p className="text-sm text-rose-700 font-medium">{t('deadlineExpiredCannotSubmit')}</p>
           </motion.div>
         )}
 
@@ -1549,7 +1556,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         {mySub && (
           <motion.div variants={itemVariants} className="rounded-xl border bg-card p-5 space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-foreground">تسليمي</h4>
+              <h4 className="text-sm font-semibold text-foreground">{t('mySubmission')}</h4>
               {getStatusBadge(mySub.status, 'md')}
             </div>
             {mySub.content && <p className="text-sm text-muted-foreground">{mySub.content}</p>}
@@ -1562,7 +1569,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
               >
                 <FileText className="h-3 w-3" />
-                معاينة الملف
+                {t('filePreview')}
               </button>
             )}
             {mySub.score !== undefined && mySub.score !== null && selectedAssignment!.show_grade !== false && (
@@ -1578,7 +1585,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
             )}
             {mySub.feedback && selectedAssignment!.show_grade !== false && (
               <div className="p-2.5 rounded-lg bg-muted/30">
-                <p className="text-xs font-medium text-foreground mb-1">ملاحظات المعلم:</p>
+                <p className="text-xs font-medium text-foreground mb-1">{t('teacherFeedback')}</p>
                 <p className="text-sm text-muted-foreground">{mySub.feedback}</p>
               </div>
             )}
@@ -1588,7 +1595,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
         {/* Submit form - only if not submitted and not past due */}
         {!mySub && !pastDue && (
           <motion.div variants={itemVariants} className="rounded-xl border bg-card p-5 space-y-4">
-            <h4 className="text-sm font-semibold text-foreground">تسليم المهمة</h4>
+            <h4 className="text-sm font-semibold text-foreground">{t('submitAssignmentTitle')}</h4>
 
             {/* Submission mode tabs */}
             <div className="flex gap-2 flex-wrap">
@@ -1601,7 +1608,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 }`}
               >
                 <MessageSquare className="h-3 w-3" />
-                نص
+                {t('textMode')}
               </button>
               {selectedAssignment!.allow_file_submission && (
                 <>
@@ -1614,7 +1621,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     }`}
                   >
                     <FileUp className="h-3 w-3" />
-                    رفع ملف
+                    {t('uploadFileMode')}
                   </button>
                   <button
                     onClick={() => { setSubmitMode('existing'); fetchMyFiles(); }}
@@ -1625,7 +1632,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                     }`}
                   >
                     <FolderOpen className="h-3 w-3" />
-                    من ملفاتي
+                    {t('fromMyFiles')}
                   </button>
                 </>
               )}
@@ -1636,10 +1643,10 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               <textarea
                 value={submitContent}
                 onChange={(e) => setSubmitContent(e.target.value)}
-                placeholder="اكتب إجابتك هنا..."
+                placeholder={t('writeAnswerPlaceholder')}
                 rows={5}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none"
-                dir={dir}
+                dir={direction}
                 disabled={submitting}
               />
             )}
@@ -1671,12 +1678,12 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 ) : (
                   <>
                     <Upload className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">اسحب الملف هنا أو</p>
+                    <p className="text-sm text-muted-foreground">{t('dragFileOr')}</p>
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       className="mt-2 text-sm font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200"
                     >
-                      اختر ملف
+                      {t('chooseFile')}
                     </button>
                   </>
                 )}
@@ -1702,7 +1709,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                 {myFiles.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground text-sm">
                     <FolderOpen className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                    لا توجد ملفات. قم برفع ملف أولاً من قسم ملفاتي.
+                    {t('noFilesUploadFirst')}
                   </div>
                 ) : (
                   myFiles.map((file) => (
@@ -1737,7 +1744,7 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              تسليم
+              {t('submitBtn')}
             </button>
           </motion.div>
         )}
@@ -1781,12 +1788,12 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  {mode === 'create' ? 'إنشاء مهمة جديدة' : 'تعديل المهمة'}
+                  {mode === 'create' ? t('createNewAssignment') : t('editAssignment')}
                 </h3>
                 <button onClick={() => { if (!isProcessing) setIsOpen(false); }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
                   <X className="h-4 w-4" />
@@ -1795,15 +1802,15 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               <div className="p-5 space-y-4">
                 {mode === 'create' && (
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">المقرر</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('subjectLabel')}</label>
                     <select
                       value={newSubjectId}
                       onChange={(e) => setNewSubjectId(e.target.value)}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30"
-                      dir={dir}
+                      dir={direction}
                       disabled={isProcessing}
                     >
-                      <option value="">اختر المقرر</option>
+                      <option value="">{t('selectSubjectPlaceholder')}</option>
                       {subjects.map((s) => (
                         <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
@@ -1811,29 +1818,29 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
                   </div>
                 )}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المهمة</label>
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثال: واجب الفصل الثاني" className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir={dir} disabled={isProcessing} />
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('assignmentTitle')}</label>
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('titlePlaceholder')} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir={direction} disabled={isProcessing} />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
-                  <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="وصف المهمة..." rows={3} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none" dir={dir} disabled={isProcessing} />
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('descriptionOptional')}</label>
+                  <textarea value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={t('descriptionPlaceholder')} rows={3} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30 resize-none" dir={direction} disabled={isProcessing} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
-                    الموعد النهائي (التاريخ والوقت)
+                    {t('deadlineDatetimeLabel')}
                   </label>
                   <input type="datetime-local" value={dueDatetime} onChange={(e) => setDueDatetime(e.target.value)} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir="ltr" disabled={isProcessing} required />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">الدرجة القصوى</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('maxScore')}</label>
                     <input type="number" min={1} value={maxScore} onChange={(e) => setMaxScore(Number(e.target.value))} className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-600/30" dir="ltr" disabled={isProcessing} />
                   </div>
                   <div className="flex items-end">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={allowFile} onChange={(e) => setAllowFile(e.target.checked)} className="h-4 w-4 rounded border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 focus:ring-sky-600" disabled={isProcessing} />
-                      <span className="text-sm font-medium text-foreground">السماح برفع ملفات</span>
+                      <span className="text-sm font-medium text-foreground">{t('allowFileUpload')}</span>
                     </label>
                   </div>
                 </div>
@@ -1841,10 +1848,10 @@ export default function AssignmentsSection({ profile, role }: AssignmentsSection
               <div className="flex items-center gap-3 border-t p-5">
                 <button onClick={onSubmit} disabled={isProcessing} className="flex items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-800 disabled:opacity-60">
                   {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'create' ? <Plus className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                  {mode === 'create' ? 'إنشاء المهمة' : 'حفظ التعديلات'}
+                  {mode === 'create' ? t('createAssignmentBtn') : t('saveChangesBtn')}
                 </button>
                 <button onClick={() => { if (!isProcessing) setIsOpen(false); }} disabled={isProcessing} className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-60">
-                  إلغاء
+                  {tc('cancel')}
                 </button>
               </div>
             </motion.div>

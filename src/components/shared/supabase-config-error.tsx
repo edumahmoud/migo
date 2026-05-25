@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Database, AlertTriangle, RefreshCw, X, GraduationCap } from 'lucide-react';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 const REQUIRED_ENV_VARS = [
   'NEXT_PUBLIC_SUPABASE_URL',
@@ -27,14 +27,14 @@ function getMissingEnvVars(): string[] {
   // If the public vars are missing, we know configuration is incomplete.
   // We'll still show it in the list as informational.
   if (missing.length > 0) {
-    missing.push('SUPABASE_SERVICE_ROLE_KEY (متاح فقط على الخادم)');
+    missing.push(t('supabaseServiceRoleKey'));
   }
 
   return missing;
 }
 
 export default function SupabaseConfigError() {
-  const { dir } = useI18n();
+  const { t, direction } = useTranslations('common');
   const missingVars = getMissingEnvVars();
   const hasMissingVars = missingVars.length > 0;
 
@@ -54,7 +54,7 @@ export default function SupabaseConfigError() {
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4"
-      dir={dir}
+      dir={direction}
     >
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -96,7 +96,7 @@ export default function SupabaseConfigError() {
             transition={{ delay: 0.4 }}
             className="text-xl font-bold text-gray-900 dark:text-foreground mb-2"
           >
-            خطأ في الاتصال بقاعدة البيانات
+            {t('dbConnectionError')}
           </motion.h1>
 
           {/* Description */}
@@ -106,7 +106,7 @@ export default function SupabaseConfigError() {
             transition={{ delay: 0.5 }}
             className="text-sm text-gray-500 dark:text-muted-foreground mb-5 leading-relaxed"
           >
-            لم يتمكن التطبيق من الاتصال بقاعدة البيانات. يرجى التحقق من إعدادات Supabase أو الاتصال بالإنترنت.
+            {t('dbConnectionErrorDesc')}
           </motion.p>
 
           {/* Missing env vars section */}
@@ -120,7 +120,7 @@ export default function SupabaseConfigError() {
               <div className="flex items-center gap-2 mb-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                 <p className="text-sm font-bold text-amber-800">
-                  متغيرات البيئة المفقودة
+                  {t('missingEnvVars')}
                 </p>
               </div>
               <ul className="space-y-1.5 ms-6">
@@ -134,7 +134,7 @@ export default function SupabaseConfigError() {
                 ))}
               </ul>
               <p className="text-xs text-amber-600 mt-3 leading-relaxed">
-                يرجى إضافة هذه المتغيرات في ملف <code className="font-mono bg-amber-100/80 px-1 py-0.5 rounded">.env.local</code> وإعادة تشغيل التطبيق.
+                {t('addVarsInFile')} <code className="font-mono bg-amber-100/80 px-1 py-0.5 rounded">.env.local</code>  {t('restartApp')}
               </p>
             </motion.div>
           )}
@@ -148,7 +148,7 @@ export default function SupabaseConfigError() {
               className="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4 text-end"
             >
               <p className="text-sm text-sky-900 leading-relaxed">
-                متغيرات البيئة مضبوطات، لكن يبدو أن هناك مشكلة في الاتصال بخادم Supabase. تحقق من اتصالك بالإنترنت أو صحة عنوان URL والمفتاح.
+                {t('envVarsSetConnectionIssue')}
               </p>
             </motion.div>
           )}
@@ -165,7 +165,7 @@ export default function SupabaseConfigError() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-sky-700 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 hover:from-sky-800 hover:to-teal-700 active:from-sky-900 active:to-teal-800 transition-all duration-300 w-full sm:w-auto"
             >
               <RefreshCw className="h-4 w-4" />
-              إعادة المحاولة
+              {t('retry')}
             </button>
 
             <button
@@ -173,7 +173,7 @@ export default function SupabaseConfigError() {
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-gray-200 dark:border-border px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-foreground shadow-sm hover:bg-gray-50 dark:hover:bg-muted/50 active:bg-gray-100 dark:active:bg-muted transition-all duration-200 w-full sm:w-auto"
             >
               <X className="h-4 w-4" />
-              الخروج
+              {t('exit')}
             </button>
           </motion.div>
         </div>
@@ -185,7 +185,7 @@ export default function SupabaseConfigError() {
           transition={{ delay: 1 }}
           className="text-center text-xs text-gray-400 dark:text-muted-foreground mt-4"
         >
-          أتيندو — منصة تعليمية ذكية
+          {t('appName')} — {t('smartPlatform')}
         </motion.p>
       </motion.div>
     </div>

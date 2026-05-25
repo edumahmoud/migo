@@ -49,7 +49,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { UserProfile, UserFile, FileShare, Subject } from '@/lib/types';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import UserAvatar, { getRoleLabel, getTitleLabel, formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
 
@@ -234,7 +234,7 @@ interface PendingUpload {
 // Main Component
 // -------------------------------------------------------
 export default function PersonalFilesSection({ profile, role }: PersonalFilesSectionProps) {
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
   const { openProfile } = useAppStore();
   const isMobile = useIsMobile();
 
@@ -1922,7 +1922,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 }}
                 className="flex-1 rounded-md border border-sky-600 bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30"
                 autoFocus
-                dir={dir}
+                dir={direction}
               />
               <span className="text-xs text-muted-foreground">.{getFileExtension(file.file_name)}</span>
               <button
@@ -1983,7 +1983,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             )}
 
             {/* Action menu */}
-            <DropdownMenu dir={dir}>
+            <DropdownMenu dir={direction}>
               <DropdownMenuTrigger asChild>
                 <button
                   className="touch-target shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
@@ -2256,8 +2256,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20, pointerEvents: 'none' as const }}
-            className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
-            dir={dir}
+            className="fixed bottom-20 sm:bottom-6 start-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
+            dir={direction}
           >
             <span className="text-sm font-medium text-foreground whitespace-nowrap">
               {t('files.selectedCount', { count: selectedFileIds.size })}
@@ -2282,7 +2282,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </div>
             ) : (
               <>
-                <DropdownMenu dir={dir}>
+                <DropdownMenu dir={direction}>
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center gap-1.5 rounded-md bg-sky-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-sky-800 transition-colors">
                       {t('files.bulkActions')}
@@ -2521,7 +2521,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-lg rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir={dir}
+            dir={direction}
           >
             {/* Modal header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
@@ -2634,7 +2634,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                                 : 'border-border bg-background text-foreground focus:ring-sky-600'
                             }`}
                             placeholder={t('files.fileNamePlaceholder')}
-                            dir={dir}
+                            dir={direction}
                           />
                           {item.extension && (
                             <span className={`text-xs shrink-0 ${
@@ -2763,7 +2763,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir={dir}
+            dir={direction}
           >
             <div className="flex items-center justify-between border-b p-5 shrink-0">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -2911,7 +2911,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir={dir}
+            dir={direction}
           >
             {/* Modal header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
@@ -2978,7 +2978,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     onChange={(e) => handleSearchUsers(e.target.value)}
                     placeholder={t('files.searchUserPlaceholder')}
                     className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir={dir}
+                    dir={direction}
                     disabled={searchingUsers}
                   />
                   {searchingUsers && (
@@ -3177,7 +3177,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-sm rounded-2xl border bg-background shadow-xl"
-            dir={dir}
+            dir={direction}
           >
             <div className="flex items-center justify-between border-b p-5">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -3292,7 +3292,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-4xl max-h-[90vh] rounded-2xl border bg-background shadow-xl overflow-hidden flex flex-col"
-            dir={dir}
+            dir={direction}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4 shrink-0">
@@ -3409,7 +3409,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir={dir}
+            dir={direction}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
@@ -3474,7 +3474,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     onChange={(e) => handleBulkShareSearch(e.target.value)}
                     placeholder={t('files.searchUserPlaceholder')}
                     className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir={dir}
+                    dir={direction}
                     disabled={bulkShareSearching}
                   />
                   {bulkShareSearching && (
@@ -3633,7 +3633,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
-            dir={dir}
+            dir={direction}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0">
@@ -3721,7 +3721,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Main Render
   // -------------------------------------------------------
   return (
-    <div className="space-y-6" dir={dir}>
+    <div className="space-y-6" dir={direction}>
       {/* Tabs: My Files / Shared with me */}
       <div className="flex items-center gap-2">
         <button

@@ -33,7 +33,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import SummaryView from '@/components/shared/summary-view';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Summary, UserFile, Subject } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Types
@@ -71,7 +71,9 @@ const cardHover = {
 // Main Component
 // -------------------------------------------------------
 export default function TeacherSummariesSection({ profile }: TeacherSummariesSectionProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations('summary');
+  const { t: tc } = useTranslations('common');
+  const { t: tNav } = useTranslations('nav');
   const isMobile = useIsMobile();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setViewingQuizId } = useAppStore();
@@ -139,7 +141,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     // Enforce file size limit (10MB) immediately
     const MAX_FILE_SIZE = 10 * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE) {
-      toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB)');
+      toast.error(t('fileSizeExceedsLimit', { size: '10 MB' }));
       setSummaryFile(null);
       setSummaryFileBuffer(null);
       setSummaryFileName('');
@@ -352,16 +354,16 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم حذف الملخص بنجاح');
+        toast.success(t('summaryDeleted'));
         // Add to recently deleted set to prevent stale re-fetch from re-adding it
         recentlyDeletedIdsRef.current.add(summaryId);
         setTimeout(() => recentlyDeletedIdsRef.current.delete(summaryId), 10000);
         setSummaries(prev => prev.filter(s => s.id !== summaryId));
       } else {
-        toast.error(data.error || 'فشل حذف الملخص');
+        toast.error(data.error || t('summaryDeleteFailed'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء حذف الملخص');
+      toast.error(t('summaryDeleteError'));
     } finally {
       setDeletingSummaryId(null);
     }
@@ -380,22 +382,22 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
   const handleCreateSummary = async () => {
     const title = summaryTitle.trim();
     if (!title) {
-      toast.error('يرجى إدخال عنوان الملخص');
+      toast.error(t('summaryTitleRequired'));
       return;
     }
 
     if (summaryInputMode === 'text' && !summaryText.trim()) {
-      toast.error('يرجى إدخال المحتوى');
+      toast.error(t('contentRequired'));
       return;
     }
 
     if ((summaryInputMode === 'file' || summaryInputMode === 'transcribe') && !summaryFile) {
-      toast.error('يرجى اختيار ملف');
+      toast.error(t('selectFileRequired'));
       return;
     }
 
     if (summaryInputMode === 'existing' && !selectedExistingFile) {
-      toast.error('يرجى اختيار ملف من ملفاتك');
+      toast.error(t('selectFileFromYourFiles'));
       return;
     }
 
@@ -424,7 +426,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       // Fallback: try to read now if we didn't get the buffer earlier
       const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (capturedFile.size > MAX_FILE_SIZE) {
-        toast.error('حجم الملف يتجاوز الحد الأقصى (10 MB)');
+        toast.error(t('fileSizeExceedsLimit', { size: '10 MB' }));
         setCreatingSummary(false);
         return;
       }
@@ -432,7 +434,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         preReadFileData = await capturedFile.arrayBuffer();
         console.log('[Summary] Fallback pre-read file data, size:', preReadFileData.byteLength, 'bytes');
       } catch {
-        toast.error('فشل في قراءة الملف. يرجى إعادة اختيار الملف والمحاولة مرة أخرى');
+        toast.error(t('fileReadRetry'));
         setCreatingSummary(false);
         return;
       }
@@ -467,8 +469,8 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
     const isTranscribe = inputMode === 'transcribe' || (inputMode === 'existing' && capturedExistingFileTranscribe);
     toast.info(isTranscribe
-      ? 'جاري استخراج النص من الملف في الخلفية...'
-      : 'جاري استخراج النص وتوليد الملخص في الخلفية...'
+      ? t('extractingTextBackground')
+      : t('extractingAndSummarizingBackground')
     );
 
     setPendingSummaries(prev => [...prev, pending]);
@@ -489,7 +491,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         const isMob = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         const token = await waitForSession(isMob ? 15000 : 10000);
         if (!token) {
-          throw new Error('انتهت جلسة تسجيل الدخول');
+          throw new Error(t('sessionExpired'));
         }
 
         let originalContent = '';
@@ -556,7 +558,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               const sourceBuffer = preReadFileData || (capturedFile ? await capturedFile.arrayBuffer() : null);
               // Note: capturedFile.arrayBuffer() may fail on mobile if File ref is invalid,
               // but preReadFileData should always be available from the onChange pre-read.
-              if (!sourceBuffer) throw new Error('لم يتم العثور على بيانات الملف');
+              if (!sourceBuffer) throw new Error(t('fileDataNotFound'));
 
               if (!sourceFileType && capturedFileName) {
                 sourceFileType = /\.(docx|doc)$/i.test(capturedFileName) ? 'docx' : /\.pptx$/i.test(capturedFileName) ? 'pptx' : /\.(txt|md|csv)$/i.test(capturedFileName) ? 'txt' : 'pdf';
@@ -594,11 +596,11 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           }
 
           if (!extractionSucceeded) {
-            throw new Error('فشل في استخراج النص من الملف');
+            throw new Error(t('textExtractionFailed'));
           }
 
           if (!originalContent.trim()) {
-            throw new Error('لم يتم العثور على نص في الملف');
+            throw new Error(t('noTextFoundInFile'));
           }
 
           if (inputMode === 'transcribe') {
@@ -651,7 +653,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               summaryContent = summaryData.data?.summary || '';
               savedSummaryId = summaryData.data?.summaryId || '';
             } else {
-              throw new Error(summaryData.error || 'فشل إنشاء الملخص');
+              throw new Error(summaryData.error || t('summaryCreateFailed'));
             }
           }
         } else if (inputMode === 'existing' && capturedExistingFile) {
@@ -696,7 +698,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           if (!extractionSucceeded) {
             try {
               const fileRes = await fetch(capturedExistingFile.file_url, { signal: abortController.signal });
-              if (!fileRes.ok) throw new Error('فشل في تحميل الملف');
+              if (!fileRes.ok) throw new Error(t('fileDownloadFailed'));
               const arrayBuffer = await fileRes.arrayBuffer();
 
               const extractionTimeoutMs = 30000;
@@ -713,11 +715,11 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           }
 
           if (!extractionSucceeded) {
-            throw new Error('فشل في استخراج النص من الملف');
+            throw new Error(t('textExtractionFailed'));
           }
 
           if (!originalContent.trim()) {
-            throw new Error('لم يتم العثور على نص في الملف');
+            throw new Error(t('noTextFoundInFile'));
           }
 
           if (capturedExistingFileTranscribe) {
@@ -770,7 +772,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               summaryContent = summaryData.data?.summary || '';
               savedSummaryId = summaryData.data?.summaryId || '';
             } else {
-              throw new Error(summaryData.error || 'فشل إنشاء الملخص');
+              throw new Error(summaryData.error || t('summaryCreateFailed'));
             }
           }
         } else {
@@ -797,7 +799,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
             summaryContent = summaryData.data?.summary || '';
             savedSummaryId = summaryData.data?.summaryId || '';
           } else {
-            throw new Error(summaryData.error || 'فشل إنشاء الملخص');
+            throw new Error(summaryData.error || t('summaryCreateFailed'));
           }
         }
 
@@ -859,9 +861,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         // Success
         setPendingSummaries(prev => prev.filter(s => s.id !== pendingId));
         if (savedSummaryId) {
-          toast.success(isTranscribe ? 'تم تفريغ النص بنجاح' : 'تم إنشاء الملخص بنجاح');
+          toast.success(isTranscribe ? t('transcriptionSuccess') : t('summaryCreated'));
         } else {
-          toast.warning(isTranscribe ? 'تم استخراج النص لكن فشل الحفظ. سيظهر بعد قليل.' : 'تم إنشاء الملخص لكن فشل الحفظ. سيظهر بعد قليل.', { duration: 8000 });
+          toast.warning(isTranscribe ? t('transcriptionExtractedSaveFailed') : t('summaryCreatedSaveFailed'), { duration: 8000 });
         }
         // Delay fetchSummaries to give DB time to propagate
         setTimeout(() => fetchSummaries(), 5000);
@@ -869,7 +871,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         setPendingSummaries(prev => prev.filter(s => s.id !== pendingId));
-        toast.error(errMsg || 'فشل في إنشاء الملخص');
+        toast.error(errMsg || t('summaryCreateFailed'));
       } finally {
         clearTimeout(clientTimeoutId);
       }
@@ -909,15 +911,15 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">{t('nav.summaries')}</h2>
-          <p className="text-muted-foreground mt-1">فرّغ محتوى الملفات وأنشئ ملخصات واختبارات لطلابك</p>
+          <h2 className="text-2xl font-bold text-foreground">{tNav('summaries')}</h2>
+          <p className="text-muted-foreground mt-1">{t('transcribeAndSummarize')}</p>
         </div>
         <button
           onClick={() => setNewSummaryOpen(true)}
           className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <Plus className="h-4 w-4" />
-          جديد
+          {tc('new')}
         </button>
       </motion.div>
 
@@ -927,26 +929,26 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           <div className="flex items-center gap-2 mb-2">
             <Loader2 className="h-4 w-4 animate-spin text-sky-700" />
             <span className="text-sm font-medium text-sky-800">
-              جاري إنشاء {pendingSummaries.length} عنصر...
+              {t('creatingItems', { count: pendingSummaries.length })}
             </span>
           </div>
           {pendingSummaries.map(ps => (
             <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 py-1 ms-6">
               <span className="font-medium">{ps.title}</span>
               <span className="text-sky-700/70">
-                {ps.status === 'extracting' && (ps.mode === 'transcribe' ? '• استخراج النص (تفريغ)...' : '• استخراج النص...')}
-                {ps.status === 'summarizing' && '• توليد الملخص...'}
-                {ps.status === 'saving' && '• حفظ...'}
-                {ps.status === 'cancelled' && '• تم الإلغاء'}
+                {ps.status === 'extracting' && (ps.mode === 'transcribe' ? `• ${t('extractingTextTranscription')}` : `• ${t('extractingText')}`)}
+                {ps.status === 'summarizing' && `• ${t('generatingSummary')}`}
+                {ps.status === 'saving' && `• ${t('phases.saving')}`}
+                {ps.status === 'cancelled' && `• ${t('cancelled')}`}
               </span>
               {ps.status !== 'cancelled' && ps.status !== 'saving' && (
                 <button
                   onClick={() => cancelPendingSummary(ps.id)}
                   className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 hover:bg-rose-50 transition-colors"
-                  title="إلغاء"
+                  title={tc('cancel')}
                 >
                   <XCircle className="h-3 w-3" />
-                  إلغاء
+                  {tc('cancel')}
                 </button>
               )}
             </div>
@@ -958,7 +960,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
       {loadingSummaries ? (
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-sky-700 mb-4" />
-          <p className="text-muted-foreground text-sm">جاري تحميل الملخصات...</p>
+          <p className="text-muted-foreground text-sm">{t('loadingSummaries')}</p>
         </div>
       ) : summaries.length === 0 && pendingSummaries.length === 0 ? (
         <motion.div
@@ -968,14 +970,14 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
             <FileText className="h-8 w-8 text-sky-700" />
           </div>
-          <p className="text-lg font-semibold text-foreground mb-1">لا توجد ملخصات</p>
-          <p className="text-sm text-muted-foreground mb-4">ابدأ بتفريغ محتوى ملف أو إنشاء ملخص دراسي لطلابك</p>
+          <p className="text-lg font-semibold text-foreground mb-1">{t('noSummaries')}</p>
+          <p className="text-sm text-muted-foreground mb-4">{t('startByTranscribing')}</p>
           <button
             onClick={() => setNewSummaryOpen(true)}
             className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-sky-800"
           >
             <Plus className="h-4 w-4" />
-            إنشاء ملخص
+            {t('createSummary')}
           </button>
         </motion.div>
       ) : (
@@ -1012,9 +1014,9 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                         : 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
                     }`}>
                       {isTranscribed ? (
-                        <><BookOpen className="h-3 w-3" /> تفريغ</>
+                        <><BookOpen className="h-3 w-3" /> {t('transcription')}</>
                       ) : (
-                        <><Sparkles className="h-3 w-3" /> ملخص AI</>
+                        <><Sparkles className="h-3 w-3" /> {t('aiSummary')}</>
                       )}
                     </span>
                     {summary.source_file_type && (
@@ -1058,11 +1060,11 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg rounded-2xl border bg-background shadow-xl max-h-[90vh] overflow-y-auto"
-              dir={dir}
+              dir={direction}
             >
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
-                <h3 className="text-lg font-semibold text-foreground">إنشاء ملخص / تفريغ</h3>
+                <h3 className="text-lg font-semibold text-foreground">{t('createSummaryOrTranscription')}</h3>
                 <button
                   onClick={() => setNewSummaryOpen(false)}
                   className="rounded-md p-1.5 text-muted-foreground hover:bg-muted transition-colors"
@@ -1075,27 +1077,27 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               <div className="p-5 space-y-4">
                 {/* Title */}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">العنوان</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('title')}</label>
                   <input
                     type="text"
                     value={summaryTitle}
                     onChange={(e) => setSummaryTitle(e.target.value)}
-                    placeholder="مثال: ملخص محاضرة الفيزياء..."
+                    placeholder={t('titlePlaceholder')}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
-                    dir={dir}
+                    dir={direction}
                   />
                 </div>
 
                 {/* Subject selection */}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">المقرر (اختياري)</label>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('subjectOptional')}</label>
                   <select
                     value={selectedSubjectId}
                     onChange={(e) => setSelectedSubjectId(e.target.value)}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
-                    dir={dir}
+                    dir={direction}
                   >
-                    <option value="">بدون مقرر</option>
+                    <option value="">{t('noSubject')}</option>
                     {subjects.map(s => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
@@ -1104,7 +1106,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
                 {/* Input mode tabs */}
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-2 block">طريقة الإدخال</label>
+                  <label className="text-sm font-medium text-foreground mb-2 block">{t('inputMethod')}</label>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setSummaryInputMode('text')}
@@ -1115,7 +1117,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       }`}
                     >
                       <FileText className="h-4 w-4" />
-                      نص
+                      {t('fromText')}
                     </button>
                     <button
                       onClick={() => setSummaryInputMode('transcribe')}
@@ -1126,7 +1128,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       }`}
                     >
                       <BookOpen className="h-4 w-4" />
-                      تفريغ ملف
+                      {t('transcribeFile')}
                     </button>
                     <button
                       onClick={() => setSummaryInputMode('file')}
@@ -1137,7 +1139,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       }`}
                     >
                       <Upload className="h-4 w-4" />
-                      تلخيص ملف
+                      {t('summarizeFile')}
                     </button>
                     <button
                       onClick={() => {
@@ -1167,18 +1169,18 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       }`}
                     >
                       <FolderOpen className="h-4 w-4" />
-                      ملفاتي
+                      {t('myFiles')}
                     </button>
                   </div>
                   {summaryInputMode === 'transcribe' && (
                     <p className="text-xs text-teal-600/80 mt-2">
-                      سيتم استخراج النص من ملف PDF أو Word فقط دون تلخيص
+                      {t('transcribeOnlyDesc')}
                     </p>
                   )}
                   {summaryInputMode === 'existing' && (
                     <div className="mt-2 space-y-2">
                       <p className="text-xs text-sky-600/80">
-                        اختر ملفاً من ملفاتك المرفوعة مسبقاً
+                        {t('selectFromYourFiles')}
                       </p>
                       {/* Sub-toggle: Summarize vs Transcribe */}
                       <div className="flex items-center gap-2">
@@ -1192,7 +1194,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                           }`}
                         >
                           <CheckCircle2 className="h-3 w-3" />
-                          تلخيص بالذكاء الاصطناعي
+                          {t('aiSummarize')}
                         </button>
                         <button
                           type="button"
@@ -1204,12 +1206,12 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                           }`}
                         >
                           <BookOpen className="h-3 w-3" />
-                          تفريغ النص فقط
+                          {t('extractTextOnly')}
                         </button>
                       </div>
                       {existingFileTranscribe && (
                         <p className="text-xs text-teal-600/70">
-                          سيتم استخراج النص من الملف فقط دون تلخيص
+                          {t('extractTextOnlyDesc')}
                         </p>
                       )}
                     </div>
@@ -1219,14 +1221,14 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 {/* Text input */}
                 {summaryInputMode === 'text' && (
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">المحتوى</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('content')}</label>
                     <textarea
                       value={summaryText}
                       onChange={(e) => setSummaryText(e.target.value)}
-                      placeholder="الصق المحتوى الدراسي هنا..."
+                      placeholder={t('enterOrPasteContent')}
                       rows={6}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors resize-none"
-                      dir={dir}
+                      dir={direction}
                     />
                   </div>
                 )}
@@ -1234,7 +1236,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 {/* File upload - shown for both 'file' and 'transcribe' modes */}
                 {(summaryInputMode === 'file' || summaryInputMode === 'transcribe') && (
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">ملف PDF أو Word أو PowerPoint</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('pdfWordPptxFile')}</label>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -1259,8 +1261,8 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                       ) : (
                         <>
                           <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-sky-400'}`} />
-                          <span className="text-sm text-muted-foreground">اضغط لاختيار ملف</span>
-                          <span className="text-xs text-muted-foreground/60">PDF أو Word أو PowerPoint (بحد أقصى 10 MB)</span>
+                          <span className="text-sm text-muted-foreground">{t('clickToSelectFile')}</span>
+                          <span className="text-xs text-muted-foreground/60">{t('pdfWordPptxMaxSize')}</span>
                         </>
                       )}
                     </button>
@@ -1270,17 +1272,17 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                 {/* Existing files selection */}
                 {summaryInputMode === 'existing' && (
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">اختر ملفاً من ملفاتك</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('selectFileFromYourFiles')}</label>
                     {loadingExistingFiles ? (
                       <div className="flex items-center justify-center py-8 gap-2">
                         <Loader2 className="h-5 w-5 animate-spin text-sky-600" />
-                        <span className="text-sm text-muted-foreground">جاري تحميل الملفات...</span>
+                        <span className="text-sm text-muted-foreground">{t('loadingFiles')}</span>
                       </div>
                     ) : existingFiles.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30">
                         <FolderOpen className="h-8 w-8 text-sky-400" />
-                        <span className="text-sm text-muted-foreground">لا توجد ملفات مستندية مرفوعة</span>
-                        <span className="text-xs text-muted-foreground/60">ارفع ملفات PDF أو Word من قسم الملفات</span>
+                        <span className="text-sm text-muted-foreground">{t('noDocumentFiles')}</span>
+                        <span className="text-xs text-muted-foreground/60">{t('uploadFilesFromFilesSection')}</span>
                       </div>
                     ) : (
                       <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2">
@@ -1339,15 +1341,15 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                   {summaryInputMode === 'transcribe' ? <BookOpen className="h-4 w-4" /> :
                    summaryInputMode === 'existing' ? (existingFileTranscribe ? <BookOpen className="h-4 w-4" /> : <FolderOpen className="h-4 w-4" />) :
                    <CheckCircle2 className="h-4 w-4" />}
-                  {summaryInputMode === 'transcribe' ? 'تفريغ النص' :
-                   summaryInputMode === 'existing' ? (existingFileTranscribe ? 'تفريغ النص' : 'تلخيص الملف') :
-                   'إنشاء الملخص'}
+                  {summaryInputMode === 'transcribe' ? t('transcribeText') :
+                   summaryInputMode === 'existing' ? (existingFileTranscribe ? t('transcribeText') : t('summarizeFile')) :
+                   t('createSummary')}
                 </button>
                 <button
                   onClick={() => setNewSummaryOpen(false)}
                   className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
                 >
-                  إلغاء
+                  {tc('cancel')}
                 </button>
               </div>
             </motion.div>

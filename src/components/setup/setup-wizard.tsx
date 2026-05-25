@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 
 // ─── Types ───
@@ -51,20 +51,21 @@ function getPasswordStrength(password: string) {
   if (/[A-Z]/.test(password)) score++;
   if (/[0-9]/.test(password)) score++;
   if (/[^A-Za-z0-9]/.test(password)) score++;
-  if (score <= 1) return { score, label: 'ضعيفة', color: 'bg-red-500' };
-  if (score <= 2) return { score, label: 'متوسطة', color: 'bg-yellow-500' };
-  if (score <= 3) return { score, label: 'جيدة', color: 'bg-blue-500' };
-  return { score, label: 'قوية', color: 'bg-teal-500' };
+  if (score <= 1) return { score, labelKey: 'weak', color: 'bg-red-500' };
+  if (score <= 2) return { score, labelKey: 'fair', color: 'bg-yellow-500' };
+  if (score <= 3) return { score, labelKey: 'good', color: 'bg-blue-500' };
+  return { score, labelKey: 'strong', color: 'bg-teal-500' };
 }
 
 // ─── Step Indicator ───
 
 function StepIndicator({ currentStep, showMigration }: { currentStep: WizardStep; showMigration: boolean }) {
+  const { t } = useTranslations('setup');
   const steps = [
-    ...(showMigration ? [{ key: 'db-migration' as const, label: 'تهيئة قاعدة البيانات', num: 0 }] : []),
-    { key: 'admin-account' as const, label: 'حساب المدير', num: showMigration ? 2 : 1 },
-    { key: 'institution-info' as const, label: 'بيانات المؤسسة', num: showMigration ? 3 : 2 },
-    { key: 'complete' as const, label: 'تم', num: showMigration ? 4 : 3 },
+    ...(showMigration ? [{ key: 'db-migration' as const, label: t('dbSetup'), num: 0 }] : []),
+    { key: 'admin-account' as const, label: t('adminAccount'), num: showMigration ? 2 : 1 },
+    { key: 'institution-info' as const, label: t('institutionData'), num: showMigration ? 3 : 2 },
+    { key: 'complete' as const, label: t('done'), num: showMigration ? 4 : 3 },
   ];
 
   const currentIndex = steps.findIndex((s) => s.key === currentStep);
@@ -113,7 +114,9 @@ function StepIndicator({ currentStep, showMigration }: { currentStep: WizardStep
 // ─── Main Component ───
 
 export default function SetupWizard({ onComplete, onStart, onError }: SetupWizardProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations('setup');
+  const { t: tc } = useTranslations('common');
+  const { t: ta } = useTranslations('auth');
   const [step, setStep] = useState<WizardStep>('admin-account');
   const [tableExists, setTableExists] = useState(true); // assume table exists until proven otherwise
 
@@ -161,23 +164,23 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
   // ─── Step 1: Create admin account ───
   const handleCreateAdmin = async () => {
     if (!adminName.trim()) {
-      toast.error('يرجى إدخال اسم المدير');
+      toast.error(t('pleaseEnterAdminName'));
       return;
     }
     if (!adminEmail.trim()) {
-      toast.error('يرجى إدخال البريد الإلكتروني');
+      toast.error(t('pleaseEnterAdminEmail'));
       return;
     }
     if (!adminPassword) {
-      toast.error('يرجى إدخال كلمة المرور');
+      toast.error(t('pleaseEnterPassword'));
       return;
     }
     if (adminPassword.length < 6) {
-      toast.error('يجب أن تكون كلمة المرور 6 أحرف على الأقل');
+      toast.error(ta('passwordMinLength'));
       return;
     }
     if (adminPassword !== adminConfirmPassword) {
-      toast.error('كلمتا المرور غير متطابقتين');
+      toast.error(ta('passwordsDontMatch'));
       return;
     }
 
@@ -200,13 +203,13 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
       if (authError) {
         const msg = (authError.message || '').toLowerCase();
         if (msg.includes('already registered') || msg.includes('user_already_exists')) {
-          toast.error('هذا البريد الإلكتروني مسجل بالفعل');
+          toast.error(ta('userAlreadyExists'));
         } else if (msg.includes('weak')) {
-          toast.error('كلمة المرور ضعيفة، يرجى اختيار كلمة مرور أقوى');
+          toast.error(t('weakPasswordChooseStronger'));
         } else if (msg.includes('signup is disabled') || msg.includes('signups not allowed')) {
-          toast.error('التسجيل غير مفعّل حالياً');
+          toast.error(t('signupDisabled'));
         } else {
-          toast.error('حدث خطأ أثناء إنشاء الحساب');
+          toast.error(t('errorCreatingAccount'));
         }
         onError?.();
         return;
@@ -215,14 +218,14 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
       // Check if email confirmation is required
       const needsConfirmation = !!signUpData.user && !signUpData.session;
       if (needsConfirmation) {
-        toast.error('يجب تعطيل تأكيد البريد الإلكتروني في Supabase للإعداد الأولي');
+        toast.error(t('emailConfirmationMustBeDisabled'));
         onError?.();
         return;
       }
 
       const authUser = signUpData.user;
       if (!authUser) {
-        toast.error('فشل في إنشاء الحساب');
+        toast.error(t('failedToCreateAccount'));
         onError?.();
         return;
       }
@@ -256,10 +259,10 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
       }
 
       setAdminUserId(authUser.id);
-      toast.success('تم إنشاء حساب المدير بنجاح');
+      toast.success(t('adminAccountCreatedSuccess'));
       setStep('institution-info');
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
       onError?.();
     } finally {
       setCreatingAccount(false);
@@ -269,11 +272,11 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
   // ─── Step 2: Save institution data ───
   const handleSaveInstitution = async () => {
     if (!institutionName.trim()) {
-      toast.error('يرجى إدخال اسم المؤسسة');
+      toast.error(t('pleaseEnterInstitutionName'));
       return;
     }
     if (!institutionType) {
-      toast.error('يرجى اختيار نوع المؤسسة');
+      toast.error(t('pleaseSelectInstitutionType'));
       return;
     }
 
@@ -301,14 +304,14 @@ export default function SetupWizard({ onComplete, onStart, onError }: SetupWizar
 
       const result = await res.json();
       if (!res.ok || result.error) {
-        toast.error(result.error || 'فشل في حفظ بيانات المؤسسة');
+        toast.error(result.error || t('failedToSaveInstitutionData'));
         return;
       }
 
-      toast.success('تم حفظ بيانات المؤسسة بنجاح');
+      toast.success(t('institutionDataSavedSuccess'));
       setStep('complete');
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setSavingInstitution(false);
     }
@@ -408,12 +411,12 @@ $$;`;
         if (data.tableExists) {
           setTableExists(true);
           setStep('admin-account');
-          toast.success('تم إنشاء الجدول بنجاح');
+          toast.success(t('tableCreated'));
         } else {
-          toast.error('الجدول لم يُنشأ بعد. يرجى تنفيذ SQL أولاً');
+          toast.error(t('tableNotCreatedExecuteSQL'));
         }
       } catch {
-        toast.error('حدث خطأ أثناء التحقق');
+        toast.error(t('errorDuringVerification'));
       } finally {
         setCheckingMigration(false);
       }
@@ -432,13 +435,13 @@ $$;`;
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-400 to-red-500 shadow-lg">
             <GraduationCap className="h-8 w-8 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-white">تهيئة قاعدة البيانات</h2>
-          <p className="text-sky-100 mt-2 text-sm">يجب إنشاء جدول المؤسسة في قاعدة البيانات قبل البدء</p>
+          <h2 className="text-2xl font-bold text-white">{t('dbSetup')}</h2>
+          <p className="text-sky-100 mt-2 text-sm">{t('mustCreateTableFirst')}</p>
         </div>
 
         <div className="rounded-xl bg-amber-500/20 border border-amber-400/30 p-3 text-xs text-amber-100 flex items-start gap-2">
           <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span>انسخ كود SQL التالي ثم شغّله في محرر SQL في لوحة تحكم Supabase (Dashboard → SQL Editor → New Query)</span>
+          <span>{t('copySqlInstructionDetail')}</span>
         </div>
 
         <div className="relative">
@@ -450,11 +453,11 @@ $$;`;
             size="sm"
             onClick={() => {
               navigator.clipboard.writeText(migrationSQL);
-              toast.success('تم نسخ كود SQL');
+              toast.success(t('sqlCopied'));
             }}
             className="absolute top-2 start-2 bg-white/20 hover:bg-white/30 text-white border-0 text-xs"
           >
-            نسخ
+            {tc('copy')}
           </Button>
         </div>
 
@@ -466,12 +469,12 @@ $$;`;
           {checkingMigration ? (
             <>
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span>جارٍ التحقق...</span>
+              <span>{t('verifying')}</span>
             </>
           ) : (
             <>
               <CheckCircle2 className="h-5 w-5 me-1" />
-              <span>تم تنفيذ SQL - تحقق</span>
+              <span>{t('executeSQLVerify')}</span>
             </>
           )}
         </Button>
@@ -493,17 +496,17 @@ $$;`;
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg">
           <User className="h-8 w-8 text-white" />
         </div>
-        <h2 className="text-2xl font-bold text-white">إنشاء حساب مدير المنصة</h2>
-        <p className="text-sky-100 mt-2 text-sm">هذا الحساب سيكون المدير الرئيسي للنظام بصلاحيات كاملة</p>
+        <h2 className="text-2xl font-bold text-white">{t('createPlatformAdminAccount')}</h2>
+        <p className="text-sky-100 mt-2 text-sm">{t('adminFullPrivileges')}</p>
       </div>
 
       {/* Admin Name */}
       <div className="space-y-1.5">
-        <Label className="text-sky-100 font-medium text-sm">اسم المدير</Label>
+        <Label className="text-sky-100 font-medium text-sm">{t('adminName')}</Label>
         <div className="relative">
           <Input
             type="text"
-            placeholder="الاسم الكامل"
+            placeholder={ta('enterFullName')}
             value={adminName}
             onChange={(e) => setAdminName(e.target.value)}
             className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20"
@@ -516,7 +519,7 @@ $$;`;
 
       {/* Admin Email */}
       <div className="space-y-1.5">
-        <Label className="text-sky-100 font-medium text-sm">البريد الإلكتروني</Label>
+        <Label className="text-sky-100 font-medium text-sm">{t('adminEmail')}</Label>
         <div className="relative">
           <Input
             type="email"
@@ -534,11 +537,11 @@ $$;`;
 
       {/* Admin Password */}
       <div className="space-y-1.5">
-        <Label className="text-sky-100 font-medium text-sm">كلمة المرور</Label>
+        <Label className="text-sky-100 font-medium text-sm">{t('adminPassword')}</Label>
         <div className="relative">
           <Input
             type={showPassword ? 'text' : 'password'}
-            placeholder="أنشئ كلمة مرور قوية"
+            placeholder={t('createStrongPassword')}
             value={adminPassword}
             onChange={(e) => setAdminPassword(e.target.value)}
             className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20 pe-10 ps-10"
@@ -564,18 +567,18 @@ $$;`;
                 }`}
               />
             ))}
-            <span className="text-xs text-white/60 ms-2">قوة كلمة المرور: {passwordStrength.label}</span>
+            <span className="text-xs text-white/60 ms-2">{t('passwordStrength')}: {ta(`passwordStrength.${passwordStrength.labelKey}`)}</span>
           </div>
         )}
       </div>
 
       {/* Confirm Password */}
       <div className="space-y-1.5">
-        <Label className="text-sky-100 font-medium text-sm">تأكيد كلمة المرور</Label>
+        <Label className="text-sky-100 font-medium text-sm">{t('confirmPassword')}</Label>
         <div className="relative">
           <Input
             type={showConfirmPassword ? 'text' : 'password'}
-            placeholder="أعد إدخال كلمة المرور"
+            placeholder={ta('reenterPassword')}
             value={adminConfirmPassword}
             onChange={(e) => setAdminConfirmPassword(e.target.value)}
             className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-amber-400 focus:ring-amber-400/20 pe-10 ps-10"
@@ -596,7 +599,7 @@ $$;`;
       {/* Info Box */}
       <div className="rounded-xl bg-amber-500/20 border border-amber-400/30 p-3 text-xs text-amber-100 flex items-start gap-2">
         <GraduationCap className="h-4 w-4 shrink-0 mt-0.5" />
-        <span>سيتم إنشاء هذا الحساب بصلاحيات مدير المنصة (Super Admin) مع تحكم كامل بالنظام</span>
+        <span>{t('adminSuperAdminNote')}</span>
       </div>
 
       {/* Next Button */}
@@ -608,11 +611,11 @@ $$;`;
         {creatingAccount ? (
           <>
             <Loader2 className="h-5 w-5 animate-spin" />
-            <span>جارٍ إنشاء الحساب...</span>
+            <span>{t('creating')}</span>
           </>
         ) : (
           <>
-            <span>إنشاء حساب المدير</span>
+            <span>{t('createAdminAccount')}</span>
             <ArrowLeft className="h-5 w-5 ms-1" />
           </>
         )}
@@ -623,9 +626,9 @@ $$;`;
   // ─── Render Step 2: Institution Info ───
   const renderInstitutionStep = () => {
     const institutionTypes: { key: InstitutionType; label: string; icon: React.ReactNode }[] = [
-      { key: 'center', label: 'سنتر تعليمي', icon: <Building2 className="h-6 w-6" /> },
-      { key: 'school', label: 'مدرسة', icon: <School className="h-6 w-6" /> },
-      { key: 'university', label: 'جامعة', icon: <Landmark className="h-6 w-6" /> },
+      { key: 'center', label: t('trainingCenter'), icon: <Building2 className="h-6 w-6" /> },
+      { key: 'school', label: t('school'), icon: <School className="h-6 w-6" /> },
+      { key: 'university', label: t('university'), icon: <Landmark className="h-6 w-6" /> },
     ];
 
     return (
@@ -641,13 +644,13 @@ $$;`;
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-teal-500 shadow-lg">
             <Building2 className="h-8 w-8 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-white">بيانات المؤسسة</h2>
-          <p className="text-sky-100 mt-2 text-sm">أدخل بيانات مؤسستك التعليمية لتهيئة النظام</p>
+          <h2 className="text-2xl font-bold text-white">{t('institutionData')}</h2>
+          <p className="text-sky-100 mt-2 text-sm">{t('enterInstitutionDataDesc')}</p>
         </div>
 
         {/* Institution Type Selector */}
         <div className="space-y-2">
-          <Label className="text-sky-100 font-medium text-sm">نوع المؤسسة</Label>
+          <Label className="text-sky-100 font-medium text-sm">{t('institutionTypeLabel')}</Label>
           <div className="grid grid-cols-3 gap-3">
             {institutionTypes.map(({ key, label, icon }) => (
               <button
@@ -669,11 +672,11 @@ $$;`;
 
         {/* Institution Name (Arabic) */}
         <div className="space-y-1.5">
-          <Label className="text-sky-100 font-medium text-sm">اسم المؤسسة <span className="text-red-300">*</span></Label>
+          <Label className="text-sky-100 font-medium text-sm">{t('institutionName')} <span className="text-red-300">*</span></Label>
           <div className="relative">
             <Input
               type="text"
-              placeholder={`اسم ال${institutionType === 'center' ? 'سنتر' : institutionType === 'school' ? 'مدرسة' : 'الجامعة'}`}
+              placeholder={t(`${institutionType}Placeholder`)}
               value={institutionName}
               onChange={(e) => setInstitutionName(e.target.value)}
               className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
@@ -685,7 +688,7 @@ $$;`;
 
         {/* Institution Name (English) */}
         <div className="space-y-1.5">
-          <Label className="text-sky-100 font-medium text-sm">اسم المؤسسة بالإنجليزية</Label>
+          <Label className="text-sky-100 font-medium text-sm">{t('institutionEnglishName')}</Label>
           <div className="relative">
             <Input
               type="text"
@@ -702,11 +705,11 @@ $$;`;
 
         {/* Tagline */}
         <div className="space-y-1.5">
-          <Label className="text-sky-100 font-medium text-sm">شعار المؤسسة (Tagline)</Label>
+          <Label className="text-sky-100 font-medium text-sm">{t('institutionTagline')}</Label>
           <div className="relative">
             <Input
               type="text"
-              placeholder="عبارة قصيرة تصف المؤسسة..."
+              placeholder={t('taglinePlaceholder')}
               value={institutionTagline}
               onChange={(e) => setInstitutionTagline(e.target.value)}
               className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
@@ -715,17 +718,17 @@ $$;`;
             />
             <FileText className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
           </div>
-          <p className="text-[10px] text-sky-200/60">عبارة وصفية قصيرة تظهر بجانب اسم المؤسسة</p>
+          <p className="text-[10px] text-sky-200/60">{t('taglineDescription')}</p>
         </div>
 
         {/* Country + City */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-sky-100 font-medium text-sm">الدولة</Label>
+            <Label className="text-sky-100 font-medium text-sm">{t('country')}</Label>
             <div className="relative">
               <Input
                 type="text"
-                placeholder="الدولة"
+                placeholder={t('countryPlaceholder')}
                 value={institutionCountry}
                 onChange={(e) => setInstitutionCountry(e.target.value)}
                 className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
@@ -735,11 +738,11 @@ $$;`;
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-sky-100 font-medium text-sm">المدينة</Label>
+            <Label className="text-sky-100 font-medium text-sm">{t('city')}</Label>
             <div className="relative">
               <Input
                 type="text"
-                placeholder="المدينة"
+                placeholder={t('cityPlaceholder')}
                 value={institutionCity}
                 onChange={(e) => setInstitutionCity(e.target.value)}
                 className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
@@ -751,11 +754,11 @@ $$;`;
 
         {/* Address */}
         <div className="space-y-1.5">
-          <Label className="text-sky-100 font-medium text-sm">العنوان</Label>
+          <Label className="text-sky-100 font-medium text-sm">{t('address')}</Label>
           <div className="relative">
             <Input
               type="text"
-              placeholder="العنوان التفصيلي"
+              placeholder={t('addressPlaceholder')}
               value={institutionAddress}
               onChange={(e) => setInstitutionAddress(e.target.value)}
               className="h-11 bg-white/10 border-white/20 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20"
@@ -767,7 +770,7 @@ $$;`;
         {/* Phone + Email */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-sky-100 font-medium text-sm">رقم الهاتف</Label>
+            <Label className="text-sky-100 font-medium text-sm">{t('phoneNumber')}</Label>
             <div className="relative">
               <Input
                 type="tel"
@@ -782,7 +785,7 @@ $$;`;
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-sky-100 font-medium text-sm">البريد الإلكتروني</Label>
+            <Label className="text-sky-100 font-medium text-sm">{t('institutionEmail')}</Label>
             <div className="relative">
               <Input
                 type="email"
@@ -801,7 +804,7 @@ $$;`;
         {/* Website + Academic Year */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-sky-100 font-medium text-sm">الموقع الإلكتروني</Label>
+            <Label className="text-sky-100 font-medium text-sm">{t('website')}</Label>
             <div className="relative">
               <Input
                 type="url"
@@ -816,7 +819,7 @@ $$;`;
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-sky-100 font-medium text-sm">العام الدراسي</Label>
+            <Label className="text-sky-100 font-medium text-sm">{t('academicYearLabel')}</Label>
             <div className="relative">
               <Input
                 type="text"
@@ -834,9 +837,9 @@ $$;`;
 
         {/* Description */}
         <div className="space-y-1.5">
-          <Label className="text-sky-100 font-medium text-sm">وصف المؤسسة</Label>
+          <Label className="text-sky-100 font-medium text-sm">{t('institutionDescription')}</Label>
           <textarea
-            placeholder="نبذة مختصرة عن المؤسسة..."
+            placeholder={t('institutionDescPlaceholder')}
             value={institutionDescription}
             onChange={(e) => setInstitutionDescription(e.target.value)}
             className="w-full rounded-xl border border-white/20 bg-white/10 text-white placeholder:text-white/40 focus:border-sky-400 focus:ring-sky-400/20 px-3 py-2.5 text-sm resize-none h-20"
@@ -853,7 +856,7 @@ $$;`;
             className="flex-1 h-11 bg-white/10 border-sky-400/50 text-sky-100 hover:bg-sky-500/20 hover:text-white hover:border-sky-300/70"
           >
             <ArrowRight className="h-4 w-4 me-1" />
-            رجوع
+            {t('back')}
           </Button>
           <Button
             onClick={handleSaveInstitution}
@@ -863,11 +866,11 @@ $$;`;
             {savingInstitution ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                <span>جارٍ الحفظ...</span>
+                <span>{t('saving')}</span>
               </>
             ) : (
               <>
-                <span>حفظ وإنهاء الإعداد</span>
+                <span>{t('saveAndFinish')}</span>
                 <CheckCircle2 className="h-5 w-5 ms-1" />
               </>
             )}
@@ -896,25 +899,25 @@ $$;`;
       </motion.div>
 
       <div>
-        <h2 className="text-3xl font-bold text-white mb-2">تم الإعداد بنجاح! 🎉</h2>
+        <h2 className="text-3xl font-bold text-white mb-2">{t('setupCompleteSuccess')}</h2>
         <p className="text-sky-100 text-lg">
-          تم تهيئة نظام <span className="font-bold text-amber-300">{institutionName}</span> بنجاح
+          {t('systemSetupSuccessPrefix')} <span className="font-bold text-amber-300">{institutionName}</span> {t('systemSetupSuccessSuffix')}
         </p>
       </div>
 
       <div className="rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-white/70 text-sm">اسم المؤسسة</span>
+          <span className="text-white/70 text-sm">{t('institutionName')}</span>
           <span className="text-white font-bold">{institutionName}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-white/70 text-sm">نوع المؤسسة</span>
+          <span className="text-white/70 text-sm">{t('institutionTypeLabel')}</span>
           <span className="text-white font-bold">
-            {institutionType === 'center' ? 'سنتر تعليمي' : institutionType === 'school' ? 'مدرسة' : 'جامعة'}
+            {institutionType === 'center' ? t('trainingCenter') : institutionType === 'school' ? t('school') : t('university')}
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-white/70 text-sm">حساب المدير</span>
+          <span className="text-white/70 text-sm">{t('adminAccount')}</span>
           <span className="text-white font-bold">{adminName}</span>
         </div>
       </div>
@@ -923,19 +926,19 @@ $$;`;
         onClick={onComplete}
         className="w-full h-12 text-base font-bold bg-gradient-to-l from-sky-600 to-teal-500 hover:from-sky-700 hover:to-teal-600 shadow-lg shadow-sky-500/25 transition-all duration-300 rounded-xl"
       >
-        <span>ابدأ استخدام النظام</span>
+        <span>{t('startUsingSystem')}</span>
         <ArrowLeft className="h-5 w-5 ms-1" />
       </Button>
     </motion.div>
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-800 via-teal-800 to-sky-900" dir={dir}>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-sky-800 via-teal-800 to-sky-900" dir={direction}>
       {/* Background decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -end-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-teal-400/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/3 left-1/3 w-72 h-72 bg-sky-400/10 rounded-full blur-2xl" />
+        <div className="absolute -bottom-40 -start-40 w-96 h-96 bg-teal-400/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 start-1/3 w-72 h-72 bg-sky-400/10 rounded-full blur-2xl" />
       </div>
 
       <div className="relative z-10 w-full max-w-lg">
@@ -948,7 +951,7 @@ $$;`;
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 shadow-lg shadow-sky-500/30">
             <GraduationCap className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-xl font-bold text-white">تهيئة النظام لأول مرة</h1>
+          <h1 className="text-xl font-bold text-white">{t('setupTitle')}</h1>
         </motion.div>
 
         {/* Step Indicator */}

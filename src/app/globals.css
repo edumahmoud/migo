@@ -157,15 +157,9 @@
   word-break: break-word;
 }
 
-/* RTL-specific prose-summary styles */
-[dir="rtl"] .prose-summary {
-  direction: rtl;
-  text-align: right;
-}
-
-[dir="ltr"] .prose-summary {
-  direction: ltr;
-  text-align: left;
+/* Prose-summary styles with CSS logical properties (auto RTL/LTR) */
+.prose-summary {
+  text-align: start;
 }
 
 .prose-summary h1 {
@@ -216,14 +210,7 @@
 .prose-summary ul {
   list-style-type: none;
   margin: 0.75rem 0;
-}
-
-[dir="rtl"] .prose-summary ul {
-  padding-right: 1.25rem;
-}
-
-[dir="ltr"] .prose-summary ul {
-  padding-left: 1.25rem;
+  padding-inline-start: 1.25rem;
 }
 
 .prose-summary ul li {
@@ -231,14 +218,7 @@
   margin-bottom: 0.5rem;
   font-size: 0.9375rem;
   line-height: 1.8;
-}
-
-[dir="rtl"] .prose-summary ul li {
-  padding-right: 1rem;
-}
-
-[dir="ltr"] .prose-summary ul li {
-  padding-left: 1rem;
+  padding-inline-start: 1rem;
 }
 
 .prose-summary ul li::before {
@@ -247,29 +227,14 @@
   color: #0d9488;
   font-size: 0.625rem;
   top: 0.55em;
-}
-
-[dir="rtl"] .prose-summary ul li::before {
-  right: 0;
-}
-
-[dir="ltr"] .prose-summary ul li::before {
-  left: 0;
+  inset-inline-start: 0;
 }
 
 .prose-summary ol {
   list-style-type: none;
   margin: 0.75rem 0;
-}
-
-[dir="rtl"] .prose-summary ol {
-  counter-reset: arabic-counter;
-  padding-right: 1.25rem;
-}
-
-[dir="ltr"] .prose-summary ol {
-  counter-reset: latin-counter;
-  padding-left: 1.25rem;
+  padding-inline-start: 1.25rem;
+  counter-reset: list-counter;
 }
 
 .prose-summary ol li {
@@ -277,20 +242,12 @@
   margin-bottom: 0.5rem;
   font-size: 0.9375rem;
   line-height: 1.8;
-}
-
-[dir="rtl"] .prose-summary ol li {
-  padding-right: 1.5rem;
-  counter-increment: arabic-counter;
-}
-
-[dir="ltr"] .prose-summary ol li {
-  padding-left: 1.5rem;
-  counter-increment: latin-counter;
+  padding-inline-start: 1.5rem;
+  counter-increment: list-counter;
 }
 
 [dir="rtl"] .prose-summary ol li::before {
-  content: counter(arabic-counter, arabic-indic) ".";
+  content: counter(list-counter, arabic-indic) ".";
   position: absolute;
   inset-inline-start: 0;
   color: #0369a1;
@@ -299,9 +256,9 @@
 }
 
 [dir="ltr"] .prose-summary ol li::before {
-  content: counter(latin-counter) ".";
+  content: counter(list-counter) ".";
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   color: #0369a1;
   font-weight: 700;
   font-size: 0.8125rem;
@@ -314,18 +271,9 @@
   border-radius: 0.5rem;
   padding-top: 0.75rem;
   padding-bottom: 0.75rem;
-}
-
-[dir="rtl"] .prose-summary blockquote {
-  border-right: 4px solid #0d9488;
-  padding-right: 1rem;
-  padding-left: 1rem;
-}
-
-[dir="ltr"] .prose-summary blockquote {
-  border-left: 4px solid #0d9488;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-inline-start: 1rem;
+  padding-inline-end: 1rem;
+  border-inline-start: 4px solid #0d9488;
 }
 
 .prose-summary blockquote p {
@@ -361,7 +309,7 @@
   margin: 1rem 0;
   overflow-x: auto;
   direction: ltr;
-  text-align: left;
+  text-align: start;
 }
 
 .prose-summary pre code {
@@ -419,12 +367,9 @@
   background: oklch(0.20 0.03 175 / 30%);
 }
 
-[dir="rtl"] .dark .prose-summary blockquote {
-  border-right-color: #0d9488;
-}
-
-[dir="ltr"] .dark .prose-summary blockquote {
-  border-left-color: #0d9488;
+/* Dark mode blockquote border */
+.dark .prose-summary blockquote {
+  border-inline-start-color: #0d9488;
 }
 
 .dark .prose-summary blockquote p {
@@ -491,28 +436,14 @@
   padding-block: 0.5rem;
   padding-inline: 0.75rem;
   border: 1px solid #bae6fd;
-}
-
-[dir="rtl"] .prose-summary th {
-  text-align: right;
-}
-
-[dir="ltr"] .prose-summary th {
-  text-align: left;
+  text-align: start;
 }
 
 .prose-summary td {
   padding-block: 0.5rem;
   padding-inline: 0.75rem;
   border: 1px solid #e5e7eb;
-}
-
-[dir="rtl"] .prose-summary td {
-  text-align: right;
-}
-
-[dir="ltr"] .prose-summary td {
-  text-align: left;
+  text-align: start;
 }
 
 /* Custom scrollbar */
@@ -697,15 +628,7 @@ body.quiz-capture-detected {
 }
 
 /* ─── Direction-Aware Sidebar Positioning ─── */
-/* Sidebar positioning is handled via logical properties (start/end) in components,
-   but these CSS rules help with edge cases */
-
-/* RTL: sidebar on the right */
-[dir="rtl"] .sidebar-fixed {
-  right: 0;
-}
-
-/* LTR: sidebar on the left */
-[dir="ltr"] .sidebar-fixed {
-  left: 0;
+/* Uses CSS logical property for automatic RTL/LTR support */
+.sidebar-fixed {
+  inset-inline-start: 0;
 }

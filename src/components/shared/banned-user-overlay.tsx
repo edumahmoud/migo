@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Ban, Clock, ShieldAlert, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 interface BannedUserOverlayProps {
   children: React.ReactNode;
@@ -12,7 +12,7 @@ interface BannedUserOverlayProps {
 
 export default function BannedUserOverlay({ children }: BannedUserOverlayProps) {
   const { banInfo, signOut, checkBanStatus } = useAuthStore();
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
   const [timeLeft, setTimeLeft] = useState('');
 
   // Periodically check ban status (to auto-unban when time expires)
@@ -73,7 +73,7 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
-        dir={dir}
+        dir={direction}
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0, y: 20 }}

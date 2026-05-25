@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle, ShieldAlert } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import type { CourseTab, NotificationType } from '@/lib/types';
@@ -71,7 +71,7 @@ const notifTypeToTab: Record<string, CourseTab> = {
   report: 'overview',
 };
 
-function timeAgo(dateStr: string, t: (key: string, params?: Record<string, string | number>) => string): string {
+function timeAgo(dateStr: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string = 'ar'): string {
   const now = new Date();
   const date = new Date(dateStr);
   const diffMs = now.getTime() - date.getTime();
@@ -83,12 +83,12 @@ function timeAgo(dateStr: string, t: (key: string, params?: Record<string, strin
   if (diffMins < 60) return t('common.minutesAgo', { n: diffMins });
   if (diffHours < 24) return t('common.hoursAgo', { n: diffHours });
   if (diffDays < 7) return t('common.daysAgo', { n: diffDays });
-  return date.toLocaleDateString('ar-SA');
+  return date.toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US');
 }
 
-function getNotifIcon(type: string, title?: string) {
+function getNotifIcon(type: string, title?: string, t?: (key: string) => string) {
   // Detect link_request notifications by title (works even before DB migration)
-  if (type === 'link_request' || title?.includes('طلب ارتباط') || title?.includes('ارتباط')) {
+  if (type === 'link_request' || (t && (title?.includes(t('notifications.keywordLinkRequest')) || title?.includes(t('notifications.keywordLink'))))) {
     return <UserPlus className="h-4 w-4 text-amber-600" />;
   }
   switch (type) {
@@ -106,7 +106,7 @@ function getNotifIcon(type: string, title?: string) {
 }
 
 export default function NotificationBell() {
-  const { t, dir } = useI18n();
+  const { t, direction, locale } = useTranslations();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -482,7 +482,7 @@ export default function NotificationBell() {
     }
 
     // Handle legacy file request notification (link = 'settings')
-    if (notif.type === 'file' && notif.link === 'settings' && notif.title?.includes('طلب ملف')) {
+    if (notif.type === 'file' && notif.link === 'settings' && notif.title?.includes(t('notifications.keywordFileRequest'))) {
       setIsOpen(false);
       const { openProfile } = useAppStore.getState();
       if (user?.id) openProfile(user.id);
@@ -597,7 +597,7 @@ export default function NotificationBell() {
               exit={{ opacity: 0, pointerEvents: 'none' as const }}
               transition={{ duration: 0.1 }}
               className="fixed top-14 inset-x-2 sm:absolute sm:top-full sm:mt-2 sm:inset-x-auto sm:start-auto sm:end-0 sm:w-[360px] w-auto z-50 rounded-xl border bg-background shadow-lg overflow-hidden"
-              dir={dir}
+              dir={direction}
             >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-3">
@@ -648,7 +648,7 @@ export default function NotificationBell() {
                       <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
                         !notif.read ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted/50'
                       }`}>
-                        {getNotifIcon(notif.type, notif.title)}
+                        {getNotifIcon(notif.type, notif.title, t)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className={`text-sm ${!notif.read ? 'font-semibold text-foreground' : 'font-medium text-foreground/80'}`}>
@@ -658,7 +658,7 @@ export default function NotificationBell() {
                           {notif.message}
                         </p>
                         <p className="text-xs text-muted-foreground/60 mt-1">
-                          {timeAgo(notif.createdAt, t)}
+                          {timeAgo(notif.createdAt, t, locale)}
                         </p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
@@ -714,7 +714,7 @@ export default function NotificationBell() {
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex flex-col items-center text-center">
                 {linkRequestModal.loading ? (

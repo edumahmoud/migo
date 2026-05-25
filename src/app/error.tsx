@@ -27,11 +27,9 @@ export default function ErrorPage({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const { t, dir } = useI18n();
+  const { t, isRTL, direction } = useTranslations();
   const [autoRetrying, setAutoRetrying] = useState(true);
   const [hasActiveSession, setHasActiveSession] = useState(false);
-
-  const { t, isRTL } = useTranslations();
 
   useEffect(() => {
     // Log error for debugging
@@ -113,7 +111,7 @@ export default function ErrorPage({
   // Auto-retry UI
   if (autoRetrying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -130,7 +128,7 @@ export default function ErrorPage({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={direction}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/20 rounded-full blur-3xl" />

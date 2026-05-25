@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, X, Smartphone } from 'lucide-react';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -15,7 +15,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function InstallPrompt() {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(() => {
@@ -91,7 +91,7 @@ export default function InstallPrompt() {
           exit={{ opacity: 0, y: 80, pointerEvents: 'none' as const }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           className="fixed bottom-20 start-4 end-4 z-50 mx-auto max-w-md sm:bottom-6 sm:start-auto sm:end-6"
-          dir={dir}
+          dir={direction}
         >
           <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-xl sm:p-5">
             <button

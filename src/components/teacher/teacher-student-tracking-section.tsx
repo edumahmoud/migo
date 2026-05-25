@@ -29,7 +29,7 @@ import { Progress } from '@/components/ui/progress';
 import type { UserProfile, Score, Quiz, Subject } from '@/lib/types';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -345,7 +345,7 @@ export default function TeacherStudentTrackingSection({
   teacherAttendanceRecords,
   subjects = [],
 }: TeacherStudentTrackingSectionProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
   // ─── Local state ───
   const [filterLevel, setFilterLevel] = useState<PerformanceLevel | 'all'>('all');
   const [filterRange, setFilterRange] = useState<PercentageRange | 'all'>('all');
@@ -866,7 +866,7 @@ export default function TeacherStudentTrackingSection({
                           {isActive && (
                             <motion.div
                               layoutId="activeFilterIndicator"
-                              className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full ${level.color}`}
+                              className={`absolute bottom-0 start-1/2 -translate-x-1/2 w-8 h-1 rounded-full ${level.color}`}
                               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                             />
                           )}
@@ -1015,7 +1015,7 @@ export default function TeacherStudentTrackingSection({
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="w-full sm:w-48 h-9 pe-9 ps-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 transition-all"
-                    dir={dir}
+                    dir={direction}
                   />
                 </div>
 
@@ -1025,7 +1025,7 @@ export default function TeacherStudentTrackingSection({
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value as SortOption)}
                     className="h-9 ps-3 pe-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 appearance-none cursor-pointer"
-                    dir={dir}
+                    dir={direction}
                   >
                     {SORT_OPTIONS.map(opt => (
                       <option key={opt.key} value={opt.key}>
@@ -1083,7 +1083,7 @@ function EfficiencyGauge({
   efficiencyLevel: EfficiencyLevel;
   classAvg: number;
 }) {
-  const { t } = useI18n();
+  const { t } = useTranslations();
   const config = getEfficiencyLevelConfig(efficiencyLevel);
   const displayEfficiency = Math.min(efficiency, 150);
   const circumference = 2 * Math.PI * 40; // radius 40
@@ -1164,7 +1164,7 @@ function EfficiencyGauge({
 // Subject Performance Mini Card
 // -------------------------------------------------------
 function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
-  const { t } = useI18n();
+  const { t } = useTranslations();
   return (
     <div className="p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80 space-y-2">
       <div className="flex items-center gap-2">
@@ -1240,7 +1240,7 @@ function StudentCard({
   totalAssignments: number;
   classAvgEfficiency: number;
 }) {
-  const { t } = useI18n();
+  const { t } = useTranslations();
   const levelConfig = getPerformanceLevelConfig(data.level);
   const rangeConfig = getPercentageRangeConfig(data.percentageRange);
 

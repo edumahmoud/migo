@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Bell, BellOff, BellRing } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/stores/auth-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // VAPID key hardcoded as fallback (must match web-push.ts fallback pair)
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BJVI5gJTr0mRDS4ZcO63JtuPFcKQb-sEghvtV9NBV970s9D0weFCnxcbKrpUL8IBXY1g2sdxP74bM2cdOYrRZYI';
@@ -34,7 +34,8 @@ async function waitForServiceWorker(timeoutMs = 4000): Promise<ServiceWorkerRegi
  * 2. In-app notifications fallback (iframe/embedded) — just requests Notification permission for in-app alerts
  */
 export default function NotificationPermission() {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations('notifications');
+  const { t: tc } = useTranslations('common');
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [pushDisabled, setPushDisabled] = useState(false); // Tracks user preference (separate from browser permission)
   const [loading, setLoading] = useState(false);
@@ -73,7 +74,7 @@ export default function NotificationPermission() {
         setPermission(result);
 
         if (result !== 'granted') {
-          toast.error('تم رفض إذن الإشعارات. يمكنك تفعيله من إعدادات المتصفح.');
+          toast.error(t('permissionDenied'));
           return;
         }
       }
@@ -122,20 +123,20 @@ export default function NotificationPermission() {
           if (res.ok) {
             setPushDisabled(false);
             try { localStorage.removeItem('push_disabled'); } catch {}
-            toast.success('تم تفعيل الإشعارات بنجاح! ستصلك حتى عند إغلاق المتصفح.');
+            toast.success(t('pushEnabledSuccess'));
           }
         } catch (pushError) {
           // Push subscription failed (common in iframe/sandbox) — in-app notifications still work
           console.warn('[Push] Web Push subscription failed:', pushError);
-          toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA من المتصفح.');
+          toast.info(t('inAppOnlyPWA'));
         }
       } else {
         // Service Worker not available or timed out
-        toast.info('الإشعارات تعمل داخل التطبيق. لتلقي إشعارات خارجية، افتح التطبيق كـ PWA.');
+        toast.info(t('inAppOnlyPWAShort'));
       }
     } catch (error) {
       console.error('Notification permission error:', error);
-      toast.error('حدث خطأ في تفعيل الإشعارات');
+      toast.error(t('enableError'));
     } finally {
       setLoading(false);
     }
@@ -174,10 +175,10 @@ export default function NotificationPermission() {
       // Store user preference (browser permission can't be changed programmatically)
       setPushDisabled(true);
       try { localStorage.setItem('push_disabled', '1'); } catch {}
-      toast.success('تم إيقاف الإشعارات الخارجية');
+      toast.success(t('pushDisabledSuccess'));
     } catch (error) {
       console.error('Push unsubscribe error:', error);
-      toast.error('حدث خطأ في إيقاف الإشعارات');
+      toast.error(t('disableError'));
     } finally {
       setLoading(false);
     }
@@ -189,7 +190,7 @@ export default function NotificationPermission() {
     return (
       <button
         onClick={isDenied ? () => {
-          toast.info('يرجى تفعيل الإشعارات من إعدادات المتصفح: المزيد ⚙️ > الإعدادات > الإشعارات > السماح');
+          toast.info(t('browserSettingsHint'));
         } : handleEnable}
         disabled={loading}
         className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground/40 hover:bg-muted/30 transition-colors touch-manipulation"

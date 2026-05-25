@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 interface Props {
   children: React.ReactNode;
@@ -17,9 +17,9 @@ interface State {
 
 /** Functional wrapper for SectionErrorBoundary UI that uses i18n hooks */
 function SectionErrorUI({ name, errorMsg, isDev, onRetry }: { name?: string; errorMsg: string; isDev: boolean; onRetry: () => void }) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
   return (
-    <div className="flex flex-col items-center justify-center p-8 text-center" dir={dir}>
+    <div className="flex flex-col items-center justify-center p-8 text-center" dir={direction}>
       <AlertTriangle className="h-10 w-10 text-amber-500 mb-4" />
       <h3 className="text-lg font-semibold text-foreground mb-2">{t('common.errorUnexpected')}</h3>
       <p className="text-sm text-muted-foreground mb-2">

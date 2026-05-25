@@ -561,7 +561,7 @@ function HomeContent() {
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
               <GraduationCap className="w-9 h-9 text-white" />
             </div>
-            <div className={`absolute -bottom-1 ${isRTL ? '-left-1' : '-right-1'} w-5 h-5 rounded-full bg-sky-600 animate-ping`} />
+            <div className="absolute -bottom-1 -end-1 w-5 h-5 rounded-full bg-sky-600 animate-ping" />
           </div>
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-sky-700" />
@@ -610,8 +610,8 @@ function HomeContent() {
         <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700 overflow-hidden ${isRTL ? '' : ''}`}>
           {/* Background decoration */}
           <div className="absolute inset-0 pointer-events-none">
-            <div className={`absolute -top-40 ${isRTL ? '-right-40' : '-left-40'} w-96 h-96 bg-white/5 rounded-full blur-3xl`} />
-            <div className={`absolute -bottom-40 ${isRTL ? '-left-40' : '-right-40'} w-96 h-96 bg-white/5 rounded-full blur-3xl`} />
+            <div className="absolute -top-40 -start-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+            <div className="absolute -bottom-40 -end-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
             <div className="absolute top-1/3 left-1/3 w-72 h-72 bg-teal-400/10 rounded-full blur-3xl" />
             <div className="absolute bottom-1/4 right-1/4 w-56 h-56 bg-sky-400/10 rounded-full blur-2xl" />
             {/* Pattern overlay */}
@@ -826,7 +826,7 @@ function HomeContent() {
         : user.role === 'teacher'
           ? teacherNavItems
           : studentNavItems;
-      return items.map(item => ({ ...item, label: t(item.label) }));
+      return items.map(item => ({ ...item, label: t(item.labelKey) }));
     })();
 
     const profileActiveSection = (() => {
@@ -896,7 +896,7 @@ function HomeContent() {
           customNavItems={profileNavItems}
         />
         <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${isRTL ? '' : ''} ${
-          sidebarOpen ? (isRTL ? 'md:pr-64' : 'md:pl-64') : (isRTL ? 'md:pr-[68px]' : 'md:pl-[68px]')
+          sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
         }`}>
           <UserProfilePage
             userId={profileUserId}

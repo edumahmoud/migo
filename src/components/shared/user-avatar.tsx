@@ -4,61 +4,62 @@ import { useMemo } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User } from 'lucide-react';
 import { useLocaleStore } from '@/i18n/locale-store';
+import { useTranslations } from '@/i18n/use-translations';
 
-// Academic titles for teachers - bilingual
-const ACADEMIC_TITLES_AR = [
-  { value: 'teacher', label: 'معلم', femaleLabel: 'معلمة' },
-  { value: 'dr', label: 'دكتور', femaleLabel: 'دكتورة' },
-  { value: 'prof', label: 'أستاذ', femaleLabel: 'أستاذة' },
-  { value: 'assoc_prof', label: 'أستاذ مشارك', femaleLabel: 'أستاذة مشاركة' },
-  { value: 'assist_prof', label: 'أستاذ مساعد', femaleLabel: 'أستاذة مساعدة' },
-  { value: 'lecturer', label: 'محاضر', femaleLabel: 'محاضرة' },
-  { value: 'teaching_assist', label: 'معيد', femaleLabel: 'معيدة' },
+// Academic titles for teachers - uses translation keys
+const ACADEMIC_TITLE_KEYS = [
+  { value: 'teacher', key: 'teacher' },
+  { value: 'dr', key: 'doctor' },
+  { value: 'prof', key: 'professor' },
+  { value: 'assoc_prof', key: 'associateProfessor' },
+  { value: 'assist_prof', key: 'assistantProfessor' },
+  { value: 'lecturer', key: 'lecturer' },
+  { value: 'teaching_assist', key: 'teachingAssistant' },
 ] as const;
 
-const ACADEMIC_TITLES_EN = [
-  { value: 'teacher', label: 'Teacher', femaleLabel: 'Teacher' },
-  { value: 'dr', label: 'Dr.', femaleLabel: 'Dr.' },
-  { value: 'prof', label: 'Prof.', femaleLabel: 'Prof.' },
-  { value: 'assoc_prof', label: 'Assoc. Prof.', femaleLabel: 'Assoc. Prof.' },
-  { value: 'assist_prof', label: 'Asst. Prof.', femaleLabel: 'Asst. Prof.' },
-  { value: 'lecturer', label: 'Lecturer', femaleLabel: 'Lecturer' },
-  { value: 'teaching_assist', label: 'Teaching Asst.', femaleLabel: 'Teaching Asst.' },
-] as const;
-
-export function getAcademicTitles() {
-  const locale = useLocaleStore.getState().locale;
-  return locale === 'ar' ? ACADEMIC_TITLES_AR : ACADEMIC_TITLES_EN;
+export function getAcademicTitles(t: (key: string) => string) {
+  return ACADEMIC_TITLE_KEYS.map(item => ({
+    value: item.value,
+    label: t(`academicTitles.${item.key}`),
+    femaleLabel: t(`roles.${item.key === 'teacher' ? 'teacherWithGender.female' : item.key === 'dr' ? 'doctorFemale' : item.key === 'prof' ? 'professorFemale' : item.key === 'assoc_prof' ? 'associateProfessorFemale' : item.key === 'assist_prof' ? 'assistantProfessorFemale' : item.key === 'lecturer' ? 'lecturerFemale' : 'teachingAssistantFemale'}`),
+  }));
 }
 
-// Keep the old export for backward compatibility, defaults to Arabic
-export const ACADEMIC_TITLES = ACADEMIC_TITLES_AR;
+// Keep the old export for backward compatibility
+export const ACADEMIC_TITLES = ACADEMIC_TITLE_KEYS;
 
-export function getTitleLabel(titleId?: string | null, gender?: string | null): string | null {
+export function getTitleLabel(titleId?: string | null, gender?: string | null, t?: (key: string) => string): string | null {
   if (!titleId) return null;
-  const locale = useLocaleStore.getState().locale;
-  const titles = locale === 'ar' ? ACADEMIC_TITLES_AR : ACADEMIC_TITLES_EN;
-  const title = titles.find(t => t.value === titleId);
-  if (!title) return null;
-  return gender === 'female' ? t(title.femaleLabel) : t(title.label);
+  if (!t) return null;
+  const titleKey = ACADEMIC_TITLE_KEYS.find(item => item.value === titleId);
+  if (!titleKey) return null;
+  if (gender === 'female') {
+    const femaleKey = titleKey.key === 'teacher' ? 'roles.teacherWithGender.female' 
+      : titleKey.key === 'doctor' ? 'roles.doctorFemale' 
+      : titleKey.key === 'professor' ? 'roles.professorFemale' 
+      : titleKey.key === 'associateProfessor' ? 'roles.associateProfessorFemale' 
+      : titleKey.key === 'assistantProfessor' ? 'roles.assistantProfessorFemale'
+      : titleKey.key === 'lecturer' ? 'academicTitles.lecturer'
+      : 'academicTitles.teachingAssistant';
+    return t(femaleKey);
+  }
+  return t(`academicTitles.${titleKey.key}`);
 }
 
-export function getRoleLabel(role: string, gender?: string | null, titleId?: string | null): string {
-  const locale = useLocaleStore.getState().locale;
-  const isAr = locale === 'ar';
+export function getRoleLabel(role: string, gender?: string | null, titleId?: string | null, t?: (key: string) => string): string {
+  if (!t) return role;
   const isFemale = gender === 'female';
-  if (role === 'student') return isAr ? (isFemale ? 'طالبة' : 'طالب') : 'Student';
-  if (role === 'superadmin') return isAr ? (isFemale ? 'مديرة المنصة' : 'مدير المنصة') : 'Platform Admin';
-  if (role === 'admin') return isAr ? (isFemale ? 'مشرفة' : 'مشرف') : 'Supervisor';
+  if (role === 'student') return isFemale ? t('roles.studentWithGender.female') : t('roles.student');
+  if (role === 'superadmin') return t('roles.superadmin');
+  if (role === 'admin') return t('roles.supervisor');
   // For teachers, show academic title if available
-  const title = getTitleLabel(titleId, gender);
+  const title = getTitleLabel(titleId, gender, t);
   if (title) return title;
-  return isAr ? (isFemale ? 'معلمة' : 'معلم') : 'Teacher';
+  return isFemale ? t('roles.teacherWithGender.female') : t('roles.teacher');
 }
 
 /**
  * Format a user's name with their academic title prefix.
- * E.g. "دكتور أحمد", "أستاذة سارة", "محمد" (no title for students)
  * E.g. "Dr. Ahmed", "Prof. Sarah", "Mohamed" (no title for students)
  */
 export function formatNameWithTitle(name: string, role: string | null | undefined, titleId: string | null | undefined, gender: string | null | undefined, t: (key: string) => string): string {

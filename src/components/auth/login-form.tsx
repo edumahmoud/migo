@@ -12,7 +12,6 @@ import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
-import { useTranslation, useI18n } from '@/lib/i18n/context';
 
 interface LoginFormProps {
   onSwitchToRegister?: () => void;

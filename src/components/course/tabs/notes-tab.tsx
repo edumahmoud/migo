@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, Lecture, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -53,54 +53,16 @@ const itemVariants = {
 };
 
 // -------------------------------------------------------
-// Helper
-// -------------------------------------------------------
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'الآن';
-    if (diffMins < 60) return `منذ ${diffMins} دقيقة`;
-    if (diffHours < 24) return `منذ ${diffHours} ساعة`;
-    if (diffDays < 7) return `منذ ${diffDays} يوم`;
-
-    return date.toLocaleDateString('ar-SA', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
-function formatFullDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString('ar-SA', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
 // Special lecture ID prefix for general (non-lecture) notes
+// -------------------------------------------------------
 const GENERAL_NOTES_LECTURE_PREFIX = '__general__';
 
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function NotesTab({ profile, role, subjectId, teacherName }: NotesTabProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations('course');
+  const { t: tc } = useTranslations('common');
   // ─── Data state ───
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [allNotes, setAllNotes] = useState<LectureNoteWithAuthor[]>([]);
@@ -124,6 +86,47 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
 
   // ─── General notes lecture ID ───
   const [generalLectureId, setGeneralLectureId] = useState<string | null>(null);
+
+  // -------------------------------------------------------
+  // Helper: format relative date
+  // -------------------------------------------------------
+  const formatDateRelative = useCallback((dateStr: string): string => {
+    try {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return tc('justNow');
+      if (diffMins < 60) return tc('minutesAgo', { count: diffMins });
+      if (diffHours < 24) return tc('hoursAgo', { count: diffHours });
+      if (diffDays < 7) return tc('daysAgo', { count: diffDays });
+
+      return date.toLocaleDateString(direction === 'rtl' ? 'ar-SA' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  }, [tc, direction]);
+
+  const formatFullDate = useCallback((dateStr: string): string => {
+    try {
+      return new Date(dateStr).toLocaleDateString(direction === 'rtl' ? 'ar-SA' : 'en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return dateStr;
+    }
+  }, [direction]);
 
   // -------------------------------------------------------
   // Lecture map for display
@@ -227,7 +230,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           const author = authorMap.get(n.user_id);
           return {
             ...n,
-            author_name: author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender, t) : 'مستخدم',
+            author_name: author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender, t) : tc('defaultUser'),
           };
         }));
       } else {
@@ -239,7 +242,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
     } finally {
       setLoading(false);
     }
-  }, [subjectId, role, profile.id]);
+  }, [subjectId, role, profile.id, t, tc]);
 
   useEffect(() => {
     fetchLectures();
@@ -310,7 +313,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
   // -------------------------------------------------------
   const handleSaveNote = async () => {
     const content = noteContent.trim();
-    if (!content) { toast.error('يرجى إدخال محتوى الملاحظة'); return; }
+    if (!content) { toast.error(t('noteContentRequired')); return; }
 
     setSavingNote(true);
     try {
@@ -319,8 +322,8 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           .from('lecture_notes')
           .update({ content, visibility: noteVisibility, updated_at: new Date().toISOString() })
           .eq('id', editingNoteId);
-        if (error) toast.error('حدث خطأ أثناء تحديث الملاحظة');
-        else { toast.success('تم تحديث الملاحظة'); setEditingNoteId(null); }
+        if (error) toast.error(t('noteUpdateFailed'));
+        else { toast.success(t('noteUpdated')); setEditingNoteId(null); }
       } else {
         // Determine lecture_id
         let lectureId = noteLectureId;
@@ -329,7 +332,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
         if (!lectureId) {
           const genId = await ensureGeneralLecture();
           if (!genId) {
-            toast.error('حدث خطأ أثناء إنشاء الملاحظة');
+            toast.error(t('noteCreateFailed'));
             setSavingNote(false);
             return;
           }
@@ -342,9 +345,9 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           content,
           visibility: noteVisibility,
         });
-        if (error) toast.error('حدث خطأ أثناء حفظ الملاحظة');
+        if (error) toast.error(t('noteCreateFailed'));
         else {
-          toast.success(noteVisibility === 'public' ? 'تم نشر الملاحظة للطلاب' : 'تم حفظ الملاحظة كمسودة');
+          toast.success(noteVisibility === 'public' ? t('publicNotePublished') : t('privateNoteSaved'));
           // Send notification to all students for public notes only
           if (noteVisibility === 'public' && !editingNoteId) {
             try {
@@ -371,7 +374,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       setShowCreateForm(false);
       fetchAllNotes();
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setSavingNote(false);
     }
@@ -388,13 +391,13 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
     try {
       const { error } = await supabase.from('lecture_notes').delete().eq('id', noteId);
       if (error) {
-        toast.error('حدث خطأ أثناء حذف الملاحظة');
+        toast.error(t('noteDeleteFailed'));
         setAllNotes(previousNotes); // Revert on failure
       } else {
-        toast.success('تم حذف الملاحظة');
+        toast.success(t('noteDeleted'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
       setAllNotes(previousNotes); // Revert on failure
     } finally {
       setDeletingNoteId(null);
@@ -455,7 +458,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           .in('id', userIds);
         const userMap = new Map((users || []).map((u: { id: string; name: string }) => [u.id, u.name]));
         const viewers = data.map((v) => ({
-          user_name: userMap.get(v.user_id) || 'مستخدم',
+          user_name: userMap.get(v.user_id) || tc('defaultUser'),
           viewed_at: v.viewed_at,
         }));
         setNoteViewers(viewers);
@@ -508,7 +511,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   className="text-[10px] border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200"
                 >
                   <Globe className="h-2.5 w-2.5 me-1" />
-                  {isGeneral ? 'إعلان' : 'عامة'}
+                  {isGeneral ? t('announcement') : t('publicNote')}
                 </Badge>
               ) : (
                 <Badge
@@ -516,7 +519,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300"
                 >
                   <Lock className="h-2.5 w-2.5 me-1" />
-                  مسودة
+                  {t('draft')}
                 </Badge>
               )}
               {/* Lecture badge for lecture-specific notes */}
@@ -536,7 +539,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                 <button
                   onClick={(e) => { e.stopPropagation(); handleFetchViewers(note.id); }}
                   className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  title="عرض المشاهدات"
+                  title={t('viewViewsTooltip')}
                 >
                   <Eye className="h-3.5 w-3.5" />
                 </button>
@@ -546,7 +549,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   <button
                     onClick={(e) => { e.stopPropagation(); handleEditNote(note); }}
                     className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                    title="تعديل"
+                    title={t('editNoteTooltip')}
                   >
                     <Edit3 className="h-3.5 w-3.5" />
                   </button>
@@ -554,7 +557,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                     onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id); }}
                     disabled={deletingNoteId === note.id}
                     className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                    title="حذف"
+                    title={t('deleteNoteTooltip')}
                   >
                     {deletingNoteId === note.id ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -574,11 +577,11 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           <div className="flex items-center justify-between mt-3 pt-2 border-t border-muted/50">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <User className="h-3 w-3" />
-              <span>{note.author_name || (role === 'teacher' ? t('common.user') : teacherName)}</span>
+              <span>{note.author_name || (role === 'teacher' ? tc('defaultUser') : teacherName)}</span>
             </div>
             <div className="flex items-center gap-1 text-xs text-muted-foreground" title={formatFullDate(note.created_at)}>
               <Clock className="h-3 w-3" />
-              <span>{formatDate(note.created_at)}</span>
+              <span>{formatDateRelative(note.created_at)}</span>
             </div>
           </div>
         </div>
@@ -594,8 +597,8 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h3 className="text-xl font-bold text-foreground">{t('course.notes')}</h3>
-          <p className="text-muted-foreground text-sm mt-1">{visibleNotes.length} ملاحظة</p>
+          <h3 className="text-xl font-bold text-foreground">{t('tabNotes')}</h3>
+          <p className="text-muted-foreground text-sm mt-1">{t('noteCount', { count: visibleNotes.length })}</p>
         </div>
         {role === 'teacher' && (
           <button
@@ -603,7 +606,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
             className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]"
           >
             <Plus className="h-4 w-4" />
-            ملاحظة جديدة
+            {t('newNote')}
           </button>
         )}
       </motion.div>
@@ -622,7 +625,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
                   <StickyNote className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                  {editingNoteId ? 'تعديل الملاحظة' : 'كتابة ملاحظة جديدة'}
+                  {editingNoteId ? t('editNoteTitle') : t('writeNewNote')}
                 </h4>
                 <button
                   onClick={handleCancelForm}
@@ -634,7 +637,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
 
               {/* Visibility toggle */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground me-1">الظهور:</span>
+                <span className="text-xs text-muted-foreground me-1">{t('visibility')}:</span>
                 <button
                   onClick={() => setNoteVisibility('public')}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
@@ -644,7 +647,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   }`}
                 >
                   <Megaphone className="h-3.5 w-3.5" />
-                  عامة لكل الطلاب
+                  {t('publicToAllStudents')}
                 </button>
                 <button
                   onClick={() => setNoteVisibility('private')}
@@ -655,21 +658,21 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   }`}
                 >
                   <Lock className="h-3.5 w-3.5" />
-                  مسودة خاصة
+                  {t('privateDraft')}
                 </button>
               </div>
 
               {/* Optional lecture selector */}
               {!editingNoteId && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground shrink-0">ربط بمحاضرة:</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{t('linkToLecture')}:</span>
                   <select
                     value={noteLectureId}
                     onChange={(e) => setNoteLectureId(e.target.value)}
                     className="flex-1 rounded-lg border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir={dir}
+                    dir={direction}
                   >
-                    <option value="">بدون محاضرة (ملاحظة عامة)</option>
+                    <option value="">{t('noLectureGeneral')}</option>
                     {lectures
                       .filter((l) => l.title !== GENERAL_NOTES_LECTURE_PREFIX)
                       .map((lecture) => (
@@ -683,10 +686,10 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               <textarea
                 value={noteContent}
                 onChange={(e) => setNoteContent(e.target.value)}
-                placeholder={noteVisibility === 'public' ? 'اكتب ملاحظة أو إعلان يراه جميع الطلاب...' : 'اكتب ملاحظتك الخاصة هنا...'}
+                placeholder={noteVisibility === 'public' ? t('publicPlaceholder') : t('privatePlaceholder')}
                 rows={4}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
-                dir={dir}
+                dir={direction}
                 disabled={savingNote}
                 autoFocus
               />
@@ -699,13 +702,13 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60"
                 >
                   {savingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : noteVisibility === 'public' ? <Send className="h-3 w-3" /> : <StickyNote className="h-3 w-3" />}
-                  {editingNoteId ? 'تحديث' : noteVisibility === 'public' ? 'نشر للطلاب' : 'حفظ كمسودة'}
+                  {editingNoteId ? t('updateBtn') : noteVisibility === 'public' ? t('publishToStudents') : t('saveAsDraft')}
                 </button>
                 <button
                   onClick={handleCancelForm}
                   className="rounded-lg border px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
                 >
-                  إلغاء
+                  {tc('cancel')}
                 </button>
               </div>
             </div>
@@ -723,9 +726,9 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-5">
             <StickyNote className="h-10 w-10 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-bold text-foreground mb-1">لا توجد ملاحظات بعد</p>
+          <p className="text-lg font-bold text-foreground mb-1">{t('noNotesYetFull')}</p>
           <p className="text-sm text-muted-foreground">
-            {role === 'teacher' ? 'ابدأ بكتابة ملاحظة أو إعلان لطلابك' : 'لم يتم نشر ملاحظات بعد'}
+            {role === 'teacher' ? t('startWritingNote') : t('noNotesPublished')}
           </p>
         </motion.div>
       ) : (
@@ -735,7 +738,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <Megaphone className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                <h4 className="text-sm font-bold text-foreground">إعلانات وملاحظات عامة</h4>
+                <h4 className="text-sm font-bold text-foreground">{t('announcementsAndNotes')}</h4>
                 <Badge variant="outline" className="text-[10px] border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200">
                   {generalNotes.length}
                 </Badge>
@@ -751,7 +754,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <BookOpen className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                <h4 className="text-sm font-bold text-foreground">ملاحظات المحاضرات</h4>
+                <h4 className="text-sm font-bold text-foreground">{t('lectureNotesTitle')}</h4>
                 <Badge variant="outline" className="text-[10px] border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300">
                   {lectureNotes.length}
                 </Badge>
@@ -780,12 +783,12 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl p-5"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
                   <Eye className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                  مشاهدي الملاحظة
+                  {t('noteViewers')}
                 </h4>
                 <button
                   onClick={() => setViewersModalOpen(false)}
@@ -795,13 +798,13 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                 </button>
               </div>
               {noteViewers.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">لا توجد مشاهدات بعد</p>
+                <p className="text-sm text-muted-foreground text-center py-6">{t('noViewsYet')}</p>
               ) : (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {noteViewers.map((viewer, idx) => (
                     <div key={idx} className="flex items-center justify-between rounded-lg border p-2.5">
                       <span className="text-sm font-medium text-foreground">{viewer.user_name}</span>
-                      <span className="text-xs text-muted-foreground">{formatDate(viewer.viewed_at)}</span>
+                      <span className="text-xs text-muted-foreground">{formatDateRelative(viewer.viewed_at)}</span>
                     </div>
                   ))}
                 </div>

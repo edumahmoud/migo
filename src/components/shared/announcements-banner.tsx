@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Megaphone, X, AlertTriangle, Info, AlertCircle } from 'lucide-react';
 import type { Announcement } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -82,7 +82,8 @@ function saveDismissedSet(userId: string, dismissed: Set<string>) {
 // Main Component
 // -------------------------------------------------------
 export default function AnnouncementsBanner({ userId }: AnnouncementsBannerProps) {
-  const { dir } = useI18n();
+  const { t, direction } = useTranslations('notifications');
+  const { t: tc } = useTranslations('common');
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dismissed, setDismissed] = useState<Set<string>>(() => getDismissedSet(userId));
@@ -141,7 +142,7 @@ export default function AnnouncementsBanner({ userId }: AnnouncementsBannerProps
         animate="visible"
         exit="exit"
         className={`rounded-xl border ${style.bg} p-3 sm:p-4`}
-        dir={dir}
+        dir={direction}
       >
         <div className="flex items-start gap-3">
           {style.icon}
@@ -152,7 +153,7 @@ export default function AnnouncementsBanner({ userId }: AnnouncementsBannerProps
           <button
             onClick={() => handleDismiss(current.id)}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-white/50 dark:hover:bg-white/10 transition-colors"
-            aria-label="إغلاق"
+            aria-label={tc('close')}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -168,7 +169,7 @@ export default function AnnouncementsBanner({ userId }: AnnouncementsBannerProps
                     ? 'w-4 bg-sky-600'
                     : 'w-1.5 bg-sky-300'
                 }`}
-                aria-label={`الإعلان ${idx + 1}`}
+                aria-label={t('announcementIndex', { index: idx + 1 })}
               />
             ))}
           </div>

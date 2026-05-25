@@ -70,7 +70,7 @@ const sectionVariants = {
 // ─── Component ───
 
 export default function InstitutionSection({ profile }: InstitutionSectionProps) {
-  const { t } = useTranslations();
+  const { t, direction } = useTranslations();
   // ─── State ───
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -454,7 +454,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t('files.lastModified')}</span>
                       <span className="font-medium text-foreground">
-                        {new Date(institution.updated_at).toLocaleDateString('ar-SA')}
+                        {new Date(institution.updated_at).toLocaleDateString(direction === 'rtl' ? 'ar-SA' : 'en-US')}
                       </span>
                     </div>
                   )}
@@ -503,7 +503,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                 <div className="relative">
                   <Input
                     type="text"
-                    placeholder="Institution Name"
+                    placeholder={t('admin.institutionNameEnPlaceholder')}
                     value={institution.name_en || ''}
                     onChange={(e) => updateField('name_en', e.target.value)}
                     className="h-10 text-sm ps-10"
@@ -668,33 +668,33 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                     disabled={saving}
                     dir="ltr"
                   >
-                    <option value="Africa/Cairo">القاهرة (GMT+2)</option>
-                    <option value="Asia/Riyadh">الرياض (GMT+3)</option>
-                    <option value="Asia/Dubai">دبي (GMT+4)</option>
-                    <option value="Asia/Kuwait">الكويت (GMT+3)</option>
-                    <option value="Asia/Qatar">قطر (GMT+3)</option>
-                    <option value="Asia/Bahrain">البحرين (GMT+3)</option>
-                    <option value="Asia/Muscat">مسقط (GMT+4)</option>
-                    <option value="Africa/Casablanca">الدار البيضاء (GMT+1)</option>
-                    <option value="Africa/Tunis">تونس (GMT+1)</option>
-                    <option value="Africa/Algiers">الجزائر (GMT+1)</option>
-                    <option value="Asia/Amman">عمّان (GMT+3)</option>
-                    <option value="Asia/Baghdad">بغداد (GMT+3)</option>
-                    <option value="Asia/Damascus">دمشق (GMT+3)</option>
-                    <option value="Asia/Beirut">بيروت (GMT+3)</option>
-                    <option value="Asia/Jerusalem">القدس (GMT+3)</option>
-                    <option value="Asia/Jeddah">جدة (GMT+3)</option>
-                    <option value="Europe/Istanbul">إسطنبول (GMT+3)</option>
-                    <option value="Europe/London">لندن (GMT+0)</option>
-                    <option value="Europe/Paris">باريس (GMT+1)</option>
-                    <option value="America/New_York">نيويورك (GMT-5)</option>
-                    <option value="America/Chicago">شيكاغو (GMT-6)</option>
-                    <option value="America/Denver">دنفر (GMT-7)</option>
-                    <option value="America/Los_Angeles">لوس أنجلوس (GMT-8)</option>
-                    <option value="Asia/Tokyo">طوكيو (GMT+9)</option>
-                    <option value="Asia/Shanghai">شنغهاي (GMT+8)</option>
-                    <option value="Asia/Kolkata">مومباي (GMT+5:30)</option>
-                    <option value="Australia/Sydney">سيدني (GMT+11)</option>
+                    <option value="Africa/Cairo">{t('admin.cairo')} (GMT+2)</option>
+                    <option value="Asia/Riyadh">{t('admin.riyadh')} (GMT+3)</option>
+                    <option value="Asia/Dubai">{t('admin.dubai')} (GMT+4)</option>
+                    <option value="Asia/Kuwait">{t('admin.kuwait')} (GMT+3)</option>
+                    <option value="Asia/Qatar">{t('admin.qatar')} (GMT+3)</option>
+                    <option value="Asia/Bahrain">{t('admin.bahrain')} (GMT+3)</option>
+                    <option value="Asia/Muscat">{t('admin.muscat')} (GMT+4)</option>
+                    <option value="Africa/Casablanca">{t('admin.casablanca')} (GMT+1)</option>
+                    <option value="Africa/Tunis">{t('admin.tunis')} (GMT+1)</option>
+                    <option value="Africa/Algiers">{t('admin.algiers')} (GMT+1)</option>
+                    <option value="Asia/Amman">{t('admin.amman')} (GMT+3)</option>
+                    <option value="Asia/Baghdad">{t('admin.baghdad')} (GMT+3)</option>
+                    <option value="Asia/Damascus">{t('admin.damascus')} (GMT+3)</option>
+                    <option value="Asia/Beirut">{t('admin.beirut')} (GMT+3)</option>
+                    <option value="Asia/Jerusalem">{t('admin.jerusalem')} (GMT+3)</option>
+                    <option value="Asia/Jeddah">{t('admin.jeddah')} (GMT+3)</option>
+                    <option value="Europe/Istanbul">{t('admin.istanbul')} (GMT+3)</option>
+                    <option value="Europe/London">{t('admin.london')} (GMT+0)</option>
+                    <option value="Europe/Paris">{t('admin.paris')} (GMT+1)</option>
+                    <option value="America/New_York">{t('admin.newYork')} (GMT-5)</option>
+                    <option value="America/Chicago">{t('admin.chicago')} (GMT-6)</option>
+                    <option value="America/Denver">{t('admin.denver')} (GMT-7)</option>
+                    <option value="America/Los_Angeles">{t('admin.losAngeles')} (GMT-8)</option>
+                    <option value="Asia/Tokyo">{t('admin.tokyo')} (GMT+9)</option>
+                    <option value="Asia/Shanghai">{t('admin.shanghai')} (GMT+8)</option>
+                    <option value="Asia/Kolkata">{t('admin.mumbai')} (GMT+5:30)</option>
+                    <option value="Australia/Sydney">{t('admin.sydney')} (GMT+11)</option>
                   </select>
                   <Globe className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>

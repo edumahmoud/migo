@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
-import { useTranslation, useI18n } from '@/lib/i18n/context';
 
 // ─── Constants ───
 const REQUEST_TIMEOUT_MS = 15_000; // 15 seconds timeout for the API call
@@ -86,10 +85,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
-  const { t } = useTranslation();
-  const { dir } = useI18n();
-
-  const { t, isRTL } = useTranslations();
+  const { t, direction } = useTranslations('auth');
 
   // ─── Cooldown timer ───
   // Prevents the user from sending another reset email until the cooldown expires.
@@ -219,7 +215,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
   const canResend = cooldownRemaining === 0 && !isLoading;
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+    <div dir={direction} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -271,7 +267,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                       disabled
                       className="w-full h-10 text-sm font-medium border-gray-200 dark:border-border opacity-50"
                     >
-                      <Clock className="h-4 w-4 ml-1" />
+                      <Clock className="h-4 w-4 ms-1" />
                       {t('auth.resendWithTime', { time: formatCooldown(cooldownRemaining) })}
                     </Button>
                   </div>
@@ -349,7 +345,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
                       </>
                     ) : cooldownRemaining > 0 ? (
                       <>
-                        <Clock className="h-4 w-4 ml-1" />
+                        <Clock className="h-4 w-4 ms-1" />
                         {t('auth.waitTime', { time: formatCooldown(cooldownRemaining) })}
                       </>
                     ) : (

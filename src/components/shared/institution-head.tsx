@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useInstitutionStore } from '@/stores/institution-store';
+import { useTranslations } from '@/i18n/use-translations';
 
 /**
  * InstitutionHead — dynamically updates browser tab title, favicon,
@@ -24,7 +25,7 @@ export default function InstitutionHead() {
   useEffect(() => {
     if (!loaded) return;
 
-    const name = institution?.name || 'أتيندو';
+    const name = institution?.name || 'AttenDo';
     const tagline = institution?.tagline;
     const title = tagline ? `${name} - ${tagline}` : name;
     const hasLogo = !!institution?.logo_url;

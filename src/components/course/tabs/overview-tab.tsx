@@ -23,7 +23,7 @@ import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { getTitleLabel } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { useAppStore } from '@/stores/app-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Lecture, SubjectFile, SubjectTeacher } from '@/lib/types';
 
@@ -55,26 +55,11 @@ const itemVariants = {
 };
 
 // -------------------------------------------------------
-// Helper: format date
-// -------------------------------------------------------
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('ar-SA', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
-// -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function OverviewTab({ profile, role, subjectId, subject }: OverviewTabProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations('course');
+  const { t: tc } = useTranslations('common');
   const { openProfile, setSelectedSubjectId, setCourseTab } = useAppStore();
   const [stats, setStats] = useState({
     totalLectures: 0,
@@ -172,7 +157,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
   const handleAddCoTeacher = async () => {
     const code = teacherCodeInput.trim().toUpperCase();
     if (!code) {
-      toast.error('يرجى إدخال كود المعلم');
+      toast.error(t('teacherCodeRequired'));
       return;
     }
     setAddingCoTeacher(true);
@@ -190,10 +175,10 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
         setAddCoTeacherOpen(false);
         fetchCoTeachers();
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء إضافة المعلم المشارك');
+        toast.error(data.error || t('failedToAddCoTeacher'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setAddingCoTeacher(false);
     }
@@ -216,10 +201,10 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
         toast.success(data.message);
         fetchCoTeachers();
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء إزالة المعلم المشارك');
+        toast.error(data.error || t('removeCoTeacherError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setRemovingCoTeacherId(null);
     }
@@ -239,15 +224,15 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success(data.message || 'تمت إزالتك من المقرر بنجاح');
+        toast.success(data.message || t('removedFromCourse'));
         // Navigate back to dashboard
         setSelectedSubjectId(null);
         setCourseTab('overview');
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء مغادرة المقرر');
+        toast.error(data.error || t('leaveCourseError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setLeavingCourse(false);
       setLeaveConfirmOpen(false);
@@ -271,25 +256,25 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
       <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard
           icon={<BookOpen className="h-5 w-5" />}
-          label={t('course.lectures')}
+          label={t('courseLectures')}
           value={stats.totalLectures}
           color="ocean"
         />
         <StatCard
           icon={<Users className="h-5 w-5" />}
-          label={t('course.students')}
+          label={t('enrolledStudents')}
           value={stats.totalStudents}
           color="teal"
         />
         <StatCard
           icon={<File className="h-5 w-5" />}
-          label={t('course.files')}
+          label={t('courseFiles')}
           value={stats.totalFiles}
           color="amber"
         />
         <StatCard
           icon={<ClipboardCheck className="h-5 w-5" />}
-          label={t('course.assignments')}
+          label={t('courseOwnerRole')}
           value={stats.totalAssignments}
           color="rose"
         />
@@ -303,13 +288,13 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                أحدث المحاضرات
+                {t('latestLectures')}
               </h3>
             </div>
             <div className="max-h-80 overflow-y-auto">
               {recentLectures.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground text-sm">
-                  لا توجد محاضرات بعد
+                  {t('noLecturesYet')}
                 </div>
               ) : (
                 <div className="divide-y">
@@ -323,14 +308,18 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                         {lecture.lecture_date && (
                           <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {formatDate(lecture.lecture_date)}
+                            {new Date(lecture.lecture_date).toLocaleDateString(direction === 'rtl' ? 'ar-SA' : 'en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
                             {(lecture.description?.match(/__LECTURE_TIME__:([0-9]{1,2}:[0-9]{2})__/) || [])[1] && (
                               <span className="text-sky-800 dark:text-sky-200 font-medium flex items-center gap-0.5">
                                 <Clock className="h-3 w-3" />
                                 {(() => {
-                                  const t = lecture.description!.match(/__LECTURE_TIME__:([0-9]{1,2}:[0-9]{2})__/)![1];
-                                  const [h, m] = t.split(':').map(Number);
-                                  const p = h >= 12 ? 'م' : 'ص';
+                                  const timeMatch = lecture.description!.match(/__LECTURE_TIME__:([0-9]{1,2}:[0-9]{2})__/)![1];
+                                  const [h, m] = timeMatch.split(':').map(Number);
+                                  const p = h >= 12 ? tc('pm') : tc('am');
                                   const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
                                   return `${h12}:${m.toString().padStart(2, '0')} ${p}`;
                                 })()}
@@ -353,13 +342,13 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <File className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                أحدث الملفات
+                {t('latestFiles')}
               </h3>
             </div>
             <div className="max-h-80 overflow-y-auto">
               {recentFiles.length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground text-sm">
-                  لا توجد ملفات بعد
+                  {t('noFilesYet')}
                 </div>
               ) : (
                 <div className="divide-y">
@@ -372,7 +361,11 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                         <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
                         <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {formatDate(file.created_at)}
+                          {new Date(file.created_at).toLocaleDateString(direction === 'rtl' ? 'ar-SA' : 'en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
                         </p>
                       </div>
                       {file.category && (
@@ -398,7 +391,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
                 <UserCog className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                المعلمون المشاركون
+                {t('coTeachers')}
               </h3>
               {isOwner && (
                 <button
@@ -406,7 +399,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                   className="flex items-center gap-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
-                  إضافة معلم مشارك
+                  {t('addCoTeacher')}
                 </button>
               )}
             </div>
@@ -417,14 +410,14 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                 <div className="mb-4 flex items-center justify-between gap-2 rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 px-4 py-2.5">
                   <div className="flex items-center gap-2 text-sm text-teal-700 dark:text-teal-300">
                     <Shield className="h-4 w-4 shrink-0" />
-                    <span>أنت معلم مشارك في هذا المقرر</span>
+                    <span>{t('youAreCoTeacher')}</span>
                   </div>
                   <button
                     onClick={() => setLeaveConfirmOpen(true)}
                     className="flex items-center gap-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-100 transition-colors"
                   >
                     <LogOut className="h-3.5 w-3.5" />
-                    مغادرة المقرر
+                    {t('leaveCourse')}
                   </button>
                 </div>
               )}
@@ -435,7 +428,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                 </div>
               ) : coTeachers.length === 0 ? (
                 <div className="py-6 text-center text-muted-foreground text-sm">
-                  لا يوجد معلمون مشاركون بعد
+                  {t('noCoTeachersYet')}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -453,7 +446,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                           className="shrink-0"
                         >
                           <UserAvatar
-                            name={ct.teacher_name || 'معلم'}
+                            name={ct.teacher_name || t('teacherFallback')}
                             avatarUrl={ct.teacher_avatar_url}
                             size="sm"
                           />
@@ -469,12 +462,16 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                             {titleLabel && (
                               <span className="text-sky-700 dark:text-sky-300 me-0.5 text-xs font-normal">{titleLabel}</span>
                             )}
-                            {ct.teacher_name || 'معلم'}
+                            {ct.teacher_name || t('teacherFallback')}
                           </button>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {ct.role === 'owner' ? 'مالك المقرر' : 'معلم مشارك'}
+                            {ct.role === 'owner' ? t('courseOwnerRole') : t('coTeacherRole')}
                             {' · '}
-                            {formatDate(ct.created_at)}
+                            {new Date(ct.created_at).toLocaleDateString(direction === 'rtl' ? 'ar-SA' : 'en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
                           </p>
                         </div>
 
@@ -485,9 +482,9 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                             : 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
                         }`}>
                           {ct.role === 'owner' ? (
-                            <><Shield className="h-3 w-3" /> مالك</>
+                            <><Shield className="h-3 w-3" /> {t('owner')}</>
                           ) : (
-                            <><UserCog className="h-3 w-3" /> مشارك</>
+                            <><UserCog className="h-3 w-3" /> {t('coTeacher')}</>
                           )}
                         </span>
 
@@ -497,7 +494,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                             onClick={() => handleRemoveCoTeacher(ct.teacher_id)}
                             disabled={removingCoTeacherId === ct.teacher_id}
                             className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-50"
-                            title="إزالة المعلم المشارك"
+                            title={t('removeCoTeacherTitle')}
                           >
                             {removingCoTeacherId === ct.teacher_id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -535,18 +532,18 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10, pointerEvents: 'none' as const }}
             className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-            dir={dir}
+            dir={direction}
           >
             <div className="flex flex-col items-center text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
                 <LogOut className="h-7 w-7 text-rose-600 dark:text-rose-400" />
               </div>
-              <h3 className="text-lg font-bold text-foreground mb-2">مغادرة المقرر</h3>
+              <h3 className="text-lg font-bold text-foreground mb-2">{t('leaveCourseTitle')}</h3>
               <p className="text-sm text-muted-foreground mb-2">
-                هل أنت متأكد من مغادرة مقرر &quot;{subject.name}&quot;؟
+                {t('leaveCourseConfirmMsg', { courseName: subject.name })}
               </p>
               <p className="text-xs text-muted-foreground/70 mb-6">
-                لن تتمكن من الوصول إلى محتوى المقرر بعد الآن كمعلم مشارك.
+                {t('leaveCourseWarning')}
               </p>
               <div className="flex items-center gap-3 w-full">
                 <button
@@ -557,12 +554,12 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                   {leavingCourse ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      جاري المغادرة...
+                      {t('leavingCourse')}
                     </>
                   ) : (
                     <>
                       <LogOut className="h-4 w-4" />
-                      نعم، مغادرة
+                      {t('yesLeave')}
                     </>
                   )}
                 </button>
@@ -571,7 +568,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                   disabled={leavingCourse}
                   className="flex-1 rounded-xl border py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
                 >
-                  إلغاء
+                  {tc('cancel')}
                 </button>
               </div>
             </div>
@@ -598,7 +595,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10, pointerEvents: 'none' as const }}
             className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden"
-            dir={dir}
+            dir={direction}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b px-6 pt-5 pb-4">
@@ -607,8 +604,8 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                   <UserPlus className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-foreground">إضافة معلم مشارك</h3>
-                  <p className="text-xs text-muted-foreground">أضف معلماً آخر لمشاركة إدارة المقرر</p>
+                  <h3 className="text-lg font-bold text-foreground">{t('addCoTeacher')}</h3>
+                  <p className="text-xs text-muted-foreground">{t('addCoTeacherDesc')}</p>
                 </div>
               </div>
               <button
@@ -623,13 +620,13 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             <div className="px-6 pb-6 pt-4 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground">
-                  كود المعلم <span className="text-rose-500">*</span>
+                  {t('teacherCodeLabel')}
                 </label>
                 <input
                   type="text"
                   value={teacherCodeInput}
                   onChange={(e) => setTeacherCodeInput(e.target.value.toUpperCase())}
-                  placeholder="أدخل كود المعلم (مثال: ABC123)"
+                  placeholder={t('teacherCodePlaceholder')}
                   className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all font-mono tracking-wider"
                   dir="ltr"
                   disabled={addingCoTeacher}
@@ -639,7 +636,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                   maxLength={6}
                 />
                 <p className="text-xs text-muted-foreground">
-                  يمكنك العثور على كود المعلم في ملفه الشخصي أو لوحة تحكم المعلم
+                  {t('teacherCodeHint')}
                 </p>
               </div>
 
@@ -651,12 +648,12 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                 {addingCoTeacher ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    جاري الإضافة...
+                    {t('addingCoTeacher')}
                   </>
                 ) : (
                   <>
                     <UserPlus className="h-4 w-4" />
-                    إضافة معلم مشارك
+                    {t('addCoTeacherBtn')}
                   </>
                 )}
               </button>

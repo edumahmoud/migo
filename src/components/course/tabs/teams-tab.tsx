@@ -54,7 +54,7 @@ import {
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile } from '@/lib/types';
 import * as XLSX from 'xlsx';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Types
@@ -103,7 +103,8 @@ const itemVariants = {
 };
 
 export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations('course');
+  const { t: tc } = useTranslations('common');
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<Record<string, TeamMember[]>>({});
   const [unassigned, setUnassigned] = useState<UserProfile[]>([]);
@@ -187,7 +188,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   // -------------------------------------------------------
   const handleCreateTeam = async () => {
     if (!formName.trim()) {
-      toast.error('اسم المجموعة مطلوب');
+      toast.error(t('groupNameRequired'));
       return;
     }
     setSaving(true);
@@ -207,17 +208,17 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.team) {
-        toast.success('تم إنشاء المجموعة بنجاح');
+        toast.success(t('groupCreated'));
         setCreateOpen(false);
         setFormName('');
         setFormLevel('');
         setFormColor('#6366f1');
         fetchAllData();
       } else {
-        toast.error(data.error || 'فشل إنشاء المجموعة');
+        toast.error(data.error || t('groupCreateFailed'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء إنشاء المجموعة');
+      toast.error(t('groupCreateFailed'));
     } finally {
       setSaving(false);
     }
@@ -225,7 +226,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
 
   const handleUpdateTeam = async () => {
     if (!editTeam || !formName.trim()) {
-      toast.error('اسم المجموعة مطلوب');
+      toast.error(t('groupNameRequired'));
       return;
     }
     setSaving(true);
@@ -245,24 +246,24 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.team) {
-        toast.success('تم تحديث المجموعة بنجاح');
+        toast.success(t('groupUpdated'));
         setEditTeam(null);
         setFormName('');
         setFormLevel('');
         setFormColor('#6366f1');
         fetchAllData();
       } else {
-        toast.error(data.error || 'فشل تحديث المجموعة');
+        toast.error(data.error || t('groupUpdateFailed'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء تحديث المجموعة');
+      toast.error(t('groupUpdateFailed'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteTeam = async (teamId: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذه المجموعة؟ سيتم إزالة جميع الأعضاء.')) return;
+    if (!confirm(t('deleteGroupConfirm'))) return;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token || '';
@@ -273,13 +274,13 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('تم حذف المجموعة');
+        toast.success(t('groupDeleted'));
         fetchAllData();
       } else {
-        toast.error(data.error || 'فشل حذف المجموعة');
+        toast.error(data.error || t('groupDeleteFailed'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء حذف المجموعة');
+      toast.error(t('groupDeleteFailed'));
     }
   };
 
@@ -294,13 +295,13 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('تمت إضافة العضو');
+        toast.success(t('memberAdded'));
         fetchAllData();
       } else {
-        toast.error(data.error || 'فشل إضافة العضو');
+        toast.error(data.error || t('memberAddFailed'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء إضافة العضو');
+      toast.error(t('memberAddFailed'));
     }
   };
 
@@ -315,13 +316,13 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('تمت إزالة العضو');
+        toast.success(t('memberRemoved'));
         fetchAllData();
       } else {
-        toast.error(data.error || 'فشل إزالة العضو');
+        toast.error(data.error || t('memberRemoveFailed'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء إزالة العضو');
+      toast.error(t('memberRemoveFailed'));
     }
   };
 
@@ -337,14 +338,14 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`تم توزيع ${data.assignedCount} طالب على ${data.teamCount} مجموعة`);
+        toast.success(t('autoAssignSuccess', { assignedCount: data.assignedCount, teamCount: data.teamCount }));
         setAutoAssignOpen(false);
         fetchAllData();
       } else {
-        toast.error(data.error || 'فشل التوزيع التلقائي');
+        toast.error(data.error || t('autoAssignFailed'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء التوزيع التلقائي');
+      toast.error(t('autoAssignError'));
     } finally {
       setSaving(false);
     }
@@ -372,14 +373,17 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`تم توزيع ${data.assignedCount} طالب على ${data.teamCount} مجموعة حسب الأداء${data.studentsWithoutScores > 0 ? ` (${data.studentsWithoutScores} طالب بدون درجات)` : ''}`);
+        const withoutScores = data.studentsWithoutScores > 0
+          ? ` (${t('studentsWithoutScores', { count: data.studentsWithoutScores })})`
+          : '';
+        toast.success(t('perfAssignSuccess', { assignedCount: data.assignedCount, teamCount: data.teamCount, studentsWithoutScores: withoutScores }));
         setPerfAssignOpen(false);
         fetchAllData();
       } else {
-        toast.error(data.error || 'فشل التوزيع حسب الأداء');
+        toast.error(data.error || t('perfAssignFailed'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء التوزيع حسب الأداء');
+      toast.error(t('perfAssignError'));
     } finally {
       setSaving(false);
     }
@@ -394,7 +398,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     try {
       const teamMembersList = members[msgTeamId] || [];
       if (teamMembersList.length === 0) {
-        toast.error('لا يوجد أعضاء في هذه المجموعة');
+        toast.error(t('noMembersInGroup'));
         setMsgSending(false);
         return;
       }
@@ -418,14 +422,14 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       });
 
       if (res.ok) {
-        toast.success(`تم إرسال الملاحظة إلى ${teamMembersList.length} طالب`);
+        toast.success(t('noteSentSuccess', { count: teamMembersList.length }));
         setMsgTeamId(null);
         setMsgText('');
       } else {
         // Fallback: save notifications directly via Supabase
         const notifInserts = studentIds.map(sid => ({
           user_id: sid,
-          title: 'ملاحظة من المعلم',
+          title: t('teacherNoteTitle'),
           message: msgText.trim(),
           type: 'team_message',
           link: `team:${msgTeamId}`,
@@ -437,15 +441,15 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
           .insert(notifInserts);
 
         if (notifError) {
-          toast.error('فشل إرسال الملاحظة');
+          toast.error(t('noteSentFailed'));
         } else {
-          toast.success(`تم إرسال الملاحظة إلى ${teamMembersList.length} طالب`);
+          toast.success(t('noteSentSuccess', { count: teamMembersList.length }));
           setMsgTeamId(null);
           setMsgText('');
         }
       }
     } catch {
-      toast.error('حدث خطأ أثناء إرسال الملاحظة');
+      toast.error(t('noteSendError'));
     } finally {
       setMsgSending(false);
     }
@@ -456,7 +460,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   // -------------------------------------------------------
   const handleExportAll = () => {
     if (teams.length === 0) {
-      toast.error('لا توجد مجموعات للتنزيل');
+      toast.error(t('noTeamsToExport'));
       return;
     }
     try {
@@ -466,17 +470,17 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         const teamMembers = members[team.id] || [];
         const sheetData = teamMembers.map((member, idx) => ({
           '#': idx + 1,
-          'الاسم': member.user ? formatNameWithTitle(member.user.name, member.user.role, member.user.title_id, member.user.gender, t) : 'مستخدم',
-          'البريد الإلكتروني': member.user?.email || '',
-          'تاريخ الانضمام': member.joined_at ? new Date(member.joined_at).toLocaleDateString('ar-SA') : '',
+          [t('nameExport')]: member.user ? formatNameWithTitle(member.user.name, member.user.role, member.user.title_id, member.user.gender, t) : tc('defaultUser'),
+          [t('emailExport')]: member.user?.email || '',
+          [t('joinDateExport')]: member.joined_at ? new Date(member.joined_at).toLocaleDateString('ar-SA') : '',
         }));
 
         // Add team info header row
         const headerRow = {
           '#': '',
-          'الاسم': `المجموعة: ${team.name}${team.level ? ' | المستوى: ' + team.level : ''}`,
-          'البريد الإلكتروني': `عدد الأعضاء: ${teamMembers.length}`,
-          'تاريخ الانضمام': '',
+          [t('nameExport')]: `${t('teamNameExport', { name: team.name })}${team.level ? ` | ${t('levelExport', { level: team.level })}` : ''}`,
+          [t('emailExport')]: t('membersCountExport', { count: teamMembers.length }),
+          [t('joinDateExport')]: '',
         };
 
         const ws = XLSX.utils.json_to_sheet([headerRow, ...sheetData]);
@@ -484,9 +488,9 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         // Set column widths
         ws['!cols'] = [
           { wch: 5 },   // #
-          { wch: 30 },  // الاسم
-          { wch: 35 },  // البريد
-          { wch: 15 },  // التاريخ
+          { wch: 30 },  // Name
+          { wch: 35 },  // Email
+          { wch: 15 },  // Date
         ];
 
         // Sheet name must be <= 31 chars and no special chars
@@ -494,37 +498,37 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       });
 
-      XLSX.writeFile(wb, `المجموعات_${new Date().toLocaleDateString('ar-SA')}.xlsx`);
-      toast.success('تم تنزيل الملف بنجاح');
+      XLSX.writeFile(wb, `${t('groupsFile')}_${new Date().toLocaleDateString('ar-SA')}.xlsx`);
+      toast.success(t('exportSuccess'));
     } catch (err) {
       console.error('Export error:', err);
-      toast.error('حدث خطأ أثناء تنزيل الملف');
+      toast.error(t('exportFailed'));
     }
   };
 
   const handleExportSelected = () => {
     if (selectedTeamIds.size === 0) {
-      toast.error('يرجى تحديد مجموعة واحدة على الأقل');
+      toast.error(t('selectAtLeastOneTeam'));
       return;
     }
     try {
       const wb = XLSX.utils.book_new();
-      const selectedTeams = teams.filter(t => selectedTeamIds.has(t.id));
+      const selectedTeams = teams.filter(tm => selectedTeamIds.has(tm.id));
 
       selectedTeams.forEach((team) => {
         const teamMembers = members[team.id] || [];
         const sheetData = teamMembers.map((member, idx) => ({
           '#': idx + 1,
-          'الاسم': member.user ? formatNameWithTitle(member.user.name, member.user.role, member.user.title_id, member.user.gender, t) : 'مستخدم',
-          'البريد الإلكتروني': member.user?.email || '',
-          'تاريخ الانضمام': member.joined_at ? new Date(member.joined_at).toLocaleDateString('ar-SA') : '',
+          [t('nameExport')]: member.user ? formatNameWithTitle(member.user.name, member.user.role, member.user.title_id, member.user.gender, t) : tc('defaultUser'),
+          [t('emailExport')]: member.user?.email || '',
+          [t('joinDateExport')]: member.joined_at ? new Date(member.joined_at).toLocaleDateString('ar-SA') : '',
         }));
 
         const headerRow = {
           '#': '',
-          'الاسم': `المجموعة: ${team.name}${team.level ? ' | المستوى: ' + team.level : ''}`,
-          'البريد الإلكتروني': `عدد الأعضاء: ${teamMembers.length}`,
-          'تاريخ الانضمام': '',
+          [t('nameExport')]: `${t('teamNameExport', { name: team.name })}${team.level ? ` | ${t('levelExport', { level: team.level })}` : ''}`,
+          [t('emailExport')]: t('membersCountExport', { count: teamMembers.length }),
+          [t('joinDateExport')]: '',
         };
 
         const ws = XLSX.utils.json_to_sheet([headerRow, ...sheetData]);
@@ -539,13 +543,13 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       });
 
-      XLSX.writeFile(wb, `مجموعات_محددة_${new Date().toLocaleDateString('ar-SA')}.xlsx`);
-      toast.success(`تم تنزيل ${selectedTeamIds.size} مجموعة بنجاح`);
+      XLSX.writeFile(wb, `${t('selectedGroupsFile')}_${new Date().toLocaleDateString('ar-SA')}.xlsx`);
+      toast.success(t('exportSelectedSuccess', { count: selectedTeamIds.size }));
       setExportOpen(false);
       setSelectedTeamIds(new Set());
     } catch (err) {
       console.error('Export selected error:', err);
-      toast.error('حدث خطأ أثناء تنزيل الملف');
+      toast.error(t('exportFailed'));
     }
   };
 
@@ -565,7 +569,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     if (selectedTeamIds.size === teams.length) {
       setSelectedTeamIds(new Set());
     } else {
-      setSelectedTeamIds(new Set(teams.map(t => t.id)));
+      setSelectedTeamIds(new Set(teams.map(tm => tm.id)));
     }
   };
 
@@ -576,7 +580,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
-        <span className="ms-3 text-muted-foreground">جاري تحميل المجموعات...</span>
+        <span className="ms-3 text-muted-foreground">{t('loadingGroups')}</span>
       </div>
     );
   }
@@ -591,21 +595,21 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       <Dialog open={isOpen} onOpenChange={(open) => {
         if (!open) { setCreateOpen(false); setEditTeam(null); setFormName(''); setFormLevel(''); setFormColor('#6366f1'); }
       }}>
-        <DialogContent className="sm:max-w-md" dir={dir}>
+        <DialogContent className="sm:max-w-md" dir={direction}>
           <DialogHeader>
-            <DialogTitle>{isEdit ? 'تعديل المجموعة' : 'إنشاء مجموعة جديدة'}</DialogTitle>
+            <DialogTitle>{isEdit ? t('editGroup') : t('createNewGroup')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label>اسم المجموعة *</Label>
-              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="مثال: مجموعة أ" className="mt-1" />
+              <Label>{t('groupNameOptional')}</Label>
+              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={t('groupNamePlaceholder')} className="mt-1" />
             </div>
             <div>
-              <Label>المستوى (اختياري)</Label>
-              <Input value={formLevel} onChange={(e) => setFormLevel(e.target.value)} placeholder="مثال: مبتدئ، متوسط، متقدم" className="mt-1" />
+              <Label>{t('levelOptional')}</Label>
+              <Input value={formLevel} onChange={(e) => setFormLevel(e.target.value)} placeholder={t('levelPlaceholder')} className="mt-1" />
             </div>
             <div>
-              <Label>اللون</Label>
+              <Label>{t('color')}</Label>
               <div className="flex flex-wrap gap-2 mt-1">
                 {TEAM_COLORS.map(c => (
                   <button
@@ -623,11 +627,11 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => { setCreateOpen(false); setEditTeam(null); }}>
-              إلغاء
+              {tc('cancel')}
             </Button>
             <Button onClick={isEdit ? handleUpdateTeam : handleCreateTeam} disabled={saving || !formName.trim()} className="bg-sky-700 hover:bg-sky-800">
               {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : null}
-              {isEdit ? 'حفظ التعديلات' : 'إنشاء'}
+              {isEdit ? t('saveChanges') : tc('create')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -640,17 +644,17 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   // -------------------------------------------------------
   const renderAutoAssignDialog = () => (
     <Dialog open={autoAssignOpen} onOpenChange={setAutoAssignOpen}>
-      <DialogContent className="sm:max-w-sm" dir={dir}>
+      <DialogContent className="sm:max-w-sm" dir={direction}>
         <DialogHeader>
-          <DialogTitle>توزيع تلقائي على المجموعات</DialogTitle>
+          <DialogTitle>{t('autoAssignToGroups')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            سيتم توزيع جميع الطلاب المسجلين بالتساوي على المجموعات.
-            {teams.length > 0 ? ` يوجد حالياً ${teams.length} مجموعة.` : ' سيتم إنشاء مجموعات جديدة.'}
+            {t('autoAssignDesc')}
+            {teams.length > 0 ? ` ${t('teamsCount', { count: teams.length })}` : ` ${t('newTeamsWillBeCreated')}`}
           </p>
           <div>
-            <Label>عدد المجموعات</Label>
+            <Label>{t('teamsCountLabel')}</Label>
             <Input
               type="number"
               min={1}
@@ -662,10 +666,10 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => setAutoAssignOpen(false)}>إلغاء</Button>
+          <Button variant="outline" onClick={() => setAutoAssignOpen(false)}>{tc('cancel')}</Button>
           <Button onClick={handleAutoAssign} disabled={saving} className="bg-sky-700 hover:bg-sky-800">
             {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Shuffle className="h-4 w-4 me-2" />}
-            توزيع تلقائي
+            {t('autoDistributeLabel')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -677,21 +681,21 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
   // -------------------------------------------------------
   const renderAddMemberDialog = () => (
     <Dialog open={!!addMemberTeamId} onOpenChange={(open) => { if (!open) setAddMemberTeamId(null); }}>
-      <DialogContent className="sm:max-w-md max-h-[80vh]" dir={dir}>
+      <DialogContent className="sm:max-w-md max-h-[80vh]" dir={direction}>
         <DialogHeader>
-          <DialogTitle>إضافة عضو للمجموعة</DialogTitle>
+          <DialogTitle>{t('addMemberToGroup')}</DialogTitle>
         </DialogHeader>
         <div className="overflow-y-auto max-h-96 space-y-2 py-2">
           {unassigned.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
               <Users className="h-8 w-8" />
-              <p className="text-sm">لا يوجد طلاب غير مخصصين لمجموعة</p>
+              <p className="text-sm">{t('noUnassignedStudents')}</p>
             </div>
           ) : (
             unassigned.map(student => (
               <div key={student.id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted transition-colors">
                 <div className="flex items-center gap-3">
-                  <UserAvatar name={student.name || 'مستخدم'} avatarUrl={student.avatar_url} size="sm" />
+                  <UserAvatar name={student.name || tc('defaultUser')} avatarUrl={student.avatar_url} size="sm" />
                   <span className="text-sm font-medium">{formatNameWithTitle(student.name, student.role, student.title_id, student.gender, t)}</span>
                 </div>
                 <Button
@@ -705,7 +709,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                   className="text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200"
                 >
                   <UserPlus className="h-4 w-4 me-1" />
-                  إضافة
+                  {t('addMemberBtn')}
                 </Button>
               </div>
             ))
@@ -744,7 +748,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">
-              {team.member_count || teamMembers.length} عضو
+              {t('membersCount', { count: team.member_count || teamMembers.length })}
             </Badge>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -755,19 +759,19 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => openEdit(team)}>
                   <Edit3 className="h-4 w-4 me-2" />
-                  تعديل
+                  {t('editMenu')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setAddMemberTeamId(team.id)}>
                   <UserPlus className="h-4 w-4 me-2" />
-                  إضافة عضو
+                  {t('addMember')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => { setMsgTeamId(team.id); setMsgText(''); }}>
                   <MessageSquare className="h-4 w-4 me-2" />
-                  إرسال ملاحظة
+                  {t('sendGroupNote')}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleDeleteTeam(team.id)} className="text-red-600">
                   <Trash2 className="h-4 w-4 me-2" />
-                  حذف
+                  {t('deleteMenu')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -787,13 +791,13 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             >
               <div className="px-4 pb-4 space-y-2 border-t pt-3">
                 {teamMembers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">لا يوجد أعضاء في هذه المجموعة</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">{t('noMembersInGroup')}</p>
                 ) : (
                   teamMembers.map((member) => (
                     <div key={member.id} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-3">
-                        <UserAvatar name={member.user?.name || 'مستخدم'} avatarUrl={member.user?.avatar_url} size="sm" />
-                        <span className="text-sm">{member.user ? formatNameWithTitle(member.user.name, member.user.role, member.user.title_id, member.user.gender, t) : 'مستخدم'}</span>
+                        <UserAvatar name={member.user?.name || tc('defaultUser')} avatarUrl={member.user?.avatar_url} size="sm" />
+                        <span className="text-sm">{member.user ? formatNameWithTitle(member.user.name, member.user.role, member.user.title_id, member.user.gender, t) : tc('defaultUser')}</span>
                       </div>
                       <Button
                         size="sm"
@@ -824,10 +828,10 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Users className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-            {t('course.teams')}
+            {t('tabTeams')}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            قسّم طلاب المقرر إلى مجموعات ومستويات
+            {t('teamsDesc')}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -836,18 +840,18 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2" disabled={teams.length === 0}>
                 <Download className="h-4 w-4" />
-                تنزيل Excel
+                {t('downloadExcel')}
                 <ChevronDown className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleExportAll}>
                 <FileSpreadsheet className="h-4 w-4 me-2" />
-                تنزيل كل المجموعات
+                {t('exportAllTeams')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => { setSelectedTeamIds(new Set()); setExportOpen(true); }}>
                 <CheckSquare className="h-4 w-4 me-2" />
-                تحديد مجموعات
+                {t('selectTeams')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -858,7 +862,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             className="gap-2"
           >
             <Shuffle className="h-4 w-4" />
-            توزيع تلقائي
+            {t('autoDistributeLabel')}
           </Button>
           <Button
             variant="outline"
@@ -867,7 +871,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             className="gap-2"
           >
             <BarChart3 className="h-4 w-4" />
-            تقسيم حسب الأداء
+            {t('splitByPerformance')}
           </Button>
           <Button
             size="sm"
@@ -880,7 +884,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             className="bg-sky-700 hover:bg-sky-800 gap-2"
           >
             <Plus className="h-4 w-4" />
-            مجموعة جديدة
+            {t('newGroup')}
           </Button>
         </div>
       </div>
@@ -896,9 +900,9 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
             <Users className="h-8 w-8 text-muted-foreground" />
           </div>
           <div>
-            <h3 className="font-semibold text-lg">لا يوجد فرق بعد</h3>
+            <h3 className="font-semibold text-lg">{t('noTeamsYet')}</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              أنشئ فرقاً لتقسيم طلاب المقرر أو استخدم التوزيع التلقائي
+              {t('createTeamsDesc')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -908,14 +912,14 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               className="gap-2"
             >
               <Shuffle className="h-4 w-4" />
-              توزيع تلقائي
+              {t('autoDistributeLabel')}
             </Button>
             <Button
               onClick={() => setCreateOpen(true)}
               className="bg-sky-700 hover:bg-sky-800 gap-2"
             >
               <Plus className="h-4 w-4" />
-              إنشاء مجموعة
+              {t('createGroup')}
             </Button>
           </div>
         </motion.div>
@@ -935,12 +939,12 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         <div className="rounded-xl border border-dashed p-4">
           <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-500" />
-            طلاب غير مخصصين لمجموعة ({unassigned.length})
+            {t('unassignedStudents', { count: unassigned.length })}
           </h3>
           <div className="flex flex-wrap gap-2">
             {unassigned.map(student => (
               <Badge key={student.id} variant="secondary" className="gap-1 py-1.5 px-3">
-                {student.name || 'مستخدم'}
+                {student.name || tc('defaultUser')}
               </Badge>
             ))}
           </div>
@@ -951,11 +955,11 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
       {/* EXPORT: Select Teams Dialog                  */}
       {/* ============================================ */}
       <Dialog open={exportOpen} onOpenChange={(open) => { if (!open) { setExportOpen(false); setSelectedTeamIds(new Set()); } }}>
-        <DialogContent className="sm:max-w-md" dir={dir}>
+        <DialogContent className="sm:max-w-md" dir={direction}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-              تحديد مجموعات للتنزيل
+              {t('selectTeamsToExport')}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
@@ -969,7 +973,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               ) : (
                 <Square className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
-              تحديد الكل
+              {t('selectAll')}
             </button>
 
             <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
@@ -995,7 +999,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                       </div>
                     </div>
                     <Badge variant="outline" className="text-xs shrink-0">
-                      {team.member_count || teamMembers.length} عضو
+                      {t('membersCount', { count: team.member_count || teamMembers.length })}
                     </Badge>
                   </button>
                 );
@@ -1004,7 +1008,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => { setExportOpen(false); setSelectedTeamIds(new Set()); }}>
-              إلغاء
+              {tc('cancel')}
             </Button>
             <Button
               onClick={handleExportSelected}
@@ -1012,7 +1016,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
               className="bg-sky-700 hover:bg-sky-800 gap-2"
             >
               <Download className="h-4 w-4" />
-              تنزيل ({selectedTeamIds.size})
+              {t('downloadCount', { count: selectedTeamIds.size })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1025,20 +1029,19 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
 
       {/* Performance Assign Dialog */}
       <Dialog open={perfAssignOpen} onOpenChange={setPerfAssignOpen}>
-        <DialogContent className="sm:max-w-sm" dir={dir}>
+        <DialogContent className="sm:max-w-sm" dir={direction}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-              تقسيم حسب الأداء
+              {t('perfAssignTitle')}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              سيتم تقسيم الطلاب إلى مجموعات حسب مستوى أدائهم في اختبارات المقرر.
-              الطلاب ذوو الأداء المرتفع في مجموعة، والمتوسط في أخرى، وهكذا.
+              {t('perfAssignDesc')}
             </p>
             <div>
-              <Label>عدد المستويات</Label>
+              <Label>{t('levelsCount')}</Label>
               <Input
                 type="number"
                 min={2}
@@ -1048,15 +1051,15 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
                 className="mt-1"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                2 = متقدم/مبتدئ، 3 = متقدم/متوسط/مبتدئ
+                {t('levelsDesc')}
               </p>
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setPerfAssignOpen(false)}>إلغاء</Button>
+            <Button variant="outline" onClick={() => setPerfAssignOpen(false)}>{tc('cancel')}</Button>
             <Button onClick={handlePerformanceAssign} disabled={saving} className="bg-sky-700 hover:bg-sky-800">
               {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <BarChart3 className="h-4 w-4 me-2" />}
-              تقسيم حسب الأداء
+              {t('splitByPerformance')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1064,38 +1067,38 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
 
       {/* Group Message Dialog */}
       <Dialog open={!!msgTeamId} onOpenChange={(open) => { if (!open) { setMsgTeamId(null); setMsgText(''); } }}>
-        <DialogContent className="sm:max-w-md" dir={dir}>
+        <DialogContent className="sm:max-w-md" dir={direction}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-teal-600" />
-              إرسال ملاحظة للمجموعة
+              {t('sendGroupNoteTitle')}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">
-              ستصل الملاحظة لأعضاء هذه المجموعة فقط ولن يراها الطلاب في المجموعات الأخرى.
+              {t('sendGroupNoteDesc')}
             </p>
             <div>
-              <Label>نص الملاحظة</Label>
+              <Label>{t('noteTextLabel')}</Label>
               <textarea
                 value={msgText}
                 onChange={(e) => setMsgText(e.target.value)}
-                placeholder="اكتب ملاحظتك هنا..."
+                placeholder={t('noteTextPlaceholder')}
                 className="mt-1 w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-600/30 focus:border-teal-600 transition-colors min-h-[100px] resize-y"
-                dir={dir}
+                dir={direction}
                 disabled={msgSending}
               />
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => { setMsgTeamId(null); setMsgText(''); }} disabled={msgSending}>إلغاء</Button>
+            <Button variant="outline" onClick={() => { setMsgTeamId(null); setMsgText(''); }} disabled={msgSending}>{tc('cancel')}</Button>
             <Button
               onClick={handleSendGroupMessage}
               disabled={msgSending || !msgText.trim()}
               className="bg-teal-600 hover:bg-teal-700 text-white gap-2"
             >
               {msgSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              إرسال
+              {tc('submit')}
             </Button>
           </DialogFooter>
         </DialogContent>

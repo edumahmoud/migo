@@ -2,7 +2,7 @@
 
 import UserAvatar, { getRoleLabel, getTitleLabel } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 interface UserLinkProps {
   userId: string;
@@ -49,7 +49,8 @@ export default function UserLink({
   className = '',
 }: UserLinkProps) {
   const { openProfile } = useAppStore();
-  const { t } = useI18n();
+  const { t } = useTranslations('profile');
+  const { t: tc } = useTranslations('common');
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -65,7 +66,7 @@ export default function UserLink({
       type="button"
       onClick={handleClick}
       className={`inline-flex items-center gap-1.5 hover:bg-muted/50 rounded-md px-1 py-0.5 -mx-1 -my-0.5 transition-colors cursor-pointer group ${className}`}
-      title={`عرض ملف ${name}`}
+      title={t('viewProfileOf', { name })}
     >
       {showAvatar && (
         <UserAvatar name={name} avatarUrl={avatarUrl} size={size} />

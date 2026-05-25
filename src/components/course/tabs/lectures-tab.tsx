@@ -38,7 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, Lecture, AttendanceSession, LectureWithAttendance, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
 import LectureModal from '@/components/course/tabs/lecture-modal';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -66,12 +66,12 @@ const itemVariants = {
 // -------------------------------------------------------
 // Helpers
 // -------------------------------------------------------
-function formatDate(dateStr: string): string {
-  try { return new Date(dateStr).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' }); }
+function formatDate(dateStr: string, locale: string = 'ar-SA'): string {
+  try { return new Date(dateStr).toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' }); }
   catch { return dateStr; }
 }
-function formatTime(dateStr: string): string {
-  try { return new Date(dateStr).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }); }
+function formatTime(dateStr: string, locale: string = 'ar-SA'): string {
+  try { return new Date(dateStr).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }); }
   catch { return ''; }
 }
 
@@ -98,11 +98,11 @@ function encodeDescription(rawDescription: string, time: string): string {
   const meta = `${TIME_META_PREFIX}${time}${TIME_META_SUFFIX}`;
   return clean ? `${clean}\n${meta}` : meta;
 }
-function formatTimeArabic(time24: string): string {
+function formatTimeArabic(time24: string, amLabel: string, pmLabel: string): string {
   if (!time24) return '';
   try {
     const [h, m] = time24.split(':').map(Number);
-    const period = h >= 12 ? 'م' : 'ص';
+    const period = h >= 12 ? pmLabel : amLabel;
     const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
     return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
   } catch { return time24; }
@@ -213,7 +213,9 @@ function uploadFileWithProgress(
   url: string,
   formData: FormData,
   headers: Record<string, string>,
-  onProgress: (percent: number) => void
+  onProgress: (percent: number) => void,
+  translate: (key: string, params?: Record<string, unknown>) => string,
+  translateCommon: (key: string, params?: Record<string, unknown>) => string,
 ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string; code?: string }> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
@@ -230,19 +232,19 @@ function uploadFileWithProgress(
       // FIX: Check HTTP status code before parsing response
       if (xhr.status >= 200 && xhr.status < 300) {
         try { resolve(JSON.parse(xhr.responseText)); }
-        catch { resolve({ success: false, error: 'حدث خطأ غير متوقع' }); }
+        catch { resolve({ success: false, error: translateCommon('unexpectedError') }); }
       } else {
         // Server returned an error status — parse the error message
         try {
           const result = JSON.parse(xhr.responseText);
-          resolve({ success: false, error: result.error || `خطأ HTTP: ${xhr.status}`, code: result.code });
+          resolve({ success: false, error: result.error || translate('httpError', { status: xhr.status }), code: result.code });
         } catch {
-          resolve({ success: false, error: `خطأ HTTP: ${xhr.status}` });
+          resolve({ success: false, error: translate('httpError', { status: xhr.status }) });
         }
       }
     };
-    xhr.onerror = () => { resolve({ success: false, error: 'حدث خطأ في الاتصال' }); };
-    xhr.ontimeout = () => { resolve({ success: false, error: 'انتهت مهلة الرفع' }); };
+    xhr.onerror = () => { resolve({ success: false, error: translateCommon('connectionError') }); };
+    xhr.ontimeout = () => { resolve({ success: false, error: translate('uploadTimeout') }); };
     xhr.send(formData);
   });
 }
@@ -338,7 +340,8 @@ function LectureTimer({ startedAt }: { startedAt: string }) {
 // Main Component
 // -------------------------------------------------------
 export default function LecturesTab({ profile, role, subjectId, subject, teacherName }: LecturesTabProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations('course');
+  const { t: tc } = useTranslations('common');
   // ─── Data state ───
   const [lectures, setLectures] = useState<LectureWithAttendance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -385,7 +388,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         if (fileNames && fileNames.length > 0) {
           // We can't restore File objects, so inform the user
           setTimeout(() => {
-            toast.info(`تم استعادة بيانات المحاضرة. يرجى إعادة اختيار ${fileNames.length} ملف(ات)`);
+            toast.info(t('lectureDataRestored', { count: fileNames.length }));
           }, 500);
         }
         setCreateOpen(true);
@@ -663,7 +666,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
   const handleCreateLecture = async () => {
     const title = newTitle.trim();
-    if (!title) { toast.error('يرجى إدخال عنوان المحاضرة'); return; }
+    if (!title) { toast.error(t('lectureTitleRequired')); return; }
     setCreating(true);
 
     // Total timeout protection: 3 minutes for the entire upload process
@@ -682,7 +685,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         .select('id')
         .single();
 
-      if (error) { toast.error('حدث خطأ أثناء إنشاء المحاضرة'); return; }
+      if (error) { toast.error(t('lectureCreateFailed')); return; }
 
       const lectureId = (lectureData as { id: string }).id;
       // Store lecture ID in state so retry function can use it
@@ -702,12 +705,12 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         if (!token) {
           // Token unavailable — mark ALL files as failed so toast logic works correctly
           for (let i = 0; i < currentPendingFiles.length; i++) {
-            uploadResults.push({ index: i, succeeded: false, error: 'جلسة المستخدم غير صالحة' });
+            uploadResults.push({ index: i, succeeded: false, error: tc('mustLogin') });
             if (mountedRef.current) {
               setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
             }
           }
-          toast.error('فشل التحقق من الهوية. يرجى إعادة تسجيل الدخول والمحاولة مرة أخرى.');
+          toast.error(t('authFailedRetry'));
         } else {
 
         const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB safe margin for server route
@@ -718,10 +721,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           // Check total timeout before starting each file upload
           if (isUploadTimedOut()) {
             console.warn('[LectureUpload] Total upload timeout exceeded, skipping remaining files');
-            toast.error('انتهت مهلة الرفع الإجمالية (3 دقائق). تم إلغاء رفع الملفات المتبقية.');
+            toast.error(t('uploadTotalTimeout'));
             // Mark all remaining files as error
             for (let j = i; j < currentPendingFiles.length; j++) {
-              uploadResults.push({ index: j, succeeded: false, error: 'انتهت مهلة الرفع الإجمالية' });
+              uploadResults.push({ index: j, succeeded: false, error: t('uploadTotalTimeoutShort') });
               if (mountedRef.current) {
                 setNewPendingFiles((prev) => prev.map((p, idx) => (idx === j ? { ...p, status: 'error' as const } : p)));
               }
@@ -752,7 +755,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 uploadBlob = new Blob([pf.fileData], { type: pf.fileType || 'application/octet-stream' });
               } catch (blobErr) {
                 console.warn('[LectureUpload] Failed to create Blob from pre-read data:', blobErr);
-                blobError = 'فشل إنشاء بيانات الملف من البيانات المقروءة مسبقاً';
+                blobError = t('fileBlobCreateFailed');
               }
             }
 
@@ -762,7 +765,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 if (arrayBuffer && arrayBuffer.byteLength > 0) {
                   uploadBlob = new Blob([arrayBuffer], { type: pf.fileType || 'application/octet-stream' });
                 } else {
-                  blobError = 'بيانات الملف فارغة أو غير صالحة';
+                  blobError = t('fileDataEmpty');
                 }
               } catch (arrayBufErr) {
                 console.warn('[LectureUpload] Failed to read file.arrayBuffer():', arrayBufErr);
@@ -771,23 +774,23 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   if (pf.fileSize > 0) {
                     // Use file reference only if we know it has data (checked via pre-read fileSize)
                     // Don't access pf.file.name / pf.file.type / pf.file.size directly on mobile PWA
-                    try { uploadBlob = pf.file; } catch { blobError = 'تعذر قراءة بيانات الملف — كائن الملف غير صالح'; }
+                    try { uploadBlob = pf.file; } catch { blobError = t('fileReadFailedInvalid'); }
                   } else {
-                    blobError = 'تعذر قراءة بيانات الملف — قد يكون الملف غير صالح أو تم حذفه';
+                    blobError = t('fileReadFailedDeleted');
                   }
                 } catch (fileErr) {
                   console.warn('[LectureUpload] File object is also invalid:', fileErr);
-                  blobError = 'تعذر قراءة بيانات الملف — كائن الملف غير صالح';
+                  blobError = t('fileReadFailedInvalid');
                 }
               }
             }
 
             // If we still couldn't get a valid blob, skip this file
             if (!uploadBlob) {
-              const displayName = pf.customName.trim() || pf.fileName || 'ملف غير معروف';
+              const displayName = pf.customName.trim() || pf.fileName || t('unknownFile');
               console.error(`[LectureUpload] Cannot upload file ${displayName}: ${blobError}`);
-              toast.error(`تعذر قراءة بيانات الملف "${displayName}". يرجى إعادة اختيار الملف والمحاولة مرة أخرى.`);
-              uploadResults.push({ index: i, succeeded: false, error: blobError || 'بيانات الملف غير متوفرة' });
+              toast.error(t('fileReadRetryWithName', { name: displayName }));
+              uploadResults.push({ index: i, succeeded: false, error: blobError || t('fileDataNotFound') });
               if (mountedRef.current) {
                 setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
               }
@@ -824,33 +827,33 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             // Helper: classify error and return Arabic message
             const classifyError = (err: unknown): string => {
               if (err instanceof DOMException && err.name === 'AbortError') {
-                return 'انتهت مهلة الطلب — يرجى التحقق من اتصال الإنترنت';
+                return t('requestTimeout');
               }
               if (err instanceof TypeError && err.message?.includes('network')) {
-                return 'خطأ في الاتصال بالشبكة — يرجى التحقق من اتصال الإنترنت';
+                return tc('connectionError');
               }
               if (err instanceof TypeError) {
-                return 'خطأ في نوع البيانات — قد يكون الملف تالفاً';
+                return t('errorDataType');
               }
               if (err instanceof Error) {
                 const msg = err.message || '';
                 if (msg.includes('401') || msg.includes('403') || msg.includes('JWT')) {
-                  return 'خطأ في المصادقة — يرجى إعادة تسجيل الدخول';
+                  return t('errorAuthRequired');
                 }
                 if (msg.includes('storage') || msg.includes('Storage') || msg.includes('bucket')) {
-                  return 'خطأ في خدمة التخزين — يرجى المحاولة لاحقاً';
+                  return t('errorStorageService');
                 }
                 if (msg.includes('network') || msg.includes('fetch') || msg.includes('Network')) {
-                  return 'خطأ في الاتصال بالشبكة — يرجى التحقق من اتصال الإنترنت';
+                  return tc('connectionError');
                 }
                 if (msg.includes('timeout') || msg.includes('مهلة')) {
-                  return 'انتهت مهلة الرفع — قد يكون الاتصال بطيئاً';
+                  return t('uploadTimeoutSlowConnection');
                 }
                 if (msg.includes('413') || msg.includes('too large') || msg.includes('payload')) {
-                  return 'حجم الملف كبير جداً — الحد الأقصى 4 ميغابايت';
+                  return t('fileTooLargeMax4MB');
                 }
               }
-              return 'خطأ غير معروف أثناء رفع الملف';
+              return t('unknownUploadError');
             };
 
             // Helper: try server-side upload via fetch or XHR
@@ -887,19 +890,19 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 let result: { success: boolean; data?: Record<string, unknown>; error?: string };
                 if (res.ok) {
                   try { result = await res.json(); }
-                  catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+                  catch { result = { success: false, error: tc('unexpectedError') }; }
                 } else {
                   const errorText = await res.text();
                   try { result = JSON.parse(errorText); }
-                  catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+                  catch { result = { success: false, error: t('httpError', { status: res.status }) }; }
                   console.warn(`[LectureUpload] Server returned ${res.status}:`, result.error);
                   // Classify HTTP error codes
                   if (res.status === 401 || res.status === 403) {
-                    result.error = 'خطأ في المصادقة — يرجى إعادة تسجيل الدخول';
+                    result.error = t('errorAuthRequired');
                   } else if (res.status === 413) {
-                    result.error = 'حجم الملف كبير جداً — الحد الأقصى 4 ميغابايت';
+                    result.error = t('fileTooLargeMax4MB');
                   } else if (res.status >= 500) {
-                    result.error = 'خطأ في الخادم — يرجى المحاولة لاحقاً';
+                    result.error = t('serverErrorTryLater');
                   }
                 }
 
@@ -915,7 +918,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 }
                 // Check for DUPLICATE_NAME error from server — store error code for retry UI
                 if ((result as { code?: string }).code === 'DUPLICATE_NAME') {
-                  const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                  const duplicateMsg = t('duplicateFileName', { name: displayName });
                   if (mountedRef.current) {
                     setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
                   }
@@ -947,7 +950,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     if (mountedRef.current) {
                       setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: Math.min(percent, 70) } : p)));
                     }
-                  }
+                  },
+                  t,
+                  tc
                 );
 
                 if (xhrResult.success && xhrResult.data) {
@@ -958,7 +963,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 }
                 // Check for DUPLICATE_NAME error from XHR — store error code for retry UI
                 if (xhrResult.code === 'DUPLICATE_NAME') {
-                  const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                  const duplicateMsg = t('duplicateFileName', { name: displayName });
                   if (mountedRef.current) {
                     setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
                   }
@@ -1017,8 +1022,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       if (xhr.status >= 200 && xhr.status < 300) resolve();
                       else reject(new Error(`HTTP ${xhr.status}`));
                     });
-                    xhr.addEventListener('error', () => reject(new Error('خطأ في الاتصال بالشبكة')));
-                    xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+                    xhr.addEventListener('error', () => reject(new Error(tc('connectionError'))));
+                    xhr.addEventListener('timeout', () => reject(new Error(t('uploadTimeout'))));
 
                     const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
                     xhr.open('POST', storageUploadUrl);
@@ -1039,7 +1044,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               }
 
               if (!storageUploadSuccess) {
-                throw new Error('فشل رفع الملف — تعذر الاتصال بخدمة التخزين');
+                throw new Error(t('fileUploadFailedStorageConnect'));
               }
 
               // Create DB record via API
@@ -1076,11 +1081,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 let createResult: { success: boolean; data?: Record<string, unknown>; error?: string };
                 if (createRes.ok) {
                   try { createResult = await createRes.json(); }
-                  catch { createResult = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+                  catch { createResult = { success: false, error: tc('unexpectedError') }; }
                 } else {
                   const errorText = await createRes.text();
                   try { createResult = JSON.parse(errorText); }
-                  catch { createResult = { success: false, error: `خطأ HTTP: ${createRes.status}` }; }
+                  catch { createResult = { success: false, error: t('httpError', { status: createRes.status }) }; }
                 }
 
                 if (createRes.ok && createResult.success && createResult.data) {
@@ -1090,7 +1095,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                 } else {
                   // Check for DUPLICATE_NAME error from JSON mode — store error code for retry UI
                   if ((createResult as { code?: string }).code === 'DUPLICATE_NAME') {
-                    const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+                    const duplicateMsg = t('duplicateFileName', { name: displayName });
                     if (mountedRef.current) {
                       setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
                     }
@@ -1099,7 +1104,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   }
                   console.error('[LectureUpload] Create record error:', createResult.error);
                   try { await supabase.storage.from('user-files').remove([storagePath]); } catch { /* ignore cleanup error */ }
-                  throw new Error(createResult.error || 'فشل حفظ بيانات الملف');
+                  throw new Error(createResult.error || t('fileDataSaveFailed'));
                 }
               } finally {
                 clearTimeout(recordTimeout);
@@ -1136,31 +1141,31 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           } catch (err) {
             console.error('File upload error:', err);
             const classifyUploadError = (e: unknown): string => {
-              if (e instanceof DOMException && e.name === 'AbortError') return 'انتهت مهلة الطلب — يرجى التحقق من اتصال الإنترنت';
-              if (e instanceof TypeError && e.message?.includes('network')) return 'خطأ في الاتصال بالشبكة — يرجى التحقق من اتصال الإنترنت';
-              if (e instanceof TypeError) return 'خطأ في نوع البيانات — قد يكون الملف تالفاً';
+              if (e instanceof DOMException && e.name === 'AbortError') return t('requestTimeout');
+              if (e instanceof TypeError && e.message?.includes('network')) return tc('connectionError');
+              if (e instanceof TypeError) return t('errorDataType');
               if (e instanceof Error) {
                 const m = e.message || '';
-                if (m.includes('401') || m.includes('403') || m.includes('JWT')) return 'خطأ في المصادقة — يرجى إعادة تسجيل الدخول';
-                if (m.includes('storage') || m.includes('Storage') || m.includes('bucket')) return 'خطأ في خدمة التخزين — يرجى المحاولة لاحقاً';
-                if (m.includes('network') || m.includes('fetch') || m.includes('Network')) return 'خطأ في الاتصال بالشبكة — يرجى التحقق من اتصال الإنترنت';
-                if (m.includes('timeout') || m.includes('مهلة')) return 'انتهت مهلة الرفع — قد يكون الاتصال بطيئاً';
-                if (m.includes('413') || m.includes('too large') || m.includes('payload')) return 'حجم الملف كبير جداً — الحد الأقصى 4 ميغابايت';
+                if (m.includes('401') || m.includes('403') || m.includes('JWT')) return t('errorAuthRequired');
+                if (m.includes('storage') || m.includes('Storage') || m.includes('bucket')) return t('errorStorageService');
+                if (m.includes('network') || m.includes('fetch') || m.includes('Network')) return tc('connectionError');
+                if (m.includes('timeout') || m.includes('مهلة')) return t('uploadTimeoutSlowConnection');
+                if (m.includes('413') || m.includes('too large') || m.includes('payload')) return t('fileTooLargeMax4MB');
               }
-              return 'خطأ غير معروف أثناء رفع الملف';
+              return t('unknownUploadError');
             };
             const classifiedError = classifyUploadError(err);
             uploadResults.push({ index: i, succeeded: false, error: classifiedError });
             if (mountedRef.current) {
               setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: 'error' as const } : p)));
             }
-            toast.error(`فشل رفع الملف "${pf.fileName || 'غير معروف'}": ${classifiedError}`);
+            toast.error(t('fileUploadFailedWithName', { name: pf.fileName || t('unknownFile'), error: classifiedError }));
           }
         }
         } catch (outerUploadErr) {
           // Catch any unexpected error from the entire upload loop that wasn't caught by inner try-catch
           console.error('[LectureUpload] Unexpected error in upload loop:', outerUploadErr);
-          toast.error('حدث خطأ غير متوقع أثناء رفع الملفات. يرجى المحاولة مرة أخرى.');
+          toast.error(tc('unexpectedError'));
         }
 
         } // end of else (token is valid)
@@ -1170,14 +1175,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       const failedCount = uploadResults.filter(r => !r.succeeded).length;
       const totalFiles = uploadResults.length;
       if (totalFiles === 0 || failedCount === 0) {
-        toast.success('تم إنشاء المحاضرة بنجاح');
+        toast.success(t('lectureCreated'));
       } else if (failedCount < totalFiles) {
-        toast.success('تم إنشاء المحاضرة بنجاح');
-        toast.error(`فشل رفع ${failedCount} من ${totalFiles} ملف. يمكنك تغيير الاسم وإعادة المحاولة.`);
+        toast.success(t('lectureCreated'));
+        toast.error(t('filesUploadPartialFailed', { failed: failedCount, total: totalFiles }));
       } else {
         // ALL file uploads failed — keep modal open so user can rename and retry
-        toast.success('تم إنشاء المحاضرة بنجاح');
-        toast.error('فشل رفع جميع الملفات. يمكنك تغيير الاسم وإعادة المحاولة، أو رفعها لاحقاً من داخل المحاضرة.');
+        toast.success(t('lectureCreated'));
+        toast.error(t('allFilesUploadFailed'));
       }
 
       // Notify all enrolled students about the new lecture (non-blocking)
@@ -1240,7 +1245,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       fetchLectures();
     } catch (outerErr) {
       console.error('[LectureUpload] Unexpected error in handleCreateLecture:', outerErr);
-      toast.error('حدث خطأ غير متوقع أثناء إنشاء المحاضرة');
+      toast.error(t('unexpectedErrorCreatingLecture'));
     }
     finally {
       // Always reset creating state, even after early returns or unmounts
@@ -1266,7 +1271,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     // Must have a lecture ID to retry
     const lectureId = createdLectureId;
     if (!lectureId) {
-      toast.error('لم يتم إنشاء المحاضرة بعد. يرجى إنشاء المحاضرة أولاً.');
+      toast.error(t('lectureNotCreatedYet'));
       return;
     }
 
@@ -1274,7 +1279,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     const { waitForSession } = await import('@/lib/client-auth');
     const token = await waitForSession(15000);
     if (!token) {
-      toast.error('يرجى تسجيل الدخول أولاً');
+      toast.error(tc('loginFirst'));
       return;
     }
 
@@ -1293,7 +1298,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       // Client-side pre-validation: check for duplicate name in existing files
       const newDisplayName = displayName.toLowerCase();
       if (existingSubjectFileNames.includes(newDisplayName)) {
-        const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+        const duplicateMsg = t('duplicateFileName', { name: displayName });
         if (mountedRef.current) {
           setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
         }
@@ -1324,9 +1329,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
       if (!uploadBlob) {
         if (mountedRef.current) {
-          setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: 'تعذر قراءة بيانات الملف — يرجى إعادة اختيار الملف' } : p)));
+          setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: t('fileDataUnreadable') } : p)));
         }
-        toast.error('تعذر قراءة بيانات الملف. يرجى إعادة اختيار الملف.');
+        toast.error(t('fileDataUnreadableToast'));
         return;
       }
 
@@ -1375,11 +1380,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           let result: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
           if (res.ok) {
             try { result = await res.json(); }
-            catch { result = { success: false, error: 'حدث خطأ غير متوقع في استجابة السيرفر' }; }
+            catch { result = { success: false, error: tc('unexpectedError') }; }
           } else {
             const errorText = await res.text();
             try { result = JSON.parse(errorText); }
-            catch { result = { success: false, error: `خطأ HTTP: ${res.status}` }; }
+            catch { result = { success: false, error: t('httpError', { status: res.status }) }; }
           }
 
           if (mountedRef.current) {
@@ -1391,7 +1396,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             await insertFileNote(fileData.file_url, fileData.file_name);
             uploadSucceeded = true;
           } else if (result.code === 'DUPLICATE_NAME') {
-            const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+            const duplicateMsg = t('duplicateFileName', { name: displayName });
             if (mountedRef.current) {
               setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
             }
@@ -1422,7 +1427,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
         if (!storageUploadSuccess) {
           if (mountedRef.current) {
-            setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: 'فشل رفع الملف — يرجى المحاولة مرة أخرى' } : p)));
+            setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: t('fileUploadFailedRetry') } : p)));
           }
           return;
         }
@@ -1461,11 +1466,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           let createResult: { success: boolean; data?: Record<string, unknown>; error?: string; code?: string };
           if (createRes.ok) {
             try { createResult = await createRes.json(); }
-            catch { createResult = { success: false, error: 'حدث خطأ غير متوقع' }; }
+            catch { createResult = { success: false, error: tc('unexpectedError') }; }
           } else {
             const errorText = await createRes.text();
             try { createResult = JSON.parse(errorText); }
-            catch { createResult = { success: false, error: `خطأ HTTP: ${createRes.status}` }; }
+            catch { createResult = { success: false, error: t('httpError', { status: createRes.status }) }; }
           }
 
           if (createRes.ok && createResult.success && createResult.data) {
@@ -1473,7 +1478,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             await insertFileNote(fileData.file_url, fileData.file_name);
             uploadSucceeded = true;
           } else if (createResult.code === 'DUPLICATE_NAME') {
-            const duplicateMsg = `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`;
+            const duplicateMsg = t('duplicateFileName', { name: displayName });
             if (mountedRef.current) {
               setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: duplicateMsg, errorCode: 'duplicate_name' as const } : p)));
             }
@@ -1493,7 +1498,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         if (mountedRef.current) {
           setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'done' as const, progress: 100 } : p)));
         }
-        toast.success(`تم رفع الملف "${displayName}" بنجاح`);
+        toast.success(t('fileUploadedSuccess', { name: displayName }));
         // Refresh the existing file names list after successful upload
         fetchExistingSubjectFileNames();
         fetchLectures();
@@ -1514,16 +1519,16 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         }, 1500);
       } else {
         if (mountedRef.current) {
-          setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: 'فشل رفع الملف — يرجى المحاولة مرة أخرى' } : p)));
+          setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: t('fileUploadFailedRetry') } : p)));
         }
       }
     } catch (err) {
       console.error('[RetryUpload] Error:', err);
-      const errMsg = err instanceof Error ? err.message : 'خطأ غير معروف';
+      const errMsg = err instanceof Error ? err.message : tc('unexpectedError');
       if (mountedRef.current) {
         setNewPendingFiles((prev) => prev.map((p, idx) => (idx === fileIndex ? { ...p, status: 'error' as const, error: errMsg } : p)));
       }
-      toast.error(`فشل إعادة المحاولة: ${errMsg}`);
+      toast.error(t('retryFailed', { error: errMsg }));
     }
   };
 
@@ -1543,7 +1548,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   const handleSaveEdit = async () => {
     if (!editingLecture) return;
     const title = editTitle.trim();
-    if (!title) { toast.error('يرجى إدخال عنوان المحاضرة'); return; }
+    if (!title) { toast.error(t('lectureTitleRequired')); return; }
     setSavingEdit(true);
     try {
       const { error } = await supabase.from('lectures').update({
@@ -1551,9 +1556,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         description: encodeDescription(editDesc.trim(), editTime) || null,
         lecture_date: editDate || null,
       }).eq('id', editingLecture.id);
-      if (error) toast.error('حدث خطأ أثناء تعديل المحاضرة');
-      else { toast.success('تم تعديل المحاضرة بنجاح'); setEditOpen(false); setEditingLecture(null); fetchLectures(); }
-    } catch { toast.error('حدث خطأ غير متوقع'); }
+      if (error) toast.error(t('lectureEditFailed'));
+      else { toast.success(t('lectureEditedSuccess')); setEditOpen(false); setEditingLecture(null); fetchLectures(); }
+    } catch { toast.error(tc('unexpectedError')); }
     finally { setSavingEdit(false); }
   };
 
@@ -1563,7 +1568,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   const handleDeleteClick = (lecture: LectureWithAttendance, e: React.MouseEvent) => {
     e.stopPropagation();
     if (lecture.attendance_session?.status === 'active') {
-      toast.error('لا يمكن حذف محاضرة نشطة');
+      toast.error(t('cannotDeleteActiveLecture'));
       return;
     }
     setDeleteTargetLecture(lecture);
@@ -1577,9 +1582,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     setDeleteConfirmOpen(false);
     try {
       const { error } = await supabase.from('lectures').delete().eq('id', lectureId);
-      if (error) toast.error('حدث خطأ أثناء حذف المحاضرة');
-      else { toast.success('تم حذف المحاضرة بنجاح'); fetchLectures(); }
-    } catch { toast.error('حدث خطأ غير متوقع'); }
+      if (error) toast.error(t('lectureDeleteFailed'));
+      else { toast.success(t('lectureDeleted')); fetchLectures(); }
+    } catch { toast.error(tc('unexpectedError')); }
     finally { setDeletingId(null); setDeleteTargetLecture(null); }
   };
 
@@ -1601,16 +1606,16 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             // Warn if accuracy is poor but still save the location
             // Both teacher and student need to use similar location methods
             if (pos.coords.accuracy > 100) {
-              toast(`تنبيه: دقة الموقع ضعيفة (${Math.round(pos.coords.accuracy)} متر). يُفضل تفعيل GPS للحصول على دقة أفضل.`, { duration: 6000 });
+              toast(t('gpsAccuracyPoor', { accuracy: Math.round(pos.coords.accuracy) }), { duration: 6000 });
             }
           } else if (!pos) {
-            toast.error('تعذر تحديد موقعك. يرجى تفعيل خدمات الموقع والمحاولة مرة أخرى.', { duration: 6000 });
+            toast.error(t('gpsLocationUnavailable'), { duration: 6000 });
           }
         } catch { /* continue without location */ }
       }
 
       const { data: existing } = await supabase.from('attendance_sessions').select('id').eq('teacher_id', profile.id).eq('status', 'active').maybeSingle();
-      if (existing) { toast.error('لديك جلسة حضور نشطة بالفعل'); return; }
+      if (existing) { toast.error(t('activeAttendanceSessionExists')); return; }
 
       const insertData: Record<string, unknown> = {
         lecture_id: lectureId,
@@ -1630,18 +1635,18 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             lecture_id: lectureId, teacher_id: profile.id, subject_id: subjectId, status: 'active',
           });
           if (retryError) {
-            if (retryError.code === '23505') toast.error('لديك جلسة حضور نشطة بالفعل');
-            else toast.error('حدث خطأ أثناء بدء الحضور');
+            if (retryError.code === '23505') toast.error(t('activeAttendanceSessionExists'));
+            else toast.error(t('attendanceStartFailed'));
             return;
           }
         } else if (error.code === '23505') {
-          toast.error('لديك جلسة حضور نشطة بالفعل'); return;
+          toast.error(t('activeAttendanceSessionExists')); return;
         } else {
-          toast.error('حدث خطأ أثناء بدء الحضور'); return;
+          toast.error(t('attendanceStartFailed')); return;
         }
       }
 
-      toast.success(location ? `تم بدء تسجيل الحضور مع تحديد الموقع (دقة ${Math.round(location.accuracy)}م)` : 'تم بدء تسجيل الحضور');
+      toast.success(location ? t('attendanceStartedWithLocation', { accuracy: Math.round(location.accuracy) }) : t('attendanceStarted'));
       // Send notification to all students in the subject
       try {
         const lectureTitle = lectures.find((l) => l.id === lectureId)?.title || '';
@@ -1660,7 +1665,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         });
       } catch { /* notification failure is non-critical */ }
       fetchLectures();
-    } catch { toast.error('حدث خطأ غير متوقع'); }
+    } catch { toast.error(tc('unexpectedError')); }
     finally { setStartingAttendance(null); }
   };
 
@@ -1673,9 +1678,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
     try {
       const { error } = await supabase.from('attendance_sessions').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', sessionId);
       if (error) {
-        toast.error('حدث خطأ أثناء إنهاء الحضور');
+        toast.error(t('attendanceStopFailed'));
       } else {
-        toast.success('تم إنهاء تسجيل الحضور');
+        toast.success(t('attendanceStopped'));
 
         // Optimistic update: immediately reflect the closed session in local state
         // without waiting for fetchLectures() to complete
@@ -1696,7 +1701,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         fetchLectures();
         return; // Exit early since we already cleared stoppingAttendance
       }
-    } catch { toast.error('حدث خطأ غير متوقع'); }
+    } catch { toast.error(tc('unexpectedError')); }
     setStoppingAttendance(null);
   };
 
@@ -1714,7 +1719,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
   const handleOpenQrModal = async (lecture: LectureWithAttendance, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!lecture.attendance_session || lecture.attendance_session.status !== 'active') {
-      toast.error('المحاضرة غير نشطة');
+      toast.error(t('lectureNotActive'));
       return;
     }
     setQrLecture(lecture);
@@ -1808,7 +1813,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               setScanningSessionId(null);
               await performCheckIn(sessionId, 'qr');
             } else {
-              toast.error('رمز QR غير صالح لهذه المحاضرة');
+              toast.error(t('invalidQrForLecture'));
             }
           },
           () => { /* ignore scan failures */ }
@@ -1816,7 +1821,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       } catch (err) {
         console.error('QR scan error:', err);
         setScanningSessionId(null);
-        toast.error('تعذر تشغيل الكاميرا. حاول استخدام GPS بدلاً من ذلك.');
+        toast.error(t('cameraFailedUseGps'));
       }
     }, 300);
   };
@@ -1850,7 +1855,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       if (editOpen) { if (!savingEdit) setEditOpen(false); return; }
       if (createOpen) {
         if (creating) {
-          if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
+          if (confirm(t('cancelLectureCreate'))) {
             setCreating(false);
             setCreateOpen(false);
             setNewTitle('');
@@ -1896,7 +1901,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
       // For GPS method: location is required
       if (method === 'gps' && !studentLat) {
-        toast.error('تعذر تحديد موقعك. يرجى تفعيل GPS وحاول مرة أخرى.');
+        toast.error(t('gpsLocationUnavailableGps'));
         setCheckingIn(false);
         return;
       }
@@ -1927,7 +1932,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             // GPS verification is informational only — a GPS/IP mismatch should NOT block QR check-in.
             if (isLocationMismatch) {
               console.warn('[GPS] QR check-in with GPS mismatch (distance:', Math.round(distance), 'm). QR scan proves proximity, allowing check-in.');
-              toast(`تم التحقق من قربك عبر مسح QR. الموقع GPS غير متطابق (${Math.round(distance)} متر) — يرجى تفعيل GPS لتحسين الدقة.`, { duration: 6000 });
+              toast(t('qrVerifiedGpsMismatch', { distance: Math.round(distance) }), { duration: 6000 });
               // Don't return — allow QR check-in to proceed
             } else if (distance > GPS_MAX_DISTANCE_METERS) {
               // Small distance mismatch (20m-1km): likely GPS inaccuracy, not IP mismatch
@@ -1939,16 +1944,16 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             // GPS-only check-in: GPS is the ONLY proof of proximity — must be accurate
             if (isLocationMismatch) {
               console.error('[GPS] GPS check-in mismatch. Teacher:', teacherLat.toFixed(6), teacherLon.toFixed(6), 'Student:', studentLat.toFixed(6), studentLon.toFixed(6));
-              toast.error(`المسافة كبيرة جداً (${Math.round(distance)} متر). يبدو أن GPS غير مُفعّل على جهازك ويتم استخدام الموقع التقريبي. يرجى تفعيل GPS من إعدادات الجهاز أو استخدام مسح QR بدلاً من ذلك.`, { duration: 10000 });
+              toast.error(t('gpsDistanceTooFar', { distance: Math.round(distance) }), { duration: 10000 });
               return;
             }
             
             if (distance > GPS_MAX_DISTANCE_METERS) {
               console.warn('[GPS] GPS check-in distance too far:', Math.round(distance), 'meters');
               if (studentAccuracy && studentAccuracy > 100) {
-                toast.error(`دقة الموقع ضعيفة (${Math.round(studentAccuracy)} متر) والمسافة ${Math.round(distance)} متر. يرجى تفعيل GPS أو استخدام مسح QR.`, { duration: 8000 });
+                toast.error(t('gpsPoorAccuracyAndDistance', { accuracy: Math.round(studentAccuracy), distance: Math.round(distance) }), { duration: 8000 });
               } else {
-                toast.error(`أنت بعيد عن المعلم بمسافة ${Math.round(distance)} متر. يجب أن تكون ضمن ${GPS_MAX_DISTANCE_METERS} متر.`, { duration: 6000 });
+                toast.error(t('gpsTooFarFromTeacher', { distance: Math.round(distance), maxDistance: GPS_MAX_DISTANCE_METERS }), { duration: 6000 });
               }
               return;
             }
@@ -1969,27 +1974,27 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
       if (error) {
         if (error.code === '23505') {
-          toast.error('تم تسجيل حضورك بالفعل');
+          toast.error(t('alreadyCheckedIn'));
         } else if (error.message?.includes('check_in_method') || error.code === '42703') {
           const { error: retryError } = await supabase.from('attendance_records').insert({
             session_id: sessionId,
             student_id: profile.id,
           });
           if (retryError) {
-            if (retryError.code === '23505') toast.error('تم تسجيل حضورك بالفعل');
-            else toast.error('حدث خطأ أثناء تسجيل الحضور');
+            if (retryError.code === '23505') toast.error(t('alreadyCheckedIn'));
+            else toast.error(t('checkInFailed'));
           } else {
-            toast.success('تم تسجيل الحضور بنجاح');
+            toast.success(t('checkInSuccess'));
           }
         } else {
-          toast.error('حدث خطأ أثناء تسجيل الحضور');
+          toast.error(t('checkInFailed'));
         }
       } else {
-        toast.success('تم تسجيل الحضور بنجاح ✓');
+        toast.success(t('checkInSuccessVerified'));
       }
       fetchLectures();
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setCheckingIn(false);
     }
@@ -2047,7 +2052,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
         } catch {}
         setExpandedNotes(notesList.map((n) => {
           const author = authorMap.get(n.user_id);
-          return { ...n, author_name: author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender, t) : 'معلم' };
+          return { ...n, author_name: author ? formatNameWithTitle(author.name, author.role, author.title_id, author.gender, t) : t('teacherFallback') };
         }) as LectureNoteWithAuthor[]);
       } else {
         setExpandedNotes([]);
@@ -2069,7 +2074,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           // Only show public notes
           if (newNote.visibility !== 'public') return;
           // Fetch author info for the new note through server-side API (bypasses RLS)
-          let authorName = 'معلم';
+          let authorName = t('teacherFallback');
           try {
             const { data: { session: sess } } = await supabase.auth.getSession();
             const res = await fetch('/api/users/batch', {
@@ -2119,13 +2124,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h3 className="text-xl font-bold text-foreground">{t('course.lectures')}</h3>
-          <p className="text-muted-foreground text-sm mt-1">{lectures.length} محاضرة</p>
+          <h3 className="text-xl font-bold text-foreground">{t('tabLectures')}</h3>
+          <p className="text-muted-foreground text-sm mt-1">{t('lectureCount', { count: lectures.length })}</p>
         </div>
         {role === 'teacher' && (
           <button onClick={() => { setCreateOpen(true); setCreatedLectureId(null); fetchExistingSubjectFileNames(); }} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-sky-800 active:scale-[0.97]">
             <Plus className="h-4 w-4" />
-            {t('course.newLecture')}
+            {t('newLecture')}
           </button>
         )}
       </motion.div>
@@ -2138,8 +2143,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-5">
             <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-300" />
           </div>
-          <p className="text-lg font-bold text-foreground mb-1">{t('course.noLectures')}</p>
-          <p className="text-sm text-muted-foreground">{role === 'teacher' ? 'ابدأ بإضافة محاضرة جديدة' : 'لم يتم إضافة محاضرات بعد'}</p>
+          <p className="text-lg font-bold text-foreground mb-1">{t('noLectures')}</p>
+          <p className="text-sm text-muted-foreground">{role === 'teacher' ? t('startByAddingLecture') : t('noLecturesYet')}</p>
         </motion.div>
       ) : (
         <motion.div variants={containerVariants} className="space-y-4">
@@ -2179,10 +2184,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
                                   </span>
-                                  جارية
+                                  {t('inProgress')}
                                 </Badge>
                               ) : hasSession ? (
-                                <Badge variant="outline" className="text-muted-foreground text-[10px] shrink-0">منتهية</Badge>
+                                <Badge variant="outline" className="text-muted-foreground text-[10px] shrink-0">{t('expiredStatus')}</Badge>
                               ) : null}
                             </div>
                             {cleanDescription(lecture.description) && (
@@ -2197,7 +2202,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <button
                                 onClick={(e) => handleOpenQrModal(lecture, e)}
                                 className="touch-target flex items-center justify-center rounded-lg text-sky-700 dark:text-sky-300 hover:bg-sky-50 transition-colors"
-                                title="عرض رمز QR"
+                                title={t('viewQrCode')}
                               >
                                 <QrCode className="h-4 w-4" />
                               </button>
@@ -2206,7 +2211,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             <button
                               onClick={(e) => handleOpenEdit(lecture, e)}
                               className="touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                              title="تعديل المحاضرة"
+                              title={t('editLecture')}
                             >
                               <Pencil className="h-4 w-4" />
                             </button>
@@ -2216,7 +2221,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 onClick={(e) => handleDeleteClick(lecture, e)}
                                 disabled={deletingId === lecture.id}
                                 className="touch-target flex items-center justify-center rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                                title="حذف المحاضرة"
+                                title={t('deleteLecture')}
                               >
                                 {deletingId === lecture.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                               </button>
@@ -2228,10 +2233,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         <div className="flex items-center justify-between flex-wrap gap-2 text-xs text-muted-foreground mb-4">
                           <div className="flex items-center gap-3">
                             {lecture.lecture_date && (
-                              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date)}</span>
+                              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date, direction === 'rtl' ? 'ar-SA' : 'en-US')}</span>
                             )}
                             {extractLectureTime(lecture.description) && (
-                              <span className="flex items-center gap-1 text-sky-800 dark:text-sky-200 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description))}</span>
+                              <span className="flex items-center gap-1 text-sky-800 dark:text-sky-200 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description), tc('am'), tc('pm'))}</span>
                             )}
                             {isActive && lecture.attendance_session?.started_at && (
                               <LectureTimer startedAt={lecture.attendance_session.started_at} />
@@ -2254,7 +2259,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                             >
                               {startingAttendance === lecture.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                              بدء المحاضرة
+                              {t('startLecture')}
                             </button>
                           )}
                           {isActive && lecture.attendance_session && (
@@ -2264,13 +2269,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:opacity-60 transition-colors"
                             >
                               {stoppingAttendance === lecture.attendance_session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <StopCircle className="h-4 w-4" />}
-                              إنهاء المحاضرة
+                              {t('endLecture')}
                             </button>
                           )}
                           {hasSession && !isActive && (
                             <div className="flex items-center justify-center gap-2 rounded-xl border border-muted bg-muted/30 px-4 py-2.5 text-sm font-medium text-muted-foreground">
                               <CheckCircle2 className="h-4 w-4" />
-                              محاضرة منتهية
+                              {t('lectureExpired')}
                             </div>
                           )}
                         </div>
@@ -2291,10 +2296,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
                                   </span>
-                                  جارية
+                                  {t('inProgress')}
                                 </Badge>
                               ) : hasSession ? (
-                                <Badge variant="outline" className="text-muted-foreground text-[10px] shrink-0">منتهية</Badge>
+                                <Badge variant="outline" className="text-muted-foreground text-[10px] shrink-0">{t('expiredStatus')}</Badge>
                               ) : null}
                             </div>
                             {cleanDescription(lecture.description) && (
@@ -2307,10 +2312,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         <div className="flex items-center justify-between flex-wrap gap-2 text-xs text-muted-foreground">
                           <div className="flex items-center gap-3">
                             {lecture.lecture_date && (
-                              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date)}</span>
+                              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date, direction === 'rtl' ? 'ar-SA' : 'en-US')}</span>
                             )}
                             {extractLectureTime(lecture.description) && (
-                              <span className="flex items-center gap-1 text-sky-800 dark:text-sky-200 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description))}</span>
+                              <span className="flex items-center gap-1 text-sky-800 dark:text-sky-200 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description), tc('am'), tc('pm'))}</span>
                             )}
                             {isActive && lecture.attendance_session?.started_at && (
                               <LectureTimer startedAt={lecture.attendance_session.started_at} />
@@ -2319,7 +2324,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                           {/* Expand/collapse hint for students */}
                           <span className="flex items-center gap-1 text-sky-700 dark:text-sky-300 font-medium">
                             <StickyNote className="h-3 w-3" />
-                            {isExpanded ? 'إخفاء الملاحظات' : 'اضغط لعرض الملاحظات'}
+                            {isExpanded ? t('hideNotes') : t('tapToShowNotes')}
                             {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                           </span>
                         </div>
@@ -2334,7 +2339,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60 transition-colors"
                               >
                                 <Scan className="h-4 w-4" />
-                                مسح QR Code
+                                {t('scanQrCode')}
                               </button>
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleGpsCheckIn(lecture.attendance_session!.id); }}
@@ -2357,7 +2362,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                           <div className="mt-4 pt-4 border-t">
                             <div className="flex items-center justify-center gap-2 rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 px-4 py-3 text-sm font-semibold text-sky-800 dark:text-sky-200">
                               <CheckCircle2 className="h-5 w-5" />
-                              تم تسجيل الحضور
+                              {t('attendanceRegistered')}
                             </div>
                           </div>
                         )}
@@ -2366,7 +2371,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         {role === 'student' && !isExpanded && (
                           <div className="mt-3 flex items-center gap-1.5 text-[10px] text-muted-foreground">
                             <StickyNote className="h-3 w-3" />
-                            اضغط على المحاضرة لعرض الملاحظات
+                            {t('tapLectureToViewNotes')}
                           </div>
                         )}
                       </>
@@ -2386,10 +2391,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         <div className="px-5 pb-5 border-t pt-4">
                           <h5 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
                             <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                            ملاحظات المعلم
+                            {t('teacherNotes')}
                           </h5>
                           {expandedNotes.length === 0 ? (
-                            <p className="text-xs text-muted-foreground text-center py-3">لا توجد ملاحظات عامة بعد</p>
+                            <p className="text-xs text-muted-foreground text-center py-3">{t('noPublicNotesYet')}</p>
                           ) : (
                             <div className="space-y-2">
                               {expandedNotes.map((note) => {
@@ -2399,7 +2404,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                     <div key={note.id} className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-3">
                                       <div className="flex items-center gap-2 mb-1">
                                         <span className="text-xs font-medium text-foreground">{note.author_name}</span>
-                                        <span className="text-[10px] text-muted-foreground">{formatTime(note.created_at)}</span>
+                                        <span className="text-[10px] text-muted-foreground">{formatTime(note.created_at, direction === 'rtl' ? 'ar-SA' : 'en-US')}</span>
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
@@ -2413,7 +2418,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                         <button
                                           onClick={(e) => { e.stopPropagation(); downloadWithCustomName(fileRef.url, fileRef.name); }}
                                           className="touch-target shrink-0 flex items-center justify-center rounded-md text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
-                                          title="تحميل"
+                                          title={tc('download')}
                                         >
                                           <Download className="h-3.5 w-3.5" />
                                         </button>
@@ -2425,7 +2430,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                   <div key={note.id} className="rounded-lg bg-muted/30 border p-3">
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className="text-xs font-medium text-foreground">{note.author_name}</span>
-                                      <span className="text-[10px] text-muted-foreground">{formatTime(note.created_at)}</span>
+                                      <span className="text-[10px] text-muted-foreground">{formatTime(note.created_at, direction === 'rtl' ? 'ar-SA' : 'en-US')}</span>
                                     </div>
                                     <p className="text-sm text-foreground">{note.content}</p>
                                   </div>
@@ -2473,16 +2478,16 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             >
             <div
               className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl pointer-events-auto"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  محاضرة جديدة
+                  {t('newLecture')}
                 </h3>
                 <button onClick={() => {
                   if (creating) {
-                    if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
+                    if (confirm(t('cancelLectureCreate'))) {
                       setCreating(false);
                       setCreateOpen(false);
                       setNewTitle('');
@@ -2504,26 +2509,26 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               </div>
               <div className="p-5 space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المحاضرة <span className="text-rose-500">*</span></label>
-                  <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="مثال: المحاضرة الأولى" className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir={dir} disabled={creating} />
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('lectureTitle')} <span className="text-rose-500">*</span></label>
+                  <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder={t('lectureTitlePlaceholder')} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir={direction} disabled={creating} />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
-                  <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir={dir} disabled={creating} />
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('descriptionOptional')}</label>
+                  <textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder={t('lectureDescPlaceholder')} rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir={direction} disabled={creating} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">تاريخ المحاضرة</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('lectureDate')}</label>
                     <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="ltr" disabled={creating} />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">وقت المحاضرة</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('lectureTime')}</label>
                     <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="ltr" disabled={creating} />
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">ملفات المحاضرة (اختياري)</label>
-                  <p className="text-xs text-muted-foreground mb-2">سيتم رفع الملفات إلى ملفات المقرر تلقائياً وعرضها كروابط في المحاضرة</p>
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('lectureFilesOptional')}</label>
+                  <p className="text-xs text-muted-foreground mb-2">{t('lectureFilesAutoUpload')}</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -2565,7 +2570,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               progress: 0,
                               status: (isDuplicate || isDuplicateInPending) ? 'error' as const : 'pending' as const,
                               error: (isDuplicate || isDuplicateInPending)
-                                ? `يوجد ملف بنفس الاسم والامتداد (${displayName}). يرجى تغيير اسم الملف والمحاولة مرة أخرى`
+                                ? t('duplicateFileName', { name: displayName })
                                 : undefined,
                               errorCode: (isDuplicate || isDuplicateInPending) ? 'duplicate_name' as const : undefined,
                             };
@@ -2574,7 +2579,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         // Show warning for duplicates
                         const duplicateFiles = newFiles.filter(f => f.errorCode === 'duplicate_name');
                         if (duplicateFiles.length > 0) {
-                          toast.error(`يوجد ${duplicateFiles.length} ملف(ات) بنفس الاسم والامتداد. يرجى تغيير الاسم قبل الرفع.`);
+                          toast.error(t('duplicateFileCount', { count: duplicateFiles.length }));
                         }
                         setNewPendingFiles(prev => [...prev, ...newFiles]);
                         e.target.value = '';
@@ -2593,7 +2598,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 px-4 py-4 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-50 hover:border-sky-400 transition-colors disabled:opacity-60"
                   >
                     <Upload className="h-5 w-5" />
-                    اختر ملفات
+                    {t('uploadFiles')}
                   </button>
                   {newPendingFiles.length > 0 && (
                     <div className="mt-2 space-y-1.5">
@@ -2641,9 +2646,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 type="text"
                                 value={pf.customName}
                                 onChange={(e) => setNewPendingFiles(prev => prev.map((p, i) => (i === idx ? { ...p, customName: e.target.value, error: undefined, errorCode: undefined, status: 'pending' as const } : p)))}
-                                placeholder="اسم الملف (بدون الامتداد)"
+                                placeholder={t('fileNamePlaceholder')}
                                 className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                                dir={dir}
+                                dir={direction}
                                 disabled={pf.status === 'uploading'}
                               />
                               {pf.fileName.includes('.') && (
@@ -2659,7 +2664,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-800 disabled:opacity-60 transition-colors"
                             >
                               <RefreshCw className="h-3 w-3" />
-                              إعادة المحاولة
+                              {tc('retry')}
                             </button>
                           )}
                           {/* Progress bar */}
@@ -2673,7 +2678,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-[10px] text-muted-foreground">
-                                  {pf.status === 'done' ? 'تم الرفع ✓' : 'جارٍ الرفع...'}
+                                  {pf.status === 'done' ? t('uploadComplete') : t('uploadingProgress')}
                                 </span>
                                 <span className={`text-[10px] font-medium ${pf.status === 'done' ? 'text-sky-700 dark:text-sky-300' : 'text-amber-600 dark:text-amber-400'}`}>
                                   {pf.progress}%
@@ -2690,11 +2695,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <div className="flex items-center gap-3 border-t p-5">
                 <button type="button" onClick={handleCreateLecture} disabled={creating || !newTitle.trim()} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60">
                   {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  إنشاء المحاضرة
+                  {t('createLecture')}
                 </button>
                 <button onClick={() => {
                   if (creating) {
-                    if (confirm('هل تريد إلغاء إنشاء المحاضرة؟')) {
+                    if (confirm(t('cancelLectureCreate'))) {
                       setCreating(false);
                       setCreateOpen(false);
                       setNewTitle('');
@@ -2710,7 +2715,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     setCreatedLectureId(null);
                     setExistingSubjectFileNames([]);
                   }
-                }} className="rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">إلغاء</button>
+                }} className="rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors">{tc('cancel')}</button>
               </div>
             </div>
             </motion.div>
@@ -2740,7 +2745,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                  تعديل المحاضرة
+                  {t('editLecture')}
                 </h3>
                 <button onClick={() => { if (!savingEdit) setEditOpen(false); }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
                   <X className="h-4 w-4" />
@@ -2748,20 +2753,20 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               </div>
               <div className="p-5 space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">عنوان المحاضرة <span className="text-rose-500">*</span></label>
-                  <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir={dir} disabled={savingEdit} />
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('lectureTitle')} <span className="text-rose-500">*</span></label>
+                  <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir={direction} disabled={savingEdit} />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">الوصف (اختياري)</label>
-                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="وصف المحاضرة..." rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir={dir} disabled={savingEdit} />
+                  <label className="text-sm font-medium text-foreground mb-1.5 block">{t('descriptionOptional')}</label>
+                  <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder={t('lectureDescPlaceholder')} rows={3} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all resize-none" dir={direction} disabled={savingEdit} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">تاريخ المحاضرة</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('lectureDate')}</label>
                     <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="ltr" disabled={savingEdit} />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-foreground mb-1.5 block">وقت المحاضرة</label>
+                    <label className="text-sm font-medium text-foreground mb-1.5 block">{t('lectureTime')}</label>
                     <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir="ltr" disabled={savingEdit} />
                   </div>
                 </div>
@@ -2769,9 +2774,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <div className="flex items-center gap-3 border-t p-5">
                 <button onClick={handleSaveEdit} disabled={savingEdit || !editTitle.trim()} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60">
                   {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  حفظ التعديلات
+                  {t('saveChanges')}
                 </button>
-                <button onClick={() => { if (!savingEdit) setEditOpen(false); }} disabled={savingEdit} className="rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60">إلغاء</button>
+                <button onClick={() => { if (!savingEdit) setEditOpen(false); }} disabled={savingEdit} className="rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60">{tc('cancel')}</button>
               </div>
             </motion.div>
           </motion.div>
@@ -2793,7 +2798,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="relative w-full max-w-lg rounded-3xl bg-background shadow-2xl p-8 text-center pointer-events-auto"
-              dir={dir}
+              dir={direction}
             >
               {/* Close */}
               <button
@@ -2805,7 +2810,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
               {/* Title */}
               <h3 className="text-xl font-bold text-foreground mb-1">{qrLecture.title}</h3>
-              <p className="text-sm text-muted-foreground mb-6">رمز QR لتسجيل الحضور</p>
+              <p className="text-sm text-muted-foreground mb-6">{t('qrForAttendance')}</p>
 
               {/* QR Code with auto-refresh */}
               <div className="flex justify-center mb-4">
@@ -2826,19 +2831,19 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
               <p className="text-xs text-muted-foreground mb-4 flex items-center justify-center gap-1.5">
                 <Clock className="h-3.5 w-3.5" />
-                يتم تجديد الرمز تلقائياً كل 10 ثوانٍ
+                {t('qrAutoRefresh')}
               </p>
 
               {/* Attendee count */}
               <div className="inline-flex items-center gap-3 rounded-2xl border bg-sky-50 dark:bg-sky-950/30 px-6 py-3">
                 <Users className="h-6 w-6 text-sky-700 dark:text-sky-300" />
-                <div className="text-right">
+                <div className="text-end">
                   <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{qrAttendeeCount}</p>
-                  <p className="text-xs text-sky-700 dark:text-sky-300 font-medium">مسجل حضور حتى الآن</p>
+                  <p className="text-xs text-sky-700 dark:text-sky-300 font-medium">{t('checkedInSoFar')}</p>
                 </div>
               </div>
 
-              <p className="text-xs text-muted-foreground mt-4">يمكن للطلاب مسح هذا الرمز لتسجيل الحضور</p>
+              <p className="text-xs text-muted-foreground mt-4">{t('studentsCanScanQr')}</p>
             </motion.div>
           </motion.div>
         )}
@@ -2873,34 +2878,34 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.9, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center pointer-events-auto"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex justify-center mb-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50">
                   <AlertTriangle className="h-7 w-7 text-rose-600 dark:text-rose-400" />
                 </div>
               </div>
-              <h3 className="text-lg font-bold text-foreground mb-2">حذف المحاضرة</h3>
+              <h3 className="text-lg font-bold text-foreground mb-2">{t('deleteLecture')}</h3>
               <p className="text-sm text-muted-foreground mb-1">
-                هل أنت متأكد من حذف المحاضرة
+                {t('deleteLectureConfirmMsg')}
               </p>
               <p className="text-sm font-semibold text-foreground mb-6">
-                «{deleteTargetLecture.title}»؟
+                «{deleteTargetLecture.title}»
               </p>
-              <p className="text-xs text-rose-600 dark:text-rose-400 mb-6">هذا الإجراء لا يمكن التراجع عنه</p>
+              <p className="text-xs text-rose-600 dark:text-rose-400 mb-6">{t('actionCannotBeUndone')}</p>
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleConfirmDelete}
                   className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 transition-colors"
                 >
                   <Trash2 className="h-4 w-4" />
-                  حذف
+                  {tc('delete')}
                 </button>
                 <button
                   onClick={() => { setDeleteConfirmOpen(false); setDeleteTargetLecture(null); }}
                   className="flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
                 >
-                  إلغاء
+                  {tc('cancel')}
                 </button>
               </div>
             </motion.div>
@@ -2923,7 +2928,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.9, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl overflow-hidden pointer-events-auto"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">
@@ -2932,8 +2937,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     <Scan className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-foreground">مسح رمز QR</h3>
-                    <p className="text-xs text-muted-foreground">وجّه الكاميرا نحو الرمز</p>
+                    <h3 className="text-sm font-bold text-foreground">{t('scanQrCode')}</h3>
+                    <p className="text-xs text-muted-foreground">{t('pointCameraAtQr')}</p>
                   </div>
                 </div>
                 <button
@@ -2958,7 +2963,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-4 py-2.5 text-sm font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-100 transition-colors"
                 >
                   <X className="h-4 w-4" />
-                  إلغاء المسح
+                  {t('cancelScan')}
                 </button>
               </div>
             </motion.div>
@@ -2981,7 +2986,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden pointer-events-auto"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">
@@ -2997,7 +3002,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                     className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
                   >
                     <Download className="h-3.5 w-3.5" />
-                    تحميل
+                    {tc('download')}
                   </button>
                   <button
                     onClick={() => setStudentPreviewFile(null)}
@@ -3021,13 +3026,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   return (
                     <div className="text-center py-16">
                       <FileText className="h-16 w-16 text-muted-300 mx-auto mb-4" />
-                      <p className="text-sm text-muted-foreground mb-4">لا يمكن معاينة هذا الملف مباشرة</p>
+                      <p className="text-sm text-muted-foreground mb-4">{t('fileCannotBePreviewed')}</p>
                       <button
                         onClick={() => downloadWithCustomName(studentPreviewFile.url, studentPreviewFile.name)}
                         className="inline-flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 transition-colors"
                       >
                         <Download className="h-4 w-4" />
-                        تحميل الملف
+                        {t('downloadFile')}
                       </button>
                     </div>
                   );

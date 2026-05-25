@@ -26,7 +26,6 @@ import { useAppStore } from '@/stores/app-store';
 import { useInstitutionStore } from '@/stores/institution-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
-import { useTranslation, useI18n } from '@/lib/i18n/context';
 
 interface RegisterFormProps {
   onSwitchToLogin?: () => void;
@@ -35,6 +34,7 @@ interface RegisterFormProps {
 /** Password strength calculator */
 function getPasswordStrength(password: string, t: (key: string) => string): {
   score: number;
+  label: string;
   color: string;
 } {
   let score = 0;

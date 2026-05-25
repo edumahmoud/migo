@@ -77,9 +77,8 @@ import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar
 import UserLink from '@/components/shared/user-link';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
-import { useI18n } from '@/lib/i18n/context';
-import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
+import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -403,7 +402,7 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
           {admins
             .filter((a) => !links.some((l) => l.supervisor_id === a.id))
             .map((a) => (
-              <option key={a.id} value={a.id}>{a.name} ({a.role === 'admin' ? t('roles.supervisor') : 'مدير'})</option>
+              <option key={a.id} value={a.id}>{a.name} ({a.role === 'admin' ? t('roles.supervisor') : t('roles.superadmin')})</option>
             ))}
         </select>
         <button
@@ -424,11 +423,11 @@ const SupervisorLinksManager = React.memo(function SupervisorLinksManager({ teac
 // -------------------------------------------------------
 export default function AdminDashboard({ profile, onSignOut }: AdminDashboardProps) {
   // ─── i18n ───
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
+  const { t: tc } = useTranslations('common');
 
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
-  const { t, isRTL, direction } = useTranslations();
   const { sidebarOpen, setSidebarOpen, adminSection: storedAdminSection, setAdminSection: storeSetAdminSection } = useAppStore();
 
   // ─── Navigation ───
@@ -613,7 +612,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       }
     } catch (error) {
       console.error('Error fetching admin data:', error);
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       if (!silent) toast.error(message);
     } finally {
       if (!silent) setLoadingData(false);
@@ -646,7 +645,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setChangingRole(false);
@@ -916,7 +915,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       try {
         result = await res.json();
       } catch {
-        throw new Error(res.ok ? t('common.unexpectedError') : `خطأ في الخادم (${res.status})`);
+        throw new Error(res.ok ? t('common.unexpectedError') : t('serverErrorWithStatus', { status: res.status }));
       }
       if (result.success) {
         toast.success(t('admin.userDeleted'));
@@ -927,7 +926,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setDeletingUserId(null);
@@ -960,7 +959,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setDeletingSubjectId(null);
@@ -989,7 +988,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('common.unexpectedError'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setUnbanningEmail(null);
@@ -1041,7 +1040,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       try {
         result = await res.json();
       } catch {
-        throw new Error(res.ok ? t('common.unexpectedError') : `خطأ في الخادم (${res.status})`);
+        throw new Error(res.ok ? t('common.unexpectedError') : t('serverErrorWithStatus', { status: res.status }));
       }
       if (result.success) {
         toast.success(banUntil ? t('admin.banTemporarySuccess') : t('admin.banPermanentSuccess'));
@@ -1056,7 +1055,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('admin.toastBanFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setBanningUserId(null);
@@ -1119,7 +1118,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('admin.toastAnnouncementCreateFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setCreatingAnnouncement(false);
@@ -1146,7 +1145,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('admin.toastAnnouncementToggleFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     }
   };
@@ -1172,7 +1171,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         toast.error(result.error || t('admin.toastAnnouncementDeleteFailed'));
       }
     } catch (error) {
-      const message = error instanceof Error && error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
+      const message = error instanceof Error && error.message.includes('timeout') || error.message.includes('مهلة') ? error.message : t('common.unexpectedError');
       toast.error(message);
     } finally {
       setDeletingAnnouncementId(null);
@@ -1239,10 +1238,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
       // Sheet 2: All users
       const usersData = allUsers.map((u) => ({
-        'الاسم': u.name,
-        'البريد الإلكتروني': u.email,
-        'الدور': getRoleLabel(u.role, t),
-        'تاريخ التسجيل': formatDate(u.created_at),
+        [tc('name')]: u.name,
+        [tc('email')]: u.email,
+        [tc('role')]: getRoleLabel(u.role, t),
+        [tc('registrationDate')]: formatDate(u.created_at),
       }));
       const ws2 = XLSX.utils.json_to_sheet(usersData);
       XLSX.utils.book_append_sheet(wb, ws2, t('nav.users'));
@@ -1580,7 +1579,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
             onChange={(e) => { setUserSearch(e.target.value); setUserPage(1); }}
             placeholder={t("admin.searchUsers")}
             className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-            dir={dir}
+            dir={direction}
           />
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -1594,7 +1593,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
-              {role === 'all' ? 'الكل' : getRoleLabel(role, t)}
+              {role === 'all' ? tc('all') : getRoleLabel(role, t)}
             </button>
           ))}
         </div>
@@ -1757,7 +1756,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -2009,7 +2008,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -2041,7 +2040,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     placeholder={t("admin.banReasonPlaceholder")}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 transition-colors resize-none"
                     rows={3}
-                    dir={dir}
+                    dir={direction}
                   />
                 </div>
 
@@ -2165,7 +2164,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 onChange={(e) => setSubjectSearch(e.target.value)}
                 placeholder={t("admin.searchSubjects")}
                 className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors"
-                dir={dir}
+                dir={direction}
               />
             </div>
             {/* Level filter */}
@@ -2175,7 +2174,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 value={subjectLevelFilter}
                 onChange={(e) => setSubjectLevelFilter(e.target.value)}
                 className="w-full sm:w-auto appearance-none rounded-lg border bg-background pe-10 ps-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
-                dir={dir}
+                dir={direction}
               >
                 <option value="">{t('admin.allLevels')}</option>
                 {LEVEL_OPTIONS.map((opt) => (
@@ -2190,7 +2189,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 value={subjectSubLevelFilter}
                 onChange={(e) => setSubjectSubLevelFilter(e.target.value)}
                 className="w-full sm:w-auto appearance-none rounded-lg border bg-background pe-10 ps-8 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-teal-500/30 focus:border-teal-500 transition-colors cursor-pointer"
-                dir={dir}
+                dir={direction}
               >
                 <option value="">{t('admin.allSublevels')}</option>
                 {SUB_LEVEL_OPTIONS.map((opt) => (
@@ -2384,7 +2383,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -3003,7 +3002,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                 onClick={(e) => e.stopPropagation()}
                 className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl"
-                dir={dir}
+                dir={direction}
               >
                 <div className="flex items-center justify-between border-b p-5">
                   <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -3028,7 +3027,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       placeholder={t("admin.announcementTitlePlaceholder")}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                       disabled={creatingAnnouncement}
-                      dir={dir}
+                      dir={direction}
                     />
                   </div>
 
@@ -3041,7 +3040,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       rows={4}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
                       disabled={creatingAnnouncement}
-                      dir={dir}
+                      dir={direction}
                     />
                   </div>
 
@@ -3828,7 +3827,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // Main Render
   // -------------------------------------------------------
   return (
-    <div className="flex min-h-screen" dir={dir}>
+    <div className="flex min-h-screen" dir={direction}>
       {/* Header */}
       <AppHeader
         userName={profile.name}
@@ -3852,8 +3851,8 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
-      <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${isRTL ? 'pl-0' : 'pr-0'} ${
-        sidebarOpen ? (isRTL ? 'md:pr-64' : 'md:pl-64') : (isRTL ? 'md:pr-[68px]' : 'md:pl-[68px]')
+      <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
+        sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
       }`}>
         <div className="mx-auto max-w-6xl p-3 md:p-8">
           {loadingData ? renderLoading() : (

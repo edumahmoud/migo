@@ -46,7 +46,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // =====================================================
 // Props
@@ -140,7 +140,7 @@ function TypingIndicator({ names, t }: { names: string[]; t: (key: string, param
 // Main Component
 // =====================================================
 export default function ChatSection({ profile, role }: ChatSectionProps) {
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
   // ─── Shared socket ───
   const { socket, status, isConnected, isRealtimeMode, joinRoom, leaveRoom, joinAllRooms } = useSharedSocket();
   const { openProfile } = useAppStore();
@@ -1685,7 +1685,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                   if (e.key === 'Escape') handleCancelEdit();
                 }}
                 className="rounded-xl border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                dir={dir}
+                dir={direction}
                 autoFocus
               />
               <div className="flex items-center gap-1.5">
@@ -1833,7 +1833,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
       initial="hidden"
       animate="visible"
       className="flex flex-col h-[calc(100vh-10rem)] min-h-[500px]"
-      dir={dir}
+      dir={direction}
     >
       <div className="flex flex-1 min-h-0 gap-0 md:gap-3">
 
@@ -2408,7 +2408,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     }}
                     placeholder={t('chat.placeholder')}
                     className="flex-1 rounded-xl border bg-muted/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/20 focus:border-sky-600 transition-all"
-                    dir={dir}
+                    dir={direction}
                     disabled={sending}
                   />
                   <button
@@ -2468,7 +2468,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               transition={{ duration: 0.15 }}
               className="w-full max-w-md bg-card rounded-2xl shadow-2xl border overflow-hidden"
               onClick={(e) => e.stopPropagation()}
-              dir={dir}
+              dir={direction}
             >
               {/* Dialog header */}
               <div className="flex items-center justify-between p-4 border-b">
@@ -2561,7 +2561,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           if (!open) setConfirmDialog((prev) => ({ ...prev, open: false }));
         }}
       >
-        <AlertDialogContent dir={dir}>
+        <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2 text-end">
               <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />

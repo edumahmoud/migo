@@ -30,7 +30,7 @@ import type {
   AttendanceRecord,
 } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -107,7 +107,7 @@ function formatDateTime(dateStr: string, locale: string): string {
 // Main Component
 // -------------------------------------------------------
 export default function AttendanceSection({ profile, role }: AttendanceSectionProps) {
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
   // ─── Shared state ───
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
@@ -907,7 +907,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                       setSelectedLectureId('');
                     }}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir={dir}
+                    dir={direction}
                   >
                     <option value="">{t('attendance.selectSubject')}</option>
                     {subjects.map((s) => (
@@ -926,7 +926,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
                     onChange={(e) => setSelectedLectureId(e.target.value)}
                     disabled={!selectedSubjectId || loadingLectures}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    dir={dir}
+                    dir={direction}
                   >
                     <option value="">
                       {loadingLectures ? t('common.loading') : t('attendance.selectLecture')}
@@ -1415,7 +1415,7 @@ export default function AttendanceSection({ profile, role }: AttendanceSectionPr
   // Main render
   // -------------------------------------------------------
   return (
-    <div dir={dir}>
+    <div dir={direction}>
       {role === 'teacher' ? renderTeacherView() : renderStudentView()}
     </div>
   );

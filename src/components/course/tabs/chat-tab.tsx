@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import type { UserProfile, Subject, ChatMessage } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -74,7 +74,7 @@ function relativeTime(dateStr: string, t: (key: string, params?: Record<string, 
 // Main Component
 // -------------------------------------------------------
 export default function ChatTab({ profile, role, subjectId, subject }: ChatTabProps) {
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
   const { openProfile } = useAppStore();
   // State
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -895,7 +895,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
                   if (e.key === 'Escape') handleCancelEdit();
                 }}
                 className="rounded-xl border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-                dir={dir}
+                dir={direction}
                 autoFocus
               />
               <div className="flex items-center gap-1.5">
@@ -1169,7 +1169,7 @@ export default function ChatTab({ profile, role, subjectId, subject }: ChatTabPr
             }}
             placeholder={t('chat.placeholder')}
             className="w-full rounded-xl border bg-background px-4 py-3 pe-4 ps-12 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
-            dir={dir}
+            dir={direction}
             disabled={sending}
           />
         </div>

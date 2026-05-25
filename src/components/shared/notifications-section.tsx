@@ -22,7 +22,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
 import type { CourseTab } from '@/lib/types';
 import { toast } from 'sonner';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -43,7 +43,7 @@ function timeAgo(dateStr: string, t: (key: string, params?: Record<string, strin
 }
 
 function getNotifIcon(type: string, title?: string) {
-  if (type === 'link_request' || title?.includes('طلب ارتباط') || title?.includes('ارتباط')) {
+  if (type === 'link_request' || title?.includes(t('notifications.keywordLinkRequest')) || title?.includes(t('notifications.keywordLink'))) {
     return <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-400" />;
   }
   switch (type) {
@@ -61,7 +61,7 @@ function getNotifIcon(type: string, title?: string) {
 }
 
 export default function NotificationsSection() {
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
   const { user } = useAuthStore();
   const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore();
   const {
@@ -266,7 +266,7 @@ export default function NotificationsSection() {
     }
 
     // Handle legacy file request notification (link = 'settings')
-    if (notif.type === 'file' && notif.link === 'settings' && notif.title?.includes('طلب ملف')) {
+    if (notif.type === 'file' && notif.link === 'settings' && notif.title?.includes(t('notifications.keywordFileRequest'))) {
       const { openProfile } = useAppStore.getState();
       if (user?.id) openProfile(user.id);
       return;
@@ -407,7 +407,7 @@ export default function NotificationsSection() {
 
   return (
     <>
-      <motion.div variants={containerVariants} initial="hidden" animate="visible" dir={dir} className="space-y-4">
+      <motion.div variants={containerVariants} initial="hidden" animate="visible" dir={direction} className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -527,7 +527,7 @@ export default function NotificationsSection() {
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex flex-col items-center text-center">
                 {linkRequestModal.loading ? (

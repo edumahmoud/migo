@@ -1492,7 +1492,7 @@ export default function SettingsSection({
                 setDeleteConfirmOpen(open);
                 if (!open) setDeleteConfirmText('');
               }}>
-                <AlertDialogContent dir={dir}>
+                <AlertDialogContent dir={direction}>
                   <AlertDialogHeader className="text-end">
                     <AlertDialogTitle className="text-end flex items-center gap-2">
                       <AlertTriangle className="h-5 w-5 text-rose-500" />
@@ -1512,7 +1512,7 @@ export default function SettingsSection({
                       onChange={(e) => setDeleteConfirmText(e.target.value)}
                       placeholder={t('settings.profile.deletePlaceholder')}
                       className="text-end"
-                      dir={dir}
+                      dir={direction}
                     />
                   </div>
 

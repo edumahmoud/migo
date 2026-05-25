@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { supabase } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
-import { useTranslation, useI18n } from '@/lib/i18n/context';
 
 interface UpdatePasswordFormProps {
   onSuccess: () => void;
@@ -38,10 +37,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   const [isSuccess, setIsSuccess] = useState(false);
   const [verifying, setVerifying] = useState(true);
   const [isValidRecovery, setIsValidRecovery] = useState(false);
-  const { t } = useTranslation();
-  const { dir } = useI18n();
-
-  const { t, isRTL } = useTranslations();
+  const { t, direction, isRTL } = useTranslations('auth');
 
   // Verify that we have a valid recovery session
   useEffect(() => {
@@ -196,7 +192,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   // Loading state while verifying recovery session
   if (verifying) {
     return (
-      <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+      <div dir={direction} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
         <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
@@ -210,7 +206,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   // Invalid or expired link
   if (!isValidRecovery) {
     return (
-      <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+      <div dir={direction} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -247,7 +243,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   // Success state
   if (isSuccess) {
     return (
-      <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+      <div dir={direction} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -268,7 +264,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
 
   // Main form
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
+    <div dir={direction} className="w-full max-w-md mx-auto flex flex-col h-full sm:h-auto">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

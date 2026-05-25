@@ -30,7 +30,7 @@ import { useAppStore } from '@/stores/app-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { extractTextFromFile } from '@/lib/pdf-client';
 import type { UserProfile, Subject, QuestionBank, BankQuestion, QuizQuestion, SubjectFile } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // fetchWithRetry — resilient fetch with automatic retry on network errors
@@ -137,7 +137,7 @@ function difficultyColor(d?: string | null): string {
 // Main Component
 // -------------------------------------------------------
 export default function QuestionBankSection({ profile, onNavigateToCourse }: QuestionBankSectionProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
   const { setSelectedSubjectId, setCourseTab } = useAppStore();
 
   // ─── Data ───
@@ -930,7 +930,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           onChange={e => setCurrentQuestionText(e.target.value)}
           placeholder={currentQuestionType === 'completion' ? t('questionBank.completionPlaceholder') : t('questionBank.questionTextPlaceholder')}
           className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-          dir={dir}
+          dir={direction}
         />
       </div>
 
@@ -955,7 +955,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 onChange={e => { const n = [...mcqOptions]; n[idx] = e.target.value; setMcqOptions(n); }}
                 placeholder={t('questionBank.optionLabel') + ' ' + (idx + 1)}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                dir={dir}
+                dir={direction}
               />
             </div>
           ))}
@@ -994,7 +994,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             onChange={e => setCompletionAnswer(e.target.value)}
             placeholder={t('questionBank.correctAnswerPlaceholder')}
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-            dir={dir}
+            dir={direction}
           />
         </div>
       )}
@@ -1012,7 +1012,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 onChange={e => { const n = [...matchingPairs]; n[idx] = { ...n[idx], key: e.target.value }; setMatchingPairs(n); }}
                 placeholder={t('questionBank.itemPlaceholder')}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                dir={dir}
+                dir={direction}
               />
               <span className="text-muted-foreground text-sm">←</span>
               <input
@@ -1021,7 +1021,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 onChange={e => { const n = [...matchingPairs]; n[idx] = { ...n[idx], value: e.target.value }; setMatchingPairs(n); }}
                 placeholder={t('questionBank.matchPlaceholder')}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                dir={dir}
+                dir={direction}
               />
               {matchingPairs.length > 1 && (
                 <button onClick={() => setMatchingPairs(matchingPairs.filter((_, i) => i !== idx))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 transition-colors">
@@ -1045,7 +1045,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             value={questionDifficulty}
             onChange={e => setQuestionDifficulty(e.target.value as '' | 'easy' | 'medium' | 'hard')}
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors appearance-none cursor-pointer"
-            dir={dir}
+            dir={direction}
           >
             <option value="">{t('questionBank.difficultyNone')}</option>
             <option value="easy">{t('questionBank.difficultyEasy')}</option>
@@ -1061,7 +1061,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             onChange={e => setQuestionCategory(e.target.value)}
             placeholder={t('questionBank.categoryPlaceholder')}
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-            dir={dir}
+            dir={direction}
           />
         </div>
       </div>
@@ -1101,7 +1101,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             onChange={e => setSearchQuery(e.target.value)}
             placeholder={t('questionBank.searchBanksPlaceholder')}
             className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-            dir={dir}
+            dir={direction}
           />
         </div>
         <div className="relative">
@@ -1110,7 +1110,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             value={filterSubjectId}
             onChange={e => setFilterSubjectId(e.target.value)}
             className="rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors appearance-none cursor-pointer min-w-[160px]"
-            dir={dir}
+            dir={direction}
           >
             <option value="all">{t('questionBank.allSubjects')}</option>
             {subjects.map(s => (
@@ -1445,7 +1445,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             exit={{ scale: 0.95, opacity: 0, y: 10 }}
             onClick={e => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"
-            dir={dir}
+            dir={direction}
           >
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -1465,7 +1465,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   onChange={e => setBankName(e.target.value)}
                   placeholder={t('questionBank.bankNameExample')}
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                  dir={dir}
+                  dir={direction}
                 />
               </div>
               <div>
@@ -1474,7 +1474,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   value={bankSubjectId}
                   onChange={e => setBankSubjectId(e.target.value)}
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors appearance-none cursor-pointer"
-                  dir={dir}
+                  dir={direction}
                 >
                   <option value="">{t('questionBank.selectSubject')}</option>
                   {subjects.map(s => (
@@ -1490,7 +1490,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   placeholder={t('questionBank.bankDescriptionPlaceholder')}
                   rows={3}
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
-                  dir={dir}
+                  dir={direction}
                 />
               </div>
               <button
@@ -1526,7 +1526,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             exit={{ scale: 0.95, opacity: 0, y: 10 }}
             onClick={e => e.stopPropagation()}
             className="w-full max-w-2xl rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"
-            dir={dir}
+            dir={direction}
           >
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -1573,7 +1573,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             exit={{ scale: 0.95, opacity: 0, y: 10 }}
             onClick={e => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"
-            dir={dir}
+            dir={direction}
           >
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -1679,7 +1679,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             exit={{ scale: 0.95, opacity: 0, y: 10 }}
             onClick={e => e.stopPropagation()}
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
-            dir={dir}
+            dir={direction}
           >
             <div className="flex items-center justify-between border-b p-5">
               <h3 className="text-lg font-bold text-foreground">{t('questionBank.editBank')}</h3>
@@ -1695,7 +1695,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   value={editBankName}
                   onChange={e => setEditBankName(e.target.value)}
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                  dir={dir}
+                  dir={direction}
                 />
               </div>
               <div>
@@ -1705,7 +1705,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   onChange={e => setEditBankDesc(e.target.value)}
                   rows={3}
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
-                  dir={dir}
+                  dir={direction}
                 />
               </div>
               <button

@@ -20,7 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import type { UserProfile, Subject, SubjectVideo, VideoComment } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -88,7 +88,7 @@ const itemVariants = {
 // Main Component
 // -------------------------------------------------------
 export default function AllVideosSection({ profile, role }: AllVideosSectionProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
   const [videos, setVideos] = useState<VideoWithMeta[]>([]);
   const [subjects, setSubjects] = useState<SubjectWithVideoCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -389,7 +389,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
             </span>
             <span className="flex items-center gap-1.5">
               <Calendar className="h-3.5 w-3.5" />
-              {formatDate(selectedVideo.created_at, dir === 'rtl' ? 'ar-SA' : 'en-US')}
+              {formatDate(selectedVideo.created_at, direction === 'rtl' ? 'ar-SA' : 'en-US')}
             </span>
             <span className="flex items-center gap-1.5">
               <Eye className="h-3.5 w-3.5" />
@@ -489,7 +489,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('videos.searchPlaceholder')}
               className="w-full rounded-lg border bg-background pe-10 ps-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-              dir={dir}
+              dir={direction}
             />
           </div>
           <Button
@@ -623,7 +623,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        {formatDate(video.created_at, dir === 'rtl' ? 'ar-SA' : 'en-US')}
+                        {formatDate(video.created_at, direction === 'rtl' ? 'ar-SA' : 'en-US')}
                       </span>
                       <span className="flex items-center gap-1">
                         <Eye className="h-3 w-3" />
@@ -655,7 +655,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
       initial="hidden"
       animate="visible"
       className="space-y-6"
-      dir={dir}
+      dir={direction}
     >
       {selectedVideo ? (
         <div key="player">{renderVideoPlayer()}</div>

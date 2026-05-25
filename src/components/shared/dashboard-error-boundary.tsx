@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, GraduationCap, LogOut, RotateCcw } from 'lucide-react';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 /**
  * DashboardErrorBoundary
@@ -64,12 +64,12 @@ function DashboardErrorUI({
   onGoToLogin: () => void;
   onResetApp: () => void;
 }) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
 
   // Auto-retry UI
   if (autoRetrying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -86,7 +86,7 @@ function DashboardErrorUI({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={dir}>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={direction}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -end-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/20 rounded-full blur-3xl" />
@@ -144,7 +144,7 @@ function DashboardErrorUI({
 
           {/* Error details (collapsible for debugging) */}
           {process.env.NODE_ENV === 'development' && error && (
-            <details className="mb-5 text-left">
+            <details className="mb-5 text-start">
               <summary className="text-xs text-gray-400 dark:text-muted-foreground cursor-pointer hover:text-gray-600 dark:hover:text-foreground">
                 {t('common.errorDetailsDev')}
               </summary>

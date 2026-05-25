@@ -27,7 +27,6 @@ const strengthTextColors = ['text-rose-600', 'text-amber-600', 'text-emerald-600
 type PageState = 'loading' | 'invalid' | 'form' | 'success' | 'error';
 
 export default function ResetPasswordPage() {
-  const { dir } = useI18n();
   const [pageState, setPageState] = useState<PageState>('loading');
   const [errorMessage, setErrorMessage] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -36,7 +35,7 @@ export default function ResetPasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { t, isRTL } = useTranslations();
+  const { t, isRTL, direction } = useTranslations();
 
   // ── CRITICAL: Store the Supabase client instance so we reuse it ──
   // Previously, handleSubmit created a NEW client each time, which lost the
@@ -213,7 +212,7 @@ export default function ResetPasswordPage() {
   // ─── Render ───
   return (
     <div
-      dir={isRTL ? 'rtl' : 'ltr'}
+      dir={direction}
       className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 via-white to-sky-50/30 px-4 py-8"
     >
       <div className="w-full max-w-md">
@@ -323,7 +322,7 @@ export default function ResetPasswordPage() {
                       placeholder={t('auth.enterNewPassword')}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full pr-4 pl-10 h-11 rounded-xl bg-gray-50/50 dark:bg-input/50 border border-gray-200 dark:border-border focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none text-right transition-colors"
+                      className="w-full pe-4 ps-10 h-11 rounded-xl bg-gray-50/50 dark:bg-input/50 border border-gray-200 dark:border-border focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 outline-none text-end transition-colors"
                       disabled={isSubmitting}
                       dir="ltr"
                       maxLength={128}
@@ -332,7 +331,7 @@ export default function ResetPasswordPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground"
+                      className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground"
                       tabIndex={-1}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -370,7 +369,7 @@ export default function ResetPasswordPage() {
                       placeholder={t('auth.reenterPassword')}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className={`w-full pr-4 pl-10 h-11 rounded-xl bg-gray-50/50 dark:bg-input/50 outline-none text-right transition-colors ${
+                      className={`w-full pe-4 ps-10 h-11 rounded-xl bg-gray-50/50 dark:bg-input/50 outline-none text-end transition-colors ${
                         mismatch ? 'border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
                         : passwordsMatch ? 'border-emerald-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20'
                         : 'border-gray-200 dark:border-border focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20'
@@ -382,7 +381,7 @@ export default function ResetPasswordPage() {
                     <button
                       type="button"
                       onClick={() => setShowConfirm(!showConfirm)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground"
+                      className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground"
                       tabIndex={-1}
                     >
                       {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

@@ -54,7 +54,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/stores/app-store';
 import type { UserProfile, Subject, Quiz, QuizQuestion, Score, SubjectFile, QuestionBank, BankQuestion } from '@/lib/types';
 import QuizSettingsModal from '@/components/shared/quiz-settings-modal';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -106,7 +106,7 @@ function scorePercentage(score: number, total: number): number {
 // Countdown timer for scheduled quizzes
 // -------------------------------------------------------
 function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string; scheduledTime?: string }) {
-  const { t } = useI18n();
+  const { t } = useTranslations();
   const [remaining, setRemaining] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
   const [started, setStarted] = useState(false);
 
@@ -201,7 +201,7 @@ function isQuizExpired(quiz: Quiz): boolean {
 // -------------------------------------------------------
 export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   const { setViewingQuizId } = useAppStore();
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
 
   // ─── Sub-tab ───
   const [subTab, setSubTab] = useState<ExamSubTab>('active');
@@ -1059,7 +1059,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           }
           className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
           disabled={savingQuiz}
-          dir={dir}
+          dir={direction}
         />
       </div>
 
@@ -1091,7 +1091,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 placeholder={t('exams.optionLabel', { n: idx + 1 })}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
-                dir={dir}
+                dir={direction}
               />
             </div>
           ))}
@@ -1141,7 +1141,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             placeholder={t('exams.correctAnswerPlaceholder')}
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             disabled={savingQuiz}
-            dir={dir}
+            dir={direction}
           />
         </div>
       )}
@@ -1164,7 +1164,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 placeholder={t('exams.itemPlaceholder')}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
-                dir={dir}
+                dir={direction}
               />
               <span className="text-muted-foreground text-sm">←</span>
               <input
@@ -1178,7 +1178,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 placeholder={t('exams.matchPlaceholder')}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
-                dir={dir}
+                dir={direction}
               />
               {matchingPairs.length > 1 && (
                 <button
@@ -1272,7 +1272,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
             className="w-full max-w-2xl rounded-2xl border bg-background shadow-xl max-h-[85vh] overflow-y-auto"
-            dir={dir}
+            dir={direction}
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4 sm:p-5 sticky top-0 bg-background z-10">
@@ -1301,7 +1301,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   placeholder="t('exams.quizTitlePlaceholder')"
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                   disabled={savingQuiz || generatingFromAi}
-                  dir={dir}
+                  dir={direction}
                 />
               </div>
 
@@ -2145,7 +2145,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
       {/* Delete Quiz Confirmation Dialog */}
       <AlertDialog open={!!deleteQuizConfirmId} onOpenChange={(open) => { if (!open) setDeleteQuizConfirmId(null); }}>
-        <AlertDialogContent dir={dir}>
+        <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('exams.deleteQuiz')}</AlertDialogTitle>
             <AlertDialogDescription>

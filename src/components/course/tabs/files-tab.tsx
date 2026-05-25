@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectFile } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Props
@@ -175,7 +175,7 @@ interface SubjectFileWithUploader extends SubjectFile {
 // Main Component
 // -------------------------------------------------------
 export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
   const [files, setFiles] = useState<SubjectFileWithUploader[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<FileCategory>('all');
@@ -559,7 +559,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
   // Render
   // -------------------------------------------------------
   return (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6" dir={dir}>
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6" dir={direction}>
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -760,8 +760,8 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20, pointerEvents: 'none' as const }}
-              className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
-              dir={dir}
+              className="fixed bottom-20 sm:bottom-6 start-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border bg-background shadow-lg px-5 py-3"
+              dir={direction}
             >
               <span className="text-sm font-medium text-foreground whitespace-nowrap">
                 {t('course.filesSelected', { count: selectedFileIds.size })}
@@ -769,7 +769,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               <div className="h-6 w-px bg-border" />
               {confirmBulkDelete ? null : (
                 <>
-                  <DropdownMenu dir={dir}>
+                  <DropdownMenu dir={direction}>
                     <DropdownMenuTrigger asChild>
                       <button className="flex items-center gap-1.5 rounded-md bg-sky-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-sky-800 transition-colors">
                         {t('course.actions')}
@@ -840,7 +840,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
 
       {/* Delete Single File Confirmation Dialog */}
       <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
-        <AlertDialogContent dir={dir}>
+        <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('course.deleteFileTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -866,7 +866,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
 
       {/* Bulk Delete Files Confirmation Dialog */}
       <AlertDialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
-        <AlertDialogContent dir={dir}>
+        <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('course.deleteFilesTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -904,7 +904,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -989,7 +989,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-4xl max-h-[90vh] rounded-2xl border bg-background shadow-xl overflow-hidden flex flex-col"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-4 shrink-0">

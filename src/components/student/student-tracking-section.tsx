@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import type { Score, Submission, Assignment, Subject } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import { supabase } from '@/lib/supabase';
 import { useEffect, useState } from 'react';
 
@@ -140,7 +140,7 @@ export default function StudentTrackingSection({
   submissions,
   assignments,
 }: StudentTrackingSectionProps) {
-  const { t } = useI18n();
+  const { t } = useTranslations();
   // ─── Fetch subjects for attendance by subject ───
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectNames, setSubjectNames] = useState<Record<string, string>>({});

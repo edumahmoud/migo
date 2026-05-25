@@ -51,7 +51,7 @@ import { toast } from 'sonner';
 import type { UserProfile, UserFile, FileRequest, UserStatus, Subject } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // ─── Props ───────────────────────────────────────────────
 interface UserProfilePageProps {
@@ -190,7 +190,8 @@ function getStatusBorderColor(status: UserStatus) {
 
 // ─── Component ───────────────────────────────────────────
 export default function UserProfilePage({ userId, currentUser, onBack }: UserProfilePageProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations('profile');
+  const { t: tc } = useTranslations('common');
   // ─── State ───────────────────────────────────────────
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [publicFiles, setPublicFiles] = useState<PublicFile[]>([]);
@@ -232,7 +233,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
       const headers = await getCachedAuthHeaders();
       const res = await fetch(`/api/profile/${userId}`, { headers });
       if (!res.ok) {
-        toast.error('حدث خطأ أثناء تحميل الملف الشخصي');
+        toast.error(tc('unexpectedError'));
         return;
       }
       const data = await res.json();
@@ -252,11 +253,11 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
 
       setPublicFiles(files);
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setLoading(false);
     }
-  }, [userId, currentUser.id]);
+  }, [userId, currentUser.id, tc]);
 
   // ─── Fetch file requests (own profile only) ──────────
   const fetchFileRequests = useCallback(async () => {
@@ -349,7 +350,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success('تم إرسال طلب الملف بنجاح');
+        toast.success(t('fileRequestSent'));
         setPublicFiles((prev) =>
           prev.map((f) =>
             f.id === requestingFileId
@@ -361,10 +362,10 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         setRequestDescription('');
         setRequestingFileId(null);
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء إرسال الطلب');
+        toast.error(data.error || tc('unexpectedError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setSendingRequest(false);
     }
@@ -382,13 +383,13 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        toast.success(action === 'approve' ? 'تمت الموافقة على الطلب' : 'تم رفض الطلب');
+        toast.success(action === 'approve' ? t('requestApproved') : t('requestRejected'));
         setFileRequests((prev) => prev.filter((r) => r.id !== requestId));
       } else {
-        toast.error(data.error || 'حدث خطأ أثناء المعالجة');
+        toast.error(data.error || tc('unexpectedError'));
       }
     } catch {
-      toast.error('حدث خطأ غير متوقع');
+      toast.error(tc('unexpectedError'));
     } finally {
       setProcessingRequestId(null);
     }
@@ -406,7 +407,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Loader2 className="h-10 w-10 text-sky-600 animate-spin" />
-        <p className="text-muted-foreground text-sm">جارٍ تحميل الملف الشخصي...</p>
+        <p className="text-muted-foreground text-sm">{t("loadingProfile")}</p>
       </div>
     );
   }
@@ -416,17 +417,17 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <User className="h-16 w-16 text-muted-foreground/40" />
-        <p className="text-muted-foreground text-lg">المستخدم غير موجود</p>
+        <p className="text-muted-foreground text-lg">{t("userNotFound")}</p>
         <Button variant="outline" onClick={onBack} className="gap-2">
           <ArrowRight className="h-4 w-4" />
-          العودة
+          {tc('returnBack')}
         </Button>
       </div>
     );
   }
 
   return (
-    <div dir={dir} className="relative max-w-5xl mx-auto pb-8 px-2 sm:px-0">
+    <div dir={direction} className="relative max-w-5xl mx-auto pb-8 px-2 sm:px-0">
       {/* ─── Cover Banner ─────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -442,16 +443,16 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           className="absolute top-4 end-4 gap-2 text-white/90 hover:text-white hover:bg-white/20 bg-black/20 backdrop-blur-sm z-10"
         >
           <ArrowRight className="h-4 w-4" />
-          <span className="hidden sm:inline">العودة</span>
+          <span className="hidden sm:inline">{tc("back")}</span>
         </Button>
 
         {/* Banner gradient */}
         <div className="h-40 sm:h-52 rounded-b-2xl bg-gradient-to-bl from-sky-700 via-teal-500 to-sky-800 relative overflow-hidden">
           {/* Decorative patterns */}
           <div className="absolute inset-0 opacity-10">
-            <div className="absolute top-0 left-0 w-64 h-64 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
+            <div className="absolute top-0 start-0 w-64 h-64 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
             <div className="absolute bottom-0 end-0 w-48 h-48 bg-white rounded-full translate-x-1/4 translate-y-1/4" />
-            <div className="absolute top-1/2 left-1/2 w-32 h-32 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
+            <div className="absolute top-1/2 start-1/2 w-32 h-32 bg-white rounded-full -translate-x-1/2 -translate-y-1/2" />
           </div>
           {/* Subtle grid pattern */}
           <div className="absolute inset-0 opacity-5" style={{
@@ -547,11 +548,11 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
           <div className="flex items-center gap-3 text-sm text-muted-foreground shrink-0">
             <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-3 py-1.5">
               <CalendarDays className="h-4 w-4 text-sky-600" />
-              <span className="text-xs">انضم {formatDate(profile.created_at)}</span>
+              <span className="text-xs">{formatDate(profile.created_at)}</span>
             </div>
             <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-3 py-1.5">
               <FolderOpen className="h-4 w-4 text-sky-600" />
-              <span className="text-xs">{publicFiles.length} ملف</span>
+              <span className="text-xs">{t("fileCount", { count: publicFiles.length })}</span>
             </div>
           </div>
         </div>
@@ -569,16 +570,16 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
         transition={{ duration: 0.4, delay: 0.4 }}
         className="px-4 sm:px-10 mt-5"
       >
-        <Tabs defaultValue="files" dir={dir} className="w-full">
+        <Tabs defaultValue="files" dir={direction} className="w-full">
           <TabsList className="mb-5 bg-muted/60">
             <TabsTrigger value="files" className="gap-1.5 text-xs sm:text-sm">
               <FolderOpen className="h-4 w-4" />
-              {isOwnProfile ? 'ملفاتي العامة' : 'الملفات العامة'}
+              {isOwnProfile ? t('myPublicFiles') : t('publicFiles')}
             </TabsTrigger>
             {isOwnProfile && (
               <TabsTrigger value="requests" className="gap-1.5 text-xs sm:text-sm">
                 <Download className="h-4 w-4" />
-                طلبات الملفات
+                {t('fileRequests')}
                 {fileRequests.length > 0 && (
                   <Badge className="h-5 min-w-5 px-1.5 text-[10px] bg-sky-700 text-white border-0">
                     {fileRequests.length}
@@ -589,7 +590,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
             {profile?.role === 'teacher' && (
               <TabsTrigger value="courses" className="gap-1.5 text-xs sm:text-sm">
                 <BookOpen className="h-4 w-4" />
-                المقررات
+                {tc('subjects')}
               </TabsTrigger>
             )}
           </TabsList>
@@ -609,11 +610,11 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                         <Inbox className="h-8 w-8 text-sky-600" />
                       </div>
                       <div className="text-center">
-                        <p className="text-muted-foreground text-sm font-medium">لا توجد ملفات عامة</p>
+                        <p className="text-muted-foreground text-sm font-medium">{tc('noPublicFiles')}</p>
                         <p className="text-muted-foreground/60 text-xs mt-1">
                           {isOwnProfile
-                            ? 'لم تقم برفع أي ملفات عامة بعد'
-                            : 'لم يقم هذا المستخدم برفع ملفات عامة بعد'}
+                            ? t('noPublicFilesOwn')
+                            : t('noPublicFilesOther')}
                         </p>
                       </div>
                     </CardContent>
@@ -641,7 +642,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                 </p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <span className="text-[11px] text-muted-foreground font-medium uppercase">
-                                    {file.file_type.split('/').pop()?.substring(0, 8) || 'ملف'}
+                                    {file.file_type.split('/').pop()?.substring(0, 8) || tc('noData')}
                                   </span>
                                   <span className="text-[11px] text-muted-foreground/40">•</span>
                                   <span className="text-[11px] text-muted-foreground">
@@ -665,7 +666,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                     className="w-full justify-center gap-1.5 bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400 border-0 text-xs py-1.5"
                                   >
                                     <CheckCircle2 className="h-3.5 w-3.5" />
-                                    تمت الموافقة
+                                    {t('requestApproved')}
                                   </Badge>
                                 ) : file.requestStatus === 'pending' ? (
                                   <Button
@@ -685,17 +686,17 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                         });
                                         const data = await res.json();
                                         if (res.ok && data.success) {
-                                          toast.success('تم إلغاء الطلب');
+                                          toast.success(t('requestCancelled'));
                                           setPublicFiles((prev) =>
                                             prev.map((f) =>
                                               f.id === file.id ? { ...f, requestStatus: null, requestId: undefined } : f
                                             )
                                           );
                                         } else {
-                                          toast.error(data.error || 'حدث خطأ');
+                                          toast.error(data.error || tc('unexpectedError'));
                                         }
                                       } catch {
-                                        toast.error('حدث خطأ غير متوقع');
+                                        toast.error(tc('unexpectedError'));
                                       } finally {
                                         setProcessingRequestId(null);
                                       }
@@ -706,7 +707,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                     ) : (
                                       <XCircle className="h-3.5 w-3.5" />
                                     )}
-                                    إلغاء الطلب
+                                    {tc('cancel')}
                                   </Button>
                                 ) : file.requestStatus === 'rejected' ? (
                                   <Button
@@ -726,17 +727,17 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                         });
                                         const data = await res.json();
                                         if (res.ok && data.success) {
-                                          toast.success('تم إزالة الطلب');
+                                          toast.success(t('requestDismissed'));
                                           setPublicFiles((prev) =>
                                             prev.map((f) =>
                                               f.id === file.id ? { ...f, requestStatus: null, requestId: undefined } : f
                                             )
                                           );
                                         } else {
-                                          toast.error(data.error || 'حدث خطأ');
+                                          toast.error(data.error || tc('unexpectedError'));
                                         }
                                       } catch {
-                                        toast.error('حدث خطأ غير متوقع');
+                                        toast.error(tc('unexpectedError'));
                                       } finally {
                                         setProcessingRequestId(null);
                                       }
@@ -747,7 +748,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                     ) : (
                                       <XCircle className="h-3.5 w-3.5" />
                                     )}
-                                    إزالة
+                                    {t('remove')}
                                   </Button>
                                 ) : (
                                   <Dialog
@@ -767,14 +768,14 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                         onClick={() => setRequestingFileId(file.id)}
                                       >
                                         <Send className="h-3.5 w-3.5" />
-                                        طلب ملف
+                                        {t('requestFile')}
                                       </Button>
                                     </DialogTrigger>
-                                    <DialogContent dir={dir} className="sm:max-w-md">
+                                    <DialogContent dir={direction} className="sm:max-w-md">
                                       <DialogHeader>
                                         <DialogTitle className="flex items-center gap-2 text-end">
                                           <MessageSquare className="h-5 w-5 text-sky-700" />
-                                          طلب ملف
+                                          {t('requestFile')}
                                         </DialogTitle>
                                       </DialogHeader>
                                       <div className="space-y-4 pt-2">
@@ -797,24 +798,23 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                             onClick={() => window.open(file.file_url, '_blank')}
                                           >
                                             <ZoomIn className="h-3.5 w-3.5" />
-                                            معاينة
+                                            {tc('preview')}
                                           </Button>
                                         </div>
 
                                         {/* Description textarea */}
                                         <div>
                                           <label className="text-sm font-medium text-foreground mb-1.5 block">
-                                            وصف الطلب{' '}
-                                            <span className="text-muted-foreground font-normal">(اختياري)</span>
+                                            {t('descriptionOptional')}
                                           </label>
                                           <Textarea
                                             value={requestDescription}
                                             onChange={(e) => setRequestDescription(e.target.value)}
-                                            placeholder="أخبر المالك لماذا تحتاج هذا الملف..."
+                                            placeholder={t('tellOwnerWhy')}
                                             className="resize-none min-h-[80px] text-sm"
                                             maxLength={500}
                                           />
-                                          <p className="text-[11px] text-muted-foreground/60 mt-1 text-left" dir="ltr">
+                                          <p className="text-[11px] text-muted-foreground/60 mt-1 text-start" dir="ltr">
                                             {requestDescription.length}/500
                                           </p>
                                         </div>
@@ -828,12 +828,12 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                           {sendingRequest ? (
                                             <>
                                               <Loader2 className="h-4 w-4 animate-spin" />
-                                              جارٍ الإرسال...
+                                              {t('sending')}
                                             </>
                                           ) : (
                                             <>
                                               <Send className="h-4 w-4" />
-                                              إرسال الطلب
+                                              {t('sendRequest')}
                                             </>
                                           )}
                                         </Button>
@@ -866,7 +866,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                     <div className="h-14 w-14 rounded-2xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
                       <BookOpen className="h-7 w-7 text-sky-600" />
                     </div>
-                    <p className="text-muted-foreground text-sm">لا توجد مقررات بعد</p>
+                    <p className="text-muted-foreground text-sm">{t('noCoursesYet')}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -932,9 +932,9 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                         <CheckCircle2 className="h-8 w-8 text-teal-500" />
                       </div>
                       <div className="text-center">
-                        <p className="text-muted-foreground text-sm font-medium">لا توجد طلبات معلقة</p>
+                        <p className="text-muted-foreground text-sm font-medium">{tp('noPendingRequests')}</p>
                         <p className="text-muted-foreground/60 text-xs mt-1">
-                          ستظهر هنا طلبات المستخدمين الآخرين لملفاتك
+                          {tp('noPendingRequestsDesc')}
                         </p>
                       </div>
                     </CardContent>
@@ -955,20 +955,20 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                               <div className="flex items-center gap-2.5 flex-1 min-w-0">
                                 <UserLink
                                   userId={req.requester_id}
-                                  name={req.requester_name || 'مستخدم'}
+                                  name={req.requester_name || tc('defaultUser')}
                                   avatarUrl={req.requester_avatar}
                                   size="sm"
                                   showAvatar={true}
                                   showRole={false}
                                 />
-                                <span className="text-muted-foreground text-xs shrink-0">طلب ملف</span>
+                                <span className="text-muted-foreground text-xs shrink-0">{tp('request')}</span>
                               </div>
 
                               {/* File name */}
                               <div className="flex items-center gap-2 shrink-0 bg-muted/50 rounded-lg px-3 py-1.5">
                                 <FileText className="h-3.5 w-3.5 text-rose-500 shrink-0" />
                                 <span className="text-xs font-medium truncate max-w-[180px]">
-                                  {req.file_name || 'ملف'}
+                                  {req.file_name || tc('noData')}
                                 </span>
                               </div>
 
@@ -993,7 +993,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                   ) : (
                                     <CheckCircle2 className="h-3.5 w-3.5" />
                                   )}
-                                  موافقة
+                                  {tp('approve')}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1007,7 +1007,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                   ) : (
                                     <XCircle className="h-3.5 w-3.5" />
                                   )}
-                                  رفض
+                                  {tp('reject')}
                                 </Button>
                               </div>
                             </div>
@@ -1031,7 +1031,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
 
       {/* Photo enlargement dialog */}
       <Dialog open={photoEnlarged} onOpenChange={setPhotoEnlarged}>
-        <DialogContent className="max-w-lg p-0 border-0 bg-transparent shadow-none" dir={dir}>
+        <DialogContent className="max-w-lg p-0 border-0 bg-transparent shadow-none" dir={direction}>
           <div className="relative">
             <img
               src={profile.avatar_url || ''}

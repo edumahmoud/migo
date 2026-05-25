@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, CheckCircle2, AlertCircle, Pause, Play, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { useVideoUploadStore } from '@/stores/video-upload-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import { useState } from 'react';
 
 /**
@@ -13,7 +13,8 @@ import { useState } from 'react';
  * Supports pause/resume/cancel for each upload.
  */
 export default function VideoUploadIndicator() {
-  const { dir } = useI18n();
+  const { t, direction } = useTranslations('files');
+  const { t: tc } = useTranslations('common');
   const { tasks, pauseTask, resumeTask, cancelTask, clearCompleted } = useVideoUploadStore();
   const [expanded, setExpanded] = useState(false);
 
@@ -36,12 +37,12 @@ export default function VideoUploadIndicator() {
 
   // Determine header status
   const statusText = hasActive
-    ? `رفع ${activeTasks.length} فيديو${hasPaused ? ` (${pausedTasks.length} متوقف)` : ''}...`
+    ? t('uploadingVideos', { count: activeTasks.length }) + (hasPaused ? ` (${t('pausedCount', { count: pausedTasks.length })})` : '')
     : hasPaused
-    ? `${pausedTasks.length} فيديو متوقف مؤقتاً`
-    : completedTasks.every((t) => t.status === 'done')
-    ? 'تم رفع جميع الفيديوهات'
-    : 'بعض الرفع فشل';
+    ? t('videosPaused', { count: pausedTasks.length })
+    : completedTasks.every((task) => task.status === 'done')
+    ? t('allVideosUploaded')
+    : t('someUploadsFailed');
 
   return (
     <AnimatePresence>
@@ -50,7 +51,7 @@ export default function VideoUploadIndicator() {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 50 }}
         className="fixed bottom-20 start-4 end-4 sm:start-auto sm:end-4 sm:w-80 sm:bottom-6 z-[60] pointer-events-none"
-        dir={dir}
+        dir={direction}
       >
         <div className="pointer-events-auto rounded-xl border bg-background/95 backdrop-blur-md shadow-xl overflow-hidden">
           {/* Header - always visible */}
@@ -77,7 +78,7 @@ export default function VideoUploadIndicator() {
                 {statusText}
               </p>
               {(hasActive || hasPaused) && (
-                <p className="text-[11px] text-muted-foreground">{overallProgress}% إجمالي التقدم</p>
+                <p className="text-[11px] text-muted-foreground">{overallProgress}% {t('overallProgress')}</p>
               )}
             </div>
 
@@ -99,7 +100,7 @@ export default function VideoUploadIndicator() {
               <button
                 onClick={(e) => { e.stopPropagation(); clearCompleted(); }}
                 className="shrink-0 p-1 hover:bg-muted rounded-md transition-colors"
-                title="مسح المكتمل"
+                title={t('clearCompleted')}
               >
                 <X className="h-4 w-4 text-muted-foreground" />
               </button>
@@ -157,8 +158,8 @@ export default function VideoUploadIndicator() {
                       <span className="text-[10px] text-muted-foreground shrink-0 min-w-[32px] text-center">
                         {task.status === 'uploading' ? `${task.progress}%` :
                          task.status === 'paused' ? `${task.progress}%` :
-                         task.status === 'saving' ? 'حفظ...' :
-                         task.status === 'done' ? 'تم' : 'فشل'}
+                         task.status === 'saving' ? t('saving') :
+                         task.status === 'done' ? tc('success') : t('failed')}
                       </span>
 
                       {/* Action buttons */}
@@ -167,7 +168,7 @@ export default function VideoUploadIndicator() {
                           <button
                             onClick={() => pauseTask(task.id)}
                             className="p-1 hover:bg-muted rounded transition-colors"
-                            title="إيقاف مؤقت"
+                            title={t('pause')}
                           >
                             <Pause className="h-3 w-3 text-amber-600" />
                           </button>
@@ -176,7 +177,7 @@ export default function VideoUploadIndicator() {
                           <button
                             onClick={() => resumeTask(task.id)}
                             className="p-1 hover:bg-muted rounded transition-colors"
-                            title="استئناف"
+                            title={t('resume')}
                           >
                             <Play className="h-3 w-3 text-sky-600" />
                           </button>
@@ -185,7 +186,7 @@ export default function VideoUploadIndicator() {
                           <button
                             onClick={() => cancelTask(task.id)}
                             className="p-1 hover:bg-muted rounded transition-colors"
-                            title="إلغاء"
+                            title={tc('cancel')}
                           >
                             <X className="h-3 w-3 text-rose-500" />
                           </button>
@@ -194,7 +195,7 @@ export default function VideoUploadIndicator() {
                           <button
                             onClick={() => useVideoUploadStore.getState().removeTask(task.id)}
                             className="p-1 hover:bg-muted rounded transition-colors"
-                            title="إزالة"
+                            title={t('remove')}
                           >
                             <X className="h-3 w-3 text-muted-foreground" />
                           </button>

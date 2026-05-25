@@ -227,7 +227,7 @@ export default function AppSidebar({
   // Desktop: Fixed sidebar, collapsible - position based on direction
   return (
     <aside
-      className={`fixed ${isRTL ? 'right-0' : 'left-0'} top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
+      className={`fixed start-0 top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
     >

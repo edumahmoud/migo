@@ -52,7 +52,7 @@ import ReportsSection from '@/components/reports/reports-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
@@ -134,7 +134,7 @@ function scorePercentage(score: number, total: number): number {
 // -------------------------------------------------------
 export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
   // ─── i18n ───
-  const { t, dir, locale } = useI18n();
+  const { t, direction, locale } = useTranslations();
 
   // ─── App store ───
   const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
@@ -1844,8 +1844,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           );
         } else {
           toast.warning(inputMode === 'transcribe'
-            ? t('student.transcribePartialSuccess', { title }) || `${t('student.transcribeSuccess', { title })} (${t('common.saveFailed') || 'لم يتم الحفظ بعد'})`
-            : t('student.summaryCreatePartialSuccess', { title }) || `${t('student.summaryCreateSuccess', { title })} (${t('common.saveFailed') || 'لم يتم الحفظ بعد'})`
+            ? t('student.transcribePartialSuccess', { title }) || `${t('student.transcribeSuccess', { title })} (${t('common.saveFailed') })`
+            : t('student.summaryCreatePartialSuccess', { title }) || `${t('student.summaryCreateSuccess', { title })} (${t('common.saveFailed') })`
           , { duration: 8000 });
         }
         // Delay fetchSummaries to avoid race condition with optimistic update
@@ -2845,7 +2845,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md max-h-[90vh] rounded-2xl border bg-background shadow-xl overflow-y-auto"
-              dir={dir}
+              dir={direction}
             >
               {/* Modal header — sticky so close button stays visible while scrolling */}
               <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
@@ -3013,7 +3013,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-lg rounded-2xl border bg-background shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -3040,7 +3040,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     onChange={(e) => setSummaryTitle(e.target.value)}
                     placeholder={t('student.summaryTitlePlaceholder')}
                     className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors"
-                    dir={dir}
+                    dir={direction}
                   />
                 </div>
 
@@ -3180,7 +3180,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       rows={6}
                       className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition-colors resize-none"
   
-                      dir={dir}
+                      dir={direction}
                     />
                   </div>
                 )}
@@ -3642,7 +3642,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               exit={{ scale: 0.92, opacity: 0, y: 20, pointerEvents: 'none' as const }}
               transition={{ duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="relative w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl border border-border/50 bg-background shadow-2xl shadow-black/8 overflow-hidden"
-              dir={dir}
+              dir={direction}
             >
               {/* Modal Header */}
               <div className="shrink-0 px-6 pt-6 pb-5 bg-gradient-to-b from-amber-50/60 via-sky-50/30 to-transparent">
@@ -3775,7 +3775,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 mb-4">
@@ -3822,7 +3822,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', duration: 0.4 }}
               className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
-              dir={dir}
+              dir={direction}
             >
               <div className="flex flex-col items-center text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
@@ -4007,7 +4007,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -4146,7 +4146,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-2xl border bg-background shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
@@ -4369,7 +4369,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // Main render
   // -------------------------------------------------------
   return (
-    <div className="min-h-screen bg-background" dir={dir}>
+    <div className="min-h-screen bg-background" dir={direction}>
       {/* Header */}
       <AppHeader
         userName={profile.name}

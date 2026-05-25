@@ -30,7 +30,9 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import type { UserProfile } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
+import { getRoleLabel } from '@/components/shared/user-avatar';
+import { getRoleLabel } from '@/components/shared/user-avatar';
 
 // -------------------------------------------------------
 // Types
@@ -65,7 +67,9 @@ export default function SettingsModal({
   onUpdateProfile,
   onDeleteAccount,
 }: SettingsModalProps) {
-  const { dir } = useI18n();
+  const { t, direction } = useTranslations('settings');
+  const { t: ta } = useTranslations('auth');
+  const { t: tc } = useTranslations('common');
   const [name, setName] = useState(profile.name);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -89,20 +93,13 @@ export default function SettingsModal({
     setName(profile.name);
   }, [profile.name]);
 
-  const isFemale = profile.gender === 'female';
-  const roleLabel = profile.role === 'student'
-    ? (isFemale ? 'طالبة' : 'طالب')
-    : profile.role === 'superadmin'
-      ? (isFemale ? 'مديرة المنصة' : 'مدير المنصة')
-      : profile.role === 'admin'
-        ? (isFemale ? 'مشرفة' : 'مشرف')
-        : (isFemale ? 'معلمة' : 'معلم');
+  const roleLabel = getRoleLabel(profile.role, profile.gender, profile.title_id, t);
 
   // ─── Handlers ─────────────────────────────────────────
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      toast.error('الاسم مطلوب');
+      toast.error(t('nameRequired'));
       return;
     }
 
@@ -112,10 +109,10 @@ export default function SettingsModal({
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success('تم تحديث الملف الشخصي بنجاح');
+        toast.success(t('profileUpdated'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء التحديث');
+      toast.error(tc('unexpectedError'));
     } finally {
       setIsUpdating(false);
     }
@@ -128,13 +125,13 @@ export default function SettingsModal({
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      toast.error('يرجى اختيار ملف صورة فقط');
+      toast.error(t('imageFileOnly'));
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('حجم الصورة يجب أن يكون أقل من 5 ميجابايت');
+      toast.error(t('imageSizeLimit'));
       return;
     }
 
@@ -151,7 +148,7 @@ export default function SettingsModal({
 
       const data = await res.json();
       if (!data.success) {
-        toast.error(data.error || 'حدث خطأ أثناء رفع الصورة');
+        toast.error(data.error || t('avatarUploadError'));
         return;
       }
 
@@ -161,10 +158,10 @@ export default function SettingsModal({
       if (result.error) {
         toast.error(result.error);
       } else {
-        toast.success('تم تحديث الصورة الشخصية بنجاح');
+        toast.success(t('avatarUpdated'));
       }
     } catch {
-      toast.error('حدث خطأ أثناء رفع الصورة');
+      toast.error(t('avatarUploadError'));
     } finally {
       setIsUploadingAvatar(false);
       // Reset file input
@@ -177,23 +174,23 @@ export default function SettingsModal({
   // ─── Password Change Handler ──────────────────────────
   const handleChangePassword = async () => {
     if (!currentPassword) {
-      toast.error('يرجى إدخال كلمة المرور الحالية');
+      toast.error(ta('pleaseEnterPassword'));
       return;
     }
     if (!newPassword) {
-      toast.error('يرجى إدخال كلمة المرور الجديدة');
+      toast.error(t('pleaseEnterNewPassword'));
       return;
     }
     if (newPassword.length < 6) {
-      toast.error('كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل');
+      toast.error(ta('passwordMinLength'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('كلمة المرور الجديدة غير متطابقة');
+      toast.error(t('passwordsDontMatch'));
       return;
     }
     if (currentPassword === newPassword) {
-      toast.error('كلمة المرور الجديدة يجب أن تكون مختلفة عن الحالية');
+      toast.error(ta('passwordDifferent'));
       return;
     }
 
@@ -216,20 +213,20 @@ export default function SettingsModal({
 
       if (!res.ok || data.error) {
         console.error('[SettingsModal] Password change failed:', data.error, 'Status:', res.status);
-        toast.error(data.error || 'فشل في تغيير كلمة المرور');
+        toast.error(data.error || t('passwordChangeFailed'));
         return;
       }
 
-      toast.success('تم تغيير كلمة المرور بنجاح');
+      toast.success(t('passwordChangedSuccess'));
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
       console.error('[SettingsModal] Password change unexpected error:', err);
       if (err?.message?.includes('Failed to fetch') || err?.message?.includes('NetworkError')) {
-        toast.error('فشل الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى');
+        toast.error(tc('connectionError'));
       } else {
-        toast.error(`خطأ غير متوقع: ${err?.message || 'يرجى المحاولة مرة أخرى'}`);
+        toast.error(`${tc('unexpectedError')}: ${err?.message || ''}`);
       }
     } finally {
       setIsChangingPassword(false);
@@ -240,11 +237,11 @@ export default function SettingsModal({
     setIsDeleting(true);
     try {
       await onDeleteAccount();
-      toast.success('تم حذف الحساب بنجاح');
+      toast.success(t('accountDeleted'));
       setDeleteConfirmOpen(false);
       onOpenChange(false);
     } catch {
-      toast.error('حدث خطأ أثناء حذف الحساب');
+      toast.error(t('accountDeleteError'));
     } finally {
       setIsDeleting(false);
     }
@@ -260,14 +257,14 @@ export default function SettingsModal({
   // ─── Render ───────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir={dir}>
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto" dir={direction}>
         <DialogHeader className="text-end">
           <DialogTitle className="flex items-center gap-2 text-end">
             <Settings className="h-5 w-5 text-sky-700" />
-            الإعدادات
+            {tc('settings')}
           </DialogTitle>
           <DialogDescription className="text-end">
-            إدارة الملف الشخصي وإعدادات الحساب
+            {t('manageProfileAndSettings')}
           </DialogDescription>
         </DialogHeader>
 
@@ -282,12 +279,12 @@ export default function SettingsModal({
           >
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-sky-700" />
-              <h3 className="text-sm font-semibold text-foreground">الملف الشخصي</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('profile')}</h3>
             </div>
 
             {/* Avatar */}
             <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">الصورة الشخصية</Label>
+              <Label className="text-sm text-muted-foreground">{t('avatar')}</Label>
               <div className="flex items-center gap-4">
                 <div className="relative">
                   {profile.avatar_url ? (
@@ -298,7 +295,7 @@ export default function SettingsModal({
                     />
                   ) : (
                     <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 font-bold text-lg border-2 border-sky-200 dark:border-sky-800">
-                      {initials || 'م'}
+                      {initials || tc('appNameFallback')[0]}
                     </div>
                   )}
                   {isUploadingAvatar && (
@@ -324,9 +321,9 @@ export default function SettingsModal({
                     disabled={isUploadingAvatar}
                   >
                     <Camera className="h-4 w-4" />
-                    تغيير الصورة
+                    {t('changeAvatar')}
                   </Button>
-                  <p className="text-xs text-muted-foreground mt-1">PNG, JPG حتى 5MB</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t('avatarFileSizeHint')}</p>
                 </div>
               </div>
             </div>
@@ -334,13 +331,13 @@ export default function SettingsModal({
             {/* Name */}
             <div className="space-y-2">
               <Label htmlFor="settings-name" className="text-sm text-muted-foreground">
-                الاسم
+                {ta('name')}
               </Label>
               <Input
                 id="settings-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="أدخل اسمك"
+                placeholder={ta('enterName')}
                 className="text-end"
                 disabled={isUpdating}
               />
@@ -349,7 +346,7 @@ export default function SettingsModal({
             {/* Email (read-only) */}
             <div className="space-y-2">
               <Label htmlFor="settings-email" className="text-sm text-muted-foreground">
-                البريد الإلكتروني
+                {ta('email')}
               </Label>
               <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
                 <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -359,7 +356,7 @@ export default function SettingsModal({
 
             {/* Role badge */}
             <div className="space-y-2">
-              <Label className="text-sm text-muted-foreground">الدور</Label>
+              <Label className="text-sm text-muted-foreground">{t('role')}</Label>
               <div>
                 <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800">
                   {roleLabel}
@@ -380,13 +377,13 @@ export default function SettingsModal({
           >
             <div className="flex items-center gap-2">
               <Lock className="h-4 w-4 text-sky-700" />
-              <h3 className="text-sm font-semibold text-foreground">تغيير كلمة المرور</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('changePassword')}</h3>
             </div>
 
             {/* Current password */}
             <div className="space-y-2">
               <Label htmlFor="current-password" className="text-sm text-muted-foreground">
-                كلمة المرور الحالية
+                {ta('currentPassword')}
               </Label>
               <div className="relative">
                 <Input
@@ -394,7 +391,7 @@ export default function SettingsModal({
                   type={showCurrentPassword ? 'text' : 'password'}
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="أدخل كلمة المرور الحالية"
+                  placeholder={ta('enterPassword')}
                   className="text-start pe-10"
                   disabled={isChangingPassword}
                   dir="ltr"
@@ -412,7 +409,7 @@ export default function SettingsModal({
             {/* New password */}
             <div className="space-y-2">
               <Label htmlFor="new-password" className="text-sm text-muted-foreground">
-                كلمة المرور الجديدة
+                {ta('newPassword')}
               </Label>
               <div className="relative">
                 <Input
@@ -420,7 +417,7 @@ export default function SettingsModal({
                   type={showNewPassword ? 'text' : 'password'}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="أدخل كلمة المرور الجديدة"
+                  placeholder={ta('enterNewPassword')}
                   className="text-start pe-10"
                   disabled={isChangingPassword}
                   dir="ltr"
@@ -438,7 +435,7 @@ export default function SettingsModal({
             {/* Confirm new password */}
             <div className="space-y-2">
               <Label htmlFor="confirm-password" className="text-sm text-muted-foreground">
-                تأكيد كلمة المرور الجديدة
+                {t('confirmNewPassword')}
               </Label>
               <div className="relative">
                 <Input
@@ -446,7 +443,7 @@ export default function SettingsModal({
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="أعد إدخال كلمة المرور الجديدة"
+                  placeholder={ta('reenterPassword')}
                   className="text-start pe-10"
                   disabled={isChangingPassword}
                   dir="ltr"
@@ -469,12 +466,12 @@ export default function SettingsModal({
               {isChangingPassword ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  جاري التغيير...
+                  {t('changing')}
                 </span>
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4" />
-                  تغيير كلمة المرور
+                  {t('changePassword')}
                 </>
               )}
             </Button>
@@ -492,12 +489,12 @@ export default function SettingsModal({
           >
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-rose-500" />
-              <h3 className="text-sm font-semibold text-rose-600">منطقة الخطر</h3>
+              <h3 className="text-sm font-semibold text-rose-600">{t('dangerZone')}</h3>
             </div>
 
             <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-4">
               <p className="text-sm text-rose-700 mb-3">
-                حذف الحساب سيؤدي إلى إزالة جميع بياناتك نهائياً. هذا الإجراء لا يمكن التراجع عنه.
+                {t('deleteAccountWarning')}
               </p>
 
               <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
@@ -509,21 +506,21 @@ export default function SettingsModal({
                     disabled={isDeleting}
                   >
                     <Trash2 className="h-4 w-4" />
-                    حذف الحساب
+                    {t('deleteAccount')}
                   </Button>
                 </AlertDialogTrigger>
 
-                <AlertDialogContent dir={dir}>
+                <AlertDialogContent dir={direction}>
                   <AlertDialogHeader className="text-end">
                     <AlertDialogTitle className="text-end">
-                      تأكيد حذف الحساب
+                      {t('confirmDeleteAccount')}
                     </AlertDialogTitle>
                     <AlertDialogDescription className="text-end">
-                      هل أنت متأكد من حذف حسابك؟ سيتم حذف جميع بياناتك بشكل نهائي ولا يمكن استرجاعها.
+                      {t('confirmDeleteAccountDesc')}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter className="flex-row-reverse gap-2">
-                    <AlertDialogCancel disabled={isDeleting}>إلغاء</AlertDialogCancel>
+                    <AlertDialogCancel disabled={isDeleting}>{tc('cancel')}</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDeleteAccount}
                       className="bg-rose-600 hover:bg-rose-700 text-white"
@@ -532,10 +529,10 @@ export default function SettingsModal({
                       {isDeleting ? (
                         <span className="flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          جاري الحذف...
+                          {t('deleting')}
                         </span>
                       ) : (
-                        'حذف الحساب نهائياً'
+                        t('deleteAccountPermanently')
                       )}
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -554,10 +551,10 @@ export default function SettingsModal({
             {isUpdating ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                جاري الحفظ...
+                {t('saving')}
               </span>
             ) : (
-              'حفظ التغييرات'
+              t('saveChanges')
             )}
           </Button>
           <Button
@@ -565,7 +562,7 @@ export default function SettingsModal({
             onClick={() => onOpenChange(false)}
             disabled={isUpdating}
           >
-            إلغاء
+            {tc('cancel')}
           </Button>
         </DialogFooter>
       </DialogContent>

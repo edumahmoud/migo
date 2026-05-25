@@ -42,7 +42,7 @@ import {
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import type { Summary, Quiz, Score, UserAnswer, QuizQuestion } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // fetchWithRetry — resilient fetch with automatic retry on network errors
@@ -1227,7 +1227,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
   // -------------------------------------------------------
   if (error && !loading) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={dir}>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={direction}>
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100">
           <XCircle className="h-8 w-8 text-rose-600" />
         </div>
@@ -1278,7 +1278,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
       animate="visible"
       variants={staggerContainer}
       className="mx-auto max-w-3xl space-y-6 px-4 py-6 overflow-x-hidden"
-      dir={dir}
+      dir={direction}
     >
       {/* Header */}
       <motion.div variants={fadeInUp} className="flex items-start gap-3">
@@ -1822,7 +1822,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
       {/* Delete Quiz Confirmation Dialog */}
       <AlertDialog open={deleteQuizConfirmOpen} onOpenChange={setDeleteQuizConfirmOpen}>
-        <AlertDialogContent dir={dir}>
+        <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('summary.deleteQuizTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1845,7 +1845,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
 
       {/* Delete Summary Confirmation Dialog */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent dir={dir}>
+        <AlertDialogContent dir={direction}>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('summary.confirmDelete')}</AlertDialogTitle>
             <AlertDialogDescription>

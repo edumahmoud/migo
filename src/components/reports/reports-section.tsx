@@ -38,7 +38,7 @@ import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { Report, ReportResponse, ReportMessage, ReportStatus, ReportTargetType, ReportResponseAction, UserProfile } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Animation variants
@@ -111,7 +111,7 @@ interface ReportsSectionProps {
 // Main Component
 // -------------------------------------------------------
 export default function ReportsSection({ profile, role }: ReportsSectionProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
   const { setReportsUnreadCount, openProfile, pendingReportId, setPendingReportId } = useAppStore();
 
   // Whether the current user has staff privileges (not student)
@@ -2099,7 +2099,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="bg-card rounded-2xl border border-border p-6 w-full max-w-sm mx-4 shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               <div className="text-center space-y-4">
                 <div className="flex justify-center">

@@ -6,7 +6,7 @@ import { ShieldAlert, X, Send, Loader2, ImagePlus, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { ReportTargetType } from '@/lib/types';
-import { useI18n } from '@/lib/i18n/context';
+import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
 // Report reasons
@@ -50,7 +50,7 @@ interface Attachment {
 // Component
 // -------------------------------------------------------
 export default function ReportButton({ targetType, targetId, compact, className, onReported }: ReportButtonProps) {
-  const { t, dir } = useI18n();
+  const { t, direction } = useTranslations();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
@@ -184,7 +184,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl"
-              dir={dir}
+              dir={direction}
             >
               {/* Header */}
               <div className="flex items-center justify-between mb-4">

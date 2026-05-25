@@ -7,7 +7,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { useLocaleStore } from "@/i18n/locale-store"
+import { useTranslations } from "@/i18n/use-translations"
 
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
   return (
@@ -70,17 +70,16 @@ function PaginationPrevious({
   className,
   ...props
 }: React.ComponentProps<typeof PaginationLink>) {
-  const { locale } = useLocaleStore();
-  const isRTL = locale === 'ar';
+  const { t, isRTL } = useTranslations('common');
   return (
     <PaginationLink
-      aria-label="Go to previous page"
+      aria-label={t('previousPage')}
       size="default"
       className={cn("gap-1 px-2.5 sm:ps-2.5", className)}
       {...props}
     >
       {isRTL ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-      <span className="hidden sm:block">{isRTL ? 'السابق' : 'Previous'}</span>
+      <span className="hidden sm:block">{t('previous')}</span>
     </PaginationLink>
   )
 }
@@ -89,16 +88,15 @@ function PaginationNext({
   className,
   ...props
 }: React.ComponentProps<typeof PaginationLink>) {
-  const { locale } = useLocaleStore();
-  const isRTL = locale === 'ar';
+  const { t, isRTL } = useTranslations('common');
   return (
     <PaginationLink
-      aria-label="Go to next page"
+      aria-label={t('nextPage')}
       size="default"
       className={cn("gap-1 px-2.5 sm:pe-2.5", className)}
       {...props}
     >
-      <span className="hidden sm:block">{isRTL ? 'التالي' : 'Next'}</span>
+      <span className="hidden sm:block">{t('next')}</span>
       {isRTL ? <ChevronLeftIcon /> : <ChevronRightIcon />}
     </PaginationLink>
   )
@@ -108,6 +106,7 @@ function PaginationEllipsis({
   className,
   ...props
 }: React.ComponentProps<"span">) {
+  const { t } = useTranslations('common');
   return (
     <span
       aria-hidden
@@ -116,7 +115,7 @@ function PaginationEllipsis({
       {...props}
     >
       <MoreHorizontalIcon className="size-4" />
-      <span className="sr-only">More pages</span>
+      <span className="sr-only">{t('more')}</span>
     </span>
   )
 }
