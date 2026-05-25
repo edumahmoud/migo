@@ -22,6 +22,7 @@ import {
   Play,
   RefreshCw,
   Eye,
+  MoreVertical,
 } from 'lucide-react';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
@@ -29,6 +30,16 @@ import { extractTextFromFile } from '@/lib/pdf-client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { useIsMobile } from '@/hooks/use-mobile';
 import SummaryView from '@/components/shared/summary-view';
 import { useAppStore } from '@/stores/app-store';
@@ -116,6 +127,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
 
   // ─── Deleting ───
   const [deletingSummaryId, setDeletingSummaryId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Track recently deleted IDs to filter them from stale re-fetch results
   const recentlyDeletedIdsRef = useRef<Set<string>>(new Set());
@@ -994,15 +1006,16 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDeleteSummary(summary.id);
+                      setConfirmDeleteId(summary.id);
                     }}
                     disabled={deletingSummaryId === summary.id}
-                    className="absolute top-3 start-3 rounded-md p-1.5 text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-50 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                    className="absolute top-3 start-3 rounded-md p-1.5 text-muted-foreground/60 hover:text-rose-600 hover:bg-rose-50 transition-colors focus:opacity-100"
+                    title={tc('delete')}
                   >
                     {deletingSummaryId === summary.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Trash2 className="h-4 w-4" />
+                      <MoreVertical className="h-4 w-4" />
                     )}
                   </button>
 
@@ -1356,6 +1369,35 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Delete Summary Confirmation Dialog */}
+      <AlertDialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
+        <AlertDialogContent dir={direction}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('deleteSummary')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('deleteSummaryConfirm')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>{tc('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmDeleteId) {
+                  handleDeleteSummary(confirmDeleteId);
+                  setConfirmDeleteId(null);
+                }
+              }}
+              disabled={!!deletingSummaryId}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deletingSummaryId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {tc('delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }

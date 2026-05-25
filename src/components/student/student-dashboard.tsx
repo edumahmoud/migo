@@ -34,6 +34,7 @@ import {
   AlertTriangle,
   ListChecks,
   File,
+  MoreVertical,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession as waitForSessionShared, getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -41,6 +42,16 @@ import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
 import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import StatCard from '@/components/shared/stat-card';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import SubjectsSection from '@/components/shared/subjects-section';
 import PersonalFilesSection from '@/components/shared/personal-files-section';
 import AssignmentsSection from '@/components/shared/assignments-section';
@@ -295,6 +306,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
   // ─── Deleting summary state ───
   const [deletingSummaryId, setDeletingSummaryId] = useState<string | null>(null);
+  const [confirmDeleteSummaryId, setConfirmDeleteSummaryId] = useState<string | null>(null);
 
   // ─── Background summary processing state ───
   const [pendingSummaries, setPendingSummaries] = useState<PendingSummary[]>([]);
@@ -2755,15 +2767,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteSummary(summary.id);
+                    setConfirmDeleteSummaryId(summary.id);
                   }}
                   disabled={deletingSummaryId === summary.id}
-                  className="absolute top-3 start-3 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-rose-50 hover:text-rose-600"
+                  className="absolute top-3 start-3 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-rose-50 hover:text-rose-600"
+                  title={t('common.delete')}
                 >
                   {deletingSummaryId === summary.id ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <MoreVertical className="h-3.5 w-3.5" />
                   )}
                 </button>
 
@@ -4442,6 +4455,35 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         onSectionChange={handleSectionChange}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
       />
+
+      {/* Delete Summary Confirmation Dialog */}
+      <AlertDialog open={!!confirmDeleteSummaryId} onOpenChange={(open) => { if (!open) setConfirmDeleteSummaryId(null); }}>
+        <AlertDialogContent dir={direction}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('summary.deleteSummary')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('summary.deleteSummaryConfirm')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row gap-2 justify-end">
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmDeleteSummaryId) {
+                  handleDeleteSummary(confirmDeleteSummaryId);
+                  setConfirmDeleteSummaryId(null);
+                }
+              }}
+              disabled={!!deletingSummaryId}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deletingSummaryId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              {t('common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
