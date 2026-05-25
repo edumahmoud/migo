@@ -8,7 +8,7 @@ import {
   Bell,
   Menu,
   Users,
-  ShieldAlert,
+  FolderOpen,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
@@ -38,7 +38,7 @@ const studentNavItems: BottomNavItem[] = [
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'reports', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
   { id: 'more', labelKey: 'nav.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
@@ -46,7 +46,7 @@ const teacherNavItems: BottomNavItem[] = [
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'reports', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
   { id: 'more', labelKey: 'nav.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
@@ -54,7 +54,7 @@ const adminNavItems: BottomNavItem[] = [
   { id: 'users', labelKey: 'nav.users', icon: <Users className="h-5 w-5" /> },
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'complaints', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
+  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
   { id: 'more', labelKey: 'nav.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
@@ -190,8 +190,8 @@ function BottomNavItemButton({
             {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
           </motion.span>
         )}
-        {/* Reports unread badge — hidden for admin/superadmin */}
-        {(item.id === 'reports' || item.id === 'complaints') && reportsUnreadCount > 0 && role !== 'admin' && role !== 'superadmin' && (
+        {/* Reports unread badge — still available in sidebar */}
+        {item.id === 'reports' && reportsUnreadCount > 0 && (
           <motion.span
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
