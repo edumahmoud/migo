@@ -40,13 +40,13 @@ interface AppHeaderProps {
 // Academic titles (same as settings-section)
 // Labels are i18n keys resolved via t()
 const ACADEMIC_TITLES = [
-  { value: 'teacher', labelKey: 'settings.lecturer', femaleLabelKey: 'roles.teacherWithGender.female' },
-  { value: 'dr', labelKey: 'settings.doctor', femaleLabelKey: 'settings.doctor' },
-  { value: 'prof', labelKey: 'settings.professor', femaleLabelKey: 'settings.professor' },
-  { value: 'assoc_prof', labelKey: 'settings.associateProfessor', femaleLabelKey: 'settings.associateProfessor' },
-  { value: 'assist_prof', labelKey: 'settings.assistantProfessor', femaleLabelKey: 'settings.assistantProfessor' },
-  { value: 'lecturer', labelKey: 'settings.lecturer', femaleLabelKey: 'settings.lecturer' },
-  { value: 'teaching_assist', labelKey: 'settings.teachingAssistant', femaleLabelKey: 'settings.teachingAssistant' },
+  { value: 'teacher', labelKey: 'titles.teacher', femaleLabelKey: 'titles.teacherFemale' },
+  { value: 'dr', labelKey: 'titles.dr', femaleLabelKey: 'titles.drFemale' },
+  { value: 'prof', labelKey: 'titles.prof', femaleLabelKey: 'titles.profFemale' },
+  { value: 'assoc_prof', labelKey: 'titles.assocProf', femaleLabelKey: 'titles.assocProfFemale' },
+  { value: 'assist_prof', labelKey: 'titles.assistProf', femaleLabelKey: 'titles.assistProfFemale' },
+  { value: 'lecturer', labelKey: 'titles.lecturer', femaleLabelKey: 'titles.lecturerFemale' },
+  { value: 'teaching_assist', labelKey: 'titles.teachingAssist', femaleLabelKey: 'titles.teachingAssistFemale' },
 ] as const;
 
 // -------------------------------------------------------
@@ -132,7 +132,7 @@ export default function AppHeader({
             if (title) {
               return isFemale ? t(title.femaleLabelKey) : t(title.labelKey);
             }
-            return isFemale ? t('roles.teacherWithGender.female') : t('roles.teacherWithGender.male');
+            return isFemale ? t('titles.teacherFemale') : t('titles.teacher');
           })();
 
   // Close dropdown on outside click

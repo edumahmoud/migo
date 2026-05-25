@@ -354,7 +354,7 @@ export default function SettingsSection({
         if (title) {
           return isFemale ? t(title.femaleLabel) : t(title.label);
         }
-        return isFemale ? t('roles.teacherWithGender.female') : t('roles.teacherWithGender.male');
+        return isFemale ? t('titles.teacherFemale') : t('titles.teacher');
       }
       default: return role;
     }

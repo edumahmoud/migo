@@ -3611,5 +3611,21 @@
   },
   "phases": {
     "saving": "Saving..."
+  },
+  "titles": {
+    "teacher": "Teacher",
+    "teacherFemale": "Teacher",
+    "dr": "Dr.",
+    "drFemale": "Dr.",
+    "prof": "Professor",
+    "profFemale": "Professor",
+    "assocProf": "Assoc. Professor",
+    "assocProfFemale": "Assoc. Professor",
+    "assistProf": "Assist. Professor",
+    "assistProfFemale": "Assist. Professor",
+    "lecturer": "Lecturer",
+    "lecturerFemale": "Lecturer",
+    "teachingAssist": "Teaching Assistant",
+    "teachingAssistFemale": "Teaching Assistant"
   }
 }

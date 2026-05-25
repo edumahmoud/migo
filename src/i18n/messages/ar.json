@@ -3611,5 +3611,21 @@
   },
   "phases": {
     "saving": "جارٍ الحفظ..."
+  },
+  "titles": {
+    "teacher": "معلم",
+    "teacherFemale": "معلمة",
+    "dr": "دكتور",
+    "drFemale": "دكتورة",
+    "prof": "أستاذ دكتور",
+    "profFemale": "أستاذة دكتورة",
+    "assocProf": "أستاذ مشارك",
+    "assocProfFemale": "أستاذة مشاركة",
+    "assistProf": "أستاذ مساعد",
+    "assistProfFemale": "أستاذة مساعدة",
+    "lecturer": "محاضر",
+    "lecturerFemale": "محاضرة",
+    "teachingAssist": "معيد",
+    "teachingAssistFemale": "معيدة"
   }
 }
