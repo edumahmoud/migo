@@ -236,7 +236,7 @@ export default function AppHeader({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, pointerEvents: 'none' as const }}
                   transition={{ duration: 0.1 }}
-                  className={`absolute top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50 ${isRTL ? 'left-0' : 'right-0'}`}
+                  className={`absolute top-full mt-2 w-56 max-h-[80vh] overflow-y-auto rounded-xl border bg-background shadow-lg z-50 ${isRTL ? 'left-0' : 'right-0'}`}
                   dir={direction}
                 >
                   {/* User info in dropdown */}

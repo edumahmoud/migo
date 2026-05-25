@@ -63,6 +63,7 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/api/icon/180" data-dynamic-apple />
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="color-scheme" content="light dark" />
         {/* White screen detection: reload once if body stays empty after 12s.
             FIX v2: Uses localStorage instead of sessionStorage (survives process kills).
             Also checks localStorage _attendo_busy flag — Android process kills lose the

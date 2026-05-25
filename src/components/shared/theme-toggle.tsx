@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslations } from '@/i18n/use-translations';
@@ -10,29 +10,25 @@ const THEME_STORAGE_KEY = 'attendo-theme';
 /**
  * ThemeToggle — a simple toggle button that flips between light and dark mode.
  *
- * IMPORTANT: This component does NOT initialize or modify the theme on mount.
- * Theme initialization happens in the inline <script> in layout.tsx,
- * which runs BEFORE React hydrates. This prevents dark mode from
- * being activated unexpectedly when the dropdown opens for the first time.
+ * CRITICAL MOBILE FIX: This component has a 400ms click guard after mounting.
+ * On mobile, when the user taps their profile picture to open the dropdown,
+ * the ThemeToggle mounts and renders. If the tap event is still propagating
+ * (mobile touch events last 100-300ms), it can accidentally hit the newly
+ * rendered ThemeToggle button, activating dark mode unintentionally.
  *
- * On mount, we ONLY READ the current DOM/localStorage state to sync our
- * React state. We never add/remove the 'dark' class or write to localStorage
- * during mount — that caused the bug where dark mode activated when the
- * dropdown opened. The layout inline script is the single source of truth
- * for theme initialization.
+ * The click guard prevents this by ignoring clicks for 400ms after mount.
+ * Theme initialization happens in the inline <script> in layout.tsx.
  */
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const interactiveRef = useRef(false);
   const { t } = useTranslations();
 
   useEffect(() => {
     setMounted(true);
+
     // READ-ONLY: Just sync React state with the current DOM/localStorage state.
-    // Theme initialization is handled by the inline script in layout.tsx,
-    // which runs before React hydrates. We do NOT modify the DOM or localStorage
-    // here — doing so caused the bug where dark mode activated unexpectedly
-    // when the dropdown opened for the first time.
     try {
       const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
       if (storedTheme === 'dark') {
@@ -41,13 +37,22 @@ export default function ThemeToggle() {
         setDark(false);
       }
     } catch {
-      // localStorage unavailable — read DOM state as fallback
       const isDark = document.documentElement.classList.contains('dark');
       setDark(isDark);
     }
+
+    // CLICK GUARD: Prevent accidental taps on mobile for 400ms after mount.
+    const guardTimer = setTimeout(() => {
+      interactiveRef.current = true;
+    }, 400);
+
+    return () => clearTimeout(guardTimer);
   }, []);
 
-  const toggle = () => {
+  const toggle = useCallback(() => {
+    // CLICK GUARD: Ignore clicks during the first 400ms after mount
+    if (!interactiveRef.current) return;
+
     const newDark = !dark;
     setDark(newDark);
     if (newDark) {
@@ -57,7 +62,7 @@ export default function ThemeToggle() {
       document.documentElement.classList.remove('dark');
       localStorage.setItem(THEME_STORAGE_KEY, 'light');
     }
-  };
+  }, [dark]);
 
   if (!mounted) return null;
 
