@@ -5,6 +5,8 @@ import { Moon, Sun } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslations } from '@/i18n/use-translations';
 
+const THEME_STORAGE_KEY = 'attendo-theme';
+
 /**
  * ThemeToggle — a simple toggle button that flips between light and dark mode.
  *
@@ -13,7 +15,10 @@ import { useTranslations } from '@/i18n/use-translations';
  * which runs BEFORE React hydrates. This prevents dark mode from
  * being activated unexpectedly when the dropdown opens for the first time.
  *
- * On mount, we only READ the current DOM state to sync our local state.
+ * On mount, we VERIFY that the DOM state matches the stored preference.
+ * If there's a mismatch (e.g., .dark class is present but preference is 'light'),
+ * we correct the DOM state. This handles the edge case where something else
+ * (like a browser extension or SSR hydration mismatch) adds .dark incorrectly.
  */
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -22,11 +27,39 @@ export default function ThemeToggle() {
 
   useEffect(() => {
     setMounted(true);
-    // Only READ the current DOM state — do NOT apply/modify the theme.
-    // Theme initialization is handled by the inline script in layout.tsx
-    // so it's already correct before React hydrates.
-    const isDark = document.documentElement.classList.contains('dark');
-    setDark(isDark);
+    // VERIFY DOM state matches localStorage preference.
+    // This is critical to prevent dark mode from activating unexpectedly.
+    // The inline script in layout.tsx already handles initialization,
+    // but we add an extra safety check here.
+    try {
+      const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+      const isDarkInDOM = document.documentElement.classList.contains('dark');
+
+      if (storedTheme === 'dark') {
+        // User explicitly chose dark mode — ensure DOM matches
+        if (!isDarkInDOM) {
+          document.documentElement.classList.add('dark');
+        }
+        setDark(true);
+      } else {
+        // User is in light mode (or no preference set — default to light)
+        // CRITICAL: If .dark class is present but user didn't choose dark,
+        // remove it. This prevents the bug where dark mode activates
+        // unexpectedly when the dropdown opens.
+        if (isDarkInDOM) {
+          document.documentElement.classList.remove('dark');
+        }
+        setDark(false);
+        // Ensure preference is stored so future loads are consistent
+        if (!storedTheme) {
+          localStorage.setItem(THEME_STORAGE_KEY, 'light');
+        }
+      }
+    } catch {
+      // localStorage unavailable — just read DOM state as fallback
+      const isDark = document.documentElement.classList.contains('dark');
+      setDark(isDark);
+    }
   }, []);
 
   const toggle = () => {
@@ -34,10 +67,10 @@ export default function ThemeToggle() {
     setDark(newDark);
     if (newDark) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('attendo-theme', 'dark');
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('attendo-theme', 'light');
+      localStorage.setItem(THEME_STORAGE_KEY, 'light');
     }
   };
 

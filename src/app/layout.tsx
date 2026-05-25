@@ -139,20 +139,24 @@ export default function RootLayout({
               // Initialize theme from localStorage before React hydrates
               // This prevents dark mode from being activated unexpectedly
               // when ThemeToggle mounts for the first time (e.g., dropdown opens).
-              // Without this, ThemeToggle would check system preference and
-              // potentially add the 'dark' class even if the user was in light mode.
+              // CRITICAL: Always explicitly set the theme — never leave it ambiguous.
+              // Default to light mode when no preference is stored.
+              // Do NOT check system preference (prefers-color-scheme) — that caused
+              // the bug where clicking the profile picture activated dark mode.
               (function() {
                 try {
                   var theme = localStorage.getItem('attendo-theme');
                   if (theme === 'dark') {
                     document.documentElement.classList.add('dark');
-                  } else if (theme === 'light') {
-                    // Explicitly light — ensure dark class is removed
+                  } else {
+                    // Light mode (explicit or default) — ALWAYS remove 'dark' class
+                    // This handles the case where the class was added by something else
                     document.documentElement.classList.remove('dark');
+                    // Store the default preference so future checks are unambiguous
+                    if (theme !== 'light') {
+                      localStorage.setItem('attendo-theme', 'light');
+                    }
                   }
-                  // If no theme stored yet, default to light (no 'dark' class).
-                  // Do NOT check system preference here — that caused the bug
-                  // where clicking the profile picture activated dark mode.
                 } catch(e) {}
               })();
             `,
