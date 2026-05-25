@@ -527,32 +527,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     return () => { supabase.removeChannel(channel); };
   }, [profile.id, fetchFiles]);
 
-  // Fetch share/course counts when files change
-  useEffect(() => {
-    if (files.length > 0) {
-      fetchFileCounts(files);
-    } else {
-      setFileShareCounts({});
-      setFileCourseCounts({});
-    }
-  }, [files, fetchFileCounts]);
-
-  // -------------------------------------------------------
-  // Real-time subscription for file_shares (shared with me updates)
-  // -------------------------------------------------------
-  useEffect(() => {
-    const channel = supabase
-      .channel(`file-shares-${profile.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
-        fetchSharedFiles();
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
-        fetchSharedFiles();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [profile.id, fetchSharedFiles]);
-
   // -------------------------------------------------------
   // Fetch file share & course counts (batch)
   // -------------------------------------------------------
@@ -594,6 +568,32 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       console.error('Fetch file counts error:', err);
     }
   }, []);
+
+  // Fetch share/course counts when files change
+  useEffect(() => {
+    if (files.length > 0) {
+      fetchFileCounts(files);
+    } else {
+      setFileShareCounts({});
+      setFileCourseCounts({});
+    }
+  }, [files, fetchFileCounts]);
+
+  // -------------------------------------------------------
+  // Real-time subscription for file_shares (shared with me updates)
+  // -------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel(`file-shares-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
+        fetchSharedFiles();
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'file_shares', filter: `shared_with=eq.${profile.id}` }, () => {
+        fetchSharedFiles();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile.id, fetchSharedFiles]);
 
   // Keep pendingUploads ref in sync for reliable reads in async handlers
   useEffect(() => {
