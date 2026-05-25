@@ -11,7 +11,7 @@ export function useTranslations(namespace?: string) {
   // Wrap the translation function to handle missing keys gracefully
   // In development: log a warning for missing keys
   // In production: return a fallback string instead of raw key paths
-  const t = (key: string, params?: Record<string, unknown>): string => {
+  const t = (key: string, params?: Record<string, string | number | Date>): string => {
     const result = rawT(key, params);
     
     // next-intl returns the key path itself when a translation is missing

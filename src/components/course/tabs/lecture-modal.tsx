@@ -129,7 +129,7 @@ function uploadFileWithProgress(
   formData: FormData,
   headers: Record<string, string>,
   onProgress: (percent: number) => void,
-  t: (key: string, params?: Record<string, unknown>) => string
+  t: (key: string, params?: Record<string, string | number | Date>) => string
 ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string }> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();

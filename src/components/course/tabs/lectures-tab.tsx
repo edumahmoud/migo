@@ -214,8 +214,8 @@ function uploadFileWithProgress(
   formData: FormData,
   headers: Record<string, string>,
   onProgress: (percent: number) => void,
-  translate: (key: string, params?: Record<string, unknown>) => string,
-  translateCommon: (key: string, params?: Record<string, unknown>) => string,
+  translate: (key: string, params?: Record<string, string | number | Date>) => string,
+  translateCommon: (key: string, params?: Record<string, string | number | Date>) => string,
 ): Promise<{ success: boolean; data?: Record<string, unknown>; error?: string; code?: string }> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
@@ -951,8 +951,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       setNewPendingFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, progress: Math.min(percent, 70) } : p)));
                     }
                   },
-                  (key: string, params?: Record<string, unknown>) => t(key, params as Record<string, string | number | Date>),
-                  (key: string, params?: Record<string, unknown>) => tc(key, params as Record<string, string | number | Date>),
+                  (key: string, params?: Record<string, string | number | Date>) => t(key, params),
+                  (key: string, params?: Record<string, string | number | Date>) => tc(key, params),
                 );
 
                 if (xhrResult.success && xhrResult.data) {

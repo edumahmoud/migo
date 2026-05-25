@@ -52,7 +52,7 @@ function isValidEmail(email: string): boolean {
 function withSupabaseTimeout<Res extends { data: unknown; error: { message: string; status?: number; code?: string } | null }>(
   promise: Promise<Res>,
   ms: number,
-  t: (key: string, params?: Record<string, unknown>) => string,
+  t: (key: string, params?: Record<string, string | number | Date>) => string,
 ): Promise<{ data: Res['data'] | null; error: { message: string; status?: number; code?: string } | null }> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
@@ -151,7 +151,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
           redirectTo: `${window.location.origin}/auth/reset-password`,
         }),
         REQUEST_TIMEOUT_MS,
-        t as (key: string, params?: Record<string, unknown>) => string,
+        t as (key: string, params?: Record<string, string | number | Date>) => string,
       );
 
       if (error) {
