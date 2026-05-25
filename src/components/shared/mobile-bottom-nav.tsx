@@ -147,7 +147,7 @@ function BottomNavItemButton({
     <motion.button
       onClick={handleClick}
       className={`relative flex flex-col items-center justify-end flex-1 min-w-0 rounded-xl transition-colors duration-200 ${
-        isCenter ? '-mt-4 pb-1' : 'gap-0.5 py-1.5'
+        isCenter ? '-mt-6 pb-1' : 'gap-0.5 py-1.5'
       }`}
       whileTap={{ scale: 0.9 }}
       aria-label={t(item.labelKey)}

@@ -1129,7 +1129,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{banks.length}</p>
-              <p className="text-xs text-muted-foreground">{t('questionBank.banksCount')}</p>
+              <p className="text-xs text-muted-foreground">{t('questionBank.banksCount', { count: banks.length })}</p>
             </div>
           </div>
         </div>
@@ -1140,7 +1140,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{banks.reduce((sum, b) => sum + (b.question_count || 0), 0)}</p>
-              <p className="text-xs text-muted-foreground">{t('questionBank.totalQuestions')}</p>
+              <p className="text-xs text-muted-foreground">{t('questionBank.totalQuestions', { count: banks.reduce((sum, b) => sum + (b.question_count || 0), 0) })}</p>
             </div>
           </div>
         </div>
@@ -1151,7 +1151,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{subjects.length}</p>
-              <p className="text-xs text-muted-foreground">{t('questionBank.linkedSubject')}</p>
+              <p className="text-xs text-muted-foreground">{t('questionBank.linkedSubject', { count: subjects.length })}</p>
             </div>
           </div>
         </div>

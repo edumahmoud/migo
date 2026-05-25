@@ -3390,7 +3390,7 @@
     "importJsonTitle": "استيراد من JSON",
     "importReadError": "تعذر قراءة الملف. يرجى المحاولة مرة أخرى.",
     "itemPlaceholder": "أدخل العنصر",
-    "linkedSubject": "المقرر المرتبط",
+    "linkedSubject": "المقرر المرتبط ({count})",
     "manageBanksDesc": "إدارة بنوك الأسئلة وإضافة أسئلة",
     "matchPlaceholder": "أدخل العنصر المطابق",
     "matchingPairs": "أزواج التوصيل",
@@ -3436,7 +3436,7 @@
     "toastQuestionDeleted": "تم حذف السؤال بنجاح",
     "toastSaveQuestionsError": "فشل حفظ الأسئلة",
     "toastSelectSubject": "يرجى اختيار المقرر",
-    "totalQuestions": "إجمالي الأسئلة"
+    "totalQuestions": "إجمالي الأسئلة ({count})"
   },
   "studentsTab": {
     "acceptAllTitle": "قبول جميع الطلبات",

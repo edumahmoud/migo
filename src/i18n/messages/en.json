@@ -3390,7 +3390,7 @@
     "importJsonTitle": "Import from JSON",
     "importReadError": "Could not read the file. Please try again.",
     "itemPlaceholder": "Enter item",
-    "linkedSubject": "Linked Subject",
+    "linkedSubject": "Linked Subject ({count})",
     "manageBanksDesc": "Manage your question banks and add questions",
     "matchPlaceholder": "Enter matching item",
     "matchingPairs": "Matching Pairs",
@@ -3436,7 +3436,7 @@
     "toastQuestionDeleted": "Question deleted successfully",
     "toastSaveQuestionsError": "Failed to save questions",
     "toastSelectSubject": "Please select a subject",
-    "totalQuestions": "Total Questions"
+    "totalQuestions": "Total Questions ({count})"
   },
   "studentsTab": {
     "acceptAllTitle": "Accept All Requests",
