@@ -443,19 +443,33 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // summaries from disappearing when a concurrent fetch returns stale data after
     // the Realtime INSERT clears the protection prematurely.
     const now = Date.now();
-    const PROTECTION_DURATION_MS = 30000; // 30 seconds — enough for DB propagation + Realtime + slow networks
+    const PROTECTION_DURATION_MS = 30000; // 30 seconds for real IDs
+    const TEMP_ID_PROTECTION_MS = 86400000; // 24 hours for temp IDs (unsaved summaries)
     if (recentlyAddedSummaryIdsRef.current.size > 0) {
       const fetchedIds = new Set(filtered.map(s => s.id));
       const currentSummaries = summariesRef.current;
       for (const [id, addedAt] of recentlyAddedSummaryIdsRef.current) {
-        // Only protect if within the protection window and not already in the fetched result
-        if (now - addedAt < PROTECTION_DURATION_MS && !fetchedIds.has(id)) {
+        const isTempId = id.startsWith('temp-');
+        const protectionMs = isTempId ? TEMP_ID_PROTECTION_MS : PROTECTION_DURATION_MS;
+        // For temp IDs, addedAt might be set to now + 86400000 as a marker
+        // In that case, check if the marker timestamp hasn't passed
+        const isProtected = isTempId ? (addedAt > now - TEMP_ID_PROTECTION_MS) : (now - addedAt < protectionMs);
+        
+        if (isProtected && !fetchedIds.has(id)) {
           const existingInLocal = currentSummaries.find(s => s.id === id);
           if (existingInLocal) {
-            console.log('[safeSetSummaries] Preserving recently added summary:', id);
-            filtered = [existingInLocal, ...filtered];
+            // For temp IDs, also check if a real version exists in fetched data
+            const hasRealVersion = fetchedIds.has(id) || filtered.some(s => 
+              s.title === existingInLocal.title && 
+              s.summary_content === existingInLocal.summary_content &&
+              !s.id.startsWith('temp-')
+            );
+            if (!hasRealVersion) {
+              console.log('[safeSetSummaries] Preserving', isTempId ? 'temp' : 'recently added', 'summary:', id);
+              filtered = [existingInLocal, ...filtered];
+            }
           }
-        } else if (now - addedAt >= PROTECTION_DURATION_MS) {
+        } else if (!isProtected) {
           // Expired — clean up
           recentlyAddedSummaryIdsRef.current.delete(id);
         }
@@ -1021,6 +1035,75 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       }
     } catch { /* ignore corrupted sessionStorage */ }
   }, [fetchSummaries, waitForSession]);
+
+  // ─── Recover unsaved summaries from localStorage (save failure recovery) ───
+  useEffect(() => {
+    const recoverUnsaved = async () => {
+      try {
+        const unsavedKey = `unsaved_summaries_${profile.id}`;
+        const stored = JSON.parse(localStorage.getItem(unsavedKey) || '[]');
+        if (!Array.isArray(stored) || stored.length === 0) return;
+        
+        console.log('[Recovery] Found', stored.length, 'unsaved summaries in localStorage');
+        const token = await waitForSession(10000);
+        if (!token) return;
+        
+        const stillUnsaved: typeof stored = [];
+        
+        for (const unsaved of stored) {
+          try {
+            const res = await fetch('/api/summaries', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                title: unsaved.title,
+                original_content: unsaved.original_content,
+                summary_content: unsaved.summary_content,
+                subject_id: unsaved.subject_id,
+                source_file_type: unsaved.source_file_type,
+                source_file_url: unsaved.source_file_url,
+                transcribe_only: unsaved.transcribe_only,
+              }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success && data.data?.id) {
+              console.log('[Recovery] Successfully saved unsaved summary:', unsaved.title, '→ id:', data.data.id);
+              // Replace temp ID with real ID in local state
+              setSummaries(prev => prev.map(s => 
+                s.id === unsaved.tempId ? { ...s, id: data.data.id, ...data.data } : s
+              ));
+              // Remove from recentlyAdded protection
+              recentlyAddedSummaryIdsRef.current.delete(unsaved.tempId);
+            } else {
+              stillUnsaved.push(unsaved);
+            }
+          } catch {
+            stillUnsaved.push(unsaved);
+          }
+        }
+        
+        // Update localStorage with remaining unsaved items
+        if (stillUnsaved.length === 0) {
+          localStorage.removeItem(unsavedKey);
+        } else {
+          localStorage.setItem(unsavedKey, JSON.stringify(stillUnsaved));
+        }
+        
+        // Refresh from server to get the saved data
+        if (stillUnsaved.length < stored.length) {
+          fetchSummaries();
+        }
+      } catch { /* localStorage unavailable */ }
+    };
+    
+    // Delay recovery to avoid conflicting with initial load
+    const timer = setTimeout(recoverUnsaved, 5000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id]);
 
   // ─── Loading timeout safety net ───
   // If loading takes too long (slow session hydration on mobile/PWA),
@@ -1871,39 +1954,51 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         if (savedSummaryId) {
           console.log('[Summary] Saved successfully, id:', savedSummaryId);
         } else {
-          // ─── CLIENT-SIDE RETRY: Save via /api/summaries POST ───
+          // ─── CLIENT-SIDE RETRY: Save via /api/summaries POST with multi-retry ───
           // The server may not have saved (DB timeout, Vercel termination, etc.)
           // We retry saving via the /api/summaries endpoint which is simpler
           // and more likely to succeed since it doesn't involve AI processing.
           console.warn('[Summary] No summaryId from server — attempting client-side save via /api/summaries');
-          try {
-            const retryToken = token || await waitForSession(15000);
-            const retryRes = await fetch('/api/summaries', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(retryToken ? { 'Authorization': `Bearer ${retryToken}` } : {}),
-              },
-              body: JSON.stringify({
-                title,
-                original_content: originalContent,
-                summary_content: summaryContent,
-                subject_id: selectedSubjectId || null,
-                source_file_type: sourceFileType,
-                source_file_url: sourceFileUrl || undefined,
-                transcribe_only: inputMode === 'transcribe',
-              }),
-              signal: abortController.signal,
-            });
-            const retryData = await retryRes.json();
-            if (retryRes.ok && retryData.success && retryData.data?.id) {
-              savedSummaryId = retryData.data.id;
-              console.log('[Summary] Client-side save succeeded, id:', savedSummaryId);
-            } else {
-              console.warn('[Summary] Client-side save also failed:', retryData.error);
+          
+          const maxRetries = 5;
+          const baseDelayMs = 2000;
+          
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              const retryToken = await waitForSession(15000);
+              const retryRes = await fetch('/api/summaries', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(retryToken ? { 'Authorization': `Bearer ${retryToken}` } : {}),
+                },
+                body: JSON.stringify({
+                  title,
+                  original_content: originalContent,
+                  summary_content: summaryContent,
+                  subject_id: selectedSubjectId || null,
+                  source_file_type: sourceFileType,
+                  source_file_url: sourceFileUrl || undefined,
+                  transcribe_only: inputMode === 'transcribe',
+                }),
+              });
+              const retryData = await retryRes.json();
+              if (retryRes.ok && retryData.success && retryData.data?.id) {
+                savedSummaryId = retryData.data.id;
+                console.log('[Summary] Client-side save succeeded on attempt', attempt, ', id:', savedSummaryId);
+                break;
+              } else {
+                console.warn('[Summary] Client-side save attempt', attempt, 'failed:', retryData.error);
+              }
+            } catch (retryErr) {
+              console.warn('[Summary] Client-side save attempt', attempt, 'error:', retryErr instanceof Error ? retryErr.message : retryErr);
             }
-          } catch (retryErr) {
-            console.warn('[Summary] Client-side save error:', retryErr instanceof Error ? retryErr.message : retryErr);
+            
+            if (attempt < maxRetries) {
+              const delay = baseDelayMs * Math.pow(2, attempt - 1);
+              console.log('[Summary] Retrying in', delay, 'ms...');
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
           }
         }
 
@@ -1924,7 +2019,34 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
         // Protect this optimistic update from being overwritten by a stale fetchSummaries result
         const optimisticId = newSummary.id;
-        recentlyAddedSummaryIdsRef.current.set(optimisticId, Date.now());
+        // For temp IDs (unsaved summaries), use a VERY LONG protection window (24 hours)
+        // so they don't disappear before the background save retry succeeds
+        if (optimisticId.startsWith('temp-')) {
+          recentlyAddedSummaryIdsRef.current.set(optimisticId, Date.now() + 86400000); // 24h marker
+        } else {
+          recentlyAddedSummaryIdsRef.current.set(optimisticId, Date.now());
+        }
+
+        // ─── Save unsaved summaries to localStorage for recovery ───
+        if (!savedSummaryId) {
+          try {
+            const unsavedKey = `unsaved_summaries_${profile.id}`;
+            const existing = JSON.parse(localStorage.getItem(unsavedKey) || '[]');
+            existing.push({
+              tempId: newSummary.id,
+              title,
+              original_content: originalContent,
+              summary_content: summaryContent,
+              subject_id: selectedSubjectId || null,
+              source_file_type: sourceFileType,
+              source_file_url: sourceFileUrl || null,
+              transcribe_only: inputMode === 'transcribe',
+              created_at: newSummary.created_at,
+            });
+            localStorage.setItem(unsavedKey, JSON.stringify(existing));
+            console.log('[Summary] Saved unsaved summary to localStorage for recovery');
+          } catch { /* localStorage might be unavailable */ }
+        }
 
         // Generate quiz in background (non-blocking) — delay 5s to let things settle
         // Skip quiz generation for transcribe-only mode (no AI summarization = no quiz)

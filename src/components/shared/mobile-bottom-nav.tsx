@@ -147,7 +147,7 @@ function BottomNavItemButton({
     <motion.button
       onClick={handleClick}
       className={`relative flex flex-col items-center justify-end flex-1 min-w-0 rounded-xl transition-colors duration-200 ${
-        isCenter ? '-mt-8 pb-1' : 'gap-0.5 py-1.5'
+        isCenter ? 'pb-1' : 'gap-0.5 py-1.5'
       }`}
       whileTap={{ scale: 0.9 }}
       aria-label={t(item.labelKey)}
@@ -173,7 +173,7 @@ function BottomNavItemButton({
       <span
         className={`relative z-10 transition-colors duration-200 ${
           isCenter
-            ? `flex items-center justify-center h-12 w-12 rounded-full shadow-lg ${isActive ? 'bg-primary text-primary-foreground shadow-primary/30' : 'bg-muted text-muted-foreground shadow-black/10'}`
+            ? `absolute -top-8 flex items-center justify-center h-12 w-12 rounded-full shadow-lg ${isActive ? 'bg-primary text-primary-foreground shadow-primary/30' : 'bg-muted text-muted-foreground shadow-black/10'}`
             : isActive ? 'text-primary' : 'text-muted-foreground'
         }`}
       >
@@ -203,11 +203,11 @@ function BottomNavItemButton({
         )}
       </span>
 
-      {/* Label */}
+      {/* Label — center label uses mt-auto to push it down to align with other labels */}
       <span
         className={`relative z-10 text-[10px] font-medium leading-tight transition-colors duration-200 ${
           isActive ? 'text-primary' : 'text-muted-foreground'
-        }`}
+        } ${isCenter ? 'mt-1' : ''}`}
       >
         {t(item.labelKey)}
       </span>

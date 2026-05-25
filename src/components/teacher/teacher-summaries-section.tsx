@@ -213,13 +213,23 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
         if (recentlyAddedSummaryIdsRef.current.size > 0) {
           const fetchedIds = new Set(filtered.map(s => s.id));
           for (const [id, addedAt] of recentlyAddedSummaryIdsRef.current) {
-            if (now - addedAt < RECENTLY_ADDED_PROTECTION_MS && !fetchedIds.has(id)) {
+            const isTempId = id.startsWith('temp-');
+            const isProtected = isTempId ? (addedAt > now - 86400000) : (now - addedAt < RECENTLY_ADDED_PROTECTION_MS);
+            
+            if (isProtected && !fetchedIds.has(id)) {
               const existingInLocal = summariesRef.current.find(s => s.id === id);
               if (existingInLocal) {
-                console.log('[fetchSummaries] Preserving recently added summary:', id);
-                filtered.unshift(existingInLocal);
+                const hasRealVersion = filtered.some(s => 
+                  s.title === existingInLocal.title && 
+                  s.summary_content === existingInLocal.summary_content &&
+                  !s.id.startsWith('temp-')
+                );
+                if (!hasRealVersion) {
+                  console.log('[fetchSummaries] Preserving', isTempId ? 'temp' : 'recently added', 'summary:', id);
+                  filtered.unshift(existingInLocal);
+                }
               }
-            } else if (now - addedAt >= RECENTLY_ADDED_PROTECTION_MS) {
+            } else if (!isProtected) {
               recentlyAddedSummaryIdsRef.current.delete(id);
             }
           }
@@ -354,6 +364,70 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     }, 20000);
     return () => clearTimeout(timer);
   }, [loadingSummaries]);
+
+  // ─── Recover unsaved summaries from localStorage ───
+  useEffect(() => {
+    const recoverUnsaved = async () => {
+      try {
+        const unsavedKey = `unsaved_summaries_${profile.id}`;
+        const stored = JSON.parse(localStorage.getItem(unsavedKey) || '[]');
+        if (!Array.isArray(stored) || stored.length === 0) return;
+        
+        console.log('[TeacherSummaries Recovery] Found', stored.length, 'unsaved summaries in localStorage');
+        const token = await waitForSession(10000);
+        if (!token) return;
+        
+        const stillUnsaved: typeof stored = [];
+        
+        for (const unsaved of stored) {
+          try {
+            const res = await fetch('/api/summaries', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({
+                title: unsaved.title,
+                original_content: unsaved.original_content,
+                summary_content: unsaved.summary_content,
+                subject_id: unsaved.subject_id,
+                source_file_type: unsaved.source_file_type,
+                source_file_url: unsaved.source_file_url,
+                transcribe_only: unsaved.transcribe_only,
+              }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success && data.data?.id) {
+              console.log('[TeacherSummaries Recovery] Successfully saved:', unsaved.title, '→ id:', data.data.id);
+              setSummaries(prev => prev.map(s => 
+                s.id === unsaved.tempId ? { ...s, id: data.data.id, ...data.data } : s
+              ));
+              recentlyAddedSummaryIdsRef.current.delete(unsaved.tempId);
+            } else {
+              stillUnsaved.push(unsaved);
+            }
+          } catch {
+            stillUnsaved.push(unsaved);
+          }
+        }
+        
+        if (stillUnsaved.length === 0) {
+          localStorage.removeItem(unsavedKey);
+        } else {
+          localStorage.setItem(unsavedKey, JSON.stringify(stillUnsaved));
+        }
+        
+        if (stillUnsaved.length < stored.length) {
+          fetchSummaries();
+        }
+      } catch { /* localStorage unavailable */ }
+    };
+    
+    const timer = setTimeout(recoverUnsaved, 5000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id]);
 
   // ─── Stale pending summary auto-cleanup (fix: stuck "جاري إنشاء..." on mobile) ───
   useEffect(() => {
@@ -933,36 +1007,49 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
           }
         }
 
-        // ─── Client-side retry: If server didn't save the summary, try saving via /api/summaries ───
+        // ─── Client-side retry: If server didn't save the summary, try saving via /api/summaries with multi-retry ───
         if (!savedSummaryId && summaryContent) {
           console.warn('[Summary] No savedSummaryId from server — attempting client-side save via /api/summaries');
-          try {
-            const retryRes = await fetch('/api/summaries', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                title,
-                original_content: originalContent,
-                summary_content: summaryContent,
-                subject_id: selectedSubject || null,
-                source_file_type: sourceFileType,
-                source_file_url: sourceFileUrl,
-                transcribe_only: isTranscribe,
-              }),
-              signal: abortController.signal,
-            });
-            const retryData = await retryRes.json();
-            if (retryRes.ok && retryData.success && retryData.data?.id) {
-              savedSummaryId = retryData.data.id;
-              console.log('[Summary] Client-side save succeeded, id:', savedSummaryId);
-            } else {
-              console.warn('[Summary] Client-side save also failed:', retryData.error);
+          
+          const maxRetries = 5;
+          const baseDelayMs = 2000;
+          
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              const retryToken = await waitForSession(15000);
+              const retryRes = await fetch('/api/summaries', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(retryToken ? { 'Authorization': `Bearer ${retryToken}` } : {}),
+                },
+                body: JSON.stringify({
+                  title,
+                  original_content: originalContent,
+                  summary_content: summaryContent,
+                  subject_id: selectedSubject || null,
+                  source_file_type: sourceFileType,
+                  source_file_url: sourceFileUrl,
+                  transcribe_only: isTranscribe,
+                }),
+              });
+              const retryData = await retryRes.json();
+              if (retryRes.ok && retryData.success && retryData.data?.id) {
+                savedSummaryId = retryData.data.id;
+                console.log('[Summary] Client-side save succeeded on attempt', attempt, ', id:', savedSummaryId);
+                break;
+              } else {
+                console.warn('[Summary] Client-side save attempt', attempt, 'failed:', retryData.error);
+              }
+            } catch (retryErr) {
+              console.warn('[Summary] Client-side save attempt', attempt, 'error:', retryErr instanceof Error ? retryErr.message : retryErr);
             }
-          } catch (retryErr) {
-            console.warn('[Summary] Client-side save error:', retryErr instanceof Error ? retryErr.message : retryErr);
+            
+            if (attempt < maxRetries) {
+              const delay = baseDelayMs * Math.pow(2, attempt - 1);
+              console.log('[Summary] Retrying in', delay, 'ms...');
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
           }
         }
 
@@ -985,7 +1072,33 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
             return [newSummary, ...prev];
           });
           // Protect this optimistic update from being overwritten by a stale fetch
-          recentlyAddedSummaryIdsRef.current.set(newSummary.id, Date.now());
+          const optimisticId = newSummary.id;
+          if (optimisticId.startsWith('temp-')) {
+            recentlyAddedSummaryIdsRef.current.set(optimisticId, Date.now() + 86400000);
+          } else {
+            recentlyAddedSummaryIdsRef.current.set(optimisticId, Date.now());
+          }
+
+          // Save unsaved summaries to localStorage for recovery
+          if (!savedSummaryId) {
+            try {
+              const unsavedKey = `unsaved_summaries_${profile.id}`;
+              const existing = JSON.parse(localStorage.getItem(unsavedKey) || '[]');
+              existing.push({
+                tempId: newSummary.id,
+                title,
+                original_content: originalContent,
+                summary_content: summaryContent,
+                subject_id: selectedSubject || null,
+                source_file_type: sourceFileType,
+                source_file_url: sourceFileUrl || null,
+                transcribe_only: isTranscribe,
+                created_at: newSummary.created_at,
+              });
+              localStorage.setItem(unsavedKey, JSON.stringify(existing));
+              console.log('[Summary] Saved unsaved summary to localStorage for recovery');
+            } catch { /* localStorage might be unavailable */ }
+          }
         }
 
         // Success
