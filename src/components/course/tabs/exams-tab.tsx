@@ -1298,7 +1298,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   type="text"
                   value={quizTitle}
                   onChange={(e) => setQuizTitle(e.target.value)}
-                  placeholder="t('exams.quizTitlePlaceholder')"
+                  placeholder={t('exams.quizTitlePlaceholder')}
                   className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                   disabled={savingQuiz || generatingFromAi}
                   dir={direction}

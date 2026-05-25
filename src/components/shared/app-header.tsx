@@ -70,10 +70,8 @@ export default function AppHeader({
   const { openProfile, setReportsUnreadCount } = useAppStore();
   const isAdminRole = userRole === 'admin' || userRole === 'superadmin';
   const { myStatus, init: initStatusStore } = useStatusStore();
-  const { t, isRTL, direction } = useTranslations();
+  const { t, direction } = useTranslations();
   const { locale, setLocale } = useLocaleStore();
-  // isRTL is deprecated alias - use direction for dir attribute
-  const _isRTL = direction === 'rtl';
 
   // Initialize status store with userId (critical for Supabase Presence)
   useEffect(() => {
@@ -160,7 +158,7 @@ export default function AppHeader({
   }, [dropdownOpen]);
 
   return (
-    <header className={`fixed top-0 ${_isRTL ? 'end-0' : 'start-0'} start-0 z-40 h-14 sm:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border`} dir={direction}>
+    <header className="fixed top-0 inset-x-0 z-40 h-14 sm:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border" dir={direction}>
       <div className="flex h-full items-center justify-between px-2 sm:px-5">
         {/* ── Start side: Logo + App name ── */}
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
@@ -209,7 +207,7 @@ export default function AppHeader({
             >
               {/* Avatar + Name — whole area opens dropdown */}
               <div className="hidden sm:flex items-center gap-2 sm:gap-2.5 min-w-0">
-                <div className={`flex flex-col min-w-0 ${_isRTL ? 'items-end' : 'items-start'}`}>
+                <div className="flex flex-col min-w-0 items-start">
                   <span className="text-sm font-semibold text-foreground truncate max-w-[140px]">
                     {userName}
                   </span>
@@ -220,13 +218,13 @@ export default function AppHeader({
                 <div className="relative">
                   <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
                   {/* Status dot on desktop avatar */}
-                  <span className={`absolute -bottom-0.5 ${_isRTL ? '-start-0.5' : '-end-0.5'} h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
+                  <span className={`absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
                 </div>
               </div>
               {/* Mobile: Just avatar with status dot */}
               <div className="sm:hidden relative">
                 <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
-                <span className={`absolute -bottom-0.5 ${_isRTL ? '-start-0.5' : '-end-0.5'} h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
+                <span className={`absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
               </div>
               <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 hidden sm:block ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -240,7 +238,7 @@ export default function AppHeader({
                   animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: 'auto' as const }}
                   exit={{ opacity: 0, pointerEvents: 'none' as const }}
                   transition={{ duration: 0.1 }}
-                  className={`absolute top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50 ${_isRTL ? 'start-0' : 'end-0'}`}
+                  className="absolute top-full mt-2 w-56 rounded-xl border bg-background shadow-lg overflow-hidden z-50 end-0"
                   dir={direction}
                 >
                   {/* User info in dropdown */}

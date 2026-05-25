@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback } from 'react';
 import { useTranslations as useNextIntlTranslations } from 'next-intl';
 import { useLocaleStore } from './locale-store';
 
@@ -11,7 +12,12 @@ export function useTranslations(namespace?: string) {
   // Wrap the translation function to handle missing keys gracefully
   // In development: log a warning for missing keys
   // In production: return a fallback string instead of raw key paths
-  const t = (key: string, params?: Record<string, string | number | Date>): string => {
+  //
+  // CRITICAL: useCallback ensures `t` has a stable reference across renders.
+  // Without this, any component that depends on `t` (e.g., in useCallback/useEffect)
+  // would re-create its callback on every render, causing infinite loops
+  // (e.g., the notes-tab fetchAllNotes infinite refresh bug).
+  const t = useCallback((key: string, params?: Record<string, string | number | Date>): string => {
     const result = rawT(key, params);
     
     // next-intl returns the key path itself when a translation is missing
@@ -30,7 +36,7 @@ export function useTranslations(namespace?: string) {
     }
     
     return result;
-  };
+  }, [rawT, namespace, locale]);
   
   return {
     t,
