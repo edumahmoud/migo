@@ -64,36 +64,32 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/api/icon/180" data-dynamic-apple />
         <meta name="mobile-web-app-capable" content="yes" />
-        {/* Theme initialization: MUST run before React hydrates to prevent flash.
-            Reads 'attendo-theme' from localStorage and applies 'dark' class immediately.
-            This prevents the ThemeToggle component from re-initializing on mount. */}
+        {/* Pre-hydration initialization: theme + locale + white screen detection.
+            ALL of these MUST run before React hydrates to prevent flash/wrong state. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              // ── Theme initialization ──
+              // Reads 'attendo-theme' from localStorage and applies 'dark' class immediately.
+              // This prevents ThemeToggle from re-initializing on mount (which caused the
+              // bug where clicking profile picture activated dark mode).
+              // Do NOT check system preference — that was the bug trigger.
               (function() {
                 try {
                   var theme = localStorage.getItem('attendo-theme');
                   if (theme === 'dark') {
                     document.documentElement.classList.add('dark');
                   } else {
-                    // Default to light mode when no preference is stored
+                    // Default to light mode (no 'dark' class) when:
+                    // - theme is 'light' explicitly
+                    // - no preference stored yet
                     document.documentElement.classList.remove('dark');
                   }
                 } catch(e) {}
               })();
-            `,
-          }}
-        />
-        {/* White screen detection: reload once if body stays empty after 12s.
-            FIX v2: Uses localStorage instead of sessionStorage (survives process kills).
-            Also checks localStorage _attendo_busy flag — Android process kills lose the
-            window.__attendoBusyOperation JS variable, but localStorage persists.
-            Increased timeout from 8s to 12s to avoid false positives on slow mobile.
-            Also checks if there's a persisted session in localStorage — if so, don't
-            reload (the app is just taking time to hydrate after process restore). */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+
+              // ── White screen detection ──
+              // Reload once if body stays empty after 12s.
               (function() {
                 try {
                   var reloaded = localStorage.getItem('_wsr');
@@ -101,8 +97,6 @@ export default function RootLayout({
                   var start = Date.now();
                   function check() {
                     var elapsed = Date.now() - start;
-                    // FIX: Check BOTH window variable AND localStorage busy flag
-                    // (localStorage survives Android process kills, window var doesn't)
                     if (window.__attendoBusyOperation) {
                       if (elapsed < 20000) requestAnimationFrame(check);
                       return;
@@ -117,14 +111,11 @@ export default function RootLayout({
                         }
                       }
                     } catch(e) {}
-                    // FIX: Also check if there's a persisted session — if so, the app
-                    // is hydrating after process restore, not stuck. Don't reload.
                     try {
                       var appStoreRaw = localStorage.getItem('attendo-app-store');
                       if (appStoreRaw) {
                         var appStore = JSON.parse(appStoreRaw);
                         if (appStore && appStore.state && appStore.state.currentPage && appStore.state.currentPage !== 'auth') {
-                          // User was logged in — app is hydrating, not stuck. Give it more time.
                           if (elapsed < 20000) { requestAnimationFrame(check); return; }
                         }
                       }
@@ -142,8 +133,8 @@ export default function RootLayout({
                 } catch(e) {}
               })();
 
+              // ── Locale direction initialization ──
               // Initialize locale direction from localStorage before React hydrates
-              // This prevents the flash of wrong direction
               (function() {
                 try {
                   var locale = localStorage.getItem('attendo-locale');
@@ -156,26 +147,6 @@ export default function RootLayout({
                   }
                 } catch(e) {}
               })();
-
-              // Initialize theme from localStorage before React hydrates
-              // This prevents dark mode from being activated unexpectedly
-              // when ThemeToggle mounts for the first time (e.g., dropdown opens).
-              // Without this, ThemeToggle would check system preference and
-              // potentially add the 'dark' class even if the user was in light mode.
-              (function() {
-                try {
-                  var theme = localStorage.getItem('attendo-theme');
-                  if (theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                  } else if (theme === 'light') {
-                    // Explicitly light — ensure dark class is removed
-                    document.documentElement.classList.remove('dark');
-                  }
-                  // If no theme stored yet, default to light (no 'dark' class).
-                  // Do NOT check system preference here — that caused the bug
-                  // where clicking the profile picture activated dark mode.
-                } catch(e) {}
-              })();
             `,
           }}
         />
@@ -185,6 +156,7 @@ export default function RootLayout({
       >
         <I18nProvider>
           <DirectionProvider>
+            <ClientProviders>
             <SocketErrorBoundary
               // Slot 1 (normal): Full app WITH SocketProvider
               // Slot 2 (fallback): App WITHOUT SocketProvider — used when socket.io crashes
@@ -205,6 +177,7 @@ export default function RootLayout({
             <ServiceWorkerRegistration />
             <InstallPrompt />
             <VideoUploadIndicator />
+            </ClientProviders>
           </DirectionProvider>
         </I18nProvider>
       </body>

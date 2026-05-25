@@ -1,12 +1,12 @@
 'use client';
 
 import React from 'react';
-import { I18nProvider } from '@/lib/i18n/context';
+import { I18nBridgeProvider } from './i18n-bridge';
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
-    <I18nProvider>
+    <I18nBridgeProvider>
       {children}
-    </I18nProvider>
+    </I18nBridgeProvider>
   );
 }

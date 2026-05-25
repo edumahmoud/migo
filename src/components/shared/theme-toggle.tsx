@@ -42,6 +42,12 @@ export default function ThemeToggle() {
     // so it's already correct before React hydrates.
     const isDark = document.documentElement.classList.contains('dark');
     setDark(isDark);
+
+    // Enable toggling after the browser has painted, so any residual
+    // click events from the dropdown opening are safely ignored.
+    requestAnimationFrame(() => {
+      canToggleRef.current = true;
+    });
   }, []);
 
   // Listen for theme changes from OTHER instances (e.g. settings page) so

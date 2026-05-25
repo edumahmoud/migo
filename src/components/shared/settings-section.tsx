@@ -171,9 +171,6 @@ export default function SettingsSection({
   const { locale, setLocale } = useLocaleStore();
   const { refreshProfile } = useAuthStore();
 
-  // ─── i18n ───
-  const { t, locale, setLocale, dir, isRTL } = useI18n();
-
   // ─── Shared socket ───
   const { isConnected, status: socketStatus, emitStatusChange } = useSharedSocket();
 
