@@ -25,8 +25,24 @@ const LOCALE_STORAGE_KEY = 'attendo-locale';
 export function getStoredLocale(): Locale | null {
   if (typeof window === 'undefined') return null;
   try {
-    const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (stored && isValidLocale(stored)) return stored;
+    const raw = localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (!raw) return null;
+
+    // Try the raw value first (e.g. "en")
+    if (isValidLocale(raw)) return raw;
+
+    // Handle JSON-stringified values (e.g. '"en"') from older versions
+    // that may have stored the locale with JSON.stringify
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === 'string' && isValidLocale(parsed)) {
+        // Fix the stored value so future reads don't need JSON.parse
+        localStorage.setItem(LOCALE_STORAGE_KEY, parsed);
+        return parsed;
+      }
+    } catch {
+      // Not valid JSON, ignore
+    }
   } catch {}
   return null;
 }

@@ -10,15 +10,16 @@ const THEME_STORAGE_KEY = 'attendo-theme';
 /**
  * ThemeToggle — a simple toggle button that flips between light and dark mode.
  *
- * IMPORTANT: This component does NOT initialize the theme on mount.
+ * IMPORTANT: This component does NOT initialize or modify the theme on mount.
  * Theme initialization happens in the inline <script> in layout.tsx,
  * which runs BEFORE React hydrates. This prevents dark mode from
  * being activated unexpectedly when the dropdown opens for the first time.
  *
- * On mount, we VERIFY that the DOM state matches the stored preference.
- * If there's a mismatch (e.g., .dark class is present but preference is 'light'),
- * we correct the DOM state. This handles the edge case where something else
- * (like a browser extension or SSR hydration mismatch) adds .dark incorrectly.
+ * On mount, we ONLY READ the current DOM/localStorage state to sync our
+ * React state. We never add/remove the 'dark' class or write to localStorage
+ * during mount — that caused the bug where dark mode activated when the
+ * dropdown opened. The layout inline script is the single source of truth
+ * for theme initialization.
  */
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
@@ -27,36 +28,20 @@ export default function ThemeToggle() {
 
   useEffect(() => {
     setMounted(true);
-    // VERIFY DOM state matches localStorage preference.
-    // This is critical to prevent dark mode from activating unexpectedly.
-    // The inline script in layout.tsx already handles initialization,
-    // but we add an extra safety check here.
+    // READ-ONLY: Just sync React state with the current DOM/localStorage state.
+    // Theme initialization is handled by the inline script in layout.tsx,
+    // which runs before React hydrates. We do NOT modify the DOM or localStorage
+    // here — doing so caused the bug where dark mode activated unexpectedly
+    // when the dropdown opened for the first time.
     try {
       const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
-      const isDarkInDOM = document.documentElement.classList.contains('dark');
-
       if (storedTheme === 'dark') {
-        // User explicitly chose dark mode — ensure DOM matches
-        if (!isDarkInDOM) {
-          document.documentElement.classList.add('dark');
-        }
         setDark(true);
       } else {
-        // User is in light mode (or no preference set — default to light)
-        // CRITICAL: If .dark class is present but user didn't choose dark,
-        // remove it. This prevents the bug where dark mode activates
-        // unexpectedly when the dropdown opens.
-        if (isDarkInDOM) {
-          document.documentElement.classList.remove('dark');
-        }
         setDark(false);
-        // Ensure preference is stored so future loads are consistent
-        if (!storedTheme) {
-          localStorage.setItem(THEME_STORAGE_KEY, 'light');
-        }
       }
     } catch {
-      // localStorage unavailable — just read DOM state as fallback
+      // localStorage unavailable — read DOM state as fallback
       const isDark = document.documentElement.classList.contains('dark');
       setDark(isDark);
     }
