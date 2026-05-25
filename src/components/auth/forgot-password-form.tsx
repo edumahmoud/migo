@@ -56,7 +56,7 @@ function withSupabaseTimeout<Res extends { data: unknown; error: { message: stri
 ): Promise<{ data: Res['data'] | null; error: { message: string; status?: number; code?: string } | null }> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
-      resolve({ data: null, error: { message: t('auth.requestTimeoutSeconds', { seconds: Math.round(ms / 1000) }) } });
+      resolve({ data: null, error: { message: t('auth.requestTimeoutSeconds', { seconds: String(Math.round(ms / 1000)) }) } });
     }, ms);
 
     promise
@@ -71,7 +71,7 @@ function withSupabaseTimeout<Res extends { data: unknown; error: { message: stri
       })
       .catch((err) => {
         clearTimeout(timer);
-        resolve({ data: null, error: { message: err?.message || t('auth.connectionErrorOccurred'), status: err?.status, code: err?.code } });
+        resolve({ data: null, error: { message: err?.message || t('auth.connectionErrorOccurred'), status: err?.status, code: (err as any)?.code } });
       });
   });
 }
@@ -85,7 +85,7 @@ export default function ForgotPasswordForm({ onBackToLogin }: ForgotPasswordForm
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
-  const { t, direction } = useTranslations('auth');
+  const { t, direction } = useTranslations();
 
   // ─── Cooldown timer ───
   // Prevents the user from sending another reset email until the cooldown expires.

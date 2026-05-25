@@ -42,11 +42,11 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
       const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
       const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
       if (days > 0) {
-        setTimeLeft(t('banned.timeDaysHoursMinutes', { days, hours, minutes }));
+        setTimeLeft(t('banned.dayHourMinute', { days, hours, minutes }));
       } else if (hours > 0) {
-        setTimeLeft(t('banned.timeHoursMinutes', { hours, minutes }));
+        setTimeLeft(t('banned.hourMinute', { hours, minutes }));
       } else {
-        setTimeLeft(t('banned.timeMinutes', { minutes }));
+        setTimeLeft(t('banned.minuteOnly', { minutes }));
       }
     };
 
@@ -87,7 +87,7 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/20 mb-4">
                 <ShieldAlert className="h-10 w-10 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-white">{t('banned.title')}</h2>
+              <h2 className="text-2xl font-bold text-white">{t('banned.accountBanned')}</h2>
               <p className="text-rose-100 mt-2 text-sm">
                 {banInfo.isPermanent ? t('banned.permanentBan') : t('banned.temporaryBan')}
               </p>
@@ -98,7 +98,7 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
               {/* Ban reason */}
               {banInfo.reason && (
                 <div className="rounded-lg bg-rose-50 border border-rose-200 p-4">
-                  <p className="text-sm font-medium text-rose-700 mb-1">{t('banned.reasonLabel')}</p>
+                  <p className="text-sm font-medium text-rose-700 mb-1">{t('banned.banReason')}</p>
                   <p className="text-sm text-rose-600">{banInfo.reason}</p>
                 </div>
               )}
@@ -109,7 +109,7 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
                   <div className="flex items-center gap-3">
                     <Ban className="h-5 w-5 text-rose-500 shrink-0" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{t('banned.permanentBanLabel')}</p>
+                      <p className="text-sm font-medium text-foreground">{t('banned.banType')}</p>
                       <p className="text-xs text-muted-foreground">{t('banned.permanentBanDesc')}</p>
                     </div>
                   </div>
@@ -117,13 +117,13 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
                   <div className="flex items-center gap-3">
                     <Clock className="h-5 w-5 text-amber-500 shrink-0" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{t('banned.temporaryBanLabel')}</p>
+                      <p className="text-sm font-medium text-foreground">{t('banned.banType')}</p>
                       <p className="text-xs text-muted-foreground">
                         {t('banned.timeRemaining')}: <span className="font-bold text-amber-600">{timeLeft}</span>
                       </p>
                       {banInfo.banUntil && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          {t('banned.endsAt')}: {new Date(banInfo.banUntil).toLocaleDateString('ar-SA', {
+                          {t('banned.expiresAt')}: {new Date(banInfo.banUntil).toLocaleDateString('ar-SA', {
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric',
@@ -139,23 +139,23 @@ export default function BannedUserOverlay({ children }: BannedUserOverlayProps) 
 
               {/* Restrictions list */}
               <div className="rounded-lg bg-muted/30 border p-4">
-                <p className="text-sm font-medium text-foreground mb-2">{t('banned.restrictionsLabel')}</p>
+                <p className="text-sm font-medium text-foreground mb-2">{t('banned.restrictions')}</p>
                 <ul className="space-y-1.5">
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    {t('banned.restrictionCourses')}
+                    {t('banned.cannotOpenCourses')}
                   </li>
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    {t('banned.restrictionRequests')}
+                    {t('banned.cannotSendRequests')}
                   </li>
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    {t('banned.restrictionChat')}
+                    {t('banned.cannotUseChat')}
                   </li>
                   <li className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shrink-0" />
-                    {t('banned.restrictionNotifications')}
+                    {t('banned.noNotificationsReceived')}
                   </li>
                 </ul>
               </div>

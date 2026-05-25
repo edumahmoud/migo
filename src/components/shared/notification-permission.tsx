@@ -194,8 +194,8 @@ export default function NotificationPermission() {
         } : handleEnable}
         disabled={loading}
         className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground/40 hover:bg-muted/30 transition-colors touch-manipulation"
-        aria-label={isDenied ? t('notifications.blocked') : t('notifications.disabledTap')}
-        title={isDenied ? t('notifications.blockedBrowser') : t('notifications.disabled')}
+        aria-label={isDenied ? t('blocked') : t('disabledTap')}
+        title={isDenied ? t('blockedBrowser') : t('disabled')}
       >
         {loading ? (
           <span className="h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
@@ -213,8 +213,8 @@ export default function NotificationPermission() {
         onClick={handleDisable}
         disabled={loading}
         className="relative flex h-9 w-9 items-center justify-center rounded-lg text-sky-700 dark:text-sky-300 hover:bg-sky-50 active:bg-sky-100 transition-colors touch-manipulation"
-        aria-label={t('notifications.enabledTap')}
-        title={t('notifications.enabled')}
+        aria-label={t('enabledTap')}
+        title={t('enabled')}
       >
         {loading ? <span className="h-4 w-4 border-2 border-sky-700 border-t-transparent rounded-full animate-spin" /> : <BellRing className="h-5 w-5" />}
       </button>
@@ -227,8 +227,8 @@ export default function NotificationPermission() {
       onClick={handleEnable}
       disabled={loading}
       className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 active:bg-muted/80 hover:text-foreground transition-colors touch-manipulation"
-      aria-label={t('notifications.enable')}
-      title={t('notifications.enableHint')}
+      aria-label={t('enable')}
+      title={t('enableHint')}
     >
       {loading ? (
         <span className="h-4 w-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />

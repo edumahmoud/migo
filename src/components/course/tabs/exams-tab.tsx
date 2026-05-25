@@ -574,7 +574,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       }
     } catch (err) {
       console.error('Save quiz catch error:', err);
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       clearTimeout(safetyTimeout);
       setSavingQuiz(false);
@@ -840,7 +840,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         toast.success(t('exams.toastQuizDeleted'));
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
       setQuizzes(previousQuizzes); // Revert on failure
     } finally {
       setDeletingId(null);
@@ -867,7 +867,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         fetchData();
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setTogglingQuizId(null);
     }
@@ -903,7 +903,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         fetchData();
       }
     } catch {
-      toast.error(t('common.errorUnexpected'));
+      toast.error(t('common.unexpectedError'));
     } finally {
       setTogglingQuizId(null);
     }

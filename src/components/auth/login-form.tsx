@@ -178,7 +178,7 @@ export default function LoginForm({ onSwitchToRegister, onForgotPassword }: Logi
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground transition-colors touch-target flex items-center justify-center"
                     tabIndex={-1}
-                    aria-label={showPassword ? t('auth.login.hidePassword') : t('auth.login.showPassword')}
+                    aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />

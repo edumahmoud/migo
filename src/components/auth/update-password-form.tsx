@@ -37,7 +37,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   const [isSuccess, setIsSuccess] = useState(false);
   const [verifying, setVerifying] = useState(true);
   const [isValidRecovery, setIsValidRecovery] = useState(false);
-  const { t, direction, isRTL } = useTranslations('auth');
+  const { t, direction, isRTL } = useTranslations();
 
   // Verify that we have a valid recovery session
   useEffect(() => {
@@ -109,7 +109,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
   }, []);
 
   const strength = getPasswordStrength(newPassword);
-  const strengthLabel = strength === 1 ? t('auth.updatePassword.passwordStrengthWeak') : strength === 2 ? t('auth.updatePassword.passwordStrengthMedium') : strength === 3 ? t('auth.updatePassword.passwordStrengthStrong') : '';
+  const strengthLabel = strength === 1 ? t('auth.passwordStrength.weak') : strength === 2 ? t('auth.passwordStrength.fair') : strength === 3 ? t('auth.passwordStrength.strong') : '';
   const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword;
   const mismatch = confirmPassword && newPassword !== confirmPassword;
   const canSubmit = newPassword.length >= 6 && passwordsMatch && !isLoading;
@@ -313,7 +313,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground transition-colors touch-target flex items-center justify-center"
                     tabIndex={-1}
-                    aria-label={showPassword ? t('auth.login.hidePassword') : t('auth.login.showPassword')}
+                    aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -369,7 +369,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                     onClick={() => setShowConfirm(!showConfirm)}
                     className="absolute end-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-muted-foreground hover:text-gray-600 dark:hover:text-foreground transition-colors touch-target flex items-center justify-center"
                     tabIndex={-1}
-                    aria-label={showConfirm ? t('auth.login.hidePassword') : t('auth.login.showPassword')}
+                    aria-label={showConfirm ? t('auth.hidePassword') : t('auth.showPassword')}
                   >
                     {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>

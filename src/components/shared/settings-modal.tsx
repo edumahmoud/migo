@@ -278,7 +278,7 @@ export default function SettingsModal({
           >
             <div className="flex items-center gap-2">
               <User className="h-4 w-4 text-sky-700" />
-              <h3 className="text-sm font-semibold text-foreground">{t('profile')}</h3>
+              <h3 className="text-sm font-semibold text-foreground">{t('profile.title')}</h3>
             </div>
 
             {/* Avatar */}

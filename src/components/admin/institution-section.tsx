@@ -476,7 +476,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
               <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-              <h3 className="font-semibold text-foreground text-sm">{t('settings.profile')}</h3>
+              <h3 className="font-semibold text-foreground text-sm">{t('settings.profile.title')}</h3>
             </div>
             <div className="p-4 space-y-4">
               {/* Institution Name (Arabic) */}
