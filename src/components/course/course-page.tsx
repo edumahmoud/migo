@@ -174,6 +174,20 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const t_subLevel1 = t('course.subLevel1');
   const t_subLevel2 = t('course.subLevel2');
 
+  // ─── Translation helpers for level/sub_level (DB stores Arabic, need to translate for English locale) ───
+  const LEVEL_VALUES_AR = ['الفرقة الأولى', 'الفرقة الثانية', 'الفرقة الثالثة', 'الفرقة الرابعة', 'الفرقة الخامسة'] as const;
+  const SUB_LEVEL_VALUES_AR = ['المستوى الأول', 'المستوى الثاني'] as const;
+  const translateLevel = (level: string): string => {
+    const idx = LEVEL_VALUES_AR.indexOf(level as typeof LEVEL_VALUES_AR[number]);
+    if (idx !== -1) return t(`course.level${idx + 1}`);
+    return level;
+  };
+  const translateSubLevel = (subLevel: string): string => {
+    const idx = SUB_LEVEL_VALUES_AR.indexOf(subLevel as typeof SUB_LEVEL_VALUES_AR[number]);
+    if (idx !== -1) return t(`course.subLevel${idx + 1}`);
+    return subLevel;
+  };
+
   // Filter options (locale-aware)
   const LEVEL_OPTIONS = [
     { value: t_level1, labelKey: 'levels.first' },
@@ -668,13 +682,13 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   {subject.level && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 px-2.5 py-0.5 text-xs text-white font-medium">
                       <GraduationCap className="h-3 w-3" />
-                      {subject.level}
+                      {translateLevel(subject.level)}
                     </span>
                   )}
                   {subject.sub_level && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 px-2.5 py-0.5 text-xs text-white font-medium">
                       <Calendar className="h-3 w-3" />
-                      {subject.sub_level === t_subLevel1 ? t('sublevels.first') : subject.sub_level === t_subLevel2 ? t('sublevels.second') : subject.sub_level}
+                      {translateSubLevel(subject.sub_level)}
                     </span>
                   )}
                 </div>

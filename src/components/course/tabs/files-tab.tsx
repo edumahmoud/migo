@@ -178,6 +178,17 @@ function getFileTypeBadgeColor(fileType: string): string {
   return 'bg-muted text-muted-foreground';
 }
 
+function getCategoryBadgeColor(category: FileCategory): string {
+  switch (category) {
+    case 'images': return 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300';
+    case 'documents': return 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300';
+    case 'videos': return 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300';
+    case 'audio': return 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300';
+    case 'other': return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300';
+    default: return 'bg-muted text-muted-foreground';
+  }
+}
+
 function getFileIcon(fileType: string) {
   const lower = fileType.toLowerCase();
   if (
@@ -717,21 +728,26 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   </button>
                 )}
 
-                {/* File icon */}
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                {/* File icon in colored circle */}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50">
                   {getFileIcon(file.file_type)}
                 </div>
 
                 {/* File info */}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                  <p className="text-sm font-semibold text-foreground truncate">{file.file_name}</p>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1 flex-wrap">
                     <span>{formatFileSize(file.file_size)}</span>
+                    <span className="text-muted-foreground/40">•</span>
                     <span title={t('course.assignDateTitle')}>{formatDate(file.created_at, locale)}</span>
+                    <span className="text-muted-foreground/40">•</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${getFileTypeBadgeColor(file.file_type)}`}>
                       {getFileTypeLabel(file.file_type)}
                     </span>
-                    {/* Uploader name */}
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide ${getCategoryBadgeColor(getFileCategory(file.file_type))}`}>
+                      {t(`course.category${getFileCategory(file.file_type).charAt(0).toUpperCase()}${getFileCategory(file.file_type).slice(1)}`)}
+                    </span>
+                    <span className="text-muted-foreground/40">•</span>
                     <span className="flex items-center gap-1">
                       <User className="h-3 w-3" />
                       {file.uploader_name}
@@ -739,58 +755,58 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {/* Toggle student visibility (teacher only) */}
-                  {role === 'teacher' && (
-                    <button
-                      onClick={() => handleToggleStudentVisibility(file.id, file.visibility || 'public')}
-                      disabled={togglingVisibilityId === file.id}
-                      className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
-                        (file.visibility ?? 'public') === 'public'
-                          ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 hover:bg-amber-50 hover:text-amber-600'
-                          : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 hover:bg-sky-50 hover:text-sky-700'
-                      } disabled:opacity-60`}
-                      title={(file.visibility ?? 'public') === 'public' ? t('course.hideFromStudents') : t('course.showToStudents')}
-                    >
-                      {togglingVisibilityId === file.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (file.visibility ?? 'public') === 'public' ? (
-                        <Eye className="h-3.5 w-3.5" />
-                      ) : (
-                        <EyeOff className="h-3.5 w-3.5" />
-                      )}
-                      {(file.visibility ?? 'public') === 'public' ? t('course.visible') : t('course.hidden')}
+                {/* Actions DropdownMenu */}
+                <DropdownMenu dir={direction}>
+                  <DropdownMenuTrigger asChild>
+                    <button className="touch-target shrink-0 flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted transition-colors">
+                      <MoreVertical className="h-4 w-4" />
                     </button>
-                  )}
-                  {/* Preview button */}
-                  <button
-                    onClick={() => handlePreview(file)}
-                    className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
-                    title={t('common.preview')}
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                  </button>
-                  {/* Download button */}
-                  <button
-                    onClick={() => handleDownload(file)}
-                    className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-sky-50 hover:text-sky-700 transition-colors"
-                    title={t('common.download')}
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                  {/* Delete button (teacher only) */}
-                  {role === 'teacher' && (
-                    <button
-                      onClick={() => setConfirmDeleteId(file.id)}
-                      disabled={deletingId === file.id}
-                      className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-rose-50 hover:text-rose-600 transition-colors disabled:opacity-60"
-                      title={t('common.delete')}
-                    >
-                      {deletingId === file.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                    </button>
-                  )}
-                </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    {/* Toggle student visibility (teacher only) */}
+                    {role === 'teacher' && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={() => handleToggleStudentVisibility(file.id, file.visibility || 'public')}
+                          disabled={togglingVisibilityId === file.id}
+                          className="cursor-pointer"
+                        >
+                          {togglingVisibilityId === file.id ? (
+                            <Loader2 className="h-4 w-4 me-2 animate-spin" />
+                          ) : (file.visibility ?? 'public') === 'public' ? (
+                            <EyeOff className="h-4 w-4 me-2" />
+                          ) : (
+                            <Eye className="h-4 w-4 me-2" />
+                          )}
+                          {(file.visibility ?? 'public') === 'public' ? t('course.hideFromStudents') : t('course.showToStudents')}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    <DropdownMenuItem onClick={() => handlePreview(file)} className="cursor-pointer">
+                      <Maximize2 className="h-4 w-4 me-2" />
+                      {t('common.preview')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDownload(file)} className="cursor-pointer">
+                      <Download className="h-4 w-4 me-2" />
+                      {t('common.download')}
+                    </DropdownMenuItem>
+                    {/* Delete (teacher only) */}
+                    {role === 'teacher' && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setConfirmDeleteId(file.id)}
+                          disabled={deletingId === file.id}
+                          className="text-rose-600 dark:text-rose-400 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
+                        >
+                          {deletingId === file.id ? <Loader2 className="h-4 w-4 me-2 animate-spin" /> : <Trash2 className="h-4 w-4 me-2" />}
+                          {t('common.delete')}
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </motion.div>
           ))}

@@ -344,6 +344,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
+  // ─── File metadata (share & course counts) ───
+  const [fileShareCounts, setFileShareCounts] = useState<Record<string, number>>({});
+  const [fileCourseCounts, setFileCourseCounts] = useState<Record<string, number>>({});
+
   // ─── Preview modal state ───
   const [previewFile, setPreviewFile] = useState<(UserFile & { other_recipients?: SharedFileRecipient[]; shared_by_user?: UserProfile }) | null>(null);
 
@@ -486,9 +490,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Initial data load
   // -------------------------------------------------------
   useEffect(() => {
-    fetchFiles();
-    // Also fetch shared files on mount so the count badge appears immediately
-    fetchSharedFiles();
+    const init = async () => {
+      await fetchFiles();
+      // Also fetch shared files on mount so the count badge appears immediately
+      fetchSharedFiles();
+    };
+    init();
   }, [fetchFiles, fetchSharedFiles]);
 
   // -------------------------------------------------------
@@ -520,6 +527,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     return () => { supabase.removeChannel(channel); };
   }, [profile.id, fetchFiles]);
 
+  // Fetch share/course counts when files change
+  useEffect(() => {
+    if (files.length > 0) {
+      fetchFileCounts(files);
+    } else {
+      setFileShareCounts({});
+      setFileCourseCounts({});
+    }
+  }, [files, fetchFileCounts]);
+
   // -------------------------------------------------------
   // Real-time subscription for file_shares (shared with me updates)
   // -------------------------------------------------------
@@ -535,6 +552,48 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [profile.id, fetchSharedFiles]);
+
+  // -------------------------------------------------------
+  // Fetch file share & course counts (batch)
+  // -------------------------------------------------------
+  const fetchFileCounts = useCallback(async (fileList: UserFile[]) => {
+    if (fileList.length === 0) return;
+    try {
+      const fileIds = fileList.map(f => f.id);
+
+      // Fetch share counts
+      const { data: sharesData } = await supabase
+        .from('file_shares')
+        .select('file_id')
+        .in('file_id', fileIds);
+
+      const shareCounts: Record<string, number> = {};
+      if (sharesData) {
+        for (const s of sharesData) {
+          shareCounts[s.file_id] = (shareCounts[s.file_id] || 0) + 1;
+        }
+      }
+      setFileShareCounts(shareCounts);
+
+      // Fetch course assignment counts
+      const { data: coursesData } = await supabase
+        .from('subject_files')
+        .select('user_file_id')
+        .in('user_file_id', fileIds);
+
+      const courseCounts: Record<string, number> = {};
+      if (coursesData) {
+        for (const c of coursesData) {
+          if (c.user_file_id) {
+            courseCounts[c.user_file_id] = (courseCounts[c.user_file_id] || 0) + 1;
+          }
+        }
+      }
+      setFileCourseCounts(courseCounts);
+    } catch (err) {
+      console.error('Fetch file counts error:', err);
+    }
+  }, []);
 
   // Keep pendingUploads ref in sync for reliable reads in async handlers
   useEffect(() => {
@@ -1900,11 +1959,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   }
 
   // -------------------------------------------------------
-  // Render: File Action Dropdown Menu
+  // Render: File Card
   // -------------------------------------------------------
   const renderFileCard = (file: UserFile) => {
     const isRenaming = renamingFileId === file.id;
     const fileCategory = getFileCategory(file.file_type);
+    const shareCount = fileShareCounts[file.id] || 0;
+    const courseCount = fileCourseCounts[file.id] || 0;
+    const isPreviewable = file.file_type.toLowerCase().includes('image') || file.file_type.toLowerCase().includes('pdf') || file.file_type.toLowerCase().includes('video') || file.file_type.toLowerCase().includes('audio');
 
     return (
       <motion.div variants={itemVariants}>
@@ -1941,45 +2003,27 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             </div>
           ) : null}
 
-          {/* File icon & info */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+          {/* Row 1: File icon + file name + DropdownMenu */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/50">
               {getFileIcon(file.file_type)}
             </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-semibold text-foreground truncate" title={file.file_name}>
-                {file.file_name}
-              </h3>
-              <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                <span>{formatFileSize(file.file_size)}</span>
-                <span>•</span>
-                <span>{formatDate(file.created_at, locale)}</span>
-              </div>
-            </div>
-
-            {/* Quick preview button (visible for previewable files) */}
-            {(file.file_type.toLowerCase().includes('image') || file.file_type.toLowerCase().includes('pdf') || file.file_type.toLowerCase().includes('video') || file.file_type.toLowerCase().includes('audio')) && (
-              <button
-                onClick={(e) => { e.stopPropagation(); handlePreview(file); }}
-                className="touch-target shrink-0 flex items-center justify-center rounded-md text-muted-foreground hover:text-sky-700 dark:hover:text-sky-300 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors touch-manipulation"
-                title={t('files.preview')}
-              >
-                <Eye className="h-4 w-4" />
-              </button>
-            )}
+            <h3 className="min-w-0 flex-1 text-sm font-bold text-foreground truncate" title={file.file_name}>
+              {file.file_name}
+            </h3>
 
             {/* Checkbox for multi-select — only visible in selection mode */}
             {selectionMode && (
-            <button
-              onClick={() => toggleFileSelection(file.id)}
-              className={`touch-target shrink-0 flex items-center justify-center rounded-md transition-colors ${
-                selectedFileIds.has(file.id)
-                  ? 'text-sky-700 dark:text-sky-300'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {selectedFileIds.has(file.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-            </button>
+              <button
+                onClick={() => toggleFileSelection(file.id)}
+                className={`touch-target shrink-0 flex items-center justify-center rounded-md transition-colors ${
+                  selectedFileIds.has(file.id)
+                    ? 'text-sky-700 dark:text-sky-300'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {selectedFileIds.has(file.id) ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+              </button>
             )}
 
             {/* Action menu */}
@@ -1993,6 +2037,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-52">
+                {/* Preview action — moved from inline Eye button */}
+                {isPreviewable && (
+                  <DropdownMenuItem onClick={() => handlePreview(file)}>
+                    <Eye className="h-4 w-4 me-2" />
+                    {t('files.preview')}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={() => {
                     setRenamingFileId(file.id);
@@ -2019,10 +2070,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     {t('files.assignToCourseShort')}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => handlePreview(file)}>
-                  <Maximize2 className="h-4 w-4 me-2" />
-                  {t('files.preview')}
-                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => handleToggleVisibility(file.id, file.visibility || 'private')}>
                   {file.visibility === 'public' ? (
@@ -2049,24 +2096,40 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             </DropdownMenu>
           </div>
 
-          {/* File type tag, visibility badge & category */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
-                {file.file_type.split('/').pop() || file.file_type}
+          {/* Row 2: Details - size • date • type badge • category badge */}
+          <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
+            <span className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</span>
+            <span className="text-xs text-muted-foreground">•</span>
+            <span className="text-xs text-muted-foreground">{formatDate(file.created_at, locale)}</span>
+            <span className="text-xs text-muted-foreground">•</span>
+            <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
+              {file.file_type.split('/').pop() || file.file_type}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.5 text-[10px] font-medium">
+              {categoryLabels[fileCategory]}
+            </span>
+          </div>
+
+          {/* Row 3: Badges - visibility + share count + course assignment count */}
+          <div className="flex items-center gap-1.5 flex-wrap mt-2">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              file.visibility === 'public'
+                ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
+            }`}>
+              {file.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+              {file.visibility === 'public' ? t('files.public') : t('files.private')}
+            </span>
+            {shareCount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 dark:bg-violet-950/30 text-violet-800 dark:text-violet-200 px-2 py-0.5 text-[10px] font-medium">
+                <Users className="h-3 w-3" />
+                {shareCount}
               </span>
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                file.visibility === 'public'
-                  ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
-                  : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
-              }`}>
-                {file.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                {file.visibility === 'public' ? t('files.public') : t('files.private')}
-              </span>
-            </div>
-            {categoryFilter === 'all' && (
-              <span className="inline-flex items-center rounded-full bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 px-2 py-0.5 text-[10px] font-medium">
-                {categoryLabels[fileCategory]}
+            )}
+            {courseCount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 dark:bg-orange-950/30 text-orange-800 dark:text-orange-200 px-2 py-0.5 text-[10px] font-medium">
+                <FolderPlus className="h-3 w-3" />
+                {courseCount}
               </span>
             )}
           </div>

@@ -19,12 +19,12 @@ interface StatCardProps {
 // -------------------------------------------------------
 const colorMap = {
   ocean: {
-    gradient: 'from-sky-600 to-teal-500',
+    gradient: 'from-sky-500 to-sky-700',
     iconBg: 'bg-white/25',
     iconText: 'text-white',
     valueText: 'text-white',
     labelText: 'text-sky-100',
-    cardBg: 'bg-gradient-to-br from-sky-600 to-teal-500',
+    cardBg: 'bg-gradient-to-br from-sky-500 to-sky-700',
     border: 'border-sky-400',
     shadow: 'shadow-sky-200/50 hover:shadow-sky-300/60',
   },

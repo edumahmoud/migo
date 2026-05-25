@@ -3281,7 +3281,7 @@
     "questionText": "نص السؤال",
     "questionType": "نوع السؤال",
     "questionTypesAndCount": "{count} نوع سؤال",
-    "quizCount": "عدد الاختبارات",
+    "quizCount": "{count} اختبار",
     "quizSettings": "إعدادات الاختبار",
     "quizTitle": "عنوان الاختبار",
     "quizTitlePlaceholder": "أدخل عنوان الاختبار",

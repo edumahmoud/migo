@@ -165,6 +165,19 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
     label: t(`course.subLevel${i + 1}`),
   }));
 
+  // ─── Translation helpers for level/sub_level (DB stores Arabic, need to translate for English locale) ───
+  const translateLevel = (level: string): string => {
+    const idx = LEVEL_VALUES.indexOf(level as typeof LEVEL_VALUES[number]);
+    if (idx !== -1) return t(`course.level${idx + 1}`);
+    // Fallback: return as-is if not a known value
+    return level;
+  };
+  const translateSubLevel = (subLevel: string): string => {
+    const idx = SUB_LEVEL_VALUES.indexOf(subLevel as typeof SUB_LEVEL_VALUES[number]);
+    if (idx !== -1) return t(`course.subLevel${idx + 1}`);
+    return subLevel;
+  };
+
   // ─── App store ───
   const { setSelectedSubjectId: setStoreSelectedSubjectId } = useAppStore();
 
@@ -1184,13 +1197,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               {subject.level && (
                                 <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs text-blue-700">
                                   <GraduationCap className="h-3 w-3 shrink-0" />
-                                  <span className="font-medium">{subject.level}</span>
+                                  <span className="font-medium">{translateLevel(subject.level)}</span>
                                 </div>
                               )}
                               {subject.sub_level && (
                                 <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 px-2.5 py-1 text-xs text-sky-800 dark:text-sky-200">
                                   <Calendar className="h-3 w-3 shrink-0" />
-                                  <span className="font-medium">{subject.sub_level}</span>
+                                  <span className="font-medium">{translateSubLevel(subject.sub_level)}</span>
                                 </div>
                               )}
                             </div>

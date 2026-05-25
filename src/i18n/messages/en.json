@@ -3281,7 +3281,7 @@
     "questionText": "Question Text",
     "questionType": "Question Type",
     "questionTypesAndCount": "{count} question types",
-    "quizCount": "Quiz Count",
+    "quizCount": "{count} Quizzes",
     "quizSettings": "Quiz Settings",
     "quizTitle": "Quiz Title",
     "quizTitlePlaceholder": "Enter quiz title",
