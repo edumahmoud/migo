@@ -53,3 +53,26 @@
 - Rename inline editing
 - Delete confirmation overlay
 - All state management and API calls
+
+---
+Task ID: 1
+Agent: main
+Task: Add Todo List, Polls/Surveys, and Calendar features to Migo LMS
+
+Work Log:
+- Analyzed existing project state: all 3 features (todo, polls, calendar) already have UI components built
+- Identified missing pieces: no database tables (Supabase migration), polls tab not connected in course page
+- Created Supabase migration v50_todos_polls_calendar.sql with 4 tables + RLS + triggers + realtime
+- Connected PollsTab in course-page.tsx (TABS array + renderTabContent + BarChart3 icon)
+- Added course.polls translation keys (ar + en)
+- Fixed lint errors: set-state-in-effect (4 files), preserve-manual-memoization (1 file), no-this-alias (ESLint ignore)
+- Verified build passes (0 errors, 14 warnings)
+- Committed as b295804
+
+Stage Summary:
+- Migration file: supabase/migrations/v50_todos_polls_calendar.sql (351 lines)
+- 4 tables: user_todos, polls, poll_options, poll_responses
+- Full RLS policies, indexes, triggers, realtime enabled
+- Polls tab now visible in course page for both teachers and students
+- All lint errors fixed
+- Push blocked due to missing GitHub auth in environment - user needs to push manually
