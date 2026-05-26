@@ -9,6 +9,7 @@ import {
   Menu,
   Users,
   FolderOpen,
+  TrendingUp,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
@@ -46,7 +47,7 @@ const teacherNavItems: BottomNavItem[] = [
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
+  { id: 'reports', labelKey: 'nav.reports', icon: <TrendingUp className="h-5 w-5" /> },
   { id: 'more', labelKey: 'nav.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
@@ -54,7 +55,7 @@ const adminNavItems: BottomNavItem[] = [
   { id: 'users', labelKey: 'nav.users', icon: <Users className="h-5 w-5" /> },
   { id: 'notifications', labelKey: 'nav.notifications', icon: <Bell className="h-5 w-5" /> },
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-  { id: 'files', labelKey: 'nav.files', icon: <FolderOpen className="h-5 w-5" /> },
+  { id: 'reports', labelKey: 'nav.reports', icon: <TrendingUp className="h-5 w-5" /> },
   { id: 'more', labelKey: 'nav.more', icon: <Menu className="h-5 w-5" />, isMore: true },
 ];
 
