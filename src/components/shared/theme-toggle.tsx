@@ -36,11 +36,13 @@ export default function ThemeToggle() {
   // spurious events from the dropdown opening are safely ignored.
   const canToggleRef = useRef(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading from external system (DOM) and syncing to React state
     setMounted(true);
     // Only READ the current DOM state — do NOT apply/modify the theme.
     // Theme initialization is handled by the inline script in layout.tsx
     // so it's already correct before React hydrates.
     const isDark = document.documentElement.classList.contains('dark');
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading from external system (DOM) and syncing to React state
     setDark(isDark);
 
     // Enable toggling after the browser has painted, so any residual

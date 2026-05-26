@@ -385,9 +385,94 @@ export type AppPage =
   | 'summary'
   | 'profile';
 
-export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports';
-export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports';
+export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports' | 'todos' | 'calendar';
+export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar';
 export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints';
+
+// -------------------------------------------------------
+// Todo List
+// -------------------------------------------------------
+export type TodoPriority = 'urgent' | 'medium' | 'low';
+export type TodoCategory = 'study' | 'assignment' | 'review' | 'personal';
+export type TodoSource = 'auto' | 'manual';
+
+export interface UserTodo {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string | null;
+  priority: TodoPriority;
+  category: TodoCategory;
+  due_date?: string | null;
+  subject_id?: string | null;
+  subject_name?: string | null;
+  source: TodoSource;
+  completed: boolean;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// -------------------------------------------------------
+// Polls
+// -------------------------------------------------------
+export type PollType = 'vote' | 'rating' | 'open';
+export type PollStatus = 'active' | 'closed';
+
+export interface Poll {
+  id: string;
+  subject_id: string;
+  created_by: string;
+  question: string;
+  description?: string | null;
+  type: PollType;
+  is_anonymous: boolean;
+  status: PollStatus;
+  closes_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  creator_name?: string;
+  total_responses?: number;
+  user_has_responded?: boolean;
+}
+
+export interface PollOption {
+  id: string;
+  poll_id: string;
+  option_text: string;
+  sort_order: number;
+  response_count?: number;
+}
+
+export interface PollResponse {
+  id: string;
+  poll_id: string;
+  option_id?: string | null;
+  user_id: string;
+  response_text?: string | null;
+  rating_value?: number | null;
+  created_at: string;
+}
+
+// -------------------------------------------------------
+// Calendar Events (aggregated from multiple sources)
+// -------------------------------------------------------
+export type CalendarEventType = 'lecture' | 'quiz' | 'assignment' | 'todo' | 'poll' | 'attendance';
+
+export interface CalendarEvent {
+  id: string;
+  type: CalendarEventType;
+  title: string;
+  description?: string | null;
+  date: string;           // ISO date string (YYYY-MM-DD)
+  time?: string | null;   // HH:mm or ISO datetime
+  subject_id?: string | null;
+  subject_name?: string | null;
+  color: string;          // Tailwind color class
+  icon?: string;          // Lucide icon name
+  completed?: boolean;
+  meta?: Record<string, unknown>; // extra data per type
+}
 
 // API response types
 export interface ApiResponse<T = unknown> {
@@ -444,7 +529,7 @@ export interface BankQuestion {
 // =====================================================
 
 // Course page tab types
-export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'videos' | 'exams' | 'assignments' | 'chat' | 'students' | 'teams';
+export type CourseTab = 'overview' | 'lectures' | 'notes' | 'files' | 'videos' | 'exams' | 'assignments' | 'chat' | 'students' | 'teams' | 'polls';
 
 // Extended lecture type with attendance info
 export interface LectureWithAttendance extends Lecture {

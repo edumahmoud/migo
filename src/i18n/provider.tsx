@@ -44,6 +44,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   // Initialize locale on mount
   useEffect(() => {
     initLocale();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing external locale initialization to React state
     setLoaded(true);
   }, []);
 

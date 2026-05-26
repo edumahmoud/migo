@@ -43,6 +43,7 @@ export default function ErrorPage({
       if (supabaseKeys.length > 0) {
         const sessionData = JSON.parse(localStorage.getItem(supabaseKeys[0]) || '');
         if (sessionData?.access_token || (Array.isArray(sessionData) && sessionData[0]?.access_token)) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- reading from external storage (localStorage) and syncing to React state
           setHasActiveSession(true);
         }
       }

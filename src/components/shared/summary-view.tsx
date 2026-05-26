@@ -205,6 +205,7 @@ function useAiProgress(isActive: boolean, phases: { threshold: number; label: st
 
   useEffect(() => {
     if (!isActive) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting progress state when AI becomes inactive
       setProgress({ percent: 0, phase: t(phases[0]?.label || '') });
       return;
     }

@@ -184,6 +184,7 @@ export default function StudentTrackingSection({
   }, [attendanceRecords, attendanceSessions]);
 
   // ─── Attendance by subject ───
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- complex aggregation with external translation function
   const attendanceBySubject = useMemo(() => {
     const subjectMap = new Map<string, { name: string; total: number; attended: number }>();
 
@@ -225,6 +226,7 @@ export default function StudentTrackingSection({
   }, [scores, submissions, assignments]);
 
   // ─── Activity timeline ───
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- complex multi-source aggregation with external translation function
   const activityTimeline = useMemo(() => {
     const activities: Array<{ date: string; type: 'attendance' | 'quiz' | 'assignment'; title: string; detail: string }> = [];
 
@@ -268,6 +270,7 @@ export default function StudentTrackingSection({
   }, [attendanceRecords, attendanceSessions, subjectNames, scores, submissions, assignments]);
 
   // ─── Recent attendance ───
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- sorting and mapping with external translation function
   const recentAttendance = useMemo(() => {
     return attendanceRecords
       .sort((a, b) => new Date(b.checked_in_at).getTime() - new Date(a.checked_in_at).getTime())

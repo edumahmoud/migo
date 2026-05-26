@@ -28,6 +28,7 @@ import {
   GraduationCap,
   Calendar,
   ClipboardList,
+  BarChart3,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -49,6 +50,7 @@ const AssignmentsTab = lazy(() => import('@/components/course/tabs/assignments-t
 const ChatTab = lazy(() => import('@/components/course/tabs/chat-tab'));
 const StudentsTab = lazy(() => import('@/components/course/tabs/students-tab'));
 const TeamsTab = lazy(() => import('@/components/course/tabs/teams-tab'));
+const PollsTab = lazy(() => import('@/components/shared/polls-section'));
 
 // Tab loading fallback
 function TabLoader() {
@@ -88,6 +90,7 @@ const TABS: TabConfig[] = [
   { id: 'chat', labelKey: 'course.chat', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
   { id: 'students', labelKey: 'course.students', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
   { id: 'teams', labelKey: 'course.teams', icon: <ClipboardList className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
+  { id: 'polls', labelKey: 'course.polls', icon: <BarChart3 className="h-4 w-4 sm:h-4 sm:w-4" /> },
 ];
 
 // -------------------------------------------------------
@@ -512,6 +515,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
             <TeamsTab subjectId={subject.id} profile={profile} />
           </SectionErrorBoundary>
         )}
+        {courseTab === 'polls' && <PollsTab profile={profile} role={role} subjectId={subject.id} subject={subject} />}
       </Suspense>
     );
   };

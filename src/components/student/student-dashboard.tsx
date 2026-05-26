@@ -77,6 +77,8 @@ import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import NotificationsSection from '@/components/shared/notifications-section';
 import ReportsSection from '@/components/reports/reports-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
+import TodoSection from '@/components/shared/todo-section';
+import CalendarSection from '@/components/shared/calendar-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -4619,6 +4621,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         return <NotificationsSection />;
       case 'reports':
         return <ReportsSection profile={profile} role="student" />;
+      case 'todos':
+        return <TodoSection profile={profile} />;
+      case 'calendar':
+        return <CalendarSection profile={profile} />;
       case 'tracking':
         return (
           <StudentTrackingSection

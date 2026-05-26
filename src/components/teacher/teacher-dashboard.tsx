@@ -59,6 +59,8 @@ import PersonalFilesSection from '@/components/shared/personal-files-section';
 import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import NotificationsSection from '@/components/shared/notifications-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
+import TodoSection from '@/components/shared/todo-section';
+import CalendarSection from '@/components/shared/calendar-section';
 import CoursePage from '@/components/course/course-page';
 import TeacherSummariesSection from '@/components/teacher/teacher-summaries-section';
 import TeacherStudentTrackingSection from '@/components/teacher/teacher-student-tracking-section';
@@ -2232,6 +2234,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                 {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
                 {activeSection === 'videos' && <AllVideosSection profile={profile} role="teacher" />}
                 {activeSection === 'reports' && <ReportsSection profile={profile} role="teacher" />}
+                {activeSection === 'todos' && <TodoSection profile={profile} />}
+                {activeSection === 'calendar' && <CalendarSection profile={profile} />}
                 {activeSection === 'analytics' && renderAnalytics()}
                 {activeSection === 'tracking' && <TeacherStudentTrackingSection profile={profile} students={students} scores={scores} quizzes={quizzes} teacherSubmissions={teacherSubmissions} teacherAssignments={teacherAssignments} teacherAttendanceSessions={teacherAttendanceSessions} teacherAttendanceRecords={teacherAttendanceRecords} subjects={teacherSubjects} />}
                 {activeSection === 'chat' && <ChatSection profile={profile} role="teacher" />}
