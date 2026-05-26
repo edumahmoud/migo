@@ -463,7 +463,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       { type: 'attendance', label: t('calendar.attendance') },
     ];
     return (
-      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+      <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1">
         {filterTypes.map((ft) => {
           const config = eventTypeConfig[ft.type];
           const isActive = activeFilters.has(ft.type);
@@ -523,7 +523,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                   key={cell.date}
                   variants={cellVariants}
                   onClick={() => setSelectedDate(cell.date)}
-                  className={`relative flex flex-col items-center justify-start py-1.5 sm:py-2 px-0.5 transition-all rounded-lg sm:rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 min-h-[52px] sm:min-h-[72px] md:min-h-[90px] lg:min-h-[100px] ${
+                  className={`relative flex flex-col items-center justify-start py-1.5 sm:py-2 px-0.5 transition-all rounded-lg sm:rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 min-h-[44px] sm:min-h-[72px] md:min-h-[90px] lg:min-h-[100px] ${
                     !cell.isCurrentMonth ? 'text-muted-foreground/30' : isPast && !isToday ? (allCompleted ? 'text-muted-foreground/50' : 'text-muted-foreground/70') : 'text-foreground'
                   } ${isToday ? 'bg-sky-50 dark:bg-sky-900/20 ring-2 ring-sky-500 dark:ring-sky-400' : ''} ${
                     isSelected && !isToday ? 'bg-muted/60 ring-1 ring-sky-400/50' : ''
@@ -532,7 +532,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                   aria-current={isToday ? 'date' : undefined}
                 >
                   {/* Day number */}
-                  <span className={`text-xs sm:text-sm md:text-base leading-none mb-0.5 ${isToday ? 'font-bold text-sky-700 dark:text-sky-300' : ''} ${isSelected && !isToday ? 'font-semibold' : ''}`}>
+                  <span className={`text-[11px] sm:text-sm md:text-base leading-none mb-0.5 ${isToday ? 'font-bold text-sky-700 dark:text-sky-300' : ''} ${isSelected && !isToday ? 'font-semibold' : ''}`}>
                     {cell.day}
                   </span>
 
@@ -711,15 +711,15 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
         <div className="absolute -top-16 -start-16 h-48 w-48 rounded-full opacity-[0.07] bg-white" />
         <div className="absolute -bottom-12 -end-12 h-36 w-36 rounded-full opacity-[0.05] bg-white" />
 
-        <div className="relative z-10 p-4 sm:p-6">
+        <div className="relative z-10 p-3 sm:p-6">
           {/* Top row: title + refresh */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
-                <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+              <div className="flex h-8 w-8 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+                <CalendarIcon className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
               </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-bold text-white">{t('calendar.title')}</h2>
+                <h2 className="text-base sm:text-xl font-bold text-white">{t('calendar.title')}</h2>
                 <p className="text-xs text-sky-200">{totalEvents} {t('calendar.eventCount', { count: totalEvents })}</p>
               </div>
             </div>
@@ -734,17 +734,19 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
           </div>
 
           {/* Navigation row */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 mb-3">
+            {/* Row 1 on mobile: Month navigation */}
+            <div className="flex items-center justify-center gap-2">
               <button onClick={goToPrevMonth} className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors" aria-label={t('calendar.prevMonth')}>
                 <ChevronLeft className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
               </button>
-              <h3 className="text-base sm:text-lg font-bold text-white min-w-[140px] text-center">{monthName}</h3>
+              <h3 className="text-base sm:text-lg font-bold text-white min-w-[100px] sm:min-w-[140px] text-center">{monthName}</h3>
               <button onClick={goToNextMonth} className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors" aria-label={t('calendar.nextMonth')}>
                 <ChevronRight className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
               </button>
             </div>
-            <div className="flex items-center gap-1.5">
+            {/* Row 2 on mobile: Today + view toggle */}
+            <div className="flex items-center justify-center gap-1.5">
               <button onClick={goToToday} className="rounded-lg bg-white/15 hover:bg-white/25 px-3 py-1.5 text-xs font-medium text-white transition-colors">
                 {t('calendar.today')}
               </button>
@@ -781,7 +783,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
           {/* Day detail panel - below on mobile/tablet, right sidebar on desktop */}
           <div className="lg:w-[340px] xl:w-[380px] shrink-0">
             {selectedDate ? (
-              <div className="bg-card rounded-2xl border p-3 sm:p-4 shadow-sm sticky top-4">
+              <div className="bg-card rounded-2xl border p-2 sm:p-4 shadow-sm sm:sticky top-4">
                 {renderDayDetail()}
               </div>
             ) : (

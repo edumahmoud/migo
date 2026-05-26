@@ -671,7 +671,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
               {renderCategoryBadge(todo.category)}
 
               {/* Due date */}
-              {todo.due_date && (
+              {todo.due_date ? (
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                     overdue
@@ -684,6 +684,11 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                   <Calendar className="h-2.5 w-2.5" />
                   {overdue && <AlertCircle className="h-2.5 w-2.5" />}
                   {formatDueDate(todo.due_date, locale)}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 dark:bg-gray-800/50 text-gray-400 dark:text-gray-500 px-2 py-0.5 text-[10px] font-medium">
+                  <Calendar className="h-2.5 w-2.5" />
+                  {t('todos.noDueDate')}
                 </span>
               )}
 
