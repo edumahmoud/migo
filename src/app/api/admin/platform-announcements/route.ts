@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { requireAdmin, authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
+import { invalidateCache } from '@/lib/platform-announcements-cache';
 
 // GET /api/admin/platform-announcements - list all platform announcements
 export async function GET(request: NextRequest) {
@@ -85,6 +86,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Invalidate public API cache so new announcement is visible immediately
+    invalidateCache();
+
     return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error('Create platform announcement error:', error);
@@ -154,6 +158,9 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    // Invalidate public API cache so updated announcement is visible immediately
+    invalidateCache();
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Update platform announcement error:', error);
@@ -192,6 +199,9 @@ export async function DELETE(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Invalidate public API cache so deleted announcement is removed immediately
+    invalidateCache();
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Megaphone,
@@ -205,6 +205,10 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
 
   // ─── Delete confirmation state ───
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // ─── Image upload state ───
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Auth token helper ───
   const getAuthToken = useCallback(async (): Promise<string | null> => {
@@ -429,6 +433,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
     setCreateModalOpen(false);
     setEditingId(null);
     setForm({ ...INITIAL_FORM });
+    setUploading(false);
   };
 
   // ─── Computed stats ───
@@ -1007,19 +1012,139 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                   </div>
                 </div>
 
-                {/* Image URL */}
+                {/* Image Upload */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                     <ImageIcon className="h-3.5 w-3.5" />
-                    {locale === 'en' ? 'Image URL (optional)' : 'رابط الصورة (اختياري)'}
+                    {locale === 'en' ? 'Image (optional)' : 'صورة (اختياري)'}
                   </label>
-                  <Input
-                    value={form.image_url}
-                    onChange={(e) => setForm((f) => ({ ...f, image_url: e.target.value }))}
-                    placeholder={locale === 'en' ? 'https://example.com/image.png' : 'https://example.com/image.png'}
-                    className="h-10 text-sm"
-                    dir="ltr"
+
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+
+                      // Validate file size (5MB max)
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error(locale === 'en' ? 'File too large. Maximum size: 5MB' : 'الملف كبير جداً. الحد الأقصى: 5 ميجابايت');
+                        return;
+                      }
+
+                      // Validate file type
+                      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                      if (!allowedTypes.includes(file.type)) {
+                        toast.error(locale === 'en' ? 'Invalid file type. Allowed: JPEG, PNG, GIF, WebP' : 'نوع ملف غير صالح. مسموح: JPEG, PNG, GIF, WebP');
+                        return;
+                      }
+
+                      setUploading(true);
+                      try {
+                        const token = await getAuthToken();
+                        if (!token) {
+                          toast.error(t('auth.mustLogin'));
+                          return;
+                        }
+
+                        const uploadFormData = new FormData();
+                        uploadFormData.append('file', file);
+
+                        const res = await fetch('/api/admin/platform-announcements/upload-image', {
+                          method: 'POST',
+                          headers: {
+                            Authorization: `Bearer ${token}`,
+                          },
+                          body: uploadFormData,
+                        });
+
+                        const result = await res.json();
+                        if (result.success && result.url) {
+                          setForm((f) => ({ ...f, image_url: result.url }));
+                          toast.success(locale === 'en' ? 'Image uploaded successfully' : 'تم رفع الصورة بنجاح');
+                        } else {
+                          toast.error(result.error || (locale === 'en' ? 'Failed to upload image' : 'فشل رفع الصورة'));
+                        }
+                      } catch {
+                        toast.error(locale === 'en' ? 'Failed to upload image' : 'فشل رفع الصورة');
+                      } finally {
+                        setUploading(false);
+                        // Reset file input so the same file can be re-selected
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = '';
+                        }
+                      }
+                    }}
                   />
+
+                  {/* Image preview + upload/remove buttons */}
+                  {form.image_url ? (
+                    <div className="space-y-2">
+                      <div className="relative rounded-lg overflow-hidden border border-border bg-muted/30">
+                        <img
+                          src={form.image_url}
+                          alt={locale === 'en' ? 'Announcement image preview' : 'معاينة صورة الإعلان'}
+                          className="w-full h-40 object-cover"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1.5"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                        >
+                          {uploading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <ImageIcon className="h-3.5 w-3.5" />
+                          )}
+                          {uploading
+                            ? (locale === 'en' ? 'Uploading...' : 'جاري الرفع...')
+                            : (locale === 'en' ? 'Change Image' : 'تغيير الصورة')
+                          }
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                          onClick={() => setForm((f) => ({ ...f, image_url: '' }))}
+                          disabled={uploading}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          {locale === 'en' ? 'Remove' : 'إزالة'}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="flex items-center justify-center gap-2 w-full h-24 rounded-lg border-2 border-dashed border-border hover:border-sky-300 dark:hover:border-sky-700 bg-muted/20 hover:bg-muted/40 transition-colors text-muted-foreground hover:text-sky-700 dark:hover:text-sky-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          <span className="text-xs font-medium">{locale === 'en' ? 'Uploading...' : 'جاري الرفع...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="h-5 w-5" />
+                          <span className="text-xs font-medium">{locale === 'en' ? 'Click to upload image' : 'انقر لرفع صورة'}</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">
+                    {locale === 'en' ? 'JPEG, PNG, GIF, or WebP. Max 5MB.' : 'JPEG, PNG, GIF, أو WebP. الحد الأقصى 5 ميجابايت.'}
+                  </p>
                 </div>
               </div>
 

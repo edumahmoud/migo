@@ -145,12 +145,12 @@ export default function PlatformAnnouncementPopup({ userId }: PlatformAnnounceme
         if (cancelled) return;
 
         if (result.success && Array.isArray(result.data)) {
-          // Filter for dashboard/everywhere popup announcements that are active and within date range
+          // Filter for dashboard/everywhere announcements regardless of display_size
+          // The popup always shows as a popup on the dashboard
           const eligible = (result.data as PlatformAnnouncement[]).filter(
             (a) =>
               a.is_active &&
               (a.display_location === 'dashboard' || a.display_location === 'everywhere') &&
-              a.display_size === 'popup' &&
               isWithinTimeRange(a)
           );
 

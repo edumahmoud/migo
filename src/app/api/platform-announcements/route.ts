@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
-
-// Cache platform announcements for 60 seconds to avoid repeated DB queries when table is missing
-let platformAnnouncementsCache: { data: unknown[]; timestamp: number } | null = null;
-const CACHE_TTL_MS = 60_000;
+import { getCache, setCache, isCacheValid } from '@/lib/platform-announcements-cache';
 
 // GET /api/platform-announcements - get active platform announcements (no auth required)
 export async function GET() {
   try {
     // Return cached result if still fresh
-    if (platformAnnouncementsCache && Date.now() - platformAnnouncementsCache.timestamp < CACHE_TTL_MS) {
-      return NextResponse.json({ success: true, data: platformAnnouncementsCache.data });
+    if (isCacheValid()) {
+      const cached = getCache();
+      return NextResponse.json({ success: true, data: cached!.data });
     }
 
     const now = new Date().toISOString();
@@ -25,7 +23,7 @@ export async function GET() {
     if (error) {
       // Table may not exist yet (migration not run) - cache empty result to avoid repeated failures
       console.error('Error fetching platform announcements:', error);
-      platformAnnouncementsCache = { data: [], timestamp: Date.now() };
+      setCache([]);
       return NextResponse.json({ success: true, data: [] });
     }
 
@@ -34,7 +32,7 @@ export async function GET() {
       (item: Record<string, unknown>) => item.end_at === null || (item.end_at as string) > now
     );
 
-    platformAnnouncementsCache = { data: activeData, timestamp: Date.now() };
+    setCache(activeData);
     return NextResponse.json({ success: true, data: activeData });
   } catch {
     // Gracefully handle any unexpected errors

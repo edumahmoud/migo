@@ -128,12 +128,12 @@ export default function PlatformAnnouncementOverlay({ children }: PlatformAnnoun
 
         if (result.success && Array.isArray(result.data)) {
           const now = new Date();
-          // Filter for login/everywhere fullscreen announcements that are active and within date range
+          // Filter for login/everywhere announcements regardless of display_size
+          // The overlay will adapt its display based on display_size
           const eligible = (result.data as PlatformAnnouncement[]).filter(
             (a) =>
               a.is_active &&
               (a.display_location === 'login' || a.display_location === 'everywhere') &&
-              a.display_size === 'fullscreen' &&
               new Date(a.start_at).getTime() <= now.getTime() &&
               !isExpired(a)
           );
@@ -239,6 +239,122 @@ export default function PlatformAnnouncementOverlay({ children }: PlatformAnnoun
   const title = getTitle();
   const message = getMessage();
   const bgColor = announcement.bg_color || 'from-sky-700 via-sky-800 to-teal-700';
+  const isFullscreen = announcement.display_size === 'fullscreen';
+
+  // ---------------------------------------------------
+  // Render: Popup-style overlay (popup/banner size on login page)
+  // ---------------------------------------------------
+  if (!isFullscreen) {
+    return (
+      <>
+        {/* Login form behind the popup */}
+        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-background p-4 sm:p-6 lg:p-8">
+          <div className="w-full max-w-md">
+            {children}
+          </div>
+        </div>
+
+        {/* Popup overlay */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={announcement.id}
+            variants={overlayVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            dir={direction}
+          >
+            {/* Background overlay */}
+            <div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={handleDismiss}
+              aria-hidden="true"
+            />
+
+            {/* Popup card */}
+            <motion.div
+              variants={contentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="relative z-10 w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="overlay-announcement-title"
+              aria-describedby="overlay-announcement-message"
+            >
+              {/* Gradient header */}
+              <div className={`relative bg-gradient-to-r ${bgColor} px-6 py-5`}>
+                <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+                  <div className="absolute -top-8 -start-8 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+                  <div className="absolute -bottom-6 -end-6 h-20 w-20 rounded-full bg-white/10 blur-2xl" />
+                </div>
+
+                {/* Close button */}
+                <button
+                  onClick={handleDismiss}
+                  className="absolute top-3 end-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm text-white/90 hover:bg-white/25 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+                  aria-label="Close announcement"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+
+                {/* Emoji icon + type badge */}
+                <div className="relative z-10 flex items-center gap-3">
+                  <span className="text-3xl sm:text-4xl block drop-shadow-md" role="img" aria-label={announcement.type}>
+                    {announcement.icon || '📢'}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize bg-white/20 text-white/90">
+                    <TypeIcon type={announcement.type} className="h-3 w-3" />
+                    {announcement.type}
+                  </span>
+                </div>
+              </div>
+
+              {/* Content area */}
+              <div className="px-6 py-5 space-y-3">
+                <h2
+                  id="overlay-announcement-title"
+                  className="text-xl font-bold text-gray-900 dark:text-gray-100 leading-tight"
+                >
+                  {title}
+                </h2>
+
+                <p
+                  id="overlay-announcement-message"
+                  className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-line"
+                >
+                  {message}
+                </p>
+
+                {/* Optional image */}
+                {announcement.image_url && (
+                  <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <img
+                      src={announcement.image_url}
+                      alt={title}
+                      className="w-full h-auto max-h-64 object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Footer with dismiss button */}
+              <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-end gap-3">
+                <button
+                  onClick={handleDismiss}
+                  className="inline-flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                >
+                  {isRTL ? 'إغلاق' : 'Dismiss'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
+      </>
+    );
+  }
 
   // ---------------------------------------------------
   // Render: Full-screen announcement overlay
