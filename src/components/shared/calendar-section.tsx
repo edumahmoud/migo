@@ -10,14 +10,14 @@ import {
   BookOpen,
   FileText,
   CheckCircle2,
-  AlertTriangle,
   Star,
   Vote,
   X,
   ListTodo,
-  Plus,
   Loader2,
   RefreshCw,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -26,52 +26,35 @@ import type {
   CalendarEvent,
   CalendarEventType,
   UserProfile,
-  UserTodo,
 } from '@/lib/types';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogScrollArea,
-} from '@/components/ui/dialog';
 
 // -------------------------------------------------------
 // Animation variants
 // -------------------------------------------------------
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.04 },
-  },
+  visible: { opacity: 1, transition: { staggerChildren: 0.03 } },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 12 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' as const } },
+  hidden: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' as const } },
 };
 
 const cellVariants = {
-  hidden: { opacity: 0, scale: 0.9 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.2 } },
-};
-
-const slideUpVariants = {
-  hidden: { opacity: 0, y: 40 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' as const } },
-  exit: { opacity: 0, y: 40, transition: { duration: 0.2 } },
+  hidden: { opacity: 0, scale: 0.95 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.15 } },
 };
 
 // -------------------------------------------------------
-// Event type configuration (color + icon mapping)
+// Event type configuration
 // -------------------------------------------------------
 interface EventTypeConfig {
   dotClass: string;
   bgClass: string;
   textClass: string;
   borderClass: string;
-  icon: CalendarEventType;
+  pillClass: string;
 }
 
 const eventTypeConfig: Record<CalendarEventType, EventTypeConfig> = {
@@ -80,42 +63,42 @@ const eventTypeConfig: Record<CalendarEventType, EventTypeConfig> = {
     bgClass: 'bg-sky-100 dark:bg-sky-900/40',
     textClass: 'text-sky-700 dark:text-sky-300',
     borderClass: 'border-sky-200 dark:border-sky-800',
-    icon: 'lecture',
+    pillClass: 'bg-sky-500',
   },
   quiz: {
     dotClass: 'bg-rose-500',
     bgClass: 'bg-rose-100 dark:bg-rose-900/40',
     textClass: 'text-rose-700 dark:text-rose-300',
     borderClass: 'border-rose-200 dark:border-rose-800',
-    icon: 'quiz',
+    pillClass: 'bg-rose-500',
   },
   assignment: {
     dotClass: 'bg-amber-500',
     bgClass: 'bg-amber-100 dark:bg-amber-900/40',
     textClass: 'text-amber-700 dark:text-amber-300',
     borderClass: 'border-amber-200 dark:border-amber-800',
-    icon: 'assignment',
+    pillClass: 'bg-amber-500',
   },
   todo: {
     dotClass: 'bg-emerald-500',
     bgClass: 'bg-emerald-100 dark:bg-emerald-900/40',
     textClass: 'text-emerald-700 dark:text-emerald-300',
     borderClass: 'border-emerald-200 dark:border-emerald-800',
-    icon: 'todo',
+    pillClass: 'bg-emerald-500',
   },
   poll: {
     dotClass: 'bg-violet-500',
     bgClass: 'bg-violet-100 dark:bg-violet-900/40',
     textClass: 'text-violet-700 dark:text-violet-300',
     borderClass: 'border-violet-200 dark:border-violet-800',
-    icon: 'poll',
+    pillClass: 'bg-violet-500',
   },
   attendance: {
     dotClass: 'bg-teal-500',
     bgClass: 'bg-teal-100 dark:bg-teal-900/40',
     textClass: 'text-teal-700 dark:text-teal-300',
     borderClass: 'border-teal-200 dark:border-teal-800',
-    icon: 'attendance',
+    pillClass: 'bg-teal-500',
   },
 };
 
@@ -125,20 +108,13 @@ const eventTypeConfig: Record<CalendarEventType, EventTypeConfig> = {
 function EventIcon({ type, className }: { type: CalendarEventType; className?: string }) {
   const cls = className || 'h-4 w-4';
   switch (type) {
-    case 'lecture':
-      return <BookOpen className={cls} />;
-    case 'quiz':
-      return <Star className={cls} />;
-    case 'assignment':
-      return <FileText className={cls} />;
-    case 'todo':
-      return <ListTodo className={cls} />;
-    case 'poll':
-      return <Vote className={cls} />;
-    case 'attendance':
-      return <CheckCircle2 className={cls} />;
-    default:
-      return <CalendarIcon className={cls} />;
+    case 'lecture': return <BookOpen className={cls} />;
+    case 'quiz': return <Star className={cls} />;
+    case 'assignment': return <FileText className={cls} />;
+    case 'todo': return <ListTodo className={cls} />;
+    case 'poll': return <Vote className={cls} />;
+    case 'attendance': return <CheckCircle2 className={cls} />;
+    default: return <CalendarIcon className={cls} />;
   }
 }
 
@@ -148,7 +124,7 @@ function EventIcon({ type, className }: { type: CalendarEventType; className?: s
 type ViewMode = 'month' | 'week';
 
 // -------------------------------------------------------
-// Helper: format date key YYYY-MM-DD
+// Helpers
 // -------------------------------------------------------
 function toDateString(date: Date): string {
   const y = date.getFullYear();
@@ -157,81 +133,53 @@ function toDateString(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-// -------------------------------------------------------
-// Helper: extract time from ISO datetime or HH:mm string
-// -------------------------------------------------------
 function formatEventTime(time: string | null | undefined, locale: string): string | null {
   if (!time) return null;
   try {
-    // If it's a full ISO datetime
     if (time.includes('T') || time.includes('Z')) {
       const d = new Date(time);
       if (!isNaN(d.getTime())) {
-        return d.toLocaleTimeString(locale === 'en' ? 'en-US' : 'ar-SA', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
+        return d.toLocaleTimeString(locale === 'en' ? 'en-US' : 'ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true });
       }
     }
-    // If it's HH:mm format
     if (/^\d{2}:\d{2}/.test(time)) {
       const [h, m] = time.split(':').map(Number);
       if (h !== undefined && m !== undefined) {
-        const d = new Date();
-        d.setHours(h, m, 0, 0);
-        return d.toLocaleTimeString(locale === 'en' ? 'en-US' : 'ar-SA', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
+        const d = new Date(); d.setHours(h, m, 0, 0);
+        return d.toLocaleTimeString(locale === 'en' ? 'en-US' : 'ar-SA', { hour: '2-digit', minute: '2-digit', hour12: true });
       }
     }
     return time;
-  } catch {
-    return time;
-  }
+  } catch { return time; }
 }
 
-// -------------------------------------------------------
-// Helper: get day names for the calendar header
-// Uses Intl.DateTimeFormat with locale
-// -------------------------------------------------------
 function getWeekDayNames(locale: string, weekStartsOn: number): string[] {
   const localeStr = locale === 'en' ? 'en-US' : 'ar-SA';
-  const baseDate = new Date(2023, 0, 1); // Sunday, Jan 1 2023
   const names: string[] = [];
   for (let i = 0; i < 7; i++) {
     const dayIndex = (weekStartsOn + i) % 7;
-    // Jan 1, 2023 is a Sunday (day 0)
     const date = new Date(2023, 0, 1 + dayIndex);
-    names.push(
-      date.toLocaleDateString(localeStr, { weekday: 'short' })
-    );
+    names.push(date.toLocaleDateString(localeStr, { weekday: 'short' }));
   }
   return names;
 }
 
-// -------------------------------------------------------
-// Helper: get month name
-// -------------------------------------------------------
-function getMonthName(year: number, month: number, locale: string): string {
-  const localeStr = locale === 'en' ? 'en-US' : 'ar-SA';
-  return new Date(year, month).toLocaleDateString(localeStr, { month: 'long', year: 'numeric' });
-}
-
-// -------------------------------------------------------
-// Helper: get days in month
-// -------------------------------------------------------
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-// -------------------------------------------------------
-// Helper: get first day of month (0=Sun, 6=Sat)
-// -------------------------------------------------------
 function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay();
+}
+
+function parseTimeToMinutes(time: string): number {
+  try {
+    if (/^\d{2}:\d{2}/.test(time)) {
+      const [h, m] = time.split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    }
+    return new Date(time).getTime();
+  } catch { return 0; }
 }
 
 // -------------------------------------------------------
@@ -241,303 +189,146 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   const { t, direction, locale } = useTranslations();
   const isRTL = direction === 'rtl';
 
-  // ─── Calendar navigation state ───
   const today = useMemo(() => new Date(), []);
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
-
-  // ─── Selected day for detail panel ───
   const [selectedDate, setSelectedDate] = useState<string | null>(toDateString(today));
-  const [detailOpen, setDetailOpen] = useState(false);
-
-  // ─── Event filter state ───
   const [activeFilters, setActiveFilters] = useState<Set<CalendarEventType>>(
     new Set(['lecture', 'quiz', 'assignment', 'todo', 'poll', 'attendance'])
   );
-
-  // ─── Data state ───
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // ─── Determine week start day based on locale ───
-  // Arabic: Saturday (6), English: Sunday (0)
   const weekStartsOn = isRTL ? 6 : 0;
-
-  // ─── Week day names ───
-  const weekDayNames = useMemo(
-    () => getWeekDayNames(locale, weekStartsOn),
-    [locale, weekStartsOn]
-  );
+  const weekDayNames = useMemo(() => getWeekDayNames(locale, weekStartsOn), [locale, weekStartsOn]);
 
   // -------------------------------------------------------
-  // Fetch all events from multiple sources
+  // Fetch all events
   // -------------------------------------------------------
   const fetchEvents = useCallback(async () => {
     setLoading(true);
-    setError(null);
-
     try {
       const allEvents: CalendarEvent[] = [];
 
-      // 1. Fetch user's todos
-      const { data: todos, error: todosError } = await supabase
-        .from('user_todos')
-        .select('*')
-        .eq('user_id', profile.id);
-
+      // 1. Todos
+      const { data: todos, error: todosError } = await supabase.from('user_todos').select('*').eq('user_id', profile.id);
       if (todosError) console.error('Error fetching todos:', todosError);
-
       if (todos && todos.length > 0) {
         for (const todo of todos) {
           if (todo.due_date) {
-            const dueDate = new Date(todo.due_date);
-            const dateKey = toDateString(dueDate);
             allEvents.push({
-              id: `todo-${todo.id}`,
-              type: 'todo',
-              title: todo.title || '',
-              description: todo.description || null,
-              date: dateKey,
-              time: todo.due_date || null,
-              subject_id: todo.subject_id || null,
-              subject_name: todo.subject_name || null,
-              color: 'emerald',
-              icon: 'ListTodo',
-              completed: todo.completed || false,
-              meta: { priority: todo.priority, category: todo.category },
+              id: `todo-${todo.id}`, type: 'todo', title: todo.title || '',
+              description: todo.description || null, date: toDateString(new Date(todo.due_date)),
+              time: todo.due_date || null, subject_id: todo.subject_id || null,
+              subject_name: todo.subject_name || null, color: 'emerald', icon: 'ListTodo',
+              completed: todo.completed || false, meta: { priority: todo.priority, category: todo.category },
             });
           }
         }
       }
 
-      // 2. Get user's subject IDs (enrolled + teaching)
+      // 2. Subject IDs
       const subjectIdsSet = new Set<string>();
-
-      // For students: enrolled subjects
       if (profile.role === 'student') {
-        const { data: enrollments } = await supabase
-          .from('subject_students')
-          .select('subject_id')
-          .eq('student_id', profile.id);
-
-        if (enrollments) {
-          for (const e of enrollments) {
-            subjectIdsSet.add(e.subject_id);
-          }
-        }
+        const { data: enrollments } = await supabase.from('subject_students').select('subject_id').eq('student_id', profile.id);
+        if (enrollments) for (const e of enrollments) subjectIdsSet.add(e.subject_id);
       }
-
-      // For teachers: owned subjects
       if (profile.role === 'teacher' || profile.role === 'admin' || profile.role === 'superadmin') {
-        const { data: owned } = await supabase
-          .from('subjects')
-          .select('id')
-          .eq('teacher_id', profile.id);
-
-        if (owned) {
-          for (const s of owned) {
-            subjectIdsSet.add(s.id);
-          }
-        }
-
-        // Also check co-teacher subjects
-        const { data: coTeaching } = await supabase
-          .from('subject_teachers')
-          .select('subject_id')
-          .eq('teacher_id', profile.id);
-
-        if (coTeaching) {
-          for (const ct of coTeaching) {
-            subjectIdsSet.add(ct.subject_id);
-          }
-        }
+        const { data: owned } = await supabase.from('subjects').select('id').eq('teacher_id', profile.id);
+        if (owned) for (const s of owned) subjectIdsSet.add(s.id);
+        const { data: coTeaching } = await supabase.from('subject_teachers').select('subject_id').eq('teacher_id', profile.id);
+        if (coTeaching) for (const ct of coTeaching) subjectIdsSet.add(ct.subject_id);
       }
-
-      // Students should also get subjects they're enrolled in even if role check was done
       if (profile.role !== 'student') {
-        const { data: enrollments } = await supabase
-          .from('subject_students')
-          .select('subject_id')
-          .eq('student_id', profile.id);
-
-        if (enrollments) {
-          for (const e of enrollments) {
-            subjectIdsSet.add(e.subject_id);
-          }
-        }
+        const { data: enrollments } = await supabase.from('subject_students').select('subject_id').eq('student_id', profile.id);
+        if (enrollments) for (const e of enrollments) subjectIdsSet.add(e.subject_id);
       }
-
       const subjectIds = Array.from(subjectIdsSet);
 
-      // Fetch subject names map
       const subjectNameMap: Record<string, string> = {};
       if (subjectIds.length > 0) {
-        const { data: subjects } = await supabase
-          .from('subjects')
-          .select('id, name')
-          .in('id', subjectIds);
-
-        if (subjects) {
-          for (const s of subjects) {
-            subjectNameMap[s.id] = s.name;
-          }
-        }
+        const { data: subjects } = await supabase.from('subjects').select('id, name').in('id', subjectIds);
+        if (subjects) for (const s of subjects) subjectNameMap[s.id] = s.name;
       }
 
       if (subjectIds.length > 0) {
-        // 3. Fetch lectures
-        const { data: lectures, error: lecturesError } = await supabase
-          .from('lectures')
-          .select('*')
-          .in('subject_id', subjectIds);
-
-        if (lecturesError) console.error('Error fetching lectures:', lecturesError);
-
+        // 3. Lectures
+        const { data: lectures } = await supabase.from('lectures').select('*').in('subject_id', subjectIds);
         if (lectures && lectures.length > 0) {
           for (const lec of lectures) {
             if (lec.lecture_date) {
-              const lecDate = new Date(lec.lecture_date);
-              const dateKey = toDateString(lecDate);
               allEvents.push({
-                id: `lecture-${lec.id}`,
-                type: 'lecture',
-                title: lec.title || '',
-                description: lec.description || null,
-                date: dateKey,
-                time: null,
-                subject_id: lec.subject_id || null,
+                id: `lecture-${lec.id}`, type: 'lecture', title: lec.title || '',
+                description: lec.description || null, date: toDateString(new Date(lec.lecture_date)),
+                time: null, subject_id: lec.subject_id || null,
                 subject_name: lec.subject_id ? subjectNameMap[lec.subject_id] || null : null,
-                color: 'sky',
-                icon: 'BookOpen',
-                completed: false,
-                meta: { lecture_id: lec.id },
+                color: 'sky', icon: 'BookOpen', completed: false, meta: { lecture_id: lec.id },
               });
             }
           }
         }
 
-        // 4. Fetch assignments
-        const { data: assignments, error: assignmentsError } = await supabase
-          .from('assignments')
-          .select('*')
-          .in('subject_id', subjectIds);
-
-        if (assignmentsError) console.error('Error fetching assignments:', assignmentsError);
-
+        // 4. Assignments
+        const { data: assignments } = await supabase.from('assignments').select('*').in('subject_id', subjectIds);
         if (assignments && assignments.length > 0) {
           for (const asg of assignments) {
             if (asg.due_date) {
-              const dueDate = new Date(asg.due_date);
-              const dateKey = toDateString(dueDate);
               allEvents.push({
-                id: `assignment-${asg.id}`,
-                type: 'assignment',
-                title: asg.title || '',
-                description: asg.description || null,
-                date: dateKey,
-                time: asg.due_date || null,
-                subject_id: asg.subject_id || null,
+                id: `assignment-${asg.id}`, type: 'assignment', title: asg.title || '',
+                description: asg.description || null, date: toDateString(new Date(asg.due_date)),
+                time: asg.due_date || null, subject_id: asg.subject_id || null,
                 subject_name: asg.subject_id ? subjectNameMap[asg.subject_id] || null : null,
-                color: 'amber',
-                icon: 'FileText',
-                completed: false,
-                meta: { assignment_id: asg.id, max_score: asg.max_score },
+                color: 'amber', icon: 'FileText', completed: false, meta: { assignment_id: asg.id },
               });
             }
           }
         }
 
-        // 5. Fetch quizzes
-        const { data: quizzes, error: quizzesError } = await supabase
-          .from('quizzes')
-          .select('*')
-          .in('subject_id', subjectIds);
-
-        if (quizzesError) console.error('Error fetching quizzes:', quizzesError);
-
+        // 5. Quizzes
+        const { data: quizzes } = await supabase.from('quizzes').select('*').in('subject_id', subjectIds);
         if (quizzes && quizzes.length > 0) {
           for (const q of quizzes) {
             if (q.scheduled_date) {
-              const qDate = new Date(q.scheduled_date);
-              const dateKey = toDateString(qDate);
               allEvents.push({
-                id: `quiz-${q.id}`,
-                type: 'quiz',
-                title: q.title || '',
-                description: null,
-                date: dateKey,
-                time: q.scheduled_time || null,
-                subject_id: q.subject_id || null,
+                id: `quiz-${q.id}`, type: 'quiz', title: q.title || '',
+                description: null, date: toDateString(new Date(q.scheduled_date)),
+                time: q.scheduled_time || null, subject_id: q.subject_id || null,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
-                color: 'rose',
-                icon: 'Star',
-                completed: q.is_finished || false,
-                meta: { quiz_id: q.id, duration: q.duration },
+                color: 'rose', icon: 'Star', completed: q.is_finished || false, meta: { quiz_id: q.id },
               });
             }
           }
         }
 
-        // 6. Fetch active polls
-        const { data: polls, error: pollsError } = await supabase
-          .from('polls')
-          .select('*')
-          .in('subject_id', subjectIds)
-          .eq('status', 'active');
-
-        if (pollsError) console.error('Error fetching polls:', pollsError);
-
+        // 6. Polls
+        const { data: polls } = await supabase.from('polls').select('*').in('subject_id', subjectIds).eq('status', 'active');
         if (polls && polls.length > 0) {
           for (const poll of polls) {
             if (poll.closes_at) {
-              const closeDate = new Date(poll.closes_at);
-              const dateKey = toDateString(closeDate);
               allEvents.push({
-                id: `poll-${poll.id}`,
-                type: 'poll',
-                title: poll.question || '',
-                description: poll.description || null,
-                date: dateKey,
-                time: poll.closes_at || null,
-                subject_id: poll.subject_id || null,
+                id: `poll-${poll.id}`, type: 'poll', title: poll.question || '',
+                description: poll.description || null, date: toDateString(new Date(poll.closes_at)),
+                time: poll.closes_at || null, subject_id: poll.subject_id || null,
                 subject_name: poll.subject_id ? subjectNameMap[poll.subject_id] || null : null,
-                color: 'violet',
-                icon: 'Vote',
-                completed: false,
-                meta: { poll_id: poll.id, poll_type: poll.type },
+                color: 'violet', icon: 'Vote', completed: false, meta: { poll_id: poll.id },
               });
             }
           }
         }
 
-        // 7. Fetch active attendance sessions
-        const { data: sessions, error: sessionsError } = await supabase
-          .from('attendance_sessions')
-          .select('*')
-          .in('subject_id', subjectIds)
-          .eq('status', 'active');
-
-        if (sessionsError) console.error('Error fetching attendance sessions:', sessionsError);
-
+        // 7. Attendance
+        const { data: sessions } = await supabase.from('attendance_sessions').select('*').in('subject_id', subjectIds).eq('status', 'active');
         if (sessions && sessions.length > 0) {
           for (const session of sessions) {
             if (session.started_at) {
-              const startDate = new Date(session.started_at);
-              const dateKey = toDateString(startDate);
               allEvents.push({
-                id: `attendance-${session.id}`,
-                type: 'attendance',
+                id: `attendance-${session.id}`, type: 'attendance',
                 title: session.subject_id ? subjectNameMap[session.subject_id] || '' : '',
-                description: null,
-                date: dateKey,
-                time: session.started_at || null,
-                subject_id: session.subject_id || null,
+                description: null, date: toDateString(new Date(session.started_at)),
+                time: session.started_at || null, subject_id: session.subject_id || null,
                 subject_name: session.subject_id ? subjectNameMap[session.subject_id] || null : null,
-                color: 'teal',
-                icon: 'CheckCircle2',
-                completed: session.status === 'ended',
+                color: 'teal', icon: 'CheckCircle2', completed: session.status === 'ended',
                 meta: { session_id: session.id },
               });
             }
@@ -548,42 +339,30 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       setEvents(allEvents);
     } catch (err) {
       console.error('Error fetching calendar events:', err);
-      setError(t('calendar.failedToLoad'));
       toast.error(t('calendar.failedToLoad'));
     } finally {
       setLoading(false);
     }
   }, [profile.id, profile.role, t]);
 
-  // -------------------------------------------------------
-  // Initial load
-  // -------------------------------------------------------
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+  useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
   // -------------------------------------------------------
-  // Group events by date
+  // Events by date
   // -------------------------------------------------------
   const eventsByDate = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
     for (const event of events) {
       if (!activeFilters.has(event.type)) continue;
-      if (!map[event.date]) {
-        map[event.date] = [];
-      }
+      if (!map[event.date]) map[event.date] = [];
       map[event.date].push(event);
     }
-    // Sort events within each day by time
     for (const key of Object.keys(map)) {
       map[key].sort((a, b) => {
-        // All-day events (no time) go first
         if (!a.time && b.time) return -1;
         if (a.time && !b.time) return 1;
         if (!a.time && !b.time) return 0;
-        // Compare times (both are non-null here due to guards above)
-        const aTime = a.time as string;
-        const bTime = b.time as string;
+        const aTime = a.time as string; const bTime = b.time as string;
         const timeA = aTime.includes('T') ? new Date(aTime).getTime() : parseTimeToMinutes(aTime);
         const timeB = bTime.includes('T') ? new Date(bTime).getTime() : parseTimeToMinutes(bTime);
         return timeA - timeB;
@@ -593,74 +372,35 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   }, [events, activeFilters]);
 
   // -------------------------------------------------------
-  // Helper: parse HH:mm to minutes
-  // -------------------------------------------------------
-  function parseTimeToMinutes(time: string): number {
-    try {
-      if (/^\d{2}:\d{2}/.test(time)) {
-        const [h, m] = time.split(':').map(Number);
-        return (h || 0) * 60 + (m || 0);
-      }
-      return new Date(time).getTime();
-    } catch {
-      return 0;
-    }
-  }
-
-  // -------------------------------------------------------
-  // Calendar grid computation (month view)
+  // Month grid
   // -------------------------------------------------------
   const monthGrid = useMemo(() => {
     const daysInMonth = getDaysInMonth(currentYear, currentMonth);
     const firstDay = getFirstDayOfMonth(currentYear, currentMonth);
     const offset = (firstDay - weekStartsOn + 7) % 7;
     const totalCells = Math.ceil((offset + daysInMonth) / 7) * 7;
-
     const cells: { date: string; day: number; isCurrentMonth: boolean }[] = [];
 
-    // Previous month padding
     const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
     const daysInPrevMonth = getDaysInMonth(prevYear, prevMonth);
-
     for (let i = offset - 1; i >= 0; i--) {
-      const day = daysInPrevMonth - i;
-      const date = new Date(prevYear, prevMonth, day);
-      cells.push({
-        date: toDateString(date),
-        day,
-        isCurrentMonth: false,
-      });
+      cells.push({ date: toDateString(new Date(prevYear, prevMonth, daysInPrevMonth - i)), day: daysInPrevMonth - i, isCurrentMonth: false });
     }
-
-    // Current month days
     for (let d = 1; d <= daysInMonth; d++) {
-      const date = new Date(currentYear, currentMonth, d);
-      cells.push({
-        date: toDateString(date),
-        day: d,
-        isCurrentMonth: true,
-      });
+      cells.push({ date: toDateString(new Date(currentYear, currentMonth, d)), day: d, isCurrentMonth: true });
     }
-
-    // Next month padding
     const remaining = totalCells - cells.length;
     const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
     const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
     for (let d = 1; d <= remaining; d++) {
-      const date = new Date(nextYear, nextMonth, d);
-      cells.push({
-        date: toDateString(date),
-        day: d,
-        isCurrentMonth: false,
-      });
+      cells.push({ date: toDateString(new Date(nextYear, nextMonth, d)), day: d, isCurrentMonth: false });
     }
-
     return cells;
   }, [currentYear, currentMonth, weekStartsOn]);
 
   // -------------------------------------------------------
-  // Week view computation
+  // Week view
   // -------------------------------------------------------
   const weekDays = useMemo(() => {
     const referenceDate = selectedDate ? new Date(selectedDate + 'T00:00:00') : today;
@@ -668,101 +408,50 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
     const diff = (dayOfWeek - weekStartsOn + 7) % 7;
     const startOfWeek = new Date(referenceDate);
     startOfWeek.setDate(referenceDate.getDate() - diff);
-
     const days: { date: string; day: number; dayName: string }[] = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      days.push({
-        date: toDateString(d),
-        day: d.getDate(),
-        dayName: d.toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', { weekday: 'short' }),
-      });
+      const d = new Date(startOfWeek); d.setDate(startOfWeek.getDate() + i);
+      days.push({ date: toDateString(d), day: d.getDate(), dayName: d.toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', { weekday: 'short' }) });
     }
     return days;
   }, [selectedDate, today, weekStartsOn, locale]);
 
-  // -------------------------------------------------------
-  // Selected day events
-  // -------------------------------------------------------
   const selectedDayEvents = useMemo(() => {
     if (!selectedDate) return [];
     return eventsByDate[selectedDate] || [];
   }, [selectedDate, eventsByDate]);
 
   // -------------------------------------------------------
-  // Navigation handlers
+  // Navigation
   // -------------------------------------------------------
   const goToPrevMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear((y) => y - 1);
-    } else {
-      setCurrentMonth((m) => m - 1);
-    }
+    if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear((y) => y - 1); }
+    else setCurrentMonth((m) => m - 1);
   };
-
   const goToNextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear((y) => y + 1);
-    } else {
-      setCurrentMonth((m) => m + 1);
-    }
+    if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear((y) => y + 1); }
+    else setCurrentMonth((m) => m + 1);
   };
-
   const goToToday = () => {
-    const now = new Date();
-    setCurrentYear(now.getFullYear());
-    setCurrentMonth(now.getMonth());
-    setSelectedDate(toDateString(now));
+    const now = new Date(); setCurrentYear(now.getFullYear()); setCurrentMonth(now.getMonth()); setSelectedDate(toDateString(now));
   };
 
-  // -------------------------------------------------------
-  // Filter toggle
-  // -------------------------------------------------------
   const toggleFilter = (type: CalendarEventType) => {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) {
-        next.delete(type);
-      } else {
-        next.add(type);
-      }
-      return next;
-    });
+    setActiveFilters((prev) => { const next = new Set(prev); if (next.has(type)) next.delete(type); else next.add(type); return next; });
   };
 
-  const showAllFilters = () => {
-    setActiveFilters(new Set(['lecture', 'quiz', 'assignment', 'todo', 'poll', 'attendance']));
-  };
+  const isDatePast = (dateStr: string): boolean => toDateString(today) > dateStr;
+  const isDateToday = (dateStr: string): boolean => dateStr === toDateString(today);
 
-  const hideAllFilters = () => {
-    setActiveFilters(new Set());
-  };
+  const monthName = new Date(currentYear, currentMonth).toLocaleDateString(
+    locale === 'en' ? 'en-US' : 'ar-SA', { month: 'long', year: 'numeric' }
+  );
+
+  // Total filtered events count
+  const totalEvents = events.filter((e) => activeFilters.has(e.type)).length;
 
   // -------------------------------------------------------
-  // Day click handler
-  // -------------------------------------------------------
-  const handleDayClick = (dateStr: string) => {
-    setSelectedDate(dateStr);
-    setDetailOpen(true);
-  };
-
-  // -------------------------------------------------------
-  // Check if a date is in the past
-  // -------------------------------------------------------
-  const isDatePast = (dateStr: string): boolean => {
-    const todayStr = toDateString(today);
-    return dateStr < todayStr;
-  };
-
-  const isDateToday = (dateStr: string): boolean => {
-    return dateStr === toDateString(today);
-  };
-
-  // -------------------------------------------------------
-  // Render: Event type filter chips
+  // Render: Filter chips
   // -------------------------------------------------------
   const renderFilters = () => {
     const filterTypes: { type: CalendarEventType; label: string }[] = [
@@ -773,144 +462,111 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       { type: 'poll', label: t('calendar.polls') },
       { type: 'attendance', label: t('calendar.attendance') },
     ];
-
     return (
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         {filterTypes.map((ft) => {
           const config = eventTypeConfig[ft.type];
           const isActive = activeFilters.has(ft.type);
+          const count = events.filter((e) => e.type === ft.type).length;
           return (
             <button
               key={ft.type}
               onClick={() => toggleFilter(ft.type)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
-                isActive
-                  ? `${config.bgClass} ${config.textClass} ring-1 ${config.borderClass}`
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-medium transition-all ${
+                isActive ? `${config.bgClass} ${config.textClass} ring-1 ${config.borderClass}` : 'bg-muted/50 text-muted-foreground hover:bg-muted'
               }`}
-              aria-pressed={isActive}
             >
-              <span className={`h-2 w-2 rounded-full ${isActive ? config.dotClass : 'bg-muted-foreground/30'}`} />
-              {ft.label}
+              <span className={`h-2 w-2 rounded-full shrink-0 ${isActive ? config.dotClass : 'bg-muted-foreground/30'}`} />
+              <span className="hidden sm:inline">{ft.label}</span>
+              <span className="sm:hidden">{ft.label.charAt(0)}</span>
+              {count > 0 && <span className={`text-[10px] rounded-full px-1 ${isActive ? 'opacity-80' : 'text-muted-foreground/60'}`}>{count}</span>}
             </button>
           );
         })}
-        <div className="flex gap-1 ms-2">
-          <button
-            onClick={showAllFilters}
-            className="text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {t('calendar.showAll')}
-          </button>
-          <span className="text-muted-foreground/50">|</span>
-          <button
-            onClick={hideAllFilters}
-            className="text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {t('calendar.hideAll')}
-          </button>
-        </div>
       </div>
     );
   };
 
   // -------------------------------------------------------
-  // Render: Month view calendar grid
+  // Render: Month grid (full-width, responsive)
   // -------------------------------------------------------
   const renderMonthView = () => {
     const weeks: typeof monthGrid[] = [];
-    for (let i = 0; i < monthGrid.length; i += 7) {
-      weeks.push(monthGrid.slice(i, i + 7));
-    }
+    for (let i = 0; i < monthGrid.length; i += 7) weeks.push(monthGrid.slice(i, i + 7));
 
     return (
-      <div className="space-y-0">
+      <div className="select-none">
         {/* Day headers */}
-        <div className="grid grid-cols-7 gap-0 mb-1">
+        <div className="grid grid-cols-7 mb-1">
           {weekDayNames.map((name, i) => (
-            <div
-              key={i}
-              className="py-2 text-center text-xs font-medium text-muted-foreground"
-            >
-              {name}
+            <div key={i} className="py-2 text-center text-xs sm:text-sm font-semibold text-muted-foreground">
+              <span className="hidden sm:inline">{name}</span>
+              <span className="sm:hidden">{name.charAt(0)}</span>
             </div>
           ))}
         </div>
 
         {/* Day cells */}
         {weeks.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 gap-0">
+          <div key={wi} className="grid grid-cols-7 gap-0.5 sm:gap-1">
             {week.map((cell) => {
               const dayEvents = eventsByDate[cell.date] || [];
               const isPast = isDatePast(cell.date);
               const isToday = isDateToday(cell.date);
               const isSelected = selectedDate === cell.date;
               const hasEvents = dayEvents.length > 0;
-
-              // Get unique event types for dot display (max 3 dots)
               const uniqueTypes = [...new Set(dayEvents.map((e) => e.type))].slice(0, 3);
-
-              // Check if all events are completed
               const allCompleted = dayEvents.length > 0 && dayEvents.every((e) => e.completed);
 
               return (
                 <motion.button
                   key={cell.date}
                   variants={cellVariants}
-                  onClick={() => handleDayClick(cell.date)}
-                  className={`relative flex flex-col items-center justify-center min-h-[44px] sm:min-h-[56px] py-1.5 px-0.5 transition-all rounded-lg text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 ${
-                    !cell.isCurrentMonth
-                      ? 'text-muted-foreground/40'
-                      : isPast && !isToday
-                        ? allCompleted
-                          ? 'text-muted-foreground/60'
-                          : 'text-muted-foreground/80'
-                        : 'text-foreground'
-                  } ${
-                    isToday
-                      ? 'bg-sky-50 dark:bg-sky-900/20 font-bold text-sky-700 dark:text-sky-300'
-                      : ''
-                  } ${
-                    isSelected && !isToday
-                      ? 'bg-muted/80 ring-1 ring-sky-400/50'
-                      : ''
-                  } ${
-                    !isToday && !isSelected ? 'hover:bg-muted/40' : ''
-                  }`}
+                  onClick={() => setSelectedDate(cell.date)}
+                  className={`relative flex flex-col items-center justify-start py-1.5 sm:py-2 px-0.5 transition-all rounded-lg sm:rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 min-h-[52px] sm:min-h-[72px] md:min-h-[90px] lg:min-h-[100px] ${
+                    !cell.isCurrentMonth ? 'text-muted-foreground/30' : isPast && !isToday ? (allCompleted ? 'text-muted-foreground/50' : 'text-muted-foreground/70') : 'text-foreground'
+                  } ${isToday ? 'bg-sky-50 dark:bg-sky-900/20 ring-2 ring-sky-500 dark:ring-sky-400' : ''} ${
+                    isSelected && !isToday ? 'bg-muted/60 ring-1 ring-sky-400/50' : ''
+                  } ${!isToday && !isSelected ? 'hover:bg-muted/30' : ''}`}
                   aria-label={`${cell.day} - ${dayEvents.length} ${t('calendar.eventCount', { count: dayEvents.length })}`}
                   aria-current={isToday ? 'date' : undefined}
                 >
-                  <span className={`text-xs sm:text-sm leading-none ${isToday ? 'font-bold' : ''}`}>
+                  {/* Day number */}
+                  <span className={`text-xs sm:text-sm md:text-base leading-none mb-0.5 ${isToday ? 'font-bold text-sky-700 dark:text-sky-300' : ''} ${isSelected && !isToday ? 'font-semibold' : ''}`}>
                     {cell.day}
                   </span>
 
-                  {/* Event dots */}
+                  {/* Today dot */}
+                  {isToday && <span className="h-1 w-4 rounded-full bg-sky-600 dark:bg-sky-400 mb-0.5" />}
+
+                  {/* Event indicators - mobile: dots, desktop: mini pills */}
                   {hasEvents && cell.isCurrentMonth && (
-                    <div className="flex items-center gap-0.5 mt-0.5">
-                      {uniqueTypes.map((type) => (
-                        <span
-                          key={type}
-                          className={`h-1.5 w-1.5 rounded-full ${eventTypeConfig[type].dotClass} ${
-                            isPast && !isToday ? 'opacity-40' : ''
-                          }`}
-                        />
-                      ))}
-                      {dayEvents.length > 3 && (
-                        <span className="text-[8px] text-muted-foreground ms-0.5">
-                          +{dayEvents.length - 3}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Completed indicator for past days */}
-                  {isPast && allCompleted && cell.isCurrentMonth && (
-                    <CheckCircle2 className="absolute top-0.5 end-0.5 h-2.5 w-2.5 text-emerald-500/60" />
-                  )}
-
-                  {/* Today indicator */}
-                  {isToday && (
-                    <span className="absolute bottom-0.5 h-0.5 w-4 rounded-full bg-sky-600 dark:bg-sky-400" />
+                    <>
+                      {/* Mobile: dots only */}
+                      <div className="flex sm:hidden items-center gap-0.5 mt-0.5">
+                        {uniqueTypes.map((type) => (
+                          <span key={type} className={`h-1.5 w-1.5 rounded-full ${eventTypeConfig[type].dotClass} ${isPast && !isToday ? 'opacity-40' : ''}`} />
+                        ))}
+                        {dayEvents.length > 3 && <span className="text-[7px] text-muted-foreground">+{dayEvents.length - 3}</span>}
+                      </div>
+                      {/* Desktop: mini event pills */}
+                      <div className="hidden sm:flex flex-col gap-0.5 mt-0.5 w-full px-0.5 overflow-hidden">
+                        {dayEvents.slice(0, 2).map((ev) => {
+                          const cfg = eventTypeConfig[ev.type];
+                          return (
+                            <div key={ev.id} className={`flex items-center gap-1 rounded px-1 py-px ${cfg.bgClass} ${ev.completed ? 'opacity-50' : ''}`}>
+                              <span className={`h-1 w-1 rounded-full shrink-0 ${cfg.dotClass}`} />
+                              <span className={`text-[9px] md:text-[10px] truncate leading-tight ${cfg.textClass}`}>
+                                {ev.title}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {dayEvents.length > 2 && (
+                          <span className="text-[8px] md:text-[9px] text-muted-foreground text-center">+{dayEvents.length - 2}</span>
+                        )}
+                      </div>
+                    </>
                   )}
                 </motion.button>
               );
@@ -931,79 +587,40 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
         const isPast = isDatePast(day.date);
         const isToday = isDateToday(day.date);
         const isSelected = selectedDate === day.date;
-
         return (
           <motion.div
             key={day.date}
             variants={itemVariants}
-            onClick={() => {
-              setSelectedDate(day.date);
-              setDetailOpen(true);
-            }}
-            className={`rounded-xl border p-3 cursor-pointer transition-all hover:shadow-sm ${
-              isToday
-                ? 'border-sky-300 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/20'
-                : isSelected
-                  ? 'border-sky-200 dark:border-sky-900 bg-muted/30'
-                  : 'border-border/50 bg-card hover:border-border'
+            onClick={() => setSelectedDate(day.date)}
+            className={`rounded-xl border p-3 sm:p-4 cursor-pointer transition-all hover:shadow-sm ${
+              isToday ? 'border-sky-300 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/20' :
+              isSelected ? 'border-sky-200 dark:border-sky-900 bg-muted/30' :
+              'border-border/50 bg-card hover:border-border'
             } ${isPast ? 'opacity-70' : ''}`}
           >
-            {/* Day header */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className={`text-sm font-semibold ${isToday ? 'text-sky-700 dark:text-sky-300' : 'text-foreground'}`}>
-                  {day.dayName}
-                </span>
-                <span className={`text-xs ${isToday ? 'text-sky-600 dark:text-sky-400 font-medium' : 'text-muted-foreground'}`}>
-                  {day.date}
-                </span>
-                {isToday && (
-                  <span className="rounded-full bg-sky-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                    {t('calendar.today')}
-                  </span>
-                )}
+                <span className={`text-sm font-semibold ${isToday ? 'text-sky-700 dark:text-sky-300' : 'text-foreground'}`}>{day.dayName}</span>
+                <span className={`text-xs ${isToday ? 'text-sky-600 dark:text-sky-400 font-medium' : 'text-muted-foreground'}`}>{day.date}</span>
+                {isToday && <span className="rounded-full bg-sky-600 px-1.5 py-0.5 text-[9px] font-bold text-white">{t('calendar.today')}</span>}
               </div>
-              {dayEvents.length > 0 && (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  {dayEvents.length}
-                </span>
-              )}
+              {dayEvents.length > 0 && <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">{dayEvents.length}</span>}
             </div>
-
-            {/* Events */}
             {dayEvents.length === 0 ? (
-              <p className="text-xs text-muted-foreground/60 py-2 text-center">
-                {t('calendar.noEvents')}
-              </p>
+              <p className="text-xs text-muted-foreground/60 py-2 text-center">{t('calendar.noEvents')}</p>
             ) : (
               <div className="space-y-1.5">
-                {dayEvents.slice(0, 4).map((event) => {
+                {dayEvents.slice(0, 5).map((event) => {
                   const config = eventTypeConfig[event.type];
                   return (
-                    <div
-                      key={event.id}
-                      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${config.bgClass} ${event.completed ? 'opacity-50' : ''}`}
-                    >
+                    <div key={event.id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${config.bgClass} ${event.completed ? 'opacity-50' : ''}`}>
                       <EventIcon type={event.type} className={`h-3.5 w-3.5 ${config.textClass}`} />
-                      <span className={`text-xs font-medium ${config.textClass} truncate flex-1`}>
-                        {event.title}
-                      </span>
-                      {event.time && (
-                        <span className="text-[10px] text-muted-foreground shrink-0">
-                          {formatEventTime(event.time, locale)}
-                        </span>
-                      )}
-                      {event.completed && (
-                        <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
-                      )}
+                      <span className={`text-xs font-medium ${config.textClass} truncate flex-1`}>{event.title}</span>
+                      {event.time && <span className="text-[10px] text-muted-foreground shrink-0">{formatEventTime(event.time, locale)}</span>}
                     </div>
                   );
                 })}
-                {dayEvents.length > 4 && (
-                  <p className="text-[10px] text-muted-foreground text-center">
-                    +{dayEvents.length - 4} {t('calendar.more') || ''}
-                  </p>
-                )}
+                {dayEvents.length > 5 && <p className="text-[10px] text-muted-foreground text-center">+{dayEvents.length - 5}</p>}
               </div>
             )}
           </motion.div>
@@ -1013,116 +630,63 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   );
 
   // -------------------------------------------------------
-  // Render: Day detail panel content
+  // Render: Day detail panel (sidebar on desktop, below on mobile)
   // -------------------------------------------------------
   const renderDayDetail = () => {
     if (!selectedDate) return null;
-
     const dateObj = new Date(selectedDate + 'T00:00:00');
     const localeStr = locale === 'en' ? 'en-US' : 'ar-SA';
-    const formattedDate = dateObj.toLocaleDateString(localeStr, {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    const formattedDate = dateObj.toLocaleDateString(localeStr, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const isToday = isDateToday(selectedDate);
+    const isPast = isDatePast(selectedDate) && !isToday;
 
     return (
       <div className="space-y-3" dir={direction}>
-        {/* Date header */}
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-bold text-foreground">
-              {formattedDate}
-            </h3>
-            {isDateToday(selectedDate) && (
-              <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">
-                {t('calendar.today')}
-              </span>
-            )}
+            <h3 className="text-base sm:text-lg font-bold text-foreground">{formattedDate}</h3>
+            {isToday && <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">{t('calendar.today')}</span>}
           </div>
-          <button
-            onClick={() => setDetailOpen(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-          >
+          <button onClick={() => setSelectedDate(null)} className="lg:hidden flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Events list */}
         {selectedDayEvents.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10">
-            <CalendarIcon className="h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              {t('calendar.noEventsForDay')}
-            </p>
+          <div className="flex flex-col items-center justify-center py-8 sm:py-12">
+            <CalendarIcon className="h-10 w-10 text-muted-foreground/20 mb-3" />
+            <p className="text-sm text-muted-foreground">{t('calendar.noEventsForDay')}</p>
           </div>
         ) : (
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar"
-          >
+          <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-2 max-h-[50vh] lg:max-h-[60vh] overflow-y-auto custom-scrollbar">
             {selectedDayEvents.map((event) => {
               const config = eventTypeConfig[event.type];
-              const isPast = isDatePast(selectedDate) && !isDateToday(selectedDate);
               const eventTime = formatEventTime(event.time, locale);
-
               return (
                 <motion.div
                   key={event.id}
                   variants={itemVariants}
-                  className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${
-                    config.borderClass
-                  } ${config.bgClass} ${
-                    event.completed || (isPast && event.type !== 'todo')
-                      ? 'opacity-60'
-                      : ''
-                  }`}
+                  className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${config.borderClass} ${config.bgClass} ${event.completed || (isPast && event.type !== 'todo') ? 'opacity-60' : ''}`}
                 >
-                  {/* Icon */}
-                  <div className={`shrink-0 flex h-8 w-8 items-center justify-center rounded-lg ${config.bgClass} ${config.textClass}`}>
+                  <div className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-lg ${config.bgClass} ${config.textClass}`}>
                     <EventIcon type={event.type} className="h-4 w-4" />
                   </div>
-
-                  {/* Content */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm font-medium ${config.textClass} ${event.completed ? 'line-through' : ''}`}>
-                        {event.title}
-                      </p>
-                      {event.completed && (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                      )}
+                      <p className={`text-sm font-medium ${config.textClass} ${event.completed ? 'line-through' : ''}`}>{event.title}</p>
+                      {event.completed && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />}
                     </div>
-
-                    {/* Meta row */}
                     <div className="flex flex-wrap items-center gap-2 mt-1">
-                      {eventTime && (
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {eventTime}
-                        </span>
-                      )}
-                      {!eventTime && (
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {t('calendar.allDay')}
-                        </span>
-                      )}
+                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {eventTime || t('calendar.allDay')}
+                      </span>
                       {event.subject_name && (
-                        <span className="text-[10px] text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">
-                          {event.subject_name}
-                        </span>
+                        <span className="text-[10px] text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">{event.subject_name}</span>
                       )}
                     </div>
-
-                    {/* Description */}
                     {event.description && (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                        {event.description}
-                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{event.description}</p>
                     )}
                   </div>
                 </motion.div>
@@ -1135,210 +699,97 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   };
 
   // -------------------------------------------------------
-  // Compute event counts for the current visible period
-  // -------------------------------------------------------
-  const currentMonthEventCount = useMemo(() => {
-    let count = 0;
-    const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = toDateString(new Date(currentYear, currentMonth, d));
-      count += (eventsByDate[dateStr] || []).length;
-    }
-    return count;
-  }, [currentYear, currentMonth, eventsByDate]);
-
-  // -------------------------------------------------------
   // Main render
   // -------------------------------------------------------
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="space-y-4"
-      dir={direction}
-    >
-      {/* ─── Header ─── */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-            <CalendarIcon className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-              {t('calendar.title')}
-              <span className="inline-flex items-center justify-center rounded-full bg-sky-700 dark:bg-sky-600 px-2 py-0.5 text-[10px] font-bold text-white">
-                {currentMonthEventCount}
-              </span>
-            </h2>
-          </div>
-        </div>
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-0 -mx-4 sm:-mx-6 px-4 sm:px-6">
+      {/* ============================================ */}
+      {/* GRADIENT HEADER BANNER                       */}
+      {/* ============================================ */}
+      <motion.div variants={itemVariants} className="relative overflow-hidden rounded-2xl mb-4 sm:mb-6" style={{ background: 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 40%, #0891b2 100%)' }}>
+        {/* Decorative circles */}
+        <div className="absolute -top-16 -start-16 h-48 w-48 rounded-full opacity-[0.07] bg-white" />
+        <div className="absolute -bottom-12 -end-12 h-36 w-36 rounded-full opacity-[0.05] bg-white" />
 
-        {/* Refresh */}
-        <button
-          onClick={fetchEvents}
-          disabled={loading}
-          className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          {t('calendar.refresh')}
-        </button>
-      </motion.div>
-
-      {/* ─── Event type filters ─── */}
-      <motion.div variants={itemVariants}>
-        {renderFilters()}
-      </motion.div>
-
-      {/* ─── Navigation bar ─── */}
-      <motion.div variants={itemVariants} className="flex items-center justify-between gap-2">
-        {/* Prev/Next + Month name */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={goToPrevMonth}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            aria-label={t('calendar.prevMonth')}
-          >
-            {isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </button>
-
-          <h3 className="text-sm sm:text-base font-semibold text-foreground min-w-[140px] text-center">
-            {getMonthName(currentYear, currentMonth, locale)}
-          </h3>
-
-          <button
-            onClick={goToNextMonth}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            aria-label={t('calendar.nextMonth')}
-          >
-            {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </button>
-        </div>
-
-        {/* Today + View mode toggle */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={goToToday}
-            className="rounded-lg border border-border/50 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            {t('calendar.today')}
-          </button>
-
-          <div className="flex gap-0.5 rounded-lg bg-muted/50 p-0.5">
+        <div className="relative z-10 p-4 sm:p-6">
+          {/* Top row: title + refresh */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+                <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-white">{t('calendar.title')}</h2>
+                <p className="text-xs text-sky-200">{totalEvents} {t('calendar.eventCount', { count: totalEvents })}</p>
+              </div>
+            </div>
             <button
-              onClick={() => setViewMode('month')}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                viewMode === 'month'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
+              onClick={fetchEvents}
+              disabled={loading}
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+              aria-label={t('calendar.refresh')}
             >
-              {t('calendar.month')}
-            </button>
-            <button
-              onClick={() => setViewMode('week')}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                viewMode === 'week'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t('calendar.week')}
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
+
+          {/* Navigation row */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <button onClick={goToPrevMonth} className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors" aria-label={t('calendar.prevMonth')}>
+                <ChevronLeft className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
+              </button>
+              <h3 className="text-base sm:text-lg font-bold text-white min-w-[140px] text-center">{monthName}</h3>
+              <button onClick={goToNextMonth} className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors" aria-label={t('calendar.nextMonth')}>
+                <ChevronRight className={`h-4 w-4 ${isRTL ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button onClick={goToToday} className="rounded-lg bg-white/15 hover:bg-white/25 px-3 py-1.5 text-xs font-medium text-white transition-colors">
+                {t('calendar.today')}
+              </button>
+              <div className="flex rounded-lg bg-white/10 p-0.5">
+                <button onClick={() => setViewMode('month')} className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'month' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'}`}>
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => setViewMode('week')} className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${viewMode === 'week' ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'}`}>
+                  <List className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter chips */}
+          {renderFilters()}
         </div>
       </motion.div>
 
-      {/* ─── Calendar content ─── */}
+      {/* ============================================ */}
+      {/* CALENDAR BODY: grid + detail panel            */}
+      {/* ============================================ */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
         </div>
-      ) : error ? (
-        <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed border-rose-300 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-950/30">
-          <AlertTriangle className="h-10 w-10 text-rose-500 mb-3" />
-          <p className="text-sm text-rose-700 dark:text-rose-300 font-medium">{error}</p>
-          <button
-            onClick={fetchEvents}
-            className="mt-3 rounded-lg bg-rose-600 px-4 py-2 text-xs font-medium text-white hover:bg-rose-700 transition-colors"
-          >
-            {t('calendar.refresh')}
-          </button>
-        </div>
       ) : (
-        <motion.div variants={containerVariants} initial="hidden" animate="visible">
-          {viewMode === 'month' ? renderMonthView() : renderWeekView()}
-        </motion.div>
-      )}
-
-      {/* ─── Day detail panel (dialog on mobile, side panel on desktop) ─── */}
-      {/* On mobile: Dialog */}
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-              {t('calendar.dayEvents')}
-            </DialogTitle>
-          </DialogHeader>
-          <DialogScrollArea>
-            {renderDayDetail()}
-          </DialogScrollArea>
-        </DialogContent>
-      </Dialog>
-
-      {/* ─── Desktop side panel (visible when a day is selected) ─── */}
-      {selectedDate && selectedDayEvents.length > 0 && (
-        <motion.div
-          variants={slideUpVariants}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          className="hidden lg:block rounded-xl border bg-card p-4 shadow-sm mt-4"
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <CalendarIcon className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-            <h3 className="text-sm font-semibold text-foreground">
-              {t('calendar.dayEvents')}
-            </h3>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {selectedDayEvents.length}
-            </span>
+        <motion.div variants={itemVariants} className="flex flex-col lg:flex-row gap-4">
+          {/* Calendar grid - full width on mobile, left side on desktop */}
+          <div className="flex-1 min-w-0 bg-card rounded-2xl border p-3 sm:p-4 shadow-sm">
+            {viewMode === 'month' ? renderMonthView() : renderWeekView()}
           </div>
-          <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar">
-            {selectedDayEvents.map((event) => {
-              const config = eventTypeConfig[event.type];
-              const eventTime = formatEventTime(event.time, locale);
 
-              return (
-                <div
-                  key={event.id}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${config.borderClass} ${config.bgClass} ${
-                    event.completed ? 'opacity-50' : ''
-                  }`}
-                >
-                  <EventIcon type={event.type} className={`h-4 w-4 shrink-0 ${config.textClass}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-xs font-medium ${config.textClass} truncate ${event.completed ? 'line-through' : ''}`}>
-                      {event.title}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      {eventTime ? (
-                        <span className="text-[10px] text-muted-foreground">{eventTime}</span>
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground">{t('calendar.allDay')}</span>
-                      )}
-                      {event.subject_name && (
-                        <span className="text-[10px] text-muted-foreground">· {event.subject_name}</span>
-                      )}
-                    </div>
-                  </div>
-                  {event.completed && (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                  )}
-                </div>
-              );
-            })}
+          {/* Day detail panel - below on mobile/tablet, right sidebar on desktop */}
+          <div className="lg:w-[340px] xl:w-[380px] shrink-0">
+            {selectedDate ? (
+              <div className="bg-card rounded-2xl border p-3 sm:p-4 shadow-sm sticky top-4">
+                {renderDayDetail()}
+              </div>
+            ) : (
+              <div className="bg-card rounded-2xl border p-6 shadow-sm hidden lg:flex flex-col items-center justify-center text-center min-h-[200px]">
+                <CalendarIcon className="h-10 w-10 text-muted-foreground/20 mb-3" />
+                <p className="text-sm text-muted-foreground">{t('calendar.noEventsForDay')}</p>
+              </div>
+            )}
           </div>
         </motion.div>
       )}
