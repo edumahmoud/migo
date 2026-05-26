@@ -3745,6 +3745,10 @@
     "subject": "Subject",
     "noSubject": "No subject",
     "overdue": "Overdue",
-    "dueSoon": "Due soon"
+    "dueSoon": "Due soon",
+    "editTodo": "Edit Task",
+    "deleteTodo": "Delete Task",
+    "actions": "Actions",
+    "saveChanges": "Save Changes"
   }
 }

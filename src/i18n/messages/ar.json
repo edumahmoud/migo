@@ -3745,6 +3745,10 @@
     "subject": "المقرر",
     "noSubject": "بدون مقرر",
     "overdue": "متأخر",
-    "dueSoon": "قريب"
+    "dueSoon": "قريب",
+    "editTodo": "تعديل المهمة",
+    "deleteTodo": "حذف المهمة",
+    "actions": "إجراءات",
+    "saveChanges": "حفظ التعديلات"
   }
 }

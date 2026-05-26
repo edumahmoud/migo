@@ -76,3 +76,29 @@ Stage Summary:
 - Polls tab now visible in course page for both teachers and students
 - All lint errors fixed
 - Push blocked due to missing GitHub auth in environment - user needs to push manually
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Add action menu (edit/delete) button to todo task cards with responsive design and RTL/LTR support
+
+Work Log:
+- Read current todo-section.tsx to understand existing structure
+- Replaced inline delete button (only visible on hover) with DropdownMenu from shadcn/ui (always visible)
+- Added "Edit Task" and "Delete Task" options in the dropdown menu
+- Implemented edit modal with pre-filled form data (title, description, priority, category, due date, subject)
+- Added `toDatetimeLocalValue` helper to convert ISO dates for the datetime-local input
+- Refactored form fields into shared `renderFormFields` function used by both Add and Edit modals
+- Added RTL/LTR direction support: `dir={direction}` on DropdownMenu and `align` based on direction
+- Made the action button always visible (not hidden on mobile) with h-8 w-8 touch target
+- Added delete confirmation inline with confirm/cancel buttons
+- Added new translation keys in both ar.json and en.json: editTodo, deleteTodo, actions, saveChanges
+- Used `common.saving` and `common.error` translation keys from existing common translations
+- Lint check passes with 0 errors (14 pre-existing warnings)
+
+Stage Summary:
+- Todo cards now have a DropdownMenu action button (⋮) visible on all screen sizes
+- Edit modal allows modifying task title, description, priority, category, due date, and subject
+- Delete shows inline confirmation before deleting
+- Full RTL/LTR support with proper dropdown alignment
+- Responsive design works on mobile, tablet, and desktop

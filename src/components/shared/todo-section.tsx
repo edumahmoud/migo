@@ -15,7 +15,16 @@ import {
   AlertCircle,
   X,
   Loader2,
+  MoreVertical,
+  Pencil,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
@@ -112,6 +121,25 @@ function isOverdue(dateStr: string): boolean {
 }
 
 // -------------------------------------------------------
+// Helper: convert ISO date to datetime-local value
+// -------------------------------------------------------
+function toDatetimeLocalValue(isoStr: string | null): string {
+  if (!isoStr) return '';
+  try {
+    const d = new Date(isoStr);
+    // Format: YYYY-MM-DDTHH:MM
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  } catch {
+    return '';
+  }
+}
+
+// -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function TodoSection({ profile }: { profile: UserProfile }) {
@@ -137,6 +165,17 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   const [newDueDate, setNewDueDate] = useState('');
   const [newSubjectId, setNewSubjectId] = useState('');
   const [adding, setAdding] = useState(false);
+
+  // ─── Edit modal state ───
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editTodoId, setEditTodoId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editPriority, setEditPriority] = useState<TodoPriority>('medium');
+  const [editCategory, setEditCategory] = useState<TodoCategory>('personal');
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editSubjectId, setEditSubjectId] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // ─── Delete state ───
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -330,7 +369,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
       if (error) {
         console.error('Error adding todo:', error);
-        toast.error(t('todos.addedSuccess') ? '' : '');
+        toast.error(t('common.error'));
       } else {
         toast.success(t('todos.addedSuccess'));
         setAddModalOpen(false);
@@ -338,7 +377,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
         fetchTodos();
       }
     } catch {
-      toast.error('');
+      toast.error(t('common.error'));
     } finally {
       setAdding(false);
     }
@@ -351,6 +390,79 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
     setNewCategory('personal');
     setNewDueDate('');
     setNewSubjectId('');
+  };
+
+  // -------------------------------------------------------
+  // Open edit modal with pre-filled data
+  // -------------------------------------------------------
+  const openEditModal = (todo: UserTodo) => {
+    setEditTodoId(todo.id);
+    setEditTitle(todo.title);
+    setEditDescription(todo.description || '');
+    setEditPriority(todo.priority);
+    setEditCategory(todo.category);
+    setEditDueDate(toDatetimeLocalValue(todo.due_date));
+    setEditSubjectId(todo.subject_id || '');
+    setEditModalOpen(true);
+  };
+
+  // -------------------------------------------------------
+  // Save edited todo
+  // -------------------------------------------------------
+  const handleEdit = async () => {
+    if (!editTodoId) return;
+    const title = editTitle.trim();
+    if (!title) {
+      toast.error(t('todos.titlePlaceholder'));
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const updateData: Record<string, unknown> = {
+        title,
+        description: editDescription.trim() || null,
+        priority: editPriority,
+        category: editCategory,
+        due_date: editDueDate ? new Date(editDueDate).toISOString() : null,
+        subject_id: editSubjectId || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('user_todos')
+        .update(updateData)
+        .eq('id', editTodoId);
+
+      if (error) {
+        console.error('Error editing todo:', error);
+        toast.error(t('common.error'));
+      } else {
+        toast.success(t('todos.updatedSuccess'));
+        setEditModalOpen(false);
+        setEditTodoId(null);
+        // Optimistic update
+        setTodos((prev) =>
+          prev.map((item) =>
+            item.id === editTodoId
+              ? {
+                  ...item,
+                  title,
+                  description: editDescription.trim() || null,
+                  priority: editPriority,
+                  category: editCategory,
+                  due_date: editDueDate ? new Date(editDueDate).toISOString() : null,
+                  subject_id: editSubjectId || null,
+                }
+              : item
+          )
+        );
+      }
+    } catch {
+      toast.error(t('common.error'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   // -------------------------------------------------------
@@ -487,32 +599,57 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 {todo.title}
               </p>
 
-              {/* Delete button */}
-              <div className="shrink-0">
+              {/* Actions Dropdown Menu - always visible on all screen sizes */}
+              <div className="shrink-0" dir={direction}>
                 {showDeleteConfirm ? (
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleDelete(todo.id)}
                       disabled={isDeleting}
-                      className="rounded-md bg-rose-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-rose-700 transition-colors"
+                      className="rounded-md bg-rose-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-rose-700 transition-colors"
                     >
-                      {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : t('todos.deleteConfirm')}
+                      {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t('todos.deleteConfirm')}
                     </button>
                     <button
                       onClick={() => setDeleteConfirmId(null)}
-                      className="rounded-md bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
+                      className="rounded-md bg-muted px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => setDeleteConfirmId(todo.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-600 dark:hover:text-rose-400 transition-all focus:opacity-100"
-                    aria-label={t('todos.deleteConfirm')}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <DropdownMenu dir={direction}>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-600"
+                        aria-label={t('todos.actions')}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align={direction === 'rtl' ? 'start' : 'end'}
+                      sideOffset={4}
+                      className="w-48"
+                    >
+                      <DropdownMenuItem
+                        onClick={() => openEditModal(todo)}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        <span>{t('todos.editTodo')}</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => setDeleteConfirmId(todo.id)}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>{t('todos.deleteTodo')}</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </div>
             </div>
@@ -568,6 +705,137 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   };
 
   // -------------------------------------------------------
+  // Render: Shared form fields (used by Add & Edit modals)
+  // -------------------------------------------------------
+  const renderFormFields = (
+    title: string,
+    setTitle: (v: string) => void,
+    description: string,
+    setDescription: (v: string) => void,
+    priority: TodoPriority,
+    setPriority: (v: TodoPriority) => void,
+    category: TodoCategory,
+    setCategory: (v: TodoCategory) => void,
+    dueDate: string,
+    setDueDate: (v: string) => void,
+    subjectId: string,
+    setSubjectId: (v: string) => void,
+    isSubmitting: boolean,
+  ) => (
+    <div className="space-y-4">
+      {/* Title */}
+      <div>
+        <label className="text-sm font-medium text-foreground mb-1.5 block">
+          {t('todos.title')} *
+        </label>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder={t('todos.titlePlaceholder')}
+          className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
+          dir={direction}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !isSubmitting) {
+              // Allow submit on Enter
+            }
+          }}
+        />
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="text-sm font-medium text-foreground mb-1.5 block">
+          {t('todos.descriptionPlaceholder')}
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder={t('todos.descriptionPlaceholder')}
+          rows={2}
+          className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
+          dir={direction}
+        />
+      </div>
+
+      {/* Priority & Category row */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Priority */}
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">
+            {t('todos.priority')}
+          </label>
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as TodoPriority)}
+            className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
+            dir={direction}
+          >
+            <option value="urgent">{t('todos.urgent')}</option>
+            <option value="medium">{t('todos.medium')}</option>
+            <option value="low">{t('todos.low')}</option>
+          </select>
+        </div>
+
+        {/* Category */}
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">
+            {t('todos.category')}
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as TodoCategory)}
+            className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
+            dir={direction}
+          >
+            <option value="study">{t('todos.study')}</option>
+            <option value="assignment">{t('todos.assignment')}</option>
+            <option value="review">{t('todos.review')}</option>
+            <option value="personal">{t('todos.personal')}</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Due date */}
+      <div>
+        <label className="text-sm font-medium text-foreground mb-1.5 block">
+          {t('todos.dueDate')}
+        </label>
+        <input
+          type="datetime-local"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
+          dir="ltr"
+        />
+      </div>
+
+      {/* Subject (optional) */}
+      {subjects.length > 0 && (
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">
+            {t('todos.subject')}
+          </label>
+          <select
+            value={subjectId}
+            onChange={(e) => setSubjectId(e.target.value)}
+            className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
+            dir={direction}
+          >
+            <option value="">{t('todos.noSubject')}</option>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+
+  // -------------------------------------------------------
   // Render: Add modal
   // -------------------------------------------------------
   const renderAddModal = () => (
@@ -585,7 +853,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
-            className="w-full max-w-md rounded-xl border bg-card p-6 shadow-xl"
+            className="w-full max-w-md rounded-xl border bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
             dir={direction}
           >
@@ -604,116 +872,18 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             </div>
 
             {/* Form */}
-            <div className="space-y-4">
-              {/* Title */}
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">
-                  {t('todos.title')} *
-                </label>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder={t('todos.titlePlaceholder')}
-                  className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                  dir={direction}
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !adding) handleAdd();
-                  }}
-                />
-              </div>
+            {renderFormFields(
+              newTitle, setNewTitle,
+              newDescription, setNewDescription,
+              newPriority, setNewPriority,
+              newCategory, setNewCategory,
+              newDueDate, setNewDueDate,
+              newSubjectId, setNewSubjectId,
+              adding,
+            )}
 
-              {/* Description */}
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">
-                  {t('todos.descriptionPlaceholder')}
-                </label>
-                <textarea
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder={t('todos.descriptionPlaceholder')}
-                  rows={2}
-                  className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
-                  dir={direction}
-                />
-              </div>
-
-              {/* Priority & Category row */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Priority */}
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">
-                    {t('todos.priority')}
-                  </label>
-                  <select
-                    value={newPriority}
-                    onChange={(e) => setNewPriority(e.target.value as TodoPriority)}
-                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir={direction}
-                  >
-                    <option value="urgent">{t('todos.urgent')}</option>
-                    <option value="medium">{t('todos.medium')}</option>
-                    <option value="low">{t('todos.low')}</option>
-                  </select>
-                </div>
-
-                {/* Category */}
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">
-                    {t('todos.category')}
-                  </label>
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value as TodoCategory)}
-                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir={direction}
-                  >
-                    <option value="study">{t('todos.study')}</option>
-                    <option value="assignment">{t('todos.assignment')}</option>
-                    <option value="review">{t('todos.review')}</option>
-                    <option value="personal">{t('todos.personal')}</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Due date */}
-              <div>
-                <label className="text-sm font-medium text-foreground mb-1.5 block">
-                  {t('todos.dueDate')}
-                </label>
-                <input
-                  type="datetime-local"
-                  value={newDueDate}
-                  onChange={(e) => setNewDueDate(e.target.value)}
-                  className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                  dir="ltr"
-                />
-              </div>
-
-              {/* Subject (optional) */}
-              {subjects.length > 0 && (
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">
-                    Subject
-                  </label>
-                  <select
-                    value={newSubjectId}
-                    onChange={(e) => setNewSubjectId(e.target.value)}
-                    className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
-                    dir={direction}
-                  >
-                    <option value="">{t('todos.noDueDate')}</option>
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Submit button */}
+            {/* Submit button */}
+            <div className="mt-5">
               <button
                 onClick={handleAdd}
                 disabled={adding || !newTitle.trim()}
@@ -728,6 +898,79 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                   <>
                     <Plus className="h-4 w-4" />
                     {t('todos.addTodo')}
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  // -------------------------------------------------------
+  // Render: Edit modal
+  // -------------------------------------------------------
+  const renderEditModal = () => (
+    <AnimatePresence>
+      {editModalOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setEditModalOpen(false)}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="w-full max-w-md rounded-xl border bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            dir={direction}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                {t('todos.editTodo')}
+              </h3>
+              <button
+                onClick={() => setEditModalOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            {renderFormFields(
+              editTitle, setEditTitle,
+              editDescription, setEditDescription,
+              editPriority, setEditPriority,
+              editCategory, setEditCategory,
+              editDueDate, setEditDueDate,
+              editSubjectId, setEditSubjectId,
+              saving,
+            )}
+
+            {/* Save button */}
+            <div className="mt-5">
+              <button
+                onClick={handleEdit}
+                disabled={saving || !editTitle.trim()}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t('common.saving')}
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="h-4 w-4" />
+                    {t('todos.saveChanges')}
                   </>
                 )}
               </button>
@@ -895,6 +1138,9 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
       {/* Add modal */}
       {renderAddModal()}
+
+      {/* Edit modal */}
+      {renderEditModal()}
     </motion.div>
   );
 }
