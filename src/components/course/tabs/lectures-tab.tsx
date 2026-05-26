@@ -2477,10 +2477,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
             >
             <div
-              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl pointer-events-auto"
+              className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-2xl border bg-background shadow-xl pointer-events-auto flex flex-col"
               dir={direction}
             >
-              <div className="flex items-center justify-between border-b p-5">
+              <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                   {t('newLecture')}
@@ -2507,7 +2507,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 flex-1 overflow-y-auto min-h-0">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">{t('lectureTitle')} <span className="text-rose-500">*</span></label>
                   <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder={t('lectureTitlePlaceholder')} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir={direction} disabled={creating} />
@@ -2692,7 +2692,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-3 border-t p-5">
+              <div className="flex items-center gap-3 border-t p-5 shrink-0 sticky bottom-0 z-10 bg-background">
                 <button type="button" onClick={handleCreateLecture} disabled={creating || !newTitle.trim()} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60">
                   {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   {t('createLecture')}
@@ -2740,9 +2740,9 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl pointer-events-auto"
+              className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-2xl border bg-background shadow-xl pointer-events-auto flex flex-col"
             >
-              <div className="flex items-center justify-between border-b p-5">
+              <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                   {t('editLecture')}
@@ -2751,7 +2751,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 flex-1 overflow-y-auto min-h-0">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">{t('lectureTitle')} <span className="text-rose-500">*</span></label>
                   <input type="text" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all" dir={direction} disabled={savingEdit} />
@@ -2771,7 +2771,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 border-t p-5">
+              <div className="flex items-center gap-3 border-t p-5 shrink-0 sticky bottom-0 z-10 bg-background">
                 <button onClick={handleSaveEdit} disabled={savingEdit || !editTitle.trim()} className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60">
                   {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   {t('saveChanges')}
@@ -2927,11 +2927,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="w-full max-w-md rounded-2xl border bg-background shadow-xl overflow-hidden pointer-events-auto"
+              className="w-full max-w-md rounded-2xl border bg-background shadow-xl overflow-hidden pointer-events-auto flex flex-col"
               dir={direction}
             >
               {/* Header */}
-              <div className="flex items-center justify-between border-b px-5 py-4">
+              <div className="flex items-center justify-between border-b px-5 py-4 shrink-0 sticky top-0 z-10 bg-background">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
                     <Scan className="h-5 w-5 text-sky-700 dark:text-sky-300" />
@@ -2957,7 +2957,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               </div>
 
               {/* Footer */}
-              <div className="border-t px-5 py-3">
+              <div className="border-t px-5 py-3 shrink-0 sticky bottom-0 z-10 bg-background">
                 <button
                   onClick={handleStopScan}
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-4 py-2.5 text-sm font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-100 transition-colors"
@@ -2985,11 +2985,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden pointer-events-auto"
+              className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-background shadow-2xl overflow-hidden pointer-events-auto flex flex-col"
               dir={direction}
             >
               {/* Header */}
-              <div className="flex items-center justify-between border-b px-5 py-4">
+              <div className="flex items-center justify-between border-b px-5 py-4 shrink-0 sticky top-0 z-10 bg-background">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
                     <FileText className="h-5 w-5 text-sky-700 dark:text-sky-300" />

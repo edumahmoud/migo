@@ -3497,7 +3497,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         <>
                           <Upload className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-400' : 'text-sky-400'}`} />
                           <span className="text-sm text-muted-foreground">{t('student.clickToChooseFile')}</span>
-                          <span className="text-xs text-muted-foreground/60">{t('student.maxFileSize')}</span>
+                          <span className="text-xs text-muted-foreground/60">{t('student.maxFileSize', { size: '10 MB' })}</span>
                         </>
                       )}
                     </button>

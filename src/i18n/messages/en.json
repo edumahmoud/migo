@@ -3536,6 +3536,7 @@
     "tryDifferentSearch": "Try a different search",
     "unknownSubject": "Unknown Subject",
     "user": "User",
+    "videoCount": "{count} videos from {subjects} subjects",
     "videoNotSupported": "Video format not supported",
     "views": "Views"
   },

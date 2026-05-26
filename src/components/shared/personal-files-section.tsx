@@ -2587,7 +2587,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             dir={direction}
           >
             {/* Modal header */}
-            <div className="flex items-center justify-between border-b p-5 shrink-0">
+            <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Upload className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                 {t('files.uploadFiles')}
@@ -2662,7 +2662,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   <Upload className="h-8 w-8 text-sky-400" />
                   <span className="text-sm font-medium text-muted-foreground">{t('files.clickToSelectFiles')}</span>
                   <span className="text-xs text-muted-foreground">{t('files.canSelectMultiple')}</span>
-                  <span className="text-[10px] text-muted-foreground/70">{t('files.maxFileSize')}</span>
+                  <span className="text-[10px] text-muted-foreground/70">{t('files.maxFileSize', { size: '50 MB' })}</span>
                 </button>
               </div>
 
@@ -2768,7 +2768,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
             {/* Modal footer */}
             {pendingUploads.length > 0 && (
-              <div className="border-t p-4 flex items-center justify-between shrink-0">
+              <div className="border-t p-4 flex items-center justify-between shrink-0 sticky bottom-0 z-10 bg-background">
                 <span className="text-sm text-muted-foreground">
                   {t('files.completed', { done: pendingUploads.filter((p) => p.done).length, total: pendingUploads.length })}
                   {pendingUploads.some((p) => p.errorCode === 'duplicate_name') && (
@@ -2828,7 +2828,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             className="w-full max-w-md rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col"
             dir={direction}
           >
-            <div className="flex items-center justify-between border-b p-5 shrink-0">
+            <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Info className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                 {t('files.fileDetails')}
@@ -2840,7 +2840,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="p-5 space-y-4 overflow-y-auto">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
               {/* File icon and name */}
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
@@ -2977,7 +2977,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             dir={direction}
           >
             {/* Modal header */}
-            <div className="flex items-center justify-between border-b p-5 shrink-0">
+            <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Share2 className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                 {t('files.shareFile')}
@@ -3239,10 +3239,10 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl border bg-background shadow-xl"
+            className="w-full max-w-sm rounded-2xl border bg-background shadow-xl max-h-[85vh] flex flex-col overflow-hidden"
             dir={direction}
           >
-            <div className="flex items-center justify-between border-b p-5">
+            <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <FolderPlus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                 {t('files.assignToCourse')}
@@ -3254,7 +3254,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 flex-1 overflow-y-auto min-h-0">
               {/* File info */}
               {bulkAssignMode ? (
                 <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
@@ -3358,7 +3358,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             dir={direction}
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b p-4 shrink-0">
+            <div className="flex items-center justify-between border-b p-4 shrink-0 sticky top-0 z-10 bg-background">
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-bold text-foreground truncate">{previewFile.file_name}</h3>
                 <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
@@ -3475,7 +3475,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             dir={direction}
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b p-5 shrink-0">
+            <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Share2 className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                 {t('files.bulkShare')}
@@ -3699,7 +3699,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             dir={direction}
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b p-5 shrink-0">
+            <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <Users className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                 {t('files.recipients')}

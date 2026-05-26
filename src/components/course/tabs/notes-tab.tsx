@@ -782,10 +782,10 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0, pointerEvents: 'none' as const }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border bg-background shadow-xl p-5"
+              className="w-full max-w-md max-h-[85vh] rounded-2xl border bg-background shadow-xl flex flex-col overflow-hidden"
               dir={direction}
             >
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
                 <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
                   <Eye className="h-4 w-4 text-sky-700 dark:text-sky-300" />
                   {t('noteViewers')}
@@ -797,10 +797,11 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
+              <div className="p-5 overflow-y-auto min-h-0 flex-1">
               {noteViewers.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">{t('noViewsYet')}</p>
               ) : (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
+                <div className="space-y-2">
                   {noteViewers.map((viewer, idx) => (
                     <div key={idx} className="flex items-center justify-between rounded-lg border p-2.5">
                       <span className="text-sm font-medium text-foreground">{viewer.user_name}</span>
@@ -809,6 +810,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   ))}
                 </div>
               )}
+              </div>
             </motion.div>
           </motion.div>
         )}

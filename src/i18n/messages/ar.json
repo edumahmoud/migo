@@ -3536,6 +3536,7 @@
     "tryDifferentSearch": "جرّب بحثاً مختلفاً",
     "unknownSubject": "مقرر غير معروف",
     "user": "المستخدم",
+    "videoCount": "{count} فيديو من {subjects} مقرر",
     "videoNotSupported": "صيغة الفيديو غير مدعومة",
     "views": "مشاهدات"
   },

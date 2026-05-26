@@ -1325,11 +1325,11 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               exit={{ scale: 0.95, opacity: 0, y: 10, pointerEvents: 'none' as const }}
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-lg rounded-2xl border bg-background shadow-xl max-h-[90vh] overflow-y-auto"
+              className="w-full max-w-lg rounded-2xl border bg-background shadow-xl max-h-[90vh] flex flex-col overflow-hidden"
               dir={direction}
             >
               {/* Modal header */}
-              <div className="flex items-center justify-between border-b p-5">
+              <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
                 <h3 className="text-lg font-semibold text-foreground">{t('createSummaryOrTranscription')}</h3>
                 <button
                   onClick={() => setNewSummaryOpen(false)}
@@ -1340,7 +1340,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               </div>
 
               {/* Modal body */}
-              <div className="p-5 space-y-4">
+              <div className="p-5 space-y-4 flex-1 overflow-y-auto min-h-0">
                 {/* Title */}
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">{t('title')}</label>
@@ -1594,7 +1594,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
               </div>
 
               {/* Modal footer */}
-              <div className="flex items-center gap-3 border-t p-5">
+              <div className="flex items-center gap-3 border-t p-5 shrink-0 sticky bottom-0 z-10 bg-background">
                 <button
                   onClick={handleCreateSummary}
                   disabled={creatingSummary || (summaryInputMode === 'existing' && !selectedExistingFile)}
