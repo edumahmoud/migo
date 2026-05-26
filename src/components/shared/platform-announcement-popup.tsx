@@ -138,13 +138,16 @@ export default function PlatformAnnouncementPopup({ userId }: PlatformAnnounceme
 
     async function fetchAnnouncements() {
       try {
-        const res = await fetch('/api/platform-announcements');
-        if (!res.ok) return;
+        const res = await fetch('/api/platform-announcements', { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn('[announcement-popup] API returned status:', res.status);
+          return;
+        }
         const result = await res.json();
 
         if (cancelled) return;
 
-        if (result.success && Array.isArray(result.data)) {
+        if (result.success && Array.isArray(result.data) && result.data.length > 0) {
           // Filter for dashboard/everywhere announcements regardless of display_size
           // The popup always shows as a popup on the dashboard
           // Note: API already filters by is_active=true, so no need to check here
@@ -153,6 +156,8 @@ export default function PlatformAnnouncementPopup({ userId }: PlatformAnnounceme
               (a.display_location === 'dashboard' || a.display_location === 'everywhere') &&
               isWithinTimeRange(a)
           );
+
+          console.log('[announcement-popup] Eligible announcements:', eligible.length);
 
           // Pick the first non-dismissed eligible announcement
           for (const candidate of eligible) {

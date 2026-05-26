@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/lib/supabase-server';
 import { getCache, setCache, isCacheValid } from '@/lib/platform-announcements-cache';
 
+// Force dynamic rendering — never cache this API response at the Next.js level
+export const dynamic = 'force-dynamic';
+
 // GET /api/platform-announcements - get active platform announcements (no auth required)
 export async function GET() {
   try {
@@ -21,11 +24,12 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      // Table may not exist yet (migration not run) - cache empty result to avoid repeated failures
-      console.error('Error fetching platform announcements:', error);
-      setCache([]);
+      console.error('[platform-announcements] Query error:', error.message, error.code);
+      // Don't cache errors — let the next request try again
       return NextResponse.json({ success: true, data: [] });
     }
+
+    console.log('[platform-announcements] Fetched', data?.length || 0, 'active announcements');
 
     // Filter out announcements that have ended (end_at IS NOT NULL AND end_at <= now)
     const activeData = (data || []).filter(
@@ -34,8 +38,8 @@ export async function GET() {
 
     setCache(activeData);
     return NextResponse.json({ success: true, data: activeData });
-  } catch {
-    // Gracefully handle any unexpected errors
+  } catch (err) {
+    console.error('[platform-announcements] Unhandled error:', err);
     return NextResponse.json({ success: true, data: [] });
   }
 }

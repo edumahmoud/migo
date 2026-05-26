@@ -120,13 +120,16 @@ export default function PlatformAnnouncementOverlay({ children }: PlatformAnnoun
 
     async function fetchAnnouncements() {
       try {
-        const res = await fetch('/api/platform-announcements');
-        if (!res.ok) return;
+        const res = await fetch('/api/platform-announcements', { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn('[announcement-overlay] API returned status:', res.status);
+          return;
+        }
         const result = await res.json();
 
         if (cancelled) return;
 
-        if (result.success && Array.isArray(result.data)) {
+        if (result.success && Array.isArray(result.data) && result.data.length > 0) {
           const now = new Date();
           // Filter for login/everywhere announcements regardless of display_size
           // The overlay will adapt its display based on display_size
@@ -137,6 +140,8 @@ export default function PlatformAnnouncementOverlay({ children }: PlatformAnnoun
               new Date(a.start_at).getTime() <= now.getTime() &&
               !isExpired(a)
           );
+
+          console.log('[announcement-overlay] Eligible announcements:', eligible.length);
 
           // Pick the first eligible announcement
           const selected = eligible.length > 0 ? eligible[0] : null;
