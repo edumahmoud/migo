@@ -72,11 +72,11 @@ const overlayVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { duration: 0.4, ease: 'easeOut' },
+    transition: { duration: 0.4, ease: 'easeOut' as const },
   },
   exit: {
     opacity: 0,
-    transition: { duration: 0.3, ease: 'easeIn' },
+    transition: { duration: 0.3, ease: 'easeIn' as const },
   },
 };
 
@@ -85,12 +85,12 @@ const contentVariants = {
   visible: {
     opacity: 1,
     scale: 1,
-    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
   },
   exit: {
     opacity: 0,
     scale: 0.95,
-    transition: { duration: 0.3, ease: 'easeIn' },
+    transition: { duration: 0.3, ease: 'easeIn' as const },
   },
 };
 
@@ -99,7 +99,7 @@ const textVariants = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: 0.3 + i * 0.15, duration: 0.5, ease: 'easeOut' },
+    transition: { delay: 0.3 + i * 0.15, duration: 0.5, ease: 'easeOut' as const },
   }),
 };
 
