@@ -181,6 +181,16 @@ export default function PlatformAnnouncementOverlay({ children }: PlatformAnnoun
   }, [announcement, dismissed]);
 
   // ---------------------------------------------------
+  // Dismiss handler
+  // ---------------------------------------------------
+  const handleDismiss = useCallback(() => {
+    if (announcement) {
+      saveDismissedId(announcement.id);
+    }
+    setDismissed(true);
+  }, [announcement]);
+
+  // ---------------------------------------------------
   // Auto-dismiss when end_at is reached
   // ---------------------------------------------------
   useEffect(() => {
@@ -198,16 +208,6 @@ export default function PlatformAnnouncementOverlay({ children }: PlatformAnnoun
 
     return () => clearTimeout(timer);
   }, [announcement, handleDismiss]);
-
-  // ---------------------------------------------------
-  // Dismiss handler
-  // ---------------------------------------------------
-  const handleDismiss = useCallback(() => {
-    if (announcement) {
-      saveDismissedId(announcement.id);
-    }
-    setDismissed(true);
-  }, [announcement]);
 
   // ---------------------------------------------------
   // Determine bilingual content
