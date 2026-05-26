@@ -3487,7 +3487,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         direction: 'rtl',
                         maxWidth: '160px',
                       }}
-                      formatter={(value: number, name: string) => [value, name]}
+                      formatter={(value, name) => [value, name]}
                     />
                     <Legend
                       wrapperStyle={{ fontSize: '10px', direction: 'rtl', lineHeight: '16px' }}
