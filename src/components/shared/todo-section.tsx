@@ -100,6 +100,10 @@ function formatDueDate(dateStr: string, locale: string): string {
     const formatted = date.toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', {
       month: 'short',
       day: 'numeric',
+    }) + ' ' + date.toLocaleTimeString(locale === 'en' ? 'en-US' : 'ar-SA', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
     });
 
     return isPast ? formatted : formatted;
