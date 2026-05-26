@@ -47,6 +47,7 @@ import {
   Flag,
   MessageSquare,
   ShieldAlert,
+  PartyPopper,
 } from 'lucide-react';
 import {
   BarChart as RechartsBarChart,
@@ -80,6 +81,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 import type { UserProfile, Subject, Score, AdminSection, BannedUser, Announcement } from '@/lib/types';
+import PlatformAnnouncementsSection from '@/components/admin/platform-announcements-section';
 
 // -------------------------------------------------------
 // Props
@@ -119,6 +121,7 @@ const adminNavItemDefs = [
   { id: 'users', labelKey: 'nav.users', icon: <Users className="h-5 w-5" /> },
   { id: 'subjects', labelKey: 'nav.subjects', icon: <BookOpen className="h-5 w-5" /> },
   { id: 'announcements', labelKey: 'nav.announcements', icon: <Megaphone className="h-5 w-5" /> },
+  { id: 'platformAnnouncements', labelKey: 'nav.platformAnnouncements', icon: <PartyPopper className="h-5 w-5" /> },
   { id: 'banned', labelKey: 'nav.banned', icon: <Ban className="h-5 w-5" /> },
   { id: 'comments', labelKey: 'admin.comments', icon: <Flag className="h-5 w-5" /> },
   { id: 'complaints', labelKey: 'nav.complaints', icon: <ShieldAlert className="h-5 w-5" /> },
@@ -3875,6 +3878,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {activeSection === 'announcements' && (
                 <motion.div key="announcements" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
                   {renderAnnouncements()}
+                </motion.div>
+              )}
+              {activeSection === 'platformAnnouncements' && (
+                <motion.div key="platformAnnouncements" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                  <PlatformAnnouncementsSection profile={profile} />
                 </motion.div>
               )}
               {activeSection === 'banned' && (

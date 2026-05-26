@@ -375,6 +375,42 @@ export interface Announcement {
   updated_at: string;
 }
 
+// =====================================================
+// Platform Announcements (Full-screen celebrations/alerts)
+// =====================================================
+
+export type PlatformAnnouncementType = 'celebration' | 'announcement' | 'alert' | 'maintenance';
+export type PlatformAnnouncementLocation = 'login' | 'dashboard' | 'everywhere';
+export type PlatformAnnouncementSize = 'fullscreen' | 'banner' | 'popup';
+
+export interface PlatformAnnouncement {
+  id: string;
+  title: string;
+  message: string;
+  title_en?: string | null;
+  message_en?: string | null;
+  type: PlatformAnnouncementType;
+  image_url?: string | null;
+  bg_color: string;
+  icon: string;
+  display_location: PlatformAnnouncementLocation;
+  display_size: PlatformAnnouncementSize;
+  start_at: string;
+  end_at?: string | null;
+  is_active: boolean;
+  created_by?: string | null;
+  views_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformAnnouncementView {
+  id: string;
+  announcement_id: string;
+  user_id?: string | null;
+  viewed_at: string;
+}
+
 // App navigation state
 export type AppPage = 
   | 'auth' 
@@ -387,7 +423,7 @@ export type AppPage =
 
 export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports' | 'todos' | 'calendar';
 export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar';
-export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints';
+export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'platformAnnouncements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints';
 
 // -------------------------------------------------------
 // Todo List

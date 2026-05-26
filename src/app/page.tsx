@@ -29,6 +29,8 @@ import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SetupWizard from '@/components/setup/setup-wizard';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary';
+import PlatformAnnouncementOverlay from '@/components/shared/platform-announcement-overlay';
+import PlatformAnnouncementPopup from '@/components/shared/platform-announcement-popup';
 
 // ─── AppErrorBoundary: wraps the entire dashboard content area ───
 // Separate from DashboardErrorBoundary which wraps individual dashboards.
@@ -564,9 +566,10 @@ function HomeContent() {
 
   if (!user || currentPage === 'auth') {
     return (
-      <div className="min-h-screen flex flex-col lg:flex-row" dir={direction}>
-        {/* ── Branding Panel (hidden on mobile) ── */}
-        <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700 overflow-hidden ${isRTL ? '' : ''}`}>
+      <PlatformAnnouncementOverlay>
+        <div className="min-h-screen flex flex-col lg:flex-row" dir={direction}>
+          {/* ── Branding Panel (hidden on mobile) ── */}
+          <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700 overflow-hidden ${isRTL ? '' : ''}`}>
           {/* Background decoration */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute -top-40 -start-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
@@ -703,6 +706,7 @@ function HomeContent() {
           </div>
         </div>
       </div>
+      </PlatformAnnouncementOverlay>
     );
   }
 
@@ -946,6 +950,7 @@ function HomeContent() {
       }}>
         {dashboardContent}
       </AppErrorBoundary>
+      <PlatformAnnouncementPopup userId={user?.id} />
     </div>
   );
 }
