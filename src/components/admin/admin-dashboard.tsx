@@ -3119,7 +3119,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       </motion.div>
 
       {/* ─── Stats Cards Row ─── */}
-      <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {/* Active Lectures */}
         <motion.div {...cardHover}>
           <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
@@ -3129,7 +3129,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Radio className="h-4 w-4 sm:h-5 sm:w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1.5 truncate">
+                <p className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1.5">
                   {t('admin.activeLectures')}
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
@@ -3153,7 +3153,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.activeUsers')} ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{t('admin.activeUsers')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-1 sm:gap-2">
                   <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-teal-600 dark:text-teal-400 inline" /> : (usageStats?.activeUsers ?? 0)}
@@ -3179,7 +3179,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Users className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.newRegistrations')} ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{t('admin.newRegistrations')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-1 sm:gap-2">
                   <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-amber-600 dark:text-amber-400 inline" /> : (usageStats?.newRegistrations ?? 0)}
@@ -3205,7 +3205,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.attendanceSessions')} ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{t('admin.attendanceSessions')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-1 sm:gap-2">
                   <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300 inline" /> : (usageStats?.attendanceSessions ?? 0)}
@@ -3231,7 +3231,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <Award className="h-4 w-4 sm:h-5 sm:w-5 text-rose-600 dark:text-rose-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.completedQuizzes')} ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{t('admin.completedQuizzes')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-1 sm:gap-2">
                   <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-rose-600 dark:text-rose-400 inline" /> : (usageStats?.quizzesTaken ?? 0)}
@@ -3257,7 +3257,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-sky-600 dark:text-sky-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.newLectures')} ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{t('admin.newLectures')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-1 sm:gap-2">
                   <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-600 dark:text-sky-400 inline" /> : (usageStats?.lecturesCreated ?? 0)}
@@ -3283,7 +3283,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.newAssignments')} ({getPeriodLabel(usagePeriod)})</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground">{t('admin.newAssignments')} ({getPeriodLabel(usagePeriod)})</p>
                 <div className="flex items-center gap-1 sm:gap-2">
                   <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-orange-600 inline" /> : (usageStats?.assignmentsCreated ?? 0)}
@@ -3368,7 +3368,18 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <Bar dataKey="users" name={t('admin.newRegistrationsChart')} fill="#f59e0b" radius={[2, 2, 0, 0]} />
                     <Bar dataKey="sessions" name={t('admin.attendanceSessionsChart')} fill="#8b5cf6" radius={[2, 2, 0, 0]} />
                     <Bar dataKey="quizzes" name={t('admin.quizzesChart')} fill="#0284c7" radius={[2, 2, 0, 0]} />
-                    <Legend wrapperStyle={{ fontSize: '10px', direction: 'rtl', lineHeight: '16px' }} iconSize={8} />
+                    <Legend
+                      content={({ payload }) => (
+                        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-2" style={{ direction: 'rtl' }}>
+                          {payload?.map((entry, index) => (
+                            <span key={index} className="flex items-center gap-1 text-[9px] sm:text-[10px] text-muted-foreground whitespace-nowrap">
+                              <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                              {entry.value}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    />
                   </RechartsBarChart>
                 </ResponsiveContainer>
               </div>
@@ -3490,8 +3501,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       formatter={(value, name) => [value, name]}
                     />
                     <Legend
-                      wrapperStyle={{ fontSize: '10px', direction: 'rtl', lineHeight: '16px' }}
-                      iconSize={8}
+                      content={({ payload }) => (
+                        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1" style={{ direction: 'rtl' }}>
+                          {payload?.map((entry, index) => (
+                            <span key={index} className="flex items-center gap-1 text-[9px] sm:text-[10px] text-muted-foreground whitespace-nowrap">
+                              <span className="inline-block h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                              {entry.value}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     />
                   </PieChart>
                 </ResponsiveContainer>
