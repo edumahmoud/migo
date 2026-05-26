@@ -15,7 +15,7 @@ export async function GET() {
 
     const { data, error } = await supabaseServer
       .from('platform_announcements')
-      .select('id, title, message, title_en, message_en, type, image_url, bg_color, icon, display_location, display_size, start_at, end_at, created_at')
+      .select('id, title, message, title_en, message_en, type, image_url, bg_color, icon, display_location, display_size, is_active, start_at, end_at, created_at')
       .eq('is_active', true)
       .lte('start_at', now)
       .order('created_at', { ascending: false });

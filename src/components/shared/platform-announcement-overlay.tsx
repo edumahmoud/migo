@@ -130,9 +130,9 @@ export default function PlatformAnnouncementOverlay({ children }: PlatformAnnoun
           const now = new Date();
           // Filter for login/everywhere announcements regardless of display_size
           // The overlay will adapt its display based on display_size
+          // Note: API already filters by is_active=true, so no need to check here
           const eligible = (result.data as PlatformAnnouncement[]).filter(
             (a) =>
-              a.is_active &&
               (a.display_location === 'login' || a.display_location === 'everywhere') &&
               new Date(a.start_at).getTime() <= now.getTime() &&
               !isExpired(a)

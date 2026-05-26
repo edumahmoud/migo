@@ -147,9 +147,9 @@ export default function PlatformAnnouncementPopup({ userId }: PlatformAnnounceme
         if (result.success && Array.isArray(result.data)) {
           // Filter for dashboard/everywhere announcements regardless of display_size
           // The popup always shows as a popup on the dashboard
+          // Note: API already filters by is_active=true, so no need to check here
           const eligible = (result.data as PlatformAnnouncement[]).filter(
             (a) =>
-              a.is_active &&
               (a.display_location === 'dashboard' || a.display_location === 'everywhere') &&
               isWithinTimeRange(a)
           );
