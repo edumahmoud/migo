@@ -108,13 +108,28 @@ function formatTimeArabic(time24: string, amLabel: string, pmLabel: string): str
   } catch { return time24; }
 }
 
-// GPS distance calculation (Haversine formula)
+// GPS distance calculation — uses the Equirectangular approximation for short distances
+// which is more accurate than Haversine at < 1 km (avoids floating-point rounding errors).
+// For distances > 1 km, falls back to the Haversine formula.
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const R = 6371000; // Earth's mean radius in meters
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLon = (lon2 - lon1) * toRad;
+  const meanLat = ((lat1 + lat2) / 2) * toRad;
+
+  // Equirectangular approximation — excellent for short distances (< 1 km)
+  const x = dLon * Math.cos(meanLat);
+  const y = dLat;
+  const equirectDist = R * Math.sqrt(x * x + y * y);
+
+  // For very short distances, use the equirectangular result directly
+  // (more numerically stable than Haversine at meter scale)
+  if (equirectDist < 1000) return equirectDist;
+
+  // For longer distances, use Haversine (more accurate for great-circle)
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+    Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
@@ -180,7 +195,8 @@ async function getBestGpsPosition(): Promise<GeolocationPosition | null> {
   if (pos.coords.accuracy > 500) {
     console.warn(`[GPS] Poor accuracy (${Math.round(pos.coords.accuracy)}m) - retrying for GPS...`);
     const retry = await getCurrentGpsPosition(20000);
-    if (retry && retry.coords.accuracy < pos.coords.accuracy) {
+    // Only use retry if it's not null island AND has better accuracy
+    if (retry && !(retry.coords.latitude === 0 && retry.coords.longitude === 0) && retry.coords.accuracy < pos.coords.accuracy) {
       pos = retry;
     }
   }
@@ -1927,6 +1943,15 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
           // This is a common issue when GPS is weak or disabled on one device
           const isLocationMismatch = distance > 1000;
           
+          // Accuracy-aware threshold: GPS has inherent uncertainty, so if the student's
+          // reported accuracy circle overlaps with the allowed radius, we allow check-in.
+          // effectiveThreshold = GPS_MAX_DISTANCE_METERS + min(studentAccuracy, 80)
+          // Capped at 80m accuracy bonus to prevent very poor GPS from making check-in meaningless.
+          // (80m bonus + 20m base = 100m max effective threshold)
+          // This prevents false rejections when GPS is slightly off but the student is actually present.
+          const accuracyBonus = Math.min(studentAccuracy || 0, 80);
+          const effectiveThreshold = GPS_MAX_DISTANCE_METERS + accuracyBonus;
+          
           if (method === 'qr') {
             // QR check-in: The QR scan itself proves physical proximity (student scanned teacher's screen).
             // GPS verification is informational only — a GPS/IP mismatch should NOT block QR check-in.
@@ -1948,8 +1973,10 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               return;
             }
             
-            if (distance > GPS_MAX_DISTANCE_METERS) {
-              console.warn('[GPS] GPS check-in distance too far:', Math.round(distance), 'meters');
+            // Use accuracy-aware threshold for GPS check-in
+            // If the student's accuracy circle overlaps the allowed zone, they're likely present
+            if (distance > effectiveThreshold) {
+              console.warn('[GPS] GPS check-in distance too far:', Math.round(distance), 'meters (threshold:', Math.round(effectiveThreshold), 'm with accuracy:', Math.round(studentAccuracy || 0), 'm)');
               if (studentAccuracy && studentAccuracy > 100) {
                 toast.error(t('gpsPoorAccuracyAndDistance', { accuracy: Math.round(studentAccuracy), distance: Math.round(distance) }), { duration: 8000 });
               } else {
