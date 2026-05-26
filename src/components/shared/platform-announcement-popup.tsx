@@ -249,11 +249,11 @@ function BannerDisplay({
 
               {/* Dismiss button */}
               <button
-                onClick={onDismiss}
-                className="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm text-white/90 hover:bg-white/25 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+                onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+                className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
                 aria-label={t('common.close') || 'Close'}
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -351,11 +351,11 @@ function PopupDisplay({
 
             {/* Close button */}
             <button
-              onClick={onDismiss}
-              className="absolute top-3 end-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm text-white/90 hover:bg-white/25 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+              onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+              className="absolute top-3 end-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
               aria-label={t('common.close') || 'Close'}
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
 
             {/* Emoji icon + type badge */}
@@ -405,8 +405,8 @@ function PopupDisplay({
           {/* Footer with dismiss button */}
           <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-end gap-3">
             <button
-              onClick={onDismiss}
-              className="inline-flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+              onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+              className="inline-flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900 cursor-pointer"
             >
               {t('common.dismiss') || 'Dismiss'}
             </button>
@@ -459,11 +459,11 @@ function FullscreenDisplay({
 
           {/* Close button */}
           <button
-            onClick={onDismiss}
-            className="absolute top-6 end-6 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm text-white/80 hover:bg-white/20 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+            onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+            className="absolute top-6 end-6 z-[100] flex h-14 w-14 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
             aria-label={t('common.close') || 'Close'}
           >
-            <X className="h-6 w-6" />
+            <X className="h-7 w-7" />
           </button>
 
           {/* Centered content */}
@@ -512,8 +512,8 @@ function FullscreenDisplay({
 
             {/* Dismiss button */}
             <button
-              onClick={onDismiss}
-              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white/15 backdrop-blur-sm px-6 py-3 text-base font-medium text-white hover:bg-white/25 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+              onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+              className="mt-8 inline-flex items-center gap-2 rounded-xl bg-white/20 backdrop-blur-sm px-6 py-3 text-base font-medium text-white hover:bg-white/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
             >
               {t('common.dismiss') || 'Dismiss'}
             </button>
