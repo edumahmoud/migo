@@ -846,14 +846,16 @@ function AuthPageContent({
   t: (key: string) => string;
 }) {
   const { announcement } = useLoginAnnouncement();
-  const hasAnnouncement = !!announcement;
+  // Only use the branding panel for fullscreen display size
+  // For banner/popup, the overlay component handles rendering as overlays
+  const hasFullscreenAnnouncement = !!announcement && (announcement.display_size === 'fullscreen' || !announcement.display_size);
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row" dir={direction}>
       {/* ── Left Panel: Announcement OR Branding ── */}
-      <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden ${hasAnnouncement ? '' : 'bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700'}`}>
-        {hasAnnouncement ? (
-          /* Show announcement in the branding panel area */
+      <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden ${hasFullscreenAnnouncement ? '' : 'bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700'}`}>
+        {hasFullscreenAnnouncement ? (
+          /* Show announcement in the branding panel area (fullscreen mode) */
           <AnnouncementBrandingPanel />
         ) : (
           /* Default branding panel */
@@ -914,8 +916,8 @@ function AuthPageContent({
       <div className="flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
         {/* Mobile-only top branding/announcement */}
         <div className="lg:hidden flex flex-col items-center mb-6">
-          {hasAnnouncement ? (
-            /* On mobile, show a small announcement banner */
+          {hasFullscreenAnnouncement ? (
+            /* On mobile, show the announcement in branding panel style (fullscreen mode) */
             <AnnouncementBrandingPanel />
           ) : (
             /* Default mobile feature badges */

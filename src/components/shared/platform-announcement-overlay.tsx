@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, createContext, useContext } from 'react';
-import { X, PartyPopper, Megaphone, AlertTriangle, Wrench } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, PartyPopper, Megaphone, AlertTriangle, Wrench, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
-import type { PlatformAnnouncement, PlatformAnnouncementType } from '@/lib/types';
+import type { PlatformAnnouncement, PlatformAnnouncementType, PlatformAnnouncementSize } from '@/lib/types';
 
 // -------------------------------------------------------
 // Context: Share the active announcement with the login page
@@ -69,6 +70,24 @@ function TypeIcon({ type, className }: { type: PlatformAnnouncementType; classNa
 }
 
 // -------------------------------------------------------
+// Type badge color mapping
+// -------------------------------------------------------
+function getTypeBadgeStyle(type: PlatformAnnouncementType): string {
+  switch (type) {
+    case 'celebration':
+      return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300';
+    case 'announcement':
+      return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300';
+    case 'alert':
+      return 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300';
+    case 'maintenance':
+      return 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300';
+    default:
+      return 'bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300';
+  }
+}
+
+// -------------------------------------------------------
 // Check if announcement has expired
 // -------------------------------------------------------
 function isExpired(announcement: PlatformAnnouncement): boolean {
@@ -77,10 +96,55 @@ function isExpired(announcement: PlatformAnnouncement): boolean {
 }
 
 // -------------------------------------------------------
+// Animation variants for login page overlays
+// -------------------------------------------------------
+const loginBannerVariants = {
+  hidden: { y: -100, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  },
+  exit: {
+    y: -100,
+    opacity: 0,
+    transition: { duration: 0.3, ease: 'easeIn' as const },
+  },
+};
+
+const loginPopupOverlayVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { duration: 0.3, ease: 'easeOut' as const },
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.2, ease: 'easeIn' as const },
+  },
+};
+
+const loginPopupCardVariants = {
+  hidden: { opacity: 0, scale: 0.9, y: 20 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    y: 10,
+    transition: { duration: 0.2, ease: 'easeIn' as const },
+  },
+};
+
+// -------------------------------------------------------
 // Main Component: Fetches announcement and provides context
 // -------------------------------------------------------
 export default function PlatformAnnouncementOverlay({ children }: { children: React.ReactNode }) {
-  const { locale } = useTranslations();
+  const { locale, direction } = useTranslations();
   const [announcement, setAnnouncement] = useState<PlatformAnnouncement | null>(null);
   const [dismissed, setDismissed] = useState<boolean>(false);
 
@@ -107,6 +171,8 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
               !isExpired(a)
           );
 
+          console.log('[announcement-overlay] Eligible announcements:', eligible.length, eligible.map(a => ({ id: a.id, size: a.display_size, location: a.display_location })));
+
           const selected = eligible.length > 0 ? eligible[0] : null;
 
           if (selected) {
@@ -118,8 +184,8 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
             }
           }
         }
-      } catch {
-        // API may not exist yet — silently ignore
+      } catch (err) {
+        console.warn('[announcement-overlay] Fetch error:', err);
       }
     }
 
@@ -158,7 +224,6 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
 
     const remaining = new Date(announcement.end_at).getTime() - Date.now();
     if (remaining <= 0) {
-      // Already expired — dismiss via timeout to avoid synchronous setState in effect
       const timer = setTimeout(() => {
         saveDismissedId(announcement.id);
         setDismissed(true);
@@ -190,8 +255,6 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
 
   // ---------------------------------------------------
   // Provide context + render children (the login page)
-  // The login page will use useLoginAnnouncement() to
-  // replace the branding panel with announcement content
   // ---------------------------------------------------
   const contextValue: AnnouncementContextType = {
     announcement: (!dismissed && announcement) ? announcement : null,
@@ -199,16 +262,263 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
     handleDismiss,
   };
 
+  const displaySize: PlatformAnnouncementSize = announcement?.display_size || 'fullscreen';
+  const isActive = !dismissed && !!announcement;
+
+  // ---------------------------------------------------
+  // For fullscreen: the login page uses useLoginAnnouncement()
+  // to replace the branding panel with announcement content.
+  // For banner/popup: we render additional overlays on top.
+  // ---------------------------------------------------
   return (
     <AnnouncementContext.Provider value={contextValue}>
+      {/* Banner display: sticky top banner above the login form */}
+      {isActive && displaySize === 'banner' && announcement && (
+        <LoginBannerAnnouncement
+          announcement={announcement}
+          title={getTitle()}
+          message={getMessage()}
+          direction={direction}
+          onDismiss={handleDismiss}
+        />
+      )}
+
+      {/* Popup display: centered modal overlay */}
+      {isActive && displaySize === 'popup' && announcement && (
+        <LoginPopupAnnouncement
+          announcement={announcement}
+          title={getTitle()}
+          message={getMessage()}
+          direction={direction}
+          onDismiss={handleDismiss}
+        />
+      )}
+
       {children}
     </AnnouncementContext.Provider>
   );
 }
 
 // -------------------------------------------------------
+// Login Page Banner (top bar)
+// -------------------------------------------------------
+function LoginBannerAnnouncement({
+  announcement,
+  title,
+  message,
+  direction,
+  onDismiss,
+}: {
+  announcement: PlatformAnnouncement;
+  title: string;
+  message: string;
+  direction: string;
+  onDismiss: () => void;
+}) {
+  const bgColor = announcement.bg_color || 'from-sky-600 via-sky-700 to-teal-600';
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={`login-banner-${announcement.id}`}
+        variants={loginBannerVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className="sticky top-0 z-50"
+        dir={direction}
+      >
+        <div className={`relative bg-gradient-to-r ${bgColor} text-white shadow-lg`}>
+          {/* Decorative elements */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+            <div className="absolute -top-4 -start-4 h-16 w-16 rounded-full bg-white/5 blur-xl" />
+            <div className="absolute -bottom-4 -end-4 h-16 w-16 rounded-full bg-white/5 blur-xl" />
+          </div>
+
+          <div className="relative z-10 px-4 sm:px-6 py-3">
+            <div className="flex items-center gap-3">
+              {/* Emoji icon */}
+              <span className="text-2xl sm:text-3xl flex-shrink-0" role="img" aria-label={announcement.type}>
+                {announcement.icon || '📢'}
+              </span>
+
+              {/* Type badge */}
+              <span
+                className={`hidden sm:inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize flex-shrink-0 ${getTypeBadgeStyle(announcement.type)}`}
+              >
+                <TypeIcon type={announcement.type} className="h-3 w-3" />
+                {announcement.type}
+              </span>
+
+              {/* Title */}
+              <h3 className="font-bold text-sm sm:text-base truncate flex-shrink-0">
+                {title}
+              </h3>
+
+              {/* Message */}
+              <p className={`text-white/90 text-xs sm:text-sm flex-1 min-w-0 ${expanded ? '' : 'truncate'}`}>
+                {message}
+              </p>
+
+              {/* Expand/collapse button */}
+              {message.length > 60 && (
+                <button
+                  onClick={() => setExpanded(!expanded)}
+                  className="flex-shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                  aria-label={expanded ? 'Collapse' : 'Expand'}
+                >
+                  {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+              )}
+
+              {/* Dismiss button */}
+              <button
+                onClick={onDismiss}
+                className="flex-shrink-0 flex h-7 w-7 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm text-white/90 hover:bg-white/25 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+                aria-label="Close announcement"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Expanded content */}
+            {expanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="mt-2"
+              >
+                <p className="text-white/90 text-sm leading-relaxed whitespace-pre-line">
+                  {message}
+                </p>
+                {announcement.image_url && (
+                  <div className="mt-3 rounded-lg overflow-hidden max-w-sm border border-white/10">
+                    <img src={announcement.image_url} alt={title} className="w-full h-auto max-h-48 object-cover" />
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// -------------------------------------------------------
+// Login Page Popup (centered modal)
+// -------------------------------------------------------
+function LoginPopupAnnouncement({
+  announcement,
+  title,
+  message,
+  direction,
+  onDismiss,
+}: {
+  announcement: PlatformAnnouncement;
+  title: string;
+  message: string;
+  direction: string;
+  onDismiss: () => void;
+}) {
+  const bgColor = announcement.bg_color || 'from-sky-600 via-sky-700 to-teal-600';
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={`login-popup-overlay-${announcement.id}`}
+        variants={loginPopupOverlayVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        dir={direction}
+      >
+        {/* Background overlay */}
+        <div
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          onClick={onDismiss}
+          aria-hidden="true"
+        />
+
+        {/* Popup card */}
+        <motion.div
+          key={`login-popup-card-${announcement.id}`}
+          variants={loginPopupCardVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          className="relative z-10 w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="login-popup-title"
+          aria-describedby="login-popup-message"
+        >
+          {/* Gradient header */}
+          <div className={`relative bg-gradient-to-r ${bgColor} px-6 py-5`}>
+            <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+              <div className="absolute -top-8 -start-8 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+              <div className="absolute -bottom-6 -end-6 h-20 w-20 rounded-full bg-white/10 blur-2xl" />
+            </div>
+
+            <button
+              onClick={onDismiss}
+              className="absolute top-3 end-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm text-white/90 hover:bg-white/25 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="relative z-10 flex items-center gap-3">
+              <span className="text-3xl sm:text-4xl block drop-shadow-md" role="img" aria-label={announcement.type}>
+                {announcement.icon || '📢'}
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${getTypeBadgeStyle(announcement.type)}`}
+              >
+                <TypeIcon type={announcement.type} className="h-3 w-3" />
+                {announcement.type}
+              </span>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="px-6 py-5 space-y-3">
+            <h2 id="login-popup-title" className="text-xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
+              {title}
+            </h2>
+            <p id="login-popup-message" className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-line">
+              {message}
+            </p>
+            {announcement.image_url && (
+              <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                <img src={announcement.image_url} alt={title} className="w-full h-auto max-h-64 object-cover" />
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-end gap-3">
+            <button
+              onClick={onDismiss}
+              className="inline-flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+            >
+             Dismiss
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// -------------------------------------------------------
 // Exported helper: Announcement Branding Panel
 // This replaces the default branding panel on the login page
+// Used for display_size === 'fullscreen' (or when display_size is not specified)
 // -------------------------------------------------------
 export function AnnouncementBrandingPanel() {
   const { announcement, handleDismiss } = useLoginAnnouncement();
