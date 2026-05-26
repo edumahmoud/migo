@@ -181,7 +181,7 @@ const modalOverlayVariants = {
 
 const modalContentVariants = {
   hidden: { opacity: 0, scale: 0.95, y: 20 },
-  visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } },
+  visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] as const } },
   exit: { opacity: 0, scale: 0.95, y: 10, transition: { duration: 0.15 } },
 };
 
