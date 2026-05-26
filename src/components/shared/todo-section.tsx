@@ -401,7 +401,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
     setEditDescription(todo.description || '');
     setEditPriority(todo.priority);
     setEditCategory(todo.category);
-    setEditDueDate(toDatetimeLocalValue(todo.due_date));
+    setEditDueDate(toDatetimeLocalValue(todo.due_date ?? null));
     setEditSubjectId(todo.subject_id || '');
     setEditModalOpen(true);
   };
