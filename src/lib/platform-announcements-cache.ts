@@ -7,7 +7,7 @@
 // that the public API reads from.
 
 let cache: { data: unknown[]; timestamp: number } | null = null;
-const CACHE_TTL_MS = 60_000; // 60 seconds
+const CACHE_TTL_MS = 10_000; // 10 seconds (short TTL for responsiveness)
 
 export function getCache(): { data: unknown[]; timestamp: number } | null {
   return cache;
