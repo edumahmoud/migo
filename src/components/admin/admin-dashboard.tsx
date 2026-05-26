@@ -3332,31 +3332,33 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <span className="text-[10px] sm:text-xs font-normal text-muted-foreground ms-1 hidden sm:inline">{t('admin.last30Days')}</span>
             </h3>
             {usageStats && usageStats.chartData && usageStats.chartData.some((d) => d.users > 0 || d.sessions > 0 || d.quizzes > 0) ? (
-              <div className="h-52 sm:h-72 min-h-[200px] sm:min-h-[280px] w-full">
+              <div className="relative h-52 sm:h-72 min-h-[200px] sm:min-h-[280px] w-full overflow-hidden">
                 <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={usageStats.chartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                  <RechartsBarChart data={usageStats.chartData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis
                       dataKey="date"
-                      tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                      tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }}
                       tickLine={false}
                       tickFormatter={(val: string) => {
                         const d = new Date(val);
                         return `${d.getDate()}/${d.getMonth() + 1}`;
                       }}
-                      interval={4}
+                      interval={6}
                     />
                     <YAxis
-                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                      tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                       tickLine={false}
                       allowDecimals={false}
+                      width={35}
                     />
                     <Tooltip
                       contentStyle={{
                         borderRadius: '8px',
                         border: '1px solid var(--border)',
-                        fontSize: '12px',
+                        fontSize: '11px',
                         direction: 'rtl',
+                        maxWidth: '180px',
                       }}
                       labelFormatter={(val: unknown) => {
                         const d = new Date(String(val));
@@ -3366,7 +3368,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                     <Bar dataKey="users" name={t('admin.newRegistrationsChart')} fill="#f59e0b" radius={[2, 2, 0, 0]} />
                     <Bar dataKey="sessions" name={t('admin.attendanceSessionsChart')} fill="#8b5cf6" radius={[2, 2, 0, 0]} />
                     <Bar dataKey="quizzes" name={t('admin.quizzesChart')} fill="#0284c7" radius={[2, 2, 0, 0]} />
-                    <Legend wrapperStyle={{ fontSize: '12px', direction: 'rtl' }} />
+                    <Legend wrapperStyle={{ fontSize: '10px', direction: 'rtl', lineHeight: '16px' }} iconSize={8} />
                   </RechartsBarChart>
                 </ResponsiveContainer>
               </div>
@@ -3390,27 +3392,29 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               <span className="text-[10px] sm:text-xs font-normal text-muted-foreground ms-1 hidden sm:inline">{t('admin.last12Months')}</span>
             </h3>
             {usageStats && usageStats.registrationTrends && usageStats.registrationTrends.some((d) => d.count > 0) ? (
-              <div className="h-52 sm:h-72 min-h-[200px] sm:min-h-[280px] w-full">
+              <div className="relative h-52 sm:h-72 min-h-[200px] sm:min-h-[280px] w-full overflow-hidden">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={usageStats.registrationTrends} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
+                  <LineChart data={usageStats.registrationTrends} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis
                       dataKey="label"
-                      tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                      tick={{ fontSize: 9, fill: 'var(--muted-foreground)' }}
                       tickLine={false}
-                      interval={1}
+                      interval={2}
                     />
                     <YAxis
-                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
+                      tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                       tickLine={false}
                       allowDecimals={false}
+                      width={35}
                     />
                     <Tooltip
                       contentStyle={{
                         borderRadius: '8px',
                         border: '1px solid var(--border)',
-                        fontSize: '12px',
+                        fontSize: '11px',
                         direction: 'rtl',
+                        maxWidth: '180px',
                       }}
                     />
                     <Line
@@ -3418,9 +3422,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       dataKey="count"
                       name={t('admin.registrationCount')}
                       stroke="#14b8a6"
-                      strokeWidth={2.5}
-                      dot={{ r: 4, fill: '#14b8a6', stroke: '#fff', strokeWidth: 2 }}
-                      activeDot={{ r: 6, fill: '#0d9488' }}
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#14b8a6', stroke: '#fff', strokeWidth: 2 }}
+                      activeDot={{ r: 5, fill: '#0d9488' }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -3447,7 +3451,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
               {t('admin.scoreDistribution')}
             </h3>
             {allScores.length > 0 ? (
-              <div className="h-48 sm:h-72 min-h-[200px] sm:min-h-[250px] w-full">
+              <div className="relative h-48 sm:h-72 min-h-[180px] sm:min-h-[250px] w-full overflow-hidden">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -3464,12 +3468,11 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                         ].filter((d) => d.value > 0);
                       })()}
                       cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      paddingAngle={5}
+                      cy="45%"
+                      innerRadius={30}
+                      outerRadius={55}
+                      paddingAngle={3}
                       dataKey="value"
-                      label={({ name, percent }: { name?: string; percent?: number }) => `${name || ''} ${((percent || 0) * 100).toFixed(0)}%`}
                     >
                       <Cell fill="#0284c7" />
                       <Cell fill="#14b8a6" />
@@ -3480,12 +3483,15 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                       contentStyle={{
                         borderRadius: '8px',
                         border: '1px solid #e5e7eb',
-                        fontSize: '12px',
+                        fontSize: '11px',
                         direction: 'rtl',
+                        maxWidth: '160px',
                       }}
+                      formatter={(value: number, name: string) => [value, name]}
                     />
                     <Legend
-                      wrapperStyle={{ fontSize: '12px', direction: 'rtl' }}
+                      wrapperStyle={{ fontSize: '10px', direction: 'rtl', lineHeight: '16px' }}
+                      iconSize={8}
                     />
                   </PieChart>
                 </ResponsiveContainer>
