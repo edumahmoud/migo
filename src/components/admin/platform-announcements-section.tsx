@@ -21,6 +21,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useTranslations } from '@/i18n/use-translations';
@@ -205,6 +215,8 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
 
   // ─── Delete confirmation state ───
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // ─── Image upload state ───
   const [uploading, setUploading] = useState(false);
@@ -733,12 +745,8 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                         className="h-8 w-8"
                         onClick={() => {
                           if (isDeleting) return;
-                          const confirmed = window.confirm(
-                            locale === 'en'
-                              ? 'Are you sure you want to delete this announcement?'
-                              : 'هل أنت متأكد من حذف هذا الإعلان؟'
-                          );
-                          if (confirmed) handleDelete(announcement.id);
+                          setPendingDeleteId(announcement.id);
+                          setDeleteDialogOpen(true);
                         }}
                         disabled={isDeleting}
                         title={locale === 'en' ? 'Delete' : 'حذف'}
@@ -1182,6 +1190,38 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ─── Delete Confirmation Dialog ─── */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent dir={direction}>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0" />
+              {t('platformAnnouncements.deleteConfirmTitle') || (locale === 'en' ? 'Confirm Delete' : 'تأكيد الحذف')}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('platformAnnouncements.deleteConfirmDesc') || (locale === 'en' ? 'This announcement will be permanently deleted and cannot be recovered.' : 'سيتم حذف هذا الإعلان نهائياً ولا يمكن استرجاعه.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t('platformAnnouncements.cancel') || (locale === 'en' ? 'Cancel' : 'إلغاء')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDeleteId) {
+                  handleDelete(pendingDeleteId);
+                  setPendingDeleteId(null);
+                }
+              }}
+              className="bg-rose-600 hover:bg-rose-700 text-white focus:ring-rose-600"
+            >
+              <Trash2 className="h-4 w-4 me-1.5" />
+              {t('platformAnnouncements.confirmDelete') || (locale === 'en' ? 'Yes, Delete' : 'نعم، حذف')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   );
 }
