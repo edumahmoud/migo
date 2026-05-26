@@ -2205,10 +2205,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
-      <main className={`min-h-screen pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
+      <main className={`min-h-screen min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
         sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
       }`}>
-        <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4">
+        <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 min-w-0">
           <AnnouncementsBanner userId={profile.id} />
           {loadingData ? (
             <div className="flex flex-col items-center justify-center py-32">

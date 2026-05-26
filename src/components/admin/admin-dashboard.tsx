@@ -3322,9 +3322,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       </motion.div>
 
       {/* ─── Charts Section ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0">
         {/* Daily Activity Bar Chart */}
-        <motion.div variants={itemVariants}>
+        <motion.div variants={itemVariants} className="min-w-0">
           <div className="rounded-xl border bg-card shadow-sm p-3 sm:p-5 overflow-hidden">
             <h3 className="font-semibold text-sm sm:text-base text-foreground mb-3 sm:mb-4 flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
@@ -3395,7 +3395,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         </motion.div>
 
         {/* Registration Trends Line Chart */}
-        <motion.div variants={itemVariants}>
+        <motion.div variants={itemVariants} className="min-w-0">
           <div className="rounded-xl border bg-card shadow-sm p-3 sm:p-5 overflow-hidden">
             <h3 className="font-semibold text-sm sm:text-base text-foreground mb-3 sm:mb-4 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-teal-600 dark:text-teal-400" />
@@ -3453,9 +3453,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       </div>
 
       {/* ─── Score Distribution + Quiz Performance ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0">
         {/* Score Distribution Pie Chart */}
-        <motion.div variants={itemVariants}>
+        <motion.div variants={itemVariants} className="min-w-0">
           <div className="rounded-xl border bg-card shadow-sm p-3 sm:p-5 overflow-hidden">
             <h3 className="font-semibold text-sm sm:text-base text-foreground mb-3 sm:mb-4 flex items-center gap-2">
               <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -3524,7 +3524,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         </motion.div>
 
         {/* Quiz performance overview */}
-        <motion.div variants={itemVariants}>
+        <motion.div variants={itemVariants} className="min-w-0">
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-3 sm:p-4">
               <h3 className="font-semibold text-sm sm:text-base text-foreground flex items-center gap-2">
@@ -3855,7 +3855,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // Main Render
   // -------------------------------------------------------
   return (
-    <div className="flex min-h-screen" dir={direction}>
+    <div className="flex min-h-screen overflow-x-hidden" dir={direction}>
       {/* Header */}
       <AppHeader
         userName={profile.name}
@@ -3879,10 +3879,10 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
-      <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
+      <main className={`flex-1 min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
         sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
       }`}>
-        <div className="mx-auto max-w-6xl p-3 md:p-8">
+        <div className="mx-auto max-w-6xl p-3 md:p-8 min-w-0">
           {loadingData ? renderLoading() : (
             <AnimatePresence mode="wait">
               {activeSection === 'dashboard' && (
@@ -3926,7 +3926,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 </motion.div>
               )}
               {activeSection === 'reports' && (
-                <motion.div key="reports" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
+                <motion.div key="reports" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="min-w-0">
                   {renderReports()}
                 </motion.div>
               )}

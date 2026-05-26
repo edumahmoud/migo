@@ -4668,10 +4668,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       />
 
       {/* Main Content - dynamic offset for collapsible sidebar */}
-      <main className={`min-h-screen pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
+      <main className={`min-h-screen min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
         sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
       }`}>
-        <div className="p-3 sm:p-6 lg:p-8 space-y-4">
+        <div className="p-3 sm:p-6 lg:p-8 space-y-4 min-w-0">
           <AnnouncementsBanner userId={profile.id} />
           <AnimatePresence mode="wait">
             <motion.div
