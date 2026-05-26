@@ -3100,44 +3100,44 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   };
 
   const renderReports = () => (
-    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6 min-w-0 overflow-x-hidden">
       {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">{t('admin.reportsTitle')}</h2>
-          <p className="text-muted-foreground mt-1">{t('admin.reportsAndPlatformStats')}</p>
+      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-2xl font-bold text-foreground">{t('admin.reportsTitle')}</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 truncate">{t('admin.reportsAndPlatformStats')}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={handleExportReport}
-            className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 whitespace-nowrap"
+            className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-sky-700 px-3 py-2 sm:px-4 sm:py-2.5 text-xs sm:text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 whitespace-nowrap"
           >
-            <Download className="h-4 w-4" />
+            <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             {t('admin.exportReport')}
           </button>
         </div>
       </motion.div>
 
       {/* ─── Stats Cards Row ─── */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {/* Active Lectures */}
         <motion.div {...cardHover}>
-          <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-sky-500 to-sky-700" />
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
-                <Radio className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
+                <Radio className="h-4 w-4 sm:h-5 sm:w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <p className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1.5 truncate">
                   {t('admin.activeLectures')}
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-sky-600" />
                   </span>
                 </p>
-                <p className="text-2xl font-bold text-foreground">
-                  {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300 inline" /> : (usageStats?.activeLectures ?? 0)}
+                <p className="text-lg sm:text-2xl font-bold text-foreground">
+                  {loadingUsageStats ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-sky-700 dark:text-sky-300 inline" /> : (usageStats?.activeLectures ?? 0)}
                 </p>
               </div>
             </div>
@@ -3146,16 +3146,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
         {/* Active Users */}
         <motion.div {...cardHover}>
-          <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-teal-400 to-teal-600" />
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 dark:bg-teal-900/50">
-                <Activity className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 dark:bg-teal-900/50">
+                <Activity className="h-4 w-4 sm:h-5 sm:w-5 text-teal-600 dark:text-teal-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">{t('admin.activeUsers')} ({getPeriodLabel(usagePeriod)})</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-foreground">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.activeUsers')} ({getPeriodLabel(usagePeriod)})</p>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-teal-600 dark:text-teal-400 inline" /> : (usageStats?.activeUsers ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
@@ -3172,16 +3172,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
         {/* New Registrations */}
         <motion.div {...cardHover}>
-          <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-amber-400 to-amber-600" />
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/50">
-                <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/50">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">{t('admin.newRegistrations')} ({getPeriodLabel(usagePeriod)})</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-foreground">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.newRegistrations')} ({getPeriodLabel(usagePeriod)})</p>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-amber-600 dark:text-amber-400 inline" /> : (usageStats?.newRegistrations ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
@@ -3198,16 +3198,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
         {/* Attendance Sessions */}
         <motion.div {...cardHover}>
-          <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-700" />
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
-                <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
+                <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-sky-700 dark:text-sky-300" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">{t('admin.attendanceSessions')} ({getPeriodLabel(usagePeriod)})</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-foreground">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.attendanceSessions')} ({getPeriodLabel(usagePeriod)})</p>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300 inline" /> : (usageStats?.attendanceSessions ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
@@ -3224,16 +3224,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
         {/* Quizzes Taken */}
         <motion.div {...cardHover}>
-          <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-rose-400 to-rose-600" />
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-900/50">
-                <Award className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-900/50">
+                <Award className="h-4 w-4 sm:h-5 sm:w-5 text-rose-600 dark:text-rose-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">{t('admin.completedQuizzes')} ({getPeriodLabel(usagePeriod)})</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-foreground">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.completedQuizzes')} ({getPeriodLabel(usagePeriod)})</p>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-rose-600 dark:text-rose-400 inline" /> : (usageStats?.quizzesTaken ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
@@ -3250,16 +3250,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
         {/* Lectures Created */}
         <motion.div {...cardHover}>
-          <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-sky-400 to-sky-600" />
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
-                <ClipboardList className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
+                <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-sky-600 dark:text-sky-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">{t('admin.newLectures')} ({getPeriodLabel(usagePeriod)})</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-foreground">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.newLectures')} ({getPeriodLabel(usagePeriod)})</p>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-sky-600 dark:text-sky-400 inline" /> : (usageStats?.lecturesCreated ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
@@ -3276,16 +3276,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
         {/* Assignments Created */}
         <motion.div {...cardHover}>
-          <div className="rounded-xl border bg-card p-4 shadow-sm relative overflow-hidden">
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 start-0 w-full h-1 bg-gradient-to-l from-orange-400 to-orange-600" />
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100">
-                <ClipboardList className="h-5 w-5 text-orange-600" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl bg-orange-100">
+                <ClipboardList className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground">{t('admin.newAssignments')} ({getPeriodLabel(usagePeriod)})</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-foreground">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{t('admin.newAssignments')} ({getPeriodLabel(usagePeriod)})</p>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <p className="text-lg sm:text-2xl font-bold text-foreground">
                     {loadingUsageStats ? <Loader2 className="h-5 w-5 animate-spin text-orange-600 inline" /> : (usageStats?.assignmentsCreated ?? 0)}
                   </p>
                   {usageStats && usageStats.changes && (
@@ -3304,12 +3304,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* ─── Period Filter ─── */}
       <motion.div variants={itemVariants}>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-muted-foreground ms-1">{t('admin.timePeriod')}:</span>
+          <span className="text-xs sm:text-sm font-medium text-muted-foreground ms-1">{t('admin.timePeriod')}:</span>
           {(['day', 'month', 'year'] as const).map((p) => (
             <button
               key={p}
               onClick={() => setUsagePeriod(p)}
-              className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
+              className={`rounded-lg border px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                 usagePeriod === p
                   ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 shadow-sm'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
@@ -3322,17 +3322,17 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       </motion.div>
 
       {/* ─── Charts Section ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Daily Activity Bar Chart */}
         <motion.div variants={itemVariants}>
-          <div className="rounded-xl border bg-card shadow-sm p-5">
-            <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+          <div className="rounded-xl border bg-card shadow-sm p-3 sm:p-5 overflow-hidden">
+            <h3 className="font-semibold text-sm sm:text-base text-foreground mb-3 sm:mb-4 flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               {t('admin.dailyActivity')}
-              <span className="text-xs font-normal text-muted-foreground ms-1">{t('admin.last30Days')}</span>
+              <span className="text-[10px] sm:text-xs font-normal text-muted-foreground ms-1 hidden sm:inline">{t('admin.last30Days')}</span>
             </h3>
             {usageStats && usageStats.chartData && usageStats.chartData.some((d) => d.users > 0 || d.sessions > 0 || d.quizzes > 0) ? (
-              <div className="h-72 min-h-[280px]">
+              <div className="h-52 sm:h-72 min-h-[200px] sm:min-h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsBarChart data={usageStats.chartData} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -3371,9 +3371,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-72 flex items-center justify-center text-muted-foreground text-sm">
+              <div className="h-52 sm:h-72 flex items-center justify-center text-muted-foreground text-xs sm:text-sm">
                 <div className="flex flex-col items-center gap-2">
-                  <BarChart3 className="h-10 w-10 opacity-30" />
+                  <BarChart3 className="h-8 w-8 sm:h-10 sm:w-10 opacity-30" />
                   <span>{t('admin.noActivityData')}</span>
                 </div>
               </div>
@@ -3383,14 +3383,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
         {/* Registration Trends Line Chart */}
         <motion.div variants={itemVariants}>
-          <div className="rounded-xl border bg-card shadow-sm p-5">
-            <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+          <div className="rounded-xl border bg-card shadow-sm p-3 sm:p-5 overflow-hidden">
+            <h3 className="font-semibold text-sm sm:text-base text-foreground mb-3 sm:mb-4 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-teal-600 dark:text-teal-400" />
               {t('admin.registrationTrends')}
-              <span className="text-xs font-normal text-muted-foreground ms-1">{t('admin.last12Months')}</span>
+              <span className="text-[10px] sm:text-xs font-normal text-muted-foreground ms-1 hidden sm:inline">{t('admin.last12Months')}</span>
             </h3>
             {usageStats && usageStats.registrationTrends && usageStats.registrationTrends.some((d) => d.count > 0) ? (
-              <div className="h-72 min-h-[280px]">
+              <div className="h-52 sm:h-72 min-h-[200px] sm:min-h-[280px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={usageStats.registrationTrends} margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -3426,9 +3426,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-72 flex items-center justify-center text-muted-foreground text-sm">
+              <div className="h-52 sm:h-72 flex items-center justify-center text-muted-foreground text-xs sm:text-sm">
                 <div className="flex flex-col items-center gap-2">
-                  <TrendingUp className="h-10 w-10 opacity-30" />
+                  <TrendingUp className="h-8 w-8 sm:h-10 sm:w-10 opacity-30" />
                   <span>{t('admin.noRegistrationData')}</span>
                 </div>
               </div>
@@ -3438,16 +3438,16 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       </div>
 
       {/* ─── Score Distribution + Quiz Performance ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Score Distribution Pie Chart */}
         <motion.div variants={itemVariants}>
-          <div className="rounded-xl border bg-card shadow-sm p-5">
-            <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+          <div className="rounded-xl border bg-card shadow-sm p-3 sm:p-5 overflow-hidden">
+            <h3 className="font-semibold text-sm sm:text-base text-foreground mb-3 sm:mb-4 flex items-center gap-2">
               <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               {t('admin.scoreDistribution')}
             </h3>
             {allScores.length > 0 ? (
-              <div className="h-56 sm:h-72 min-h-[250px]">
+              <div className="h-48 sm:h-72 min-h-[200px] sm:min-h-[250px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -3491,7 +3491,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
                 </ResponsiveContainer>
               </div>
             ) : (
-              <div className="h-56 flex items-center justify-center text-muted-foreground text-sm">
+              <div className="h-48 flex items-center justify-center text-muted-foreground text-xs sm:text-sm">
                 {t('admin.noResultsYet')}
               </div>
             )}
@@ -3501,14 +3501,14 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
         {/* Quiz performance overview */}
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between border-b p-4">
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <div className="flex items-center justify-between border-b p-3 sm:p-4">
+              <h3 className="font-semibold text-sm sm:text-base text-foreground flex items-center gap-2">
                 <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 {t('admin.quizPerformance')}
               </h3>
-              <span className="text-xs text-muted-foreground">{t('admin.resultsCount', { count: allScores.length })}</span>
+              <span className="text-[10px] sm:text-xs text-muted-foreground">{t('admin.resultsCount', { count: allScores.length })}</span>
             </div>
-            <div className="p-5">
+            <div className="p-3 sm:p-5">
               {allScores.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                   <Award className="h-10 w-10 mb-2 opacity-40" />
@@ -3585,21 +3585,21 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       {/* ─── Detailed Statistics Table ─── */}
       <motion.div variants={itemVariants}>
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between border-b p-4">
-            <h3 className="font-semibold text-foreground flex items-center gap-2">
+          <div className="flex items-center justify-between border-b p-3 sm:p-4">
+            <h3 className="font-semibold text-sm sm:text-base text-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-sky-700 dark:text-sky-300" />
               {t('admin.detailedStats')}
             </h3>
-            <span className="text-xs text-muted-foreground">{t('admin.comparedToPrevious')}</span>
+            <span className="text-[10px] sm:text-xs text-muted-foreground hidden sm:inline">{t('admin.comparedToPrevious')}</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[400px]">
               <thead className="bg-muted/50 sticky top-0">
-                <tr className="text-xs text-muted-foreground">
-                  <th className="text-end font-medium p-3">{t('admin.indicator')}</th>
-                  <th className="text-center font-medium p-3">{t('admin.currentCount')}</th>
-                  <th className="text-center font-medium p-3">{t('admin.previousPeriod')}</th>
-                  <th className="text-center font-medium p-3">{t('admin.change')}</th>
+                <tr className="text-[10px] sm:text-xs text-muted-foreground">
+                  <th className="text-end font-medium p-2 sm:p-3">{t('admin.indicator')}</th>
+                  <th className="text-center font-medium p-2 sm:p-3">{t('admin.currentCount')}</th>
+                  <th className="text-center font-medium p-2 sm:p-3">{t('admin.previousPeriod')}</th>
+                  <th className="text-center font-medium p-2 sm:p-3">{t('admin.change')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -3753,71 +3753,71 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
       {/* ─── Platform Overview Summary ─── */}
       <motion.div variants={itemVariants}>
-        <div className="rounded-xl border bg-card shadow-sm p-5">
-          <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+        <div className="rounded-xl border bg-card shadow-sm p-3 sm:p-5 overflow-hidden">
+          <h3 className="font-semibold text-sm sm:text-base text-foreground mb-3 sm:mb-4 flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
             {t('admin.platformStatsSummary')}
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="text-center p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800">
-              <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{allUsers.length}</p>
-              <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">{t('admin.userLabel')}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+            <div className="text-center p-2 sm:p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800">
+              <p className="text-lg sm:text-2xl font-bold text-sky-800 dark:text-sky-200">{allUsers.length}</p>
+              <p className="text-[10px] sm:text-xs text-sky-700 dark:text-sky-300 mt-0.5 sm:mt-1">{t('admin.userLabel')}</p>
             </div>
-            <div className="text-center p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800">
-              <p className="text-2xl font-bold text-sky-700 dark:text-sky-300">{allSubjects.length}</p>
-              <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">{t('admin.subjectLabel')}</p>
+            <div className="text-center p-2 sm:p-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800">
+              <p className="text-lg sm:text-2xl font-bold text-sky-700 dark:text-sky-300">{allSubjects.length}</p>
+              <p className="text-[10px] sm:text-xs text-sky-700 dark:text-sky-300 mt-0.5 sm:mt-1">{t('admin.subjectLabel')}</p>
             </div>
-            <div className="text-center p-3 rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-800">
-              <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{totalQuizzes}</p>
-              <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">{t('admin.quizLabel')}</p>
+            <div className="text-center p-2 sm:p-3 rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-100 dark:border-teal-800">
+              <p className="text-lg sm:text-2xl font-bold text-teal-700 dark:text-teal-300">{totalQuizzes}</p>
+              <p className="text-[10px] sm:text-xs text-teal-600 dark:text-teal-400 mt-0.5 sm:mt-1">{t('admin.quizLabel')}</p>
             </div>
-            <div className="text-center p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-800">
-              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{avgPlatformScore}%</p>
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{t('admin.avgScore')}</p>
+            <div className="text-center p-2 sm:p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-800">
+              <p className="text-lg sm:text-2xl font-bold text-amber-700 dark:text-amber-300">{avgPlatformScore}%</p>
+              <p className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400 mt-0.5 sm:mt-1">{t('admin.avgScore')}</p>
             </div>
           </div>
         </div>
       </motion.div>
 
       {/* ─── User Distribution Cards ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <motion.div variants={itemVariants}>
-          <div className="rounded-xl border bg-card p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                <Shield className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+          <div className="rounded-xl border bg-card p-2 sm:p-5 shadow-sm">
+            <div className="flex items-center gap-1.5 sm:gap-3 mb-1 sm:mb-3">
+              <div className="flex h-7 w-7 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                <Shield className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-sky-700 dark:text-sky-300" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('admin.supervisors')}</p>
-                <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{adminCount}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">{t('admin.supervisors')}</p>
+                <p className="text-base sm:text-2xl font-bold text-sky-800 dark:text-sky-200">{adminCount}</p>
               </div>
             </div>
           </div>
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <div className="rounded-xl border bg-card p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                <GraduationCap className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+          <div className="rounded-xl border bg-card p-2 sm:p-5 shadow-sm">
+            <div className="flex items-center gap-1.5 sm:gap-3 mb-1 sm:mb-3">
+              <div className="flex h-7 w-7 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                <GraduationCap className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-sky-700 dark:text-sky-300" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('admin.statTeachers')}</p>
-                <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{teacherCount}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">{t('admin.statTeachers')}</p>
+                <p className="text-base sm:text-2xl font-bold text-sky-800 dark:text-sky-200">{teacherCount}</p>
               </div>
             </div>
           </div>
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <div className="rounded-xl border bg-card p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
-                <Users className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+          <div className="rounded-xl border bg-card p-2 sm:p-5 shadow-sm">
+            <div className="flex items-center gap-1.5 sm:gap-3 mb-1 sm:mb-3">
+              <div className="flex h-7 w-7 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
+                <Users className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-teal-600 dark:text-teal-400" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('admin.statStudents')}</p>
-                <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{studentCount}</p>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-sm text-muted-foreground truncate">{t('admin.statStudents')}</p>
+                <p className="text-base sm:text-2xl font-bold text-teal-700 dark:text-teal-300">{studentCount}</p>
               </div>
             </div>
           </div>
