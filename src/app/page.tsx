@@ -29,7 +29,7 @@ import MobileBottomNav from '@/components/shared/mobile-bottom-nav';
 import SetupWizard from '@/components/setup/setup-wizard';
 import BannedUserOverlay from '@/components/shared/banned-user-overlay';
 import DashboardErrorBoundary from '@/components/shared/dashboard-error-boundary';
-import PlatformAnnouncementOverlay from '@/components/shared/platform-announcement-overlay';
+import PlatformAnnouncementOverlay, { useLoginAnnouncement, AnnouncementBrandingPanel } from '@/components/shared/platform-announcement-overlay';
 import PlatformAnnouncementPopup from '@/components/shared/platform-announcement-popup';
 
 // ─── AppErrorBoundary: wraps the entire dashboard content area ───
@@ -567,145 +567,14 @@ function HomeContent() {
   if (!user || currentPage === 'auth') {
     return (
       <PlatformAnnouncementOverlay>
-        <div className="min-h-screen flex flex-col lg:flex-row" dir={direction}>
-          {/* ── Branding Panel (hidden on mobile) ── */}
-          <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700 overflow-hidden ${isRTL ? '' : ''}`}>
-          {/* Background decoration */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute -top-40 -start-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-            <div className="absolute -bottom-40 -end-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
-            <div className="absolute top-1/3 left-1/3 w-72 h-72 bg-teal-400/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-1/4 right-1/4 w-56 h-56 bg-sky-400/10 rounded-full blur-2xl" />
-            {/* Pattern overlay */}
-            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
-          </div>
-
-          {/* Content */}
-          <div className="relative z-10 flex flex-col justify-center items-center px-12 xl:px-20 w-full">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, ease: 'easeOut' as const }}
-              className="text-center max-w-lg"
-            >
-              {/* Logo — removed per user request: no app icon on auth pages */}
-              {/* <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-3xl bg-white/15 backdrop-blur-sm shadow-2xl border border-white/20">
-                <GraduationCap className="h-10 w-10 text-white" />
-              </div> */}
-
-              <h2 className="text-3xl xl:text-4xl font-bold text-white mb-4 leading-tight">
-                {t('common.smartPlatform')}
-              </h2>
-              <p className="text-lg text-sky-100/80 mb-10 leading-relaxed">
-                {t('common.smartPlatformDesc')}
-              </p>
-
-              {/* Feature cards */}
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { icon: <BrainCircuit className="h-5 w-5" />, title: t('features.ai'), desc: t('features.aiAnalysis') },
-                  { icon: <BookOpen className="h-5 w-5" />, title: t('features.smartSummary'), desc: t('features.fromAnySource') },
-                  { icon: <Users className="h-5 w-5" />, title: t('features.studentTracking'), desc: t('features.reportsAndStats') },
-                  { icon: <Shield className="h-5 w-5" />, title: t('features.secureAndTrusted'), desc: t('features.dataProtection') },
-                ].map((feature, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
-                    className="flex flex-col items-center gap-2 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 p-4 text-center"
-                  >
-                    <div className="text-teal-300">{feature.icon}</div>
-                    <span className="text-sm font-semibold text-white">{feature.title}</span>
-                    <span className="text-xs text-sky-200/70">{feature.desc}</span>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        </div>
-
-        {/* ── Auth Form Panel ── */}
-        <div className="flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
-          {/* Mobile-only top branding — no app icon per user request */}
-          <div className="lg:hidden flex flex-col items-center mb-6">
-            {/* Feature badges - mobile */}
-            <div className="flex items-center gap-3 text-muted-foreground flex-wrap justify-center">
-              <div className="flex items-center gap-1 text-[11px] font-medium">
-                <BrainCircuit className="w-3 h-3" />
-                <span>{t('features.ai')}</span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] font-medium">
-                <BookOpen className="w-3 h-3" />
-                <span>{t('features.smartSummary')}</span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] font-medium">
-                <Users className="w-3 h-3" />
-                <span>{t('features.studentTracking')}</span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] font-medium">
-                <Shield className="w-3 h-3" />
-                <span>{t('features.secureAndTrusted')}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Auth form with mode toggle */}
-          <div className="relative z-10 w-full max-w-md mx-auto">
-            <AnimatePresence mode="wait">
-              {authMode === 'login' ? (
-                <motion.div
-                  key="login"
-                  initial={{ opacity: 0, x: -30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 30 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <LoginForm
-                    onSwitchToRegister={() => setAuthMode('register')}
-                    onForgotPassword={() => setAuthMode('forgot-password')}
-                  />
-                </motion.div>
-              ) : authMode === 'register' ? (
-                <motion.div
-                  key="register"
-                  initial={{ opacity: 0, x: 30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -30 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
-                </motion.div>
-              ) : authMode === 'update-password' ? (
-                <motion.div
-                  key="update-password"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <UpdatePasswordForm
-                    onSuccess={() => {
-                      clearPasswordRecovery();
-                      setAuthMode('login');
-                    }}
-                  />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="forgot-password"
-                  initial={{ opacity: 0, x: 30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -30 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <ForgotPasswordForm onBackToLogin={() => setAuthMode('login')} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
+        <AuthPageContent
+          direction={direction}
+          isRTL={isRTL}
+          authMode={authMode}
+          setAuthMode={setAuthMode}
+          clearPasswordRecovery={clearPasswordRecovery}
+          t={t}
+        />
       </PlatformAnnouncementOverlay>
     );
   }
@@ -956,6 +825,180 @@ function HomeContent() {
 }
 
 // ─── Suspense fallback component ───
+// -------------------------------------------------------
+// Auth Page with Announcement support
+// Uses useLoginAnnouncement() to show announcement in the
+// branding panel area instead of the default branding
+// -------------------------------------------------------
+function AuthPageContent({
+  direction,
+  isRTL,
+  authMode,
+  setAuthMode,
+  clearPasswordRecovery,
+  t,
+}: {
+  direction: string;
+  isRTL: boolean;
+  authMode: 'login' | 'register' | 'forgot-password' | 'update-password';
+  setAuthMode: (mode: 'login' | 'register' | 'forgot-password' | 'update-password') => void;
+  clearPasswordRecovery: () => void;
+  t: (key: string) => string;
+}) {
+  const { announcement } = useLoginAnnouncement();
+  const hasAnnouncement = !!announcement;
+
+  return (
+    <div className="min-h-screen flex flex-col lg:flex-row" dir={direction}>
+      {/* ── Left Panel: Announcement OR Branding ── */}
+      <div className={`hidden lg:flex lg:w-1/2 xl:w-[55%] relative overflow-hidden ${hasAnnouncement ? '' : 'bg-gradient-to-br from-sky-700 via-sky-800 to-teal-700'}`}>
+        {hasAnnouncement ? (
+          /* Show announcement in the branding panel area */
+          <AnnouncementBrandingPanel />
+        ) : (
+          /* Default branding panel */
+          <>
+            {/* Background decoration */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute -top-40 -start-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+              <div className="absolute -bottom-40 -end-40 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+              <div className="absolute top-1/3 left-1/3 w-72 h-72 bg-teal-400/10 rounded-full blur-3xl" />
+              <div className="absolute bottom-1/4 right-1/4 w-56 h-56 bg-sky-400/10 rounded-full blur-2xl" />
+              {/* Pattern overlay */}
+              <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
+            </div>
+
+            {/* Content */}
+            <div className="relative z-10 flex flex-col justify-center items-center px-12 xl:px-20 w-full">
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, ease: 'easeOut' as const }}
+                className="text-center max-w-lg"
+              >
+                <h2 className="text-3xl xl:text-4xl font-bold text-white mb-4 leading-tight">
+                  {t('common.smartPlatform')}
+                </h2>
+                <p className="text-lg text-sky-100/80 mb-10 leading-relaxed">
+                  {t('common.smartPlatformDesc')}
+                </p>
+
+                {/* Feature cards */}
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { icon: <BrainCircuit className="h-5 w-5" />, title: t('features.ai'), desc: t('features.aiAnalysis') },
+                    { icon: <BookOpen className="h-5 w-5" />, title: t('features.smartSummary'), desc: t('features.fromAnySource') },
+                    { icon: <Users className="h-5 w-5" />, title: t('features.studentTracking'), desc: t('features.reportsAndStats') },
+                    { icon: <Shield className="h-5 w-5" />, title: t('features.secureAndTrusted'), desc: t('features.dataProtection') },
+                  ].map((feature, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 + i * 0.1, duration: 0.5 }}
+                      className="flex flex-col items-center gap-2 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 p-4 text-center"
+                    >
+                      <div className="text-teal-300">{feature.icon}</div>
+                      <span className="text-sm font-semibold text-white">{feature.title}</span>
+                      <span className="text-xs text-sky-200/70">{feature.desc}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Auth Form Panel ── */}
+      <div className="flex-1 flex flex-col justify-start pt-8 px-4 pb-4 lg:justify-center lg:items-center lg:p-8 bg-gradient-to-b from-slate-50 via-white to-sky-50/30">
+        {/* Mobile-only top branding/announcement */}
+        <div className="lg:hidden flex flex-col items-center mb-6">
+          {hasAnnouncement ? (
+            /* On mobile, show a small announcement banner */
+            <AnnouncementBrandingPanel />
+          ) : (
+            /* Default mobile feature badges */
+            <div className="flex items-center gap-3 text-muted-foreground flex-wrap justify-center">
+              <div className="flex items-center gap-1 text-[11px] font-medium">
+                <BrainCircuit className="w-3 h-3" />
+                <span>{t('features.ai')}</span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] font-medium">
+                <BookOpen className="w-3 h-3" />
+                <span>{t('features.smartSummary')}</span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] font-medium">
+                <Users className="w-3 h-3" />
+                <span>{t('features.studentTracking')}</span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] font-medium">
+                <Shield className="w-3 h-3" />
+                <span>{t('features.secureAndTrusted')}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Auth form with mode toggle */}
+        <div className="relative z-10 w-full max-w-md mx-auto">
+          <AnimatePresence mode="wait">
+            {authMode === 'login' ? (
+              <motion.div
+                key="login"
+                initial={{ opacity: 0, x: -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 30 }}
+                transition={{ duration: 0.3 }}
+              >
+                <LoginForm
+                  onSwitchToRegister={() => setAuthMode('register')}
+                  onForgotPassword={() => setAuthMode('forgot-password')}
+                />
+              </motion.div>
+            ) : authMode === 'register' ? (
+              <motion.div
+                key="register"
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.3 }}
+              >
+                <RegisterForm onSwitchToLogin={() => setAuthMode('login')} />
+              </motion.div>
+            ) : authMode === 'update-password' ? (
+              <motion.div
+                key="update-password"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <UpdatePasswordForm
+                  onSuccess={() => {
+                    clearPasswordRecovery();
+                    setAuthMode('login');
+                  }}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="forgot-password"
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -30 }}
+                transition={{ duration: 0.3 }}
+              >
+                <ForgotPasswordForm onBackToLogin={() => setAuthMode('login')} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LoadingFallback() {
   const { t, direction } = useTranslations();
   return (
