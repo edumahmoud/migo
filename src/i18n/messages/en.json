@@ -3712,7 +3712,8 @@
     "refresh": "Refresh",
     "filters": "Filters",
     "showAll": "Show All",
-    "hideAll": "Hide All"
+    "hideAll": "Hide All",
+    "all": "All"
   },
   "todos": {
     "title": "My Tasks",
