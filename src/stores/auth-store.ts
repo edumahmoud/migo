@@ -166,13 +166,13 @@ async function checkAndPromoteFirstUser(userId: string): Promise<UserProfile | n
 type UserRole = 'student' | 'teacher' | 'admin' | 'superadmin';
 
 /** Create a fallback profile from auth metadata when RLS blocks DB reads */
-function createFallbackProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; created_at?: string; updated_at?: string }): UserProfile {
+function createFallbackProfile(authUser: { id: string; email?: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown>; created_at?: string; updated_at?: string }): UserProfile {
   const userName = (authUser.user_metadata?.full_name as string) || (authUser.user_metadata?.name as string) || authUser.email?.split('@')[0] || 'مستخدم';
   const avatarUrl = (authUser.user_metadata?.avatar_url as string) || null;
   // SECURITY: Never trust user_metadata.role — it's user-modifiable in Supabase.
-  // A malicious user could set their metadata role to 'superadmin' and get
-  // elevated privileges when the API is unreachable. Always default to 'student'.
-  const userRole: UserRole = 'student';
+  // However, app_metadata.role is set server-side by our /api/auth/me endpoint
+  // and is NOT user-modifiable. Use it as a fallback before defaulting to 'student'.
+  const userRole: UserRole = (authUser.app_metadata?.role as UserRole) || 'student';
   const userGender = (authUser.user_metadata?.gender as string) || null;
   const userTitleId = (authUser.user_metadata?.title_id as string) || null;
 
@@ -456,18 +456,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // If signInWithEmail is in progress, it will set the user itself.
         // We must NOT overwrite it here — especially with a fallback profile
         // that has role='student', which would override the correct profile.
-        if (_loginInProgress && event === 'SIGNED_IN') {
-          console.log('[Auth] SIGNED_IN skipped — signInWithEmail is in progress');
+        if (_loginInProgress && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+          console.log(`[Auth] ${event} skipped — signInWithEmail is in progress`);
           return;
         }
 
         // If the user was already set (by signInWithEmail or initialize),
         // skip this update to avoid overwriting the correct profile with a fallback.
-        // Only skip for SIGNED_IN (not INITIAL_SESSION which may be the only source on refresh).
+        // On page refresh, currentUser is null so INITIAL_SESSION still processes normally.
+        // During login, signInWithEmail sets the user first, so we skip the duplicate.
         const currentUser = get().user;
-        if (currentUser && currentUser.id === session.user.id && event === 'SIGNED_IN') {
+        if (currentUser && currentUser.id === session.user.id && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
           // User already set for this session — skip to avoid race condition
-          console.log('[Auth] SIGNED_IN skipped — user already set');
+          console.log(`[Auth] ${event} skipped — user already set`);
           return;
         }
 
@@ -480,8 +481,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           // Re-check: if signInWithEmail already set the user while we were fetching,
           // don't overwrite it (especially not with a fallback profile)
           const userAfterFetch = get().user;
-          if (userAfterFetch && userAfterFetch.id === session.user.id && event === 'SIGNED_IN') {
-            console.log('[Auth] SIGNED_IN: user was set while fetching profile — skipping update');
+          if (userAfterFetch && userAfterFetch.id === session.user.id && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+            console.log(`[Auth] ${event}: user was set while fetching profile — skipping update`);
             return;
           }
           
@@ -659,9 +660,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       return { error: 'حدث خطأ غير متوقع' };
     } finally {
-      // Clear the flag after a short delay to ensure SIGNED_IN has been processed
-      // by the onAuthStateChange listener (or skipped by our guard)
-      setTimeout(() => { _loginInProgress = false; }, 500);
+      // Clear the flag after a longer delay to ensure both SIGNED_IN and
+      // INITIAL_SESSION events have been processed (or skipped by our guard).
+      // 500ms was too short — Supabase can fire INITIAL_SESSION with a delay
+      // that exceeds 500ms, causing it to overwrite the correct profile.
+      setTimeout(() => { _loginInProgress = false; }, 2000);
     }
   },
   
@@ -792,7 +795,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       return { error: 'حدث خطأ غير متوقع أثناء التسجيل' };
     } finally {
-      setTimeout(() => { _loginInProgress = false; }, 500);
+      setTimeout(() => { _loginInProgress = false; }, 2000);
     }
   },
   
