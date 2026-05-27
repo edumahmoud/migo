@@ -1526,7 +1526,7 @@
       "lockFailed": "Unable to lock rotation. Make sure fullscreen is allowed.",
       "lockLabel": "Lock Screen Rotation",
       "locked": "Screen rotation locked",
-      "lockedDesc": "A warning will appear when rotating to landscape",
+      "lockedDesc": "Locks screen to portrait mode",
       "notSupported": "Browser does not support rotation lock",
       "toggleFailed": "Failed to change rotation setting",
       "unlockAria": "Unlock screen rotation",

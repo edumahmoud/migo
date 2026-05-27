@@ -246,15 +246,12 @@ export default function SettingsSection({
   }, []);
 
   // ─── Load orientation lock preference ───
+  // The pre-hydration script in layout.tsx already syncs the CSS class.
+  // We only need to read localStorage for the React state.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const stored = localStorage.getItem('attenddo-orientation-locked');
-    if (stored === 'true') {
-      setOrientationLocked(true);
-      document.documentElement.classList.remove('orientation-unlocked');
-    } else {
-      document.documentElement.classList.add('orientation-unlocked');
-    }
+    setOrientationLocked(stored === 'true');
   }, []);
 
 
@@ -582,19 +579,40 @@ export default function SettingsSection({
   const currentStatusInfo = STATUS_OPTIONS.find(s => s.value === userStatus) || STATUS_OPTIONS[0];
 
   // ─── Toggle screen orientation lock ───
-  const handleToggleOrientation = () => {
+  const handleToggleOrientation = async () => {
     const newLocked = !orientationLocked;
     setOrientationLocked(newLocked);
 
     if (newLocked) {
-      // Lock: show landscape warning overlay (remove unlocked class)
+      // Lock: try Screen Orientation API first, fall back to CSS overlay
       localStorage.setItem('attenddo-orientation-locked', 'true');
       document.documentElement.classList.remove('orientation-unlocked');
+
+      // Attempt real orientation lock via Screen Orientation API
+      try {
+        if (screen.orientation && typeof screen.orientation.lock === 'function') {
+          await screen.orientation.lock('portrait').catch(() => {
+            // Not supported or not in fullscreen — CSS overlay is the fallback
+          });
+        }
+      } catch {
+        // API not available — CSS overlay handles it
+      }
+
       toast.success(t('settings.orientation.locked'));
     } else {
-      // Unlock: hide landscape warning overlay (add unlocked class)
+      // Unlock: release orientation lock if held, add unlocked class
       localStorage.setItem('attenddo-orientation-locked', 'false');
       document.documentElement.classList.add('orientation-unlocked');
+
+      try {
+        if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+          screen.orientation.unlock();
+        }
+      } catch {
+        // API not available
+      }
+
       toast.success(t('settings.orientation.unlocked'));
     }
   };

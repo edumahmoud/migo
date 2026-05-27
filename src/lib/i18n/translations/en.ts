@@ -389,7 +389,7 @@ export const en: TranslationDict = {
       toggleFailed: 'Failed to change rotation setting',
       unlockLabel: 'Unlock Screen Rotation',
       lockLabel: 'Lock Screen Rotation',
-      lockedDesc: 'A warning will appear when rotating to landscape',
+      lockedDesc: 'Locks screen to portrait mode',
       unlockedDesc: 'Screen rotates freely in all directions',
       unlockAria: 'Unlock screen rotation',
       lockAria: 'Lock screen rotation',

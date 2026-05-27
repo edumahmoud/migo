@@ -401,7 +401,7 @@ export const ar: TranslationDict = {
       toggleFailed: 'فشل تغيير إعداد التدوير',
       unlockLabel: 'فتح تدوير الشاشة',
       lockLabel: 'قفل تدوير الشاشة',
-      lockedDesc: 'سيظهر تنبيه عند تدوير الجهاز للوضع الأفقي',
+      lockedDesc: 'تثبيت الشاشة في الوضع العمودي',
       unlockedDesc: 'الشاشة تدور بحرية في جميع الاتجاهات',
       unlockAria: 'فتح تدوير الشاشة',
       lockAria: 'قفل تدوير الشاشة',

@@ -150,6 +150,20 @@ export default function RootLayout({
                   }
                 } catch(e) {}
               })();
+
+              // ── Orientation lock initialization ──
+              // Sync orientation-unlocked CSS class before React hydrates.
+              // Prevents flash of landscape overlay on mobile devices.
+              // When 'attenddo-orientation-locked' is NOT 'true', user has free rotation
+              // so we add 'orientation-unlocked' class (hides the overlay).
+              (function() {
+                try {
+                  var locked = localStorage.getItem('attenddo-orientation-locked');
+                  if (locked !== 'true') {
+                    document.documentElement.classList.add('orientation-unlocked');
+                  }
+                } catch(e) {}
+              })();
             `,
           }}
         />
