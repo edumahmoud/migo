@@ -79,6 +79,7 @@ import StatCard from '@/components/shared/stat-card';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
@@ -435,6 +436,9 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
   const { sidebarOpen, setSidebarOpen, adminSection: storedAdminSection, setAdminSection: storeSetAdminSection } = useAppStore();
+
+  // ─── Announcement banner height (for dynamic margin below header) ───
+  const bannerHeight = useAnnouncementBannerStore((s) => s.bannerHeight);
 
   // ─── Navigation ───
   const [activeSection, setActiveSection] = useState<AdminSection>(storedAdminSection || 'dashboard');
@@ -3882,9 +3886,12 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
-      <main className={`flex-1 min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
-        sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
-      }`}>
+      <main
+        className={`flex-1 min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${
+          sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
+        }`}
+        style={{ marginTop: bannerHeight ? `${bannerHeight}px` : 0 }}
+      >
         <div className="mx-auto max-w-6xl p-3 md:p-8 min-w-0">
           {loadingData ? renderLoading() : (
             <AnimatePresence mode="wait">

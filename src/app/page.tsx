@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GraduationCap, Loader2, BookOpen, BrainCircuit, Users, Shield, LayoutDashboard, Settings, TrendingUp, MessageCircle, FileText, FolderOpen, FileSpreadsheet, Bell, Activity, AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
+import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import { useStatusStore } from '@/stores/status-store';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useTranslations } from '@/i18n/use-translations';
@@ -155,6 +156,7 @@ function HomeContent() {
   const { currentPage, viewingQuizId, viewingSummaryId, profileUserId, setCurrentPage, setViewingQuizId, setViewingSummaryId, setQuizReviewMode, reset: resetAppStore, sidebarOpen, setSidebarOpen, setStudentSection, setTeacherSection, setAdminSection, studentSection: storedStudentSection, teacherSection: storedTeacherSection, adminSection: storedAdminSection, quizReviewMode } = useAppStore();
   const { cleanup: cleanupStatusStore, init: initStatusStore } = useStatusStore();
   const { cleanup: cleanupNotifications } = useNotificationStore();
+  const profileBannerHeight = useAnnouncementBannerStore((s) => s.bannerHeight);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const searchParams = useSearchParams();
   const { t, isRTL, direction } = useTranslations();
@@ -717,9 +719,12 @@ function HomeContent() {
           activeSection={profileActiveSection}
           onSectionChange={profileSectionChangeHandler}
         />
-        <main className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${isRTL ? '' : ''} ${
-          sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
-        }`}>
+        <main
+          className={`flex-1 pt-14 sm:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${isRTL ? '' : ''} ${
+            sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
+          }`}
+          style={{ marginTop: profileBannerHeight ? `${profileBannerHeight}px` : 0 }}
+        >
           <UserProfilePage
             userId={profileUserId}
             currentUser={user}

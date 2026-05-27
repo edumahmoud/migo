@@ -80,6 +80,7 @@ import TodoSection from '@/components/shared/todo-section';
 import CalendarSection from '@/components/shared/calendar-section';
 import CoursePage from '@/components/course/course-page';
 import { useAppStore } from '@/stores/app-store';
+import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
@@ -165,6 +166,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
   // ─── App store ───
   const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
+
+  // ─── Announcement banner height (for dynamic margin below header) ───
+  const bannerHeight = useAnnouncementBannerStore((s) => s.bannerHeight);
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<StudentSection>(storedStudentSection || 'dashboard');
@@ -4667,9 +4671,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       />
 
       {/* Main Content - dynamic offset for collapsible sidebar */}
-      <main className={`min-h-screen min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
-        sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
-      }`}>
+      <main
+        className={`min-h-screen min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${
+          sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
+        }`}
+        style={{ marginTop: bannerHeight ? `${bannerHeight}px` : 0 }}
+      >
         <div className="p-3 sm:p-6 lg:p-8 space-y-4 min-w-0">
           <AnimatePresence mode="wait">
             <motion.div

@@ -68,6 +68,7 @@ import ReportsSection from '@/components/reports/reports-section';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import { toast } from 'sonner';
 import type { UserProfile, Quiz, QuizQuestion, Score, Subject, TeacherSection, UserAnswer } from '@/lib/types';
 import UserAvatar, { formatNameWithTitle } from '@/components/shared/user-avatar';
@@ -154,6 +155,9 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // ─── Stores ───
   const { teacherSection: storedTeacherSection, setTeacherSection: storeSetTeacherSection, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
+
+  // ─── Announcement banner height (for dynamic margin below header) ───
+  const bannerHeight = useAnnouncementBannerStore((s) => s.bannerHeight);
 
   // ─── Local active section synced with store ───
   const [activeSection, setActiveSection] = useState<TeacherSection>(storedTeacherSection || 'dashboard');
@@ -2204,9 +2208,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       />
 
       {/* Main content - dynamic offset for collapsible sidebar */}
-      <main className={`min-h-screen min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-all duration-300 ${
-        sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
-      }`}>
+      <main
+        className={`min-h-screen min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${
+          sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
+        }`}
+        style={{ marginTop: bannerHeight ? `${bannerHeight}px` : 0 }}
+      >
         <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 min-w-0">
           {loadingData ? (
             <div className="flex flex-col items-center justify-center py-32">

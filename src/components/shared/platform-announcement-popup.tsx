@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, PartyPopper, Megaphone, AlertTriangle, Wrench, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
+import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import type { PlatformAnnouncement, PlatformAnnouncementType, PlatformAnnouncementSize } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -197,6 +198,29 @@ function BannerDisplay({
   t: (key: string) => string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const setBannerHeight = useAnnouncementBannerStore((s) => s.setBannerHeight);
+
+  // Measure and report the banner height to the store so dashboard
+  // <main> elements can add matching top margin (pushing content down).
+  useEffect(() => {
+    function measure() {
+      if (bannerRef.current) {
+        setBannerHeight(bannerRef.current.offsetHeight);
+      }
+    }
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    if (bannerRef.current) {
+      observer.observe(bannerRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+      setBannerHeight(0); // Reset when banner unmounts
+    };
+  }, [setBannerHeight]);
 
   return (
     <AnimatePresence mode="wait">
@@ -208,6 +232,7 @@ function BannerDisplay({
         exit="exit"
         className="fixed top-14 sm:top-16 inset-x-0 z-[45]"
         dir={direction}
+        ref={bannerRef}
       >
         <div className={`relative bg-gradient-to-r ${bgColor} text-white shadow-lg`}>
           {/* Decorative elements */}
@@ -538,6 +563,22 @@ export default function PlatformAnnouncementPopup({ userId }: PlatformAnnounceme
   const [announcement, setAnnouncement] = useState<PlatformAnnouncement | null>(null);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const setBannerHeight = useAnnouncementBannerStore((s) => s.setBannerHeight);
+
+  // Reset banner height when the popup component unmounts (e.g. user logs out)
+  useEffect(() => {
+    return () => { setBannerHeight(0); };
+  }, [setBannerHeight]);
+
+  // Reset banner height when the current announcement is NOT a banner
+  // (the BannerDisplay component sets the height when IT mounts, but
+  // when switching from banner → popup/fullscreen, we need to clear it)
+  useEffect(() => {
+    const displaySize = announcement?.display_size || 'popup';
+    if (!announcement || displaySize !== 'banner') {
+      setBannerHeight(0);
+    }
+  }, [announcement, setBannerHeight]);
 
   // ---------------------------------------------------
   // Fetch active announcements (callable on mount + polling)
