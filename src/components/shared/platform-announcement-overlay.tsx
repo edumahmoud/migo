@@ -173,15 +173,21 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
 
           console.log('[announcement-overlay] Eligible announcements:', eligible.length, eligible.map(a => ({ id: a.id, size: a.display_size, location: a.display_location })));
 
-          const selected = eligible.length > 0 ? eligible[0] : null;
-
-          if (selected) {
-            const dismissedIds = getDismissedIds();
-            if (dismissedIds.has(selected.id)) {
-              setDismissed(true);
-            } else {
-              setAnnouncement(selected);
+          // Iterate through all eligible announcements to find the first non-dismissed one
+          // (previously only checked the first, which meant subsequent announcements were hidden)
+          const dismissedIds = getDismissedIds();
+          let found = false;
+          for (const candidate of eligible) {
+            if (dismissedIds.has(candidate.id)) {
+              continue; // Skip dismissed, check next
             }
+            setAnnouncement(candidate);
+            found = true;
+            break;
+          }
+          if (!found && eligible.length > 0) {
+            // All eligible announcements were dismissed
+            setDismissed(true);
           }
         }
       } catch (err) {
@@ -268,6 +274,10 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
   // ---------------------------------------------------
   // For fullscreen: the login page uses useLoginAnnouncement()
   // to replace the branding panel with announcement content.
+  // Additionally, we render a standalone fullscreen overlay that
+  // is visible on ALL screen sizes (the branding panel is hidden
+  // on mobile via `hidden lg:flex`, so mobile users would never
+  // see fullscreen announcements without this overlay).
   // For banner/popup: we render additional overlays on top.
   // ---------------------------------------------------
   return (
@@ -286,6 +296,17 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
       {/* Popup display: centered modal overlay */}
       {isActive && displaySize === 'popup' && announcement && (
         <LoginPopupAnnouncement
+          announcement={announcement}
+          title={getTitle()}
+          message={getMessage()}
+          direction={direction}
+          onDismiss={handleDismiss}
+        />
+      )}
+
+      {/* Fullscreen display: true fullscreen overlay (visible on all screens) */}
+      {isActive && displaySize === 'fullscreen' && announcement && (
+        <LoginFullscreenAnnouncement
           announcement={announcement}
           title={getTitle()}
           message={getMessage()}
@@ -516,9 +537,147 @@ function LoginPopupAnnouncement({
 }
 
 // -------------------------------------------------------
+// Login Page Fullscreen (true fullscreen overlay on all screens)
+// This is critical for mobile — the branding panel is `hidden lg:flex`,
+// so fullscreen announcements were completely invisible on mobile before.
+// -------------------------------------------------------
+const loginFullscreenVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { duration: 0.4, ease: 'easeOut' as const },
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: 0.3, ease: 'easeIn' as const },
+  },
+};
+
+const loginFullscreenContentVariants = {
+  hidden: { opacity: 0, scale: 0.95, y: 30 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    y: 20,
+    transition: { duration: 0.3, ease: 'easeIn' as const },
+  },
+};
+
+function LoginFullscreenAnnouncement({
+  announcement,
+  title,
+  message,
+  direction,
+  onDismiss,
+}: {
+  announcement: PlatformAnnouncement;
+  title: string;
+  message: string;
+  direction: string;
+  onDismiss: () => void;
+}) {
+  const bgColor = announcement.bg_color || 'from-sky-700 via-sky-800 to-teal-700';
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={`login-fullscreen-${announcement.id}`}
+        variants={loginFullscreenVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className="fixed inset-0 z-50"
+        dir={direction}
+      >
+        {/* Full-screen gradient background */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${bgColor}`}>
+          {/* Decorative background elements */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+            <div className="absolute -top-32 -start-32 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
+            <div className="absolute -bottom-48 -end-48 h-[500px] w-[500px] rounded-full bg-white/5 blur-3xl" />
+            <div className="absolute top-1/3 start-1/4 h-64 w-64 rounded-full bg-white/3 blur-2xl" />
+          </div>
+
+          {/* Close button */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+            className="absolute top-4 end-4 z-[100] flex h-12 w-12 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
+            aria-label="Close announcement"
+          >
+            <X className="h-6 w-6" />
+          </button>
+
+          {/* Centered content */}
+          <motion.div
+            variants={loginFullscreenContentVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="relative z-10 flex flex-col items-center justify-center h-full px-6 py-12 text-center"
+          >
+            {/* Emoji icon — large */}
+            <div className="mb-4 sm:mb-6">
+              <span className="text-5xl sm:text-6xl lg:text-8xl block drop-shadow-lg" role="img" aria-label={announcement.type}>
+                {announcement.icon || '🎉'}
+              </span>
+            </div>
+
+            {/* Type badge */}
+            <div className="mb-3 sm:mb-4 flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1.5">
+              <TypeIcon type={announcement.type} className="h-4 w-4 text-white/90" />
+              <span className="text-xs sm:text-sm font-medium text-white/90 capitalize">
+                {announcement.type}
+              </span>
+            </div>
+
+            {/* Title */}
+            <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold text-white leading-tight mb-3 sm:mb-4 max-w-2xl drop-shadow-md">
+              {title}
+            </h1>
+
+            {/* Message */}
+            <p className="text-sm sm:text-lg lg:text-xl text-white/90 leading-relaxed max-w-xl">
+              {message}
+            </p>
+
+            {/* Optional image */}
+            {announcement.image_url && (
+              <div className="mt-4 sm:mt-6 rounded-xl overflow-hidden shadow-2xl max-w-md border border-white/10">
+                <img
+                  src={announcement.image_url}
+                  alt={title}
+                  className="w-full h-auto object-cover"
+                />
+              </div>
+            )}
+
+            {/* Dismiss button */}
+            <button
+              onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+              className="mt-6 sm:mt-8 inline-flex items-center gap-2 rounded-xl bg-white/20 backdrop-blur-sm px-6 py-3 text-sm sm:text-base font-medium text-white hover:bg-white/30 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
+            >
+             Dismiss
+            </button>
+          </motion.div>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// -------------------------------------------------------
 // Exported helper: Announcement Branding Panel
 // This replaces the default branding panel on the login page
 // Used for display_size === 'fullscreen' (or when display_size is not specified)
+// NOTE: This is only visible on desktop (lg+ screens) because the
+// branding panel has `hidden lg:flex`. On mobile, the
+// LoginFullscreenAnnouncement overlay is shown instead.
 // -------------------------------------------------------
 export function AnnouncementBrandingPanel() {
   const { announcement, handleDismiss } = useLoginAnnouncement();
