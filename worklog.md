@@ -102,3 +102,22 @@ Stage Summary:
 - Delete shows inline confirmation before deleting
 - Full RTL/LTR support with proper dropdown alignment
 - Responsive design works on mobile, tablet, and desktop
+---
+Task ID: 1
+Agent: Main
+Task: Fix platform announcements (ticker/banner/popup) not showing on mobile and desktop
+
+Work Log:
+- Analyzed the entire announcement system: old `AnnouncementsBanner` (from `announcements` table) vs new `PlatformAnnouncementPopup` (from `platform_announcements` table)
+- Identified 4 bugs causing ticker/banner/popup not to display
+- Fixed `PlatformAnnouncementPopup`: added 30s polling, fixed dismiss-advances-to-next-announcement (instead of hiding forever), positioned banner below AppHeader (top-14 sm:top-16 instead of top-0)
+- Fixed `PlatformAnnouncementOverlay` (login page): added 30s polling, fixed dismiss-advances-to-next-announcement
+- Removed old `AnnouncementsBanner` from student/teacher dashboards (it fetched from wrong `announcements` table, not `platform_announcements`)
+- Verified lint passes (0 errors) and dev server returns 200
+
+Stage Summary:
+- Key bug 1: `PlatformAnnouncementPopup` only fetched once on mount, no polling → new announcements never appeared until page refresh
+- Key bug 2: Dismissing an announcement hid the component forever (`dismissed=true` → `return null`) → after dismissing one announcement, all others were invisible
+- Key bug 3: Banner (`fixed top-0 z-50`) overlapped AppHeader (`fixed top-0 z-40`) → header buttons inaccessible when banner shown → positioned banner at `top-14 sm:top-16 z-[45]` (below header)
+- Key bug 4: Student/Teacher dashboards used `AnnouncementsBanner` which queries the OLD `announcements` table → platform announcements from admin panel never showed in dashboards
+- All 4 bugs fixed surgically

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, PartyPopper, Megaphone, AlertTriangle, Wrench, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
@@ -141,20 +141,26 @@ const loginPopupCardVariants = {
 };
 
 // -------------------------------------------------------
+// Polling interval for login overlay (ms)
+// -------------------------------------------------------
+const LOGIN_POLL_INTERVAL = 30_000; // 30 seconds
+
+// -------------------------------------------------------
 // Main Component: Fetches announcement and provides context
 // -------------------------------------------------------
 export default function PlatformAnnouncementOverlay({ children }: { children: React.ReactNode }) {
   const { locale, direction } = useTranslations();
   const [announcement, setAnnouncement] = useState<PlatformAnnouncement | null>(null);
   const [dismissed, setDismissed] = useState<boolean>(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ---------------------------------------------------
-  // Fetch active announcements on mount
+  // Fetch active announcements (callable on mount + polling)
   // ---------------------------------------------------
-  useEffect(() => {
+  const fetchAnnouncements = useCallback(() => {
     let cancelled = false;
 
-    async function fetchAnnouncements() {
+    async function doFetch() {
       try {
         const res = await fetch('/api/platform-announcements', { cache: 'no-store' });
         if (!res.ok) return;
@@ -171,33 +177,49 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
               !isExpired(a)
           );
 
-          console.log('[announcement-overlay] Eligible announcements:', eligible.length, eligible.map(a => ({ id: a.id, size: a.display_size, location: a.display_location })));
+          if (eligible.length === 0) return;
 
           // Iterate through all eligible announcements to find the first non-dismissed one
-          // (previously only checked the first, which meant subsequent announcements were hidden)
-          const dismissedIds = getDismissedIds();
-          let found = false;
+          const dismissedSet = getDismissedIds();
           for (const candidate of eligible) {
-            if (dismissedIds.has(candidate.id)) {
+            if (dismissedSet.has(candidate.id)) {
               continue; // Skip dismissed, check next
             }
-            setAnnouncement(candidate);
-            found = true;
-            break;
+            if (!cancelled) {
+              setAnnouncement(candidate);
+              setDismissed(false);
+            }
+            return;
           }
-          if (!found && eligible.length > 0) {
-            // All eligible announcements were dismissed
-            setDismissed(true);
-          }
+          // All eligible announcements were dismissed
         }
       } catch (err) {
         console.warn('[announcement-overlay] Fetch error:', err);
       }
     }
 
-    fetchAnnouncements();
+    doFetch();
     return () => { cancelled = true; };
   }, []);
+
+  // ---------------------------------------------------
+  // Fetch on mount + set up polling
+  // ---------------------------------------------------
+  useEffect(() => {
+    fetchAnnouncements();
+
+    // Poll every LOGIN_POLL_INTERVAL to pick up new announcements
+    pollingRef.current = setInterval(() => {
+      fetchAnnouncements();
+    }, LOGIN_POLL_INTERVAL);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [fetchAnnouncements]);
 
   // ---------------------------------------------------
   // Track view (POST) once the announcement is shown
@@ -213,14 +235,20 @@ export default function PlatformAnnouncementOverlay({ children }: { children: Re
   }, [announcement, dismissed]);
 
   // ---------------------------------------------------
-  // Dismiss handler
+  // Dismiss handler — saves dismissal and tries next announcement
   // ---------------------------------------------------
   const handleDismiss = useCallback(() => {
     if (announcement) {
       saveDismissedId(announcement.id);
     }
+    setAnnouncement(null);
     setDismissed(true);
-  }, [announcement]);
+
+    // After a short delay (for exit animation), try to find the next one
+    setTimeout(() => {
+      fetchAnnouncements();
+    }, 350);
+  }, [announcement, fetchAnnouncements]);
 
   // ---------------------------------------------------
   // Auto-dismiss when end_at is reached

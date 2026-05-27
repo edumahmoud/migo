@@ -73,7 +73,6 @@ import PersonalFilesSection from '@/components/shared/personal-files-section';
 import AssignmentsSection from '@/components/shared/assignments-section';
 import SettingsSection from '@/components/shared/settings-section';
 import ChatSection from '@/components/shared/chat-section';
-import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import NotificationsSection from '@/components/shared/notifications-section';
 import ReportsSection from '@/components/reports/reports-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
@@ -4672,7 +4671,6 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
       }`}>
         <div className="p-3 sm:p-6 lg:p-8 space-y-4 min-w-0">
-          <AnnouncementsBanner userId={profile.id} />
           <AnimatePresence mode="wait">
             <motion.div
               key={viewingSummaryId ? `summary-${viewingSummaryId}` : activeSection}

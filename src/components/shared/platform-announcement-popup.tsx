@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, PartyPopper, Megaphone, AlertTriangle, Wrench, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslations } from '@/i18n/use-translations';
@@ -171,7 +171,13 @@ const fullscreenContentVariants = {
 };
 
 // -------------------------------------------------------
-// Banner Display Component
+// Polling interval for re-fetching announcements (ms)
+// -------------------------------------------------------
+const POLL_INTERVAL = 30_000; // 30 seconds
+
+// -------------------------------------------------------
+// Banner Display Component — positioned BELOW the header
+// so it doesn't overlap the AppHeader buttons
 // -------------------------------------------------------
 function BannerDisplay({
   announcement,
@@ -200,7 +206,7 @@ function BannerDisplay({
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="fixed top-0 inset-x-0 z-50"
+        className="fixed top-14 sm:top-16 inset-x-0 z-[45]"
         dir={direction}
       >
         <div className={`relative bg-gradient-to-r ${bgColor} text-white shadow-lg`}>
@@ -530,15 +536,16 @@ function FullscreenDisplay({
 export default function PlatformAnnouncementPopup({ userId }: PlatformAnnouncementPopupProps) {
   const { t, locale, direction } = useTranslations();
   const [announcement, setAnnouncement] = useState<PlatformAnnouncement | null>(null);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ---------------------------------------------------
-  // Fetch active announcements on mount
+  // Fetch active announcements (callable on mount + polling)
   // ---------------------------------------------------
-  useEffect(() => {
+  const fetchAndShowAnnouncement = useCallback(() => {
     let cancelled = false;
 
-    async function fetchAnnouncements() {
+    async function doFetch() {
       try {
         const res = await fetch('/api/platform-announcements', { cache: 'no-store' });
         if (!res.ok) {
@@ -550,52 +557,84 @@ export default function PlatformAnnouncementPopup({ userId }: PlatformAnnounceme
         if (cancelled) return;
 
         if (result.success && Array.isArray(result.data) && result.data.length > 0) {
-          // Filter for dashboard/everywhere announcements
-          // Supports all display_size values: banner, popup, fullscreen
+          // Filter for dashboard/everywhere announcements that are within time range
           const eligible = (result.data as PlatformAnnouncement[]).filter(
             (a) =>
               (a.display_location === 'dashboard' || a.display_location === 'everywhere') &&
               isWithinTimeRange(a)
           );
 
-          console.log('[announcement-popup] Eligible announcements:', eligible.length, eligible.map(a => ({ id: a.id, size: a.display_size, location: a.display_location })));
+          if (eligible.length === 0) return;
 
           // Pick the first non-dismissed eligible announcement
           for (const candidate of eligible) {
-            if (!isDismissed(candidate.id)) {
+            // Check both React state (current session dismissals) AND localStorage (persistent dismissals)
+            const isSessionDismissed = dismissedIds.has(candidate.id);
+            const isPersistedDismissed = isDismissed(candidate.id);
+            if (!isSessionDismissed && !isPersistedDismissed) {
               if (!cancelled) {
                 setAnnouncement(candidate);
               }
               return;
             }
           }
+          // All eligible announcements are dismissed — show nothing
         }
       } catch (err) {
         console.warn('[announcement-popup] Fetch error:', err);
       }
     }
 
-    fetchAnnouncements();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    doFetch();
+    return () => { cancelled = true; };
+  }, [dismissedIds]);
 
   // ---------------------------------------------------
-  // Dismiss handler
+  // Fetch on mount + set up polling
+  // ---------------------------------------------------
+  useEffect(() => {
+    fetchAndShowAnnouncement();
+
+    // Poll every POLL_INTERVAL to pick up new announcements
+    pollingRef.current = setInterval(() => {
+      fetchAndShowAnnouncement();
+    }, POLL_INTERVAL);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [fetchAndShowAnnouncement]);
+
+  // ---------------------------------------------------
+  // Dismiss handler — advances to next announcement
+  // instead of hiding forever
   // ---------------------------------------------------
   const handleDismiss = useCallback(() => {
     if (announcement) {
       saveDismissed(announcement.id);
+      setDismissedIds((prev) => {
+        const next = new Set(prev);
+        next.add(announcement.id);
+        return next;
+      });
     }
-    setDismissed(true);
-  }, [announcement]);
+    // Clear current announcement so we can try the next one
+    setAnnouncement(null);
+
+    // After a short delay (for exit animation), try to find the next one
+    setTimeout(() => {
+      fetchAndShowAnnouncement();
+    }, 350);
+  }, [announcement, fetchAndShowAnnouncement]);
 
   // ---------------------------------------------------
   // Track view (POST) once the announcement is shown
   // ---------------------------------------------------
   useEffect(() => {
-    if (!announcement || dismissed) return;
+    if (!announcement) return;
 
     fetch('/api/platform-announcements', {
       method: 'POST',
@@ -607,7 +646,7 @@ export default function PlatformAnnouncementPopup({ userId }: PlatformAnnounceme
     }).catch(() => {
       // Silently ignore tracking failures
     });
-  }, [announcement, dismissed, userId]);
+  }, [announcement, userId]);
 
   // ---------------------------------------------------
   // Auto-dismiss when end_at is reached
@@ -618,8 +657,7 @@ export default function PlatformAnnouncementPopup({ userId }: PlatformAnnounceme
     const remaining = new Date(announcement.end_at).getTime() - Date.now();
     if (remaining <= 0) {
       const timer = setTimeout(() => {
-        saveDismissed(announcement.id);
-        setDismissed(true);
+        handleDismiss();
       }, 0);
       return () => clearTimeout(timer);
     }
@@ -649,7 +687,7 @@ export default function PlatformAnnouncementPopup({ userId }: PlatformAnnounceme
   // ---------------------------------------------------
   // Nothing to show
   // ---------------------------------------------------
-  if (!announcement || dismissed) {
+  if (!announcement) {
     return null;
   }
 

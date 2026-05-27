@@ -56,7 +56,6 @@ import ChatSection from '@/components/shared/chat-section';
 import StatCard from '@/components/shared/stat-card';
 import SubjectsSection from '@/components/shared/subjects-section';
 import PersonalFilesSection from '@/components/shared/personal-files-section';
-import AnnouncementsBanner from '@/components/shared/announcements-banner';
 import NotificationsSection from '@/components/shared/notifications-section';
 import AllVideosSection from '@/components/shared/all-videos-section';
 import TodoSection from '@/components/shared/todo-section';
@@ -2209,7 +2208,6 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
         sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
       }`}>
         <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 min-w-0">
-          <AnnouncementsBanner userId={profile.id} />
           {loadingData ? (
             <div className="flex flex-col items-center justify-center py-32">
               <Loader2 className="h-10 w-10 animate-spin text-sky-700 dark:text-sky-300 mb-4" />
