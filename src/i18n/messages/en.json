@@ -1522,17 +1522,17 @@
     "errorUsernameMinLength": "Username must be at least 3 characters",
     "errorUsernameUnavailable": "Username is already taken",
     "orientation": {
-      "lockAria": "Lock screen orientation",
-      "lockFailed": "Failed to lock orientation",
-      "lockLabel": "Lock Orientation",
-      "locked": "Orientation Locked",
-      "lockedDesc": "Screen orientation is locked",
-      "notSupported": "Orientation lock not supported",
-      "toggleFailed": "Failed to toggle orientation",
-      "unlockAria": "Unlock screen orientation",
-      "unlockLabel": "Unlock Orientation",
-      "unlocked": "Orientation Unlocked",
-      "unlockedDesc": "Screen orientation is unlocked"
+      "lockAria": "Lock screen rotation",
+      "lockFailed": "Unable to lock rotation. Make sure fullscreen is allowed.",
+      "lockLabel": "Lock Screen Rotation",
+      "locked": "Screen rotation locked",
+      "lockedDesc": "A warning will appear when rotating to landscape",
+      "notSupported": "Browser does not support rotation lock",
+      "toggleFailed": "Failed to change rotation setting",
+      "unlockAria": "Unlock screen rotation",
+      "unlockLabel": "Unlock Screen Rotation",
+      "unlocked": "Screen rotation unlocked",
+      "unlockedDesc": "Screen rotates freely in all directions"
     },
     "password": {
       "changing": "Changing password...",

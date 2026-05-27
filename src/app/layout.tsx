@@ -8,6 +8,7 @@ import ServiceWorkerRegistration from "@/components/shared/sw-registration";
 import InstallPrompt from "@/components/shared/install-prompt";
 import SocketErrorBoundary from "@/components/shared/socket-error-boundary";
 import VideoUploadIndicator from "@/components/shared/video-upload-indicator";
+import LandscapeOverlay from "@/components/shared/landscape-overlay";
 import { I18nProvider } from "@/i18n/provider";
 import { DirectionProvider } from "@/i18n/direction-provider";
 
@@ -64,6 +65,8 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/api/icon/180" data-dynamic-apple />
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="screen-orientation" content="portrait" />
+        <meta name="x5-orientation" content="portrait" />
         {/* Pre-hydration initialization: theme + locale + white screen detection.
             ALL of these MUST run before React hydrates to prevent flash/wrong state. */}
         <script
@@ -177,6 +180,7 @@ export default function RootLayout({
             <ServiceWorkerRegistration />
             <InstallPrompt />
             <VideoUploadIndicator />
+            <LandscapeOverlay />
             </ClientProviders>
           </DirectionProvider>
         </I18nProvider>

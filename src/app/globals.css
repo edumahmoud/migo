@@ -551,6 +551,37 @@
   }
 }
 
+/* ─── Landscape Rotation Warning Overlay ─── */
+/* Shows a polite overlay asking users to rotate back to portrait on mobile.
+   Only visible on narrow touch devices in landscape orientation.
+   Hidden when user has disabled the lock in settings (adds .orientation-unlocked to html). */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+  html:not(.orientation-unlocked) .landscape-rotate-overlay {
+    display: flex !important;
+  }
+}
+.landscape-rotate-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: hsl(var(--background));
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+.landscape-rotate-overlay .rotate-phone-icon {
+  animation: rotatePhone 2s ease-in-out infinite;
+}
+@keyframes rotatePhone {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-90deg); }
+  50% { transform: rotate(-90deg); }
+  75% { transform: rotate(0deg); }
+}
+
 /* ─── Mobile Modal Fix: prevent bottom nav overlap ─── */
 /* On mobile, modal content can be hidden behind the fixed bottom nav (z-40, h-16 + safe-area).
    These rules ensure modals (z-50) leave space at the bottom for scrolling. */

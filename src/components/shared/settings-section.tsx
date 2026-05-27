@@ -216,7 +216,6 @@ export default function SettingsSection({
   const [orientationLocked, setOrientationLocked] = useState(false);
 
 
-
   // ─── Status / Presence (now from global store) ───
   const userStatus = myStatus;
 
@@ -252,6 +251,9 @@ export default function SettingsSection({
     const stored = localStorage.getItem('attenddo-orientation-locked');
     if (stored === 'true') {
       setOrientationLocked(true);
+      document.documentElement.classList.remove('orientation-unlocked');
+    } else {
+      document.documentElement.classList.add('orientation-unlocked');
     }
   }, []);
 
@@ -580,85 +582,22 @@ export default function SettingsSection({
   const currentStatusInfo = STATUS_OPTIONS.find(s => s.value === userStatus) || STATUS_OPTIONS[0];
 
   // ─── Toggle screen orientation lock ───
-  const handleToggleOrientation = async () => {
-    try {
-      if (!orientationLocked) {
-        // Lock to portrait
-        if (screen.orientation && typeof screen.orientation.lock === 'function') {
-          try {
-            // First attempt: try locking directly (works in some PWA standalone contexts)
-            await screen.orientation.lock('portrait');
-            setOrientationLocked(true);
-            localStorage.setItem('attenddo-orientation-locked', 'true');
-            toast.success(t('settings.orientation.locked'));
-          } catch (lockError: unknown) {
-            // The Screen Orientation API requires a fullscreen context in most browsers.
-            // If direct lock fails, request fullscreen first then retry.
-            const errMsg = lockError instanceof Error ? lockError.message : String(lockError);
-            console.warn('[Orientation Lock] Direct lock failed, trying fullscreen:', errMsg);
+  const handleToggleOrientation = () => {
+    const newLocked = !orientationLocked;
+    setOrientationLocked(newLocked);
 
-            try {
-              // Request fullscreen on the document element
-              const docEl = document.documentElement;
-              if (docEl.requestFullscreen) {
-                await docEl.requestFullscreen();
-              } else if ((docEl as any).webkitRequestFullscreen) {
-                // Safari fallback
-                await (docEl as any).webkitRequestFullscreen();
-              }
-
-              // Now try locking orientation again in fullscreen context
-              await screen.orientation.lock('portrait');
-              setOrientationLocked(true);
-              localStorage.setItem('attenddo-orientation-locked', 'true');
-              toast.success(t('settings.orientation.locked'));
-            } catch (fullscreenError: unknown) {
-              const fsErrMsg = fullscreenError instanceof Error ? fullscreenError.message : String(fullscreenError);
-              console.warn('[Orientation Lock] Fullscreen + lock failed:', fsErrMsg);
-              toast.error(t('settings.orientation.lockFailed'));
-            }
-          }
-        } else {
-          toast.error(t('settings.orientation.notSupported'));
-        }
-      } else {
-        // Unlock
-        if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-          screen.orientation.unlock();
-        }
-        // Exit fullscreen if we entered it for orientation lock
-        if (document.fullscreenElement) {
-          try {
-            await document.exitFullscreen();
-          } catch {
-            // Ignore fullscreen exit errors
-          }
-        }
-        setOrientationLocked(false);
-        localStorage.removeItem('attenddo-orientation-locked');
-        toast.success(t('settings.orientation.unlocked'));
-      }
-    } catch {
-      toast.error(t('settings.orientation.toggleFailed'));
+    if (newLocked) {
+      // Lock: show landscape warning overlay (remove unlocked class)
+      localStorage.setItem('attenddo-orientation-locked', 'true');
+      document.documentElement.classList.remove('orientation-unlocked');
+      toast.success(t('settings.orientation.locked'));
+    } else {
+      // Unlock: hide landscape warning overlay (add unlocked class)
+      localStorage.setItem('attenddo-orientation-locked', 'false');
+      document.documentElement.classList.add('orientation-unlocked');
+      toast.success(t('settings.orientation.unlocked'));
     }
   };
-
-  // ─── Sync orientation lock state when fullscreen changes (e.g. user presses Escape) ───
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      // If we were locked but user exited fullscreen (Esc key), sync state
-      if (!document.fullscreenElement && orientationLocked) {
-        if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-          screen.orientation.unlock();
-        }
-        setOrientationLocked(false);
-        localStorage.removeItem('attenddo-orientation-locked');
-      }
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [orientationLocked]);
 
   // ─── Helper: wait for SW with timeout ───
   const waitForServiceWorker = async (timeoutMs = 4000): Promise<ServiceWorkerRegistration | null> => {
