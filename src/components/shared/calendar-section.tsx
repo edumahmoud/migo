@@ -518,10 +518,6 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
     const now = new Date(); setCurrentYear(now.getFullYear()); setCurrentMonth(now.getMonth()); setSelectedDate(toDateString(now));
   };
 
-  const toggleFilter = (type: CalendarEventType) => {
-    setActiveFilters((prev) => { const next = new Set(prev); if (next.has(type)) next.delete(type); else next.add(type); return next; });
-  };
-
   const isDatePast = (dateStr: string): boolean => toDateString(today) > dateStr;
   const isDateToday = (dateStr: string): boolean => dateStr === toDateString(today);
 
@@ -537,7 +533,6 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   // -------------------------------------------------------
   const renderFilters = () => {
     const allFilterTypes: CalendarEventType[] = ['lecture', 'quiz', 'assignment', 'todo', 'poll', 'attendance'];
-    const isAllActive = allFilterTypes.every((t) => activeFilters.has(t));
     const isExpandedAll = expandedBadge === 'all';
     const totalCount = events.length;
 
@@ -545,50 +540,33 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
         {/* "All" badge */}
         <button
-          onClick={() => {
-            setExpandedBadge('all');
-            if (isAllActive) {
-              // Deactivate all
-              setActiveFilters(new Set());
-            } else {
-              // Activate all
-              setActiveFilters(new Set(allFilterTypes));
-            }
-          }}
-          className={`inline-flex items-center rounded-full text-xs font-medium transition-all duration-200 ${
-            isAllActive
-              ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 ring-1 border-sky-200 dark:border-sky-800'
-              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-          } ${isExpandedAll ? 'gap-1.5 px-2.5 py-1.5' : 'gap-1 px-1.5 py-1.5 sm:gap-1.5 sm:px-2.5'}`}
+          onClick={() => setExpandedBadge('all')}
+          className={`inline-flex items-center rounded-full text-xs font-medium transition-all duration-200 bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 ring-1 border-sky-200 dark:border-sky-800 ${
+            isExpandedAll ? 'gap-1.5 px-2.5 py-1.5' : 'gap-1 px-1.5 py-1.5 sm:gap-1.5 sm:px-2.5'
+          }`}
         >
-          <span className={`h-2 w-2 rounded-full shrink-0 ${isAllActive ? 'bg-sky-500' : 'bg-muted-foreground/30'}`} />
+          <span className="h-2 w-2 rounded-full shrink-0 bg-sky-500" />
           <span className={`${isExpandedAll ? 'inline' : 'hidden sm:inline'}`}>{t('calendar.all') || 'الكل'}</span>
-          {totalCount > 0 && <span className={`text-[10px] rounded-full px-0.5 ${isAllActive ? 'opacity-80' : 'text-muted-foreground/60'}`}>{totalCount}</span>}
+          {totalCount > 0 && <span className="text-[10px] rounded-full px-0.5 opacity-80">{totalCount}</span>}
         </button>
 
-        {/* Individual filter badges */}
+        {/* Individual filter badges - always active/lit */}
         {allFilterTypes.map((type) => {
           const config = eventTypeConfig[type];
-          const isActive = activeFilters.has(type);
           const count = events.filter((e) => e.type === type).length;
           const isExpanded = expandedBadge === type;
           const label = t(`calendar.${type === 'lecture' ? 'lectures' : type === 'quiz' ? 'quizzes' : type === 'assignment' ? 'assignments' : type === 'todo' ? 'todos' : type === 'poll' ? 'polls' : 'attendance'}`);
           return (
             <button
               key={type}
-              onClick={() => {
-                setExpandedBadge(type);
-                toggleFilter(type);
-              }}
-              className={`inline-flex items-center rounded-full text-xs font-medium transition-all duration-200 ${
-                isActive ? `${config.bgClass} ${config.textClass} ring-1 ${config.borderClass}` : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-              } ${
+              onClick={() => setExpandedBadge(type)}
+              className={`inline-flex items-center rounded-full text-xs font-medium transition-all duration-200 ${config.bgClass} ${config.textClass} ring-1 ${config.borderClass} ${
                 isExpanded ? 'gap-1.5 px-2.5 py-1.5' : 'gap-1 px-1.5 py-1.5 sm:gap-1.5 sm:px-2.5'
               }`}
             >
-              <span className={`h-2 w-2 rounded-full shrink-0 ${isActive ? config.dotClass : 'bg-muted-foreground/30'}`} />
+              <span className={`h-2 w-2 rounded-full shrink-0 ${config.dotClass}`} />
               <span className={`${isExpanded ? 'inline' : 'hidden sm:inline'}`}>{label}</span>
-              {count > 0 && <span className={`text-[10px] rounded-full px-0.5 ${isActive ? 'opacity-80' : 'text-muted-foreground/60'}`}>{count}</span>}
+              {count > 0 && <span className="text-[10px] rounded-full px-0.5 opacity-80">{count}</span>}
             </button>
           );
         })}
