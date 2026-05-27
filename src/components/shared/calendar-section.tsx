@@ -10,6 +10,7 @@ import {
   BookOpen,
   FileText,
   CheckCircle2,
+  Circle,
   Star,
   Vote,
   X,
@@ -18,6 +19,12 @@ import {
   RefreshCw,
   LayoutGrid,
   List,
+  AlertCircle,
+  MinusCircle,
+  ArrowDownCircle,
+  BookMarked,
+  ClipboardList,
+  User,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -26,6 +33,8 @@ import type {
   CalendarEvent,
   CalendarEventType,
   UserProfile,
+  TodoPriority,
+  TodoCategory,
 } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -100,6 +109,22 @@ const eventTypeConfig: Record<CalendarEventType, EventTypeConfig> = {
     borderClass: 'border-teal-200 dark:border-teal-800',
     pillClass: 'bg-teal-500',
   },
+};
+
+// -------------------------------------------------------
+// Todo priority badge helpers
+// -------------------------------------------------------
+const priorityConfig: Record<TodoPriority, { icon: typeof AlertCircle; className: string; label: string }> = {
+  urgent: { icon: AlertCircle, className: 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/40', label: '🔴' },
+  medium: { icon: MinusCircle, className: 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40', label: '🟡' },
+  low: { icon: ArrowDownCircle, className: 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40', label: '🔵' },
+};
+
+const categoryConfig: Record<TodoCategory, { icon: typeof BookMarked; className: string }> = {
+  study: { icon: BookMarked, className: 'text-purple-600 dark:text-purple-400' },
+  assignment: { icon: FileText, className: 'text-amber-600 dark:text-amber-400' },
+  review: { icon: ClipboardList, className: 'text-teal-600 dark:text-teal-400' },
+  personal: { icon: User, className: 'text-gray-600 dark:text-gray-400' },
 };
 
 // -------------------------------------------------------
@@ -211,18 +236,19 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
     try {
       const allEvents: CalendarEvent[] = [];
 
-      // 1. Todos
-      const { data: todos, error: todosError } = await supabase.from('user_todos').select('*').eq('user_id', profile.id);
+      // 1. Todos — join subjects to get subject_name
+      const { data: todos, error: todosError } = await supabase.from('user_todos').select('*, subjects(name)').eq('user_id', profile.id);
       if (todosError) console.error('Error fetching todos:', todosError);
       if (todos && todos.length > 0) {
         for (const todo of todos) {
           if (todo.due_date) {
+            const subjectName = (todo.subjects as { name: string } | null)?.name || null;
             allEvents.push({
               id: `todo-${todo.id}`, type: 'todo', title: todo.title || '',
               description: todo.description || null, date: toDateString(new Date(todo.due_date)),
               time: todo.due_date || null, subject_id: todo.subject_id || null,
-              subject_name: todo.subject_name || null, color: 'emerald', icon: 'ListTodo',
-              completed: todo.completed || false, meta: { priority: todo.priority, category: todo.category },
+              subject_name: subjectName, color: 'emerald', icon: 'ListTodo',
+              completed: todo.completed || false, meta: { priority: todo.priority, category: todo.category, todoId: todo.id },
             });
           }
         }
@@ -346,6 +372,61 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   }, [profile.id, profile.role, t]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  // -------------------------------------------------------
+  // Realtime: listen for todo changes and refresh calendar
+  // -------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel('calendar-todos-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_todos', filter: `user_id=eq.${profile.id}` },
+        () => { fetchEvents(); }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile.id, fetchEvents]);
+
+  // -------------------------------------------------------
+  // Toggle todo completion from calendar
+  // -------------------------------------------------------
+  const [togglingTodoId, setTogglingTodoId] = useState<string | null>(null);
+
+  const handleToggleTodo = useCallback(async (todoId: string, currentCompleted: boolean) => {
+    setTogglingTodoId(todoId);
+    try {
+      const newCompleted = !currentCompleted;
+      const { error } = await supabase
+        .from('user_todos')
+        .update({
+          completed: newCompleted,
+          completed_at: newCompleted ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', todoId);
+
+      if (error) {
+        console.error('Error toggling todo from calendar:', error);
+      } else {
+        // Optimistic update: update the event in place
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === `todo-${todoId}`
+              ? { ...e, completed: newCompleted }
+              : e
+          )
+        );
+      }
+    } catch {
+      console.error('Toggle todo error from calendar');
+    } finally {
+      setTogglingTodoId(null);
+    }
+  }, []);
 
   // -------------------------------------------------------
   // Events by date
@@ -612,10 +693,32 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
               <div className="space-y-1.5">
                 {dayEvents.slice(0, 5).map((event) => {
                   const config = eventTypeConfig[event.type];
+                  const isTodo = event.type === 'todo';
+                  const todoId = isTodo ? event.id.replace('todo-', '') : null;
+                  const todoMeta = isTodo ? event.meta as { priority?: TodoPriority } : null;
+                  const priorityLabel = todoMeta?.priority ? priorityConfig[todoMeta.priority].label : null;
+
                   return (
                     <div key={event.id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${config.bgClass} ${event.completed ? 'opacity-50' : ''}`}>
-                      <EventIcon type={event.type} className={`h-3.5 w-3.5 ${config.textClass}`} />
-                      <span className={`text-xs font-medium ${config.textClass} truncate flex-1`}>{event.title}</span>
+                      {isTodo && todoId ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleTodo(todoId, !!event.completed); }}
+                          className="shrink-0 cursor-pointer hover:opacity-70 transition-opacity"
+                          aria-label={event.completed ? 'Mark incomplete' : 'Mark complete'}
+                        >
+                          {event.completed ? (
+                            <CheckCircle2 className={`h-3.5 w-3.5 text-emerald-500`} />
+                          ) : (
+                            <Circle className={`h-3.5 w-3.5 ${config.textClass}`} />
+                          )}
+                        </button>
+                      ) : (
+                        <EventIcon type={event.type} className={`h-3.5 w-3.5 ${config.textClass}`} />
+                      )}
+                      <span className={`text-xs font-medium ${config.textClass} truncate flex-1 ${event.completed && isTodo ? 'line-through' : ''}`}>
+                        {priorityLabel && <span className="me-0.5">{priorityLabel}</span>}
+                        {event.title}
+                      </span>
                       {event.time && <span className="text-[10px] text-muted-foreground shrink-0">{formatEventTime(event.time, locale)}</span>}
                     </div>
                   );
@@ -662,27 +765,62 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
             {selectedDayEvents.map((event) => {
               const config = eventTypeConfig[event.type];
               const eventTime = formatEventTime(event.time, locale);
+              const isTodo = event.type === 'todo';
+              const todoMeta = isTodo ? event.meta as { priority?: TodoPriority; category?: TodoCategory; todoId?: string } : null;
+              const priorityInfo = todoMeta?.priority ? priorityConfig[todoMeta.priority] : null;
+              const categoryInfo = todoMeta?.category ? categoryConfig[todoMeta.category] : null;
+              const todoId = todoMeta?.todoId || (isTodo ? event.id.replace('todo-', '') : null);
+              const isToggling = todoId ? togglingTodoId === todoId : false;
+
               return (
                 <motion.div
                   key={event.id}
                   variants={itemVariants}
                   className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${config.borderClass} ${config.bgClass} ${event.completed || (isPast && event.type !== 'todo') ? 'opacity-60' : ''}`}
                 >
-                  <div className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-lg ${config.bgClass} ${config.textClass}`}>
-                    <EventIcon type={event.type} className="h-4 w-4" />
-                  </div>
+                  {/* Todo: interactive checkbox | Others: static icon */}
+                  {isTodo && todoId ? (
+                    <button
+                      onClick={() => handleToggleTodo(todoId, !!event.completed)}
+                      disabled={isToggling}
+                      className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-lg ${config.bgClass} ${config.textClass} hover:opacity-80 transition-opacity cursor-pointer ${isToggling ? 'animate-pulse' : ''}`}
+                      aria-label={event.completed ? t('todos.markIncomplete') || 'Mark incomplete' : t('todos.markComplete') || 'Mark complete'}
+                    >
+                      {event.completed ? (
+                        <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                      ) : (
+                        <Circle className="h-5 w-5" />
+                      )}
+                    </button>
+                  ) : (
+                    <div className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-lg ${config.bgClass} ${config.textClass}`}>
+                      <EventIcon type={event.type} className="h-4 w-4" />
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <p className={`text-sm font-medium ${config.textClass} ${event.completed ? 'line-through' : ''}`}>{event.title}</p>
-                      {event.completed && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />}
+                      {!isTodo && event.completed && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                         <Clock className="h-3 w-3" />
                         {eventTime || t('calendar.allDay')}
                       </span>
                       {event.subject_name && (
                         <span className="text-[10px] text-muted-foreground bg-muted/50 rounded-full px-2 py-0.5">{event.subject_name}</span>
+                      )}
+                      {/* Todo: priority badge */}
+                      {isTodo && priorityInfo && (
+                        <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium rounded-full px-1.5 py-0.5 ${priorityInfo.className}`}>
+                          {priorityInfo.label} {todoMeta!.priority}
+                        </span>
+                      )}
+                      {/* Todo: category badge */}
+                      {isTodo && categoryInfo && todoMeta!.category && (
+                        <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${categoryInfo.className}`}>
+                          {todoMeta!.category}
+                        </span>
                       )}
                     </div>
                     {event.description && (
