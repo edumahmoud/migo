@@ -423,7 +423,7 @@ export type AppPage =
 
 export type StudentSection = 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'videos' | 'reports' | 'todos' | 'calendar';
 export type TeacherSection = 'dashboard' | 'subjects' | 'summaries' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'tracking' | 'questionBank' | 'videos' | 'reports' | 'todos' | 'calendar';
-export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'platformAnnouncements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints';
+export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'platformAnnouncements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints' | 'notifications';
 
 // -------------------------------------------------------
 // Todo List
