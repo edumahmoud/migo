@@ -227,6 +227,12 @@ let sessionCheckCleanup: (() => void) | null = null;
 // Auth state change subscription (must be unsubscribed to prevent memory leaks)
 let authSubscription: { data: { subscription: { unsubscribe: () => void } } } | null = null;
 
+// Flag to indicate that signInWithEmail is in progress.
+// This prevents the onAuthStateChange handler from overwriting the user
+// profile during login (race condition) and protects against SIGNED_OUT
+// events that Supabase may fire when replacing a stale session.
+let _loginInProgress = false;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: true,
@@ -447,16 +453,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
 
         // ─── Prevent race condition with signInWithEmail ───
-        // If the user was already set (by signInWithEmail), and the existing profile
-        // has a non-fallback role (not 'student' from createFallbackProfile), skip
-        // this update to avoid overwriting the correct profile with a fallback.
+        // If signInWithEmail is in progress, it will set the user itself.
+        // We must NOT overwrite it here — especially with a fallback profile
+        // that has role='student', which would override the correct profile.
+        if (_loginInProgress && event === 'SIGNED_IN') {
+          console.log('[Auth] SIGNED_IN skipped — signInWithEmail is in progress');
+          return;
+        }
+
+        // If the user was already set (by signInWithEmail or initialize),
+        // skip this update to avoid overwriting the correct profile with a fallback.
+        // Only skip for SIGNED_IN (not INITIAL_SESSION which may be the only source on refresh).
         const currentUser = get().user;
-        if (currentUser && currentUser.id === session.user.id && currentUser.role !== 'student') {
-          // User already set with a non-fallback profile - skip to avoid race condition
-          // Only skip for SIGNED_IN (not INITIAL_SESSION which may be the only source)
-          if (event === 'SIGNED_IN') {
-            return;
-          }
+        if (currentUser && currentUser.id === session.user.id && event === 'SIGNED_IN') {
+          // User already set for this session — skip to avoid race condition
+          console.log('[Auth] SIGNED_IN skipped — user already set');
+          return;
         }
 
         // ─── Use server-side API to fetch profile (bypasses RLS) ───
@@ -464,6 +476,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const res = await fetch('/api/auth/me', {
             headers: { 'Authorization': `Bearer ${session.access_token}` },
           });
+
+          // Re-check: if signInWithEmail already set the user while we were fetching,
+          // don't overwrite it (especially not with a fallback profile)
+          const userAfterFetch = get().user;
+          if (userAfterFetch && userAfterFetch.id === session.user.id && event === 'SIGNED_IN') {
+            console.log('[Auth] SIGNED_IN: user was set while fetching profile — skipping update');
+            return;
+          }
           
           if (res.ok) {
             const data = await res.json();
@@ -514,6 +534,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         } catch {}
       } else if (event === 'SIGNED_OUT') {
+        // ─── Guard: Don't null out user during login ───
+        // Supabase may fire SIGNED_OUT when replacing an old session during
+        // signInWithPassword(). If login is in progress, the SIGNED_IN event
+        // will follow immediately and set the correct user. Setting user=null
+        // here would cause a brief redirect to the auth page.
+        if (_loginInProgress) {
+          console.log('[Auth] SIGNED_OUT skipped — signInWithEmail is in progress');
+          return;
+        }
+
         // Clean up session validation interval
         if (sessionCheckCleanup) {
           sessionCheckCleanup();
@@ -562,6 +592,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   signInWithEmail: async (email, password) => {
+    // Set login-in-progress flag to prevent onAuthStateChange from
+    // interfering (overwriting user with fallback, or processing SIGNED_OUT)
+    _loginInProgress = true;
     try {
       // Rate limiting check
       const { allowed, retryAfterMs } = checkRateLimit();
@@ -625,10 +658,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { error: null };
     } catch {
       return { error: 'حدث خطأ غير متوقع' };
+    } finally {
+      // Clear the flag after a short delay to ensure SIGNED_IN has been processed
+      // by the onAuthStateChange listener (or skipped by our guard)
+      setTimeout(() => { _loginInProgress = false; }, 500);
     }
   },
   
   signUpWithEmail: async (email, password, name) => {
+    _loginInProgress = true;
     try {
       // Input validation & sanitization
       const sanitizedEmail = sanitizeInput(email).toLowerCase();
@@ -753,6 +791,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { error: null, needsConfirmation: false };
     } catch {
       return { error: 'حدث خطأ غير متوقع أثناء التسجيل' };
+    } finally {
+      setTimeout(() => { _loginInProgress = false; }, 500);
     }
   },
   
