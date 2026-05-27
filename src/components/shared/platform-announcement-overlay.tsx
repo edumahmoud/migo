@@ -729,14 +729,9 @@ export function AnnouncementBrandingPanel() {
         <div className="absolute top-1/2 start-1/4 h-48 w-48 rounded-full bg-white/3 blur-2xl" />
       </div>
 
-      {/* Dismiss button */}
-      <button
-        onClick={(e) => { e.stopPropagation(); handleDismiss(); }}
-        className="absolute top-4 end-4 z-[100] flex h-12 w-12 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 cursor-pointer"
-        aria-label="Close announcement"
-      >
-        <X className="h-6 w-6" />
-      </button>
+      {/* NOTE: No close button here — the LoginFullscreenAnnouncement overlay
+          already provides a dismiss button for all screen sizes (including mobile).
+          Adding a second one caused a duplicate X button on the login page. */}
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center text-center max-w-lg mx-auto">
