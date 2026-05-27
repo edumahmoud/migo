@@ -224,6 +224,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   );
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedBadge, setExpandedBadge] = useState<CalendarEventType>('lecture');
 
   const weekStartsOn = isRTL ? 6 : 0;
   const weekDayNames = useMemo(() => getWeekDayNames(locale, weekStartsOn), [locale, weekStartsOn]);
@@ -544,23 +545,30 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       { type: 'attendance', label: t('calendar.attendance') },
     ];
     return (
-      <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1">
+      <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
         {filterTypes.map((ft) => {
           const config = eventTypeConfig[ft.type];
           const isActive = activeFilters.has(ft.type);
           const count = events.filter((e) => e.type === ft.type).length;
+          const isExpanded = expandedBadge === ft.type;
           return (
             <button
               key={ft.type}
-              onClick={() => toggleFilter(ft.type)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 sm:px-3 py-1.5 text-xs font-medium transition-all ${
+              onClick={() => {
+                setExpandedBadge(ft.type);
+                toggleFilter(ft.type);
+              }}
+              className={`inline-flex items-center rounded-full text-xs font-medium transition-all duration-200 ${
                 isActive ? `${config.bgClass} ${config.textClass} ring-1 ${config.borderClass}` : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+              } ${
+                // Mobile: expanded badge gets full padding, collapsed gets compact padding
+                isExpanded ? 'gap-1.5 px-2.5 py-1.5' : 'gap-1 px-1.5 py-1.5 sm:gap-1.5 sm:px-2.5'
               }`}
             >
               <span className={`h-2 w-2 rounded-full shrink-0 ${isActive ? config.dotClass : 'bg-muted-foreground/30'}`} />
-              <span className="hidden sm:inline">{ft.label}</span>
-              <span className="sm:hidden">{ft.label.charAt(0)}</span>
-              {count > 0 && <span className={`text-[10px] rounded-full px-1 ${isActive ? 'opacity-80' : 'text-muted-foreground/60'}`}>{count}</span>}
+              {/* Mobile: only show full label for expanded badge; Desktop: always show */}
+              <span className={`${isExpanded ? 'inline' : 'hidden sm:inline'}`}>{ft.label}</span>
+              {count > 0 && <span className={`text-[10px] rounded-full px-0.5 ${isActive ? 'opacity-80' : 'text-muted-foreground/60'}`}>{count}</span>}
             </button>
           );
         })}
