@@ -70,7 +70,7 @@ interface ExamsTabProps {
 // -------------------------------------------------------
 // Sub-tab type
 // -------------------------------------------------------
-type ExamSubTab = 'active' | 'finished';
+type ExamSubTab = 'active' | 'scheduled' | 'finished';
 
 // -------------------------------------------------------
 // Animation variants
@@ -1033,9 +1033,26 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   };
 
   // -------------------------------------------------------
-  // Computed: split quizzes into active and finished
+  // Computed: split quizzes into scheduled, active and finished
+  // - Scheduled: start time is in the future (hasn't started yet)
+  // - Active: currently within the quiz time window (started but not ended)
+  // - Finished: end time has passed or is_finished flag is set
   // -------------------------------------------------------
-  const activeQuizzes = quizzes.filter((q) => !isQuizFinished(q));
+  const scheduledQuizzes = quizzes.filter((q) => {
+    if (isQuizFinished(q)) return false;
+    if (!q.scheduled_date) return false;
+    const startTime = parseLocalDateTime(q.scheduled_date, q.scheduled_time || '00:00');
+    return startTime !== null && startTime > new Date();
+  });
+  const activeQuizzes = quizzes.filter((q) => {
+    if (isQuizFinished(q)) return false;
+    // Not scheduled in the future → it's active (either no schedule, or time has come)
+    if (q.scheduled_date) {
+      const startTime = parseLocalDateTime(q.scheduled_date, q.scheduled_time || '00:00');
+      if (startTime !== null && startTime > new Date()) return false; // scheduled in future → not active
+    }
+    return true;
+  });
   const finishedQuizzes = quizzes.filter((q) => isQuizFinished(q));
 
   // -------------------------------------------------------
@@ -2066,6 +2083,17 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               {t('exams.active')}
             </button>
             <button
+              onClick={() => setSubTab('scheduled')}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                subTab === 'scheduled'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Clock className="h-3 w-3" />
+              {t('exams.scheduled')}
+            </button>
+            <button
               onClick={() => setSubTab('finished')}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
                 subTab === 'finished'
@@ -2123,6 +2151,39 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         ) : (
           <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {activeQuizzes.map((quiz) =>
+              role === 'teacher'
+                ? renderTeacherQuizCard(quiz, false)
+                : renderStudentQuizCard(quiz, false)
+            )}
+          </motion.div>
+        )
+      ) : subTab === 'scheduled' ? (
+        // ─── Scheduled tab ───
+        scheduledQuizzes.length === 0 ? (
+          <motion.div
+            variants={itemVariants}
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-300 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/15 py-16"
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40 mb-4">
+              <Clock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            </div>
+            <p className="text-lg font-semibold text-foreground mb-1">{t('exams.noScheduledQuizzes')}</p>
+            <p className="text-sm text-muted-foreground">
+              {role === 'teacher' ? t('exams.noScheduledQuizzesHintTeacher') : t('exams.noScheduledQuizzesHintStudent')}
+            </p>
+            {role === 'teacher' && (
+              <button
+                onClick={handleOpenCreateModal}
+                className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 mt-4"
+              >
+                <Plus className="h-4 w-4" />
+                {t('exams.createQuiz')}
+              </button>
+            )}
+          </motion.div>
+        ) : (
+          <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {scheduledQuizzes.map((quiz) =>
               role === 'teacher'
                 ? renderTeacherQuizCard(quiz, false)
                 : renderStudentQuizCard(quiz, false)

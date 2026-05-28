@@ -36,6 +36,7 @@ import {
   File,
   MoreVertical,
   Pencil,
+  Clock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession as waitForSessionShared, getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -199,6 +200,42 @@ function isQuizTimeExpired(quiz: { scheduled_date?: string; scheduled_time?: str
   const endTime = getQuizEndTime(quiz);
   if (!endTime) return false;
   return endTime < new Date();
+}
+
+// -------------------------------------------------------
+// Student quiz countdown timer (mini version for dashboard cards)
+// -------------------------------------------------------
+function StudentQuizCountdown({ targetDate }: { targetDate: Date }) {
+  const { t } = useTranslations();
+  const [remaining, setRemaining] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+
+  useEffect(() => {
+    const tick = () => {
+      const diff = targetDate.getTime() - Date.now();
+      if (diff <= 0) { setRemaining(null); return; }
+      setRemaining({
+        d: Math.floor(diff / 86_400_000),
+        h: Math.floor((diff % 86_400_000) / 3_600_000),
+        m: Math.floor((diff % 3_600_000) / 60_000),
+        s: Math.floor((diff % 60_000) / 1_000),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetDate]);
+
+  if (!remaining) return null;
+
+  return (
+    <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-amber-100/50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40">
+      <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+      <span className="text-xs font-bold text-amber-700 dark:text-amber-400">
+        {t('exams.startsIn')} {remaining.d > 0 && `${remaining.d}${t('exams.dayUnit')} `}
+        {remaining.h.toString().padStart(2, '0')}:{remaining.m.toString().padStart(2, '0')}:{remaining.s.toString().padStart(2, '0')}
+      </span>
+    </div>
+  );
 }
 
 // -------------------------------------------------------
@@ -3688,14 +3725,24 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         </motion.div>
       ) : (
         (() => {
-          // Separate quizzes: active vs finished (time-based + completion-based)
-          // A quiz is "finished" when:
-          //   1. Its end time (start + duration) has passed, OR
-          //   2. The student completed it AND retake is not allowed
-          // A quiz is "active" when it's still within its time window and (not completed OR retakeable)
+          // Separate quizzes: scheduled, active vs finished (time-based + completion-based)
+          // - Scheduled: start time is in the future (hasn't started yet)
+          // - Active: currently within the quiz time window and (not completed OR retakeable)
+          // - Finished: end time has passed OR student completed it and retake not allowed
+          const scheduledQuizzes = quizzes.filter(q => {
+            if (isQuizTimeExpired(q)) return false;
+            if (!q.scheduled_date) return false;
+            const startTime = parseLocalDateTime(q.scheduled_date, q.scheduled_time || '00:00');
+            return startTime !== null && startTime > new Date();
+          });
           const activeQuizzes = quizzes.filter(q => {
             const timeExpired = isQuizTimeExpired(q);
             if (timeExpired) return false; // time expired → finished
+            // If scheduled in the future → not active
+            if (q.scheduled_date) {
+              const startTime = parseLocalDateTime(q.scheduled_date, q.scheduled_time || '00:00');
+              if (startTime !== null && startTime > new Date()) return false;
+            }
             const completed = completedQuizIds.has(q.id);
             return !completed || q.allow_retake !== false;
           });
@@ -3797,6 +3844,67 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     );
                   })}
                 </motion.div>
+              )}
+
+              {/* Scheduled quizzes (upcoming, haven't started yet) */}
+              {scheduledQuizzes.length > 0 && (
+                <>
+                  <motion.div variants={itemVariants} className="mt-8">
+                    <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-amber-500" />
+                      {t('student.scheduledQuizzes')}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">{t('student.scheduledQuizzesDesc')}</p>
+                  </motion.div>
+                  <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {scheduledQuizzes.map((quiz) => {
+                      const startTime = parseLocalDateTime(quiz.scheduled_date!, quiz.scheduled_time || '00:00');
+
+                      return (
+                        <motion.div key={quiz.id} variants={itemVariants}>
+                          <div className="group rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-900/10 p-5 shadow-sm hover:shadow-md transition-shadow relative">
+                            <span className="absolute top-3 start-3 flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-800/40 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                              <Clock className="h-3 w-3" />
+                              {t('exams.scheduled')}
+                            </span>
+                            <div className="flex items-start gap-3 mt-5">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-800/40">
+                                <ClipboardList className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-foreground truncate">{quiz.title}</h3>
+                                <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1">
+                                    <Hash className="h-3 w-3" />
+                                    {quiz.questions?.length || 0} {t('common.questions')}
+                                  </span>
+                                  {quiz.duration && (
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3" />
+                                      {quiz.duration} {t('common.minutes')}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            {/* Date & Time */}
+                            {quiz.scheduled_date && (
+                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-3">
+                                <Calendar className="h-3 w-3" />
+                                <span>{new Date(quiz.scheduled_date).toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                                {quiz.scheduled_time && <span className="font-medium">- {quiz.scheduled_time}</span>}
+                              </div>
+                            )}
+                            {/* Countdown */}
+                            {startTime && (
+                              <StudentQuizCountdown targetDate={startTime} />
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+                </>
               )}
 
               {/* Finished / completed non-retakeable quizzes */}
