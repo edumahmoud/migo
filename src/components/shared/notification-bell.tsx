@@ -7,7 +7,8 @@ import { useNotificationStore } from '@/stores/notification-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
 import { useAppStore } from '@/stores/app-store';
-import type { CourseTab, NotificationType } from '@/lib/types';
+import type { NotificationType } from '@/lib/types';
+import { navigateNotification, notifTypeToTab } from '@/lib/notification-navigation';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { toast } from 'sonner';
@@ -51,26 +52,6 @@ if (typeof window !== 'undefined' && !deeplinkHandlerAttached) {
     }
   });
 }
-
-// ─── Notification type → default CourseTab mapping ───
-// Used when the link format doesn't explicitly encode the tab (e.g. `subject:SUBJECT_ID`
-// without a 3rd part). This ensures every notification type lands on the correct tab.
-const notifTypeToTab: Record<string, CourseTab> = {
-  assignment: 'assignments',
-  grade: 'assignments',
-  enrollment: 'students',
-  file: 'files',
-  file_request: 'files',
-  system: 'overview',
-  attendance: 'lectures',
-  link_request: 'overview',
-  lecture: 'lectures',
-  chat: 'overview',
-  note: 'notes',
-  public_note_created: 'notes',
-  report: 'overview',
-  poll: 'polls',
-};
 
 function timeAgo(dateStr: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string = 'ar'): string {
   const now = new Date();
@@ -229,74 +210,30 @@ export default function NotificationBell() {
     }
   };
 
-  /** Parse notification link and navigate using app store */
-  const navigateToLink = (link: string) => {
-    // Link format examples: "assignments", "subjects", "quizzes", "attendance", "reports"
-    // Or with detail: "assignments?id=xxx"
-    // Or tab-based: "subjects?tab=lectures&id=SUBJECT_ID"
-    // Or path-style: "/reports/ID"
-    const [section, queryString] = link.startsWith('/') ? link.slice(1).split('?') : link.split('?');
-    const role = user?.role;
-
-    // Parse query params
-    const params = new URLSearchParams(queryString || '');
-    const tab = params.get('tab');
-    const subjectId = params.get('id');
-
-    // Handle path-style links like "/reports/ID" — extract the base section
-    const baseSection = section.includes('/') ? section.split('/')[0] : section;
-
-    // Handle tab-based navigation for subjects (e.g., "subjects?tab=lectures&id=SUBJECT_ID")
-    if (baseSection === 'subjects' && subjectId) {
-      const { setSelectedSubjectId, setCourseTab } = useAppStore.getState();
-      setSelectedSubjectId(subjectId);
-      if (tab) {
-        setCourseTab(tab as CourseTab);
-      }
-      if (role === 'student') {
-        setStudentSection('subjects');
-        setCurrentPage('student-dashboard');
-      } else if (role === 'teacher') {
-        setTeacherSection('subjects');
-        setCurrentPage('teacher-dashboard');
-      } else if (role === 'admin' || role === 'superadmin') {
-        setAdminSection('subjects');
-        setCurrentPage('admin-dashboard');
-      }
-      return;
-    }
-
-    if (role === 'student') {
-      const validSections = ['dashboard', 'subjects', 'summaries', 'quizzes', 'files', 'assignments', 'attendance', 'teachers', 'chat', 'settings', 'notifications', 'reports'];
-      if (validSections.includes(baseSection)) {
-        setStudentSection(baseSection as 'dashboard' | 'subjects' | 'summaries' | 'quizzes' | 'files' | 'assignments' | 'attendance' | 'teachers' | 'chat' | 'settings' | 'notifications' | 'reports');
-        setCurrentPage('student-dashboard');
-      }
-    } else if (role === 'teacher') {
-      const validSections = ['dashboard', 'subjects', 'students', 'files', 'assignments', 'attendance', 'analytics', 'chat', 'settings', 'notifications', 'reports'];
-      if (validSections.includes(baseSection)) {
-        setTeacherSection(baseSection as 'dashboard' | 'subjects' | 'students' | 'files' | 'assignments' | 'attendance' | 'analytics' | 'chat' | 'settings' | 'notifications' | 'reports');
-        setCurrentPage('teacher-dashboard');
-      }
-    } else if (role === 'admin' || role === 'superadmin') {
-      const validSections = ['dashboard', 'users', 'subjects', 'reports', 'announcements', 'banned', 'institution', 'chat', 'settings', 'comments', 'complaints'];
-      // Special mapping: if the link is /reports/..., route to 'complaints' section (not analytics 'reports')
-      const adminSection = baseSection === 'reports' ? 'complaints' : baseSection;
-      if (validSections.includes(adminSection)) {
-        setAdminSection(adminSection as 'dashboard' | 'users' | 'subjects' | 'reports' | 'announcements' | 'banned' | 'institution' | 'chat' | 'settings' | 'comments' | 'complaints');
-        setCurrentPage('admin-dashboard');
-      }
-    }
-  };
-
   /** Handle clicking a notification — mark as read and navigate if link is provided */
   const handleNotificationClick = (notif: { id: string; type: string; title?: string; read: boolean; link?: string | null; message?: string }) => {
     if (!notif.read) {
       markAsRead(notif.id);
     }
 
-    // Handle link_request notifications - show modal instead of navigating
-    if (notif.type === 'link_request' || notif.link?.startsWith('link_request:')) {
+    // Use the centralized navigation utility
+    const appState = useAppStore.getState();
+    const result = navigateNotification(notif, {
+      userRole: user?.role,
+      userId: user?.id,
+      setSelectedSubjectId: appState.setSelectedSubjectId,
+      setCourseTab: appState.setCourseTab,
+      setStudentSection: appState.setStudentSection,
+      setTeacherSection: appState.setTeacherSection,
+      setAdminSection: appState.setAdminSection,
+      setCurrentPage: appState.setCurrentPage,
+      setPendingReportId: appState.setPendingReportId,
+      openProfile: appState.openProfile,
+      t,
+    });
+
+    // Handle link_request — show modal instead of navigating
+    if (result === 'link_request') {
       const teacherId = notif.link?.replace('link_request:', '');
       if (teacherId) {
         setLinkRequestModal({ teacherId, notificationId: notif.id, teacher: null, loading: true });
@@ -305,205 +242,9 @@ export default function NotificationBell() {
       return;
     }
 
-    // Handle report notifications — navigate to the reports/complaints section
-    if (notif.type === 'report' || notif.link?.startsWith('/reports')) {
+    // Close the dropdown after navigation
+    if (result === 'handled') {
       setIsOpen(false);
-      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage, setPendingReportId } = useAppStore.getState();
-      
-      // Extract report ID from link if available (format: "/reports/UUID")
-      let reportId: string | null = null;
-      if (notif.link) {
-        const parts = notif.link.replace(/^\//, '').split('/');
-        if (parts.length >= 2 && parts[0] === 'reports') {
-          reportId = parts[1];
-        }
-      }
-      if (reportId) {
-        setPendingReportId(reportId);
-      }
-      
-      if (user?.role === 'student') {
-        setStudentSection('reports');
-        setCurrentPage('student-dashboard');
-      } else if (user?.role === 'teacher') {
-        setTeacherSection('reports');
-        setCurrentPage('teacher-dashboard');
-      } else if (user?.role === 'admin' || user?.role === 'superadmin') {
-        setAdminSection('complaints');  // Admin's complaints section, NOT 'reports' (which is analytics)
-        setCurrentPage('admin-dashboard');
-      }
-      return;
-    }
-
-    // Handle file_request notifications (owner received a new file request) - navigate to own profile
-    // Type can be 'file' or 'file_request' (depends on DB constraint), link format: 'file_request:REQUESTER_ID'
-    if (notif.type === 'file_request' || notif.link?.startsWith('file_request:')) {
-      setIsOpen(false);
-      const { openProfile } = useAppStore.getState();
-      if (user?.id) openProfile(user.id);
-      return;
-    }
-
-    // Handle report:REPORT_ID links — navigate to the reports/complaints section
-    if (notif.type === 'report' || notif.link?.startsWith('report:')) {
-      setIsOpen(false);
-      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
-      if (user?.role === 'admin' || user?.role === 'superadmin') {
-        setAdminSection('reports');
-        setCurrentPage('admin-dashboard');
-      } else if (user?.role === 'teacher') {
-        // Teacher doesn't have a dedicated complaints section yet,
-        // so navigate to their dashboard for now
-        setTeacherSection('dashboard');
-        setCurrentPage('teacher-dashboard');
-      } else {
-        // Student — navigate to their dashboard
-        setStudentSection('dashboard');
-        setCurrentPage('student-dashboard');
-      }
-      return;
-    }
-
-    // Handle chat:CONVERSATION_ID links — navigate to the main chat section
-    // This must be checked BEFORE the courseLinkPrefix logic because 'chat' is also
-    // a valid CourseTab, but chat:CONVERSATION_ID means "open the main chat section",
-    // not "open a course's chat tab"
-    if (notif.link?.startsWith('chat:')) {
-      setIsOpen(false);
-      const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
-      if (user?.role === 'student') {
-        setStudentSection('chat');
-        setCurrentPage('student-dashboard');
-      } else if (user?.role === 'teacher') {
-        setTeacherSection('chat');
-        setCurrentPage('teacher-dashboard');
-      } else if (user?.role === 'admin' || user?.role === 'superadmin') {
-        setAdminSection('chat');
-        setCurrentPage('admin-dashboard');
-      }
-      return;
-    }
-
-    // Map of link prefixes to course tabs
-    // Includes BOTH singular and plural keys because the API generates
-    // 3-part links like "subject:ID:assignments" (plural) while the prefix
-    // is "subject" (singular). Both must resolve to the correct CourseTab.
-    const linkToTab: Record<string, CourseTab> = {
-      enrollment: 'students',
-      subject: 'overview',
-      overview: 'overview',
-      assignment: 'assignments',
-      assignments: 'assignments',
-      lecture: 'lectures',
-      lectures: 'lectures',
-      note: 'notes',
-      notes: 'notes',
-      exam: 'exams',
-      exams: 'exams',
-      file: 'files',
-      files: 'files',
-      students: 'students',
-      teams: 'teams',
-      team: 'teams',
-      poll: 'polls',
-      polls: 'polls',
-    };
-
-    // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID or subject:SUBJECT_ID:tab)
-    const courseLinkPrefix = Object.keys(linkToTab).find(prefix => notif.link?.startsWith(prefix + ':'));
-    if (courseLinkPrefix) {
-      const parts = notif.link!.split(':');
-      const subjectId = parts[1] || null;
-      // Support 3-part links like "subject:SUBJECT_ID:assignments" where the 3rd part overrides the tab
-      const explicitTab = parts[2] || null;
-
-      // Special case: "assignment:ASSIGNMENT_ID" (2-part, no subject context)
-      // should navigate to the Assignments section, NOT treat the assignment ID as a subject ID
-      // But only if the assignment ID doesn't look like a subject ID (heuristic: assignment IDs
-      // are typically UUIDs just like subject IDs, so we rely on the notification type).
-      // If the notification type is 'assignment' and there's no 3rd part, treat as section nav.
-      // However, if the notification type suggests a course context (e.g. grade, attendance),
-      // treat the 2-part link as prefix:SUBJECT_ID and navigate to the course.
-      if (courseLinkPrefix === 'assignment' && !explicitTab && notif.type === 'assignment') {
-        setIsOpen(false);
-        const { setStudentSection, setTeacherSection, setCurrentPage } = useAppStore.getState();
-        if (user?.role === 'student') {
-          setStudentSection('assignments');
-          setCurrentPage('student-dashboard');
-        } else if (user?.role === 'teacher') {
-          setTeacherSection('assignments');
-          setCurrentPage('teacher-dashboard');
-        }
-        return;
-      }
-
-      if (subjectId) {
-        setIsOpen(false);
-        const { setSelectedSubjectId, setCourseTab, setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore.getState();
-        setSelectedSubjectId(subjectId);
-
-        // Determine the correct tab using a priority chain:
-        // 1. Explicit tab from 3-part link (e.g. "subject:ID:notes" → 'notes')
-        // 2. Notification type mapping (e.g. type='note' → 'notes')
-        // 3. Link prefix mapping (e.g. prefix='lecture' → 'lectures')
-        let tab: CourseTab;
-        if (explicitTab && linkToTab[explicitTab]) {
-          // Priority 1: explicit tab from 3-part link
-          tab = linkToTab[explicitTab];
-        } else if (notifTypeToTab[notif.type]) {
-          // Priority 2: derive tab from notification type
-          tab = notifTypeToTab[notif.type];
-        } else {
-          // Priority 3: fall back to link prefix mapping
-          tab = linkToTab[courseLinkPrefix];
-        }
-        setCourseTab(tab);
-
-        // Navigate to the correct dashboard section
-        if (user?.role === 'student') {
-          setStudentSection('subjects');
-          setCurrentPage('student-dashboard');
-        } else if (user?.role === 'teacher') {
-          setTeacherSection('subjects');
-          setCurrentPage('teacher-dashboard');
-        } else if (user?.role === 'admin' || user?.role === 'superadmin') {
-          setAdminSection('subjects');
-          setCurrentPage('admin-dashboard');
-        }
-      }
-      return;
-    }
-
-    // Handle profile: links - navigate to user profile
-    if (notif.link?.startsWith('profile:')) {
-      const targetUserId = notif.link.replace('profile:', '');
-      if (targetUserId) {
-        setIsOpen(false);
-        const { openProfile } = useAppStore.getState();
-        openProfile(targetUserId);
-      }
-      return;
-    }
-
-    // Handle legacy file request notification (link = 'settings')
-    if (notif.type === 'file' && notif.link === 'settings' && notif.title?.includes(t('notifications.keywordFileRequest'))) {
-      setIsOpen(false);
-      const { openProfile } = useAppStore.getState();
-      if (user?.id) openProfile(user.id);
-      return;
-    }
-
-    // Handle grade notifications that might have a plain link without prefix
-    // Navigate to the assignments section of the course if possible
-    if (notif.type === 'grade' && notif.link && !notif.link.includes(':')) {
-      setIsOpen(false);
-      navigateToLink(notif.link);
-      return;
-    }
-
-    if (notif.link && notif.link !== 'settings') {
-      setIsOpen(false);
-      navigateToLink(notif.link);
     }
   };
 

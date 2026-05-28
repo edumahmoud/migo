@@ -418,6 +418,7 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
           studentIds,
           message: msgText.trim(),
           teacherName: profile.name,
+          subjectId,  // Pass subjectId for deep linking to the teams tab
         }),
       });
 
@@ -427,12 +428,13 @@ export default function TeamsTab({ subjectId, profile }: TeamsTabProps) {
         setMsgText('');
       } else {
         // Fallback: save notifications directly via Supabase
+        const teamDeepLink = subjectId ? `subject:${subjectId}:teams` : 'teams';
         const notifInserts = studentIds.map(sid => ({
           user_id: sid,
           title: t('teacherNoteTitle'),
           message: msgText.trim(),
           type: 'team_message',
-          link: `team:${msgTeamId}`,
+          link: teamDeepLink,
           is_read: false,
         }));
 

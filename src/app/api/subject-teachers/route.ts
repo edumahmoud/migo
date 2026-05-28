@@ -326,7 +326,7 @@ export async function DELETE(request: Request) {
         'system',
         'غادر معلم مشارك المقرر',
         `غادر ${profile.name} مقرر "${subject.name}" كمعلم مشارك`,
-        `subject:${subjectId}`
+        `subject:${subjectId}:students`
       );
     } else {
       // Notify the removed teacher

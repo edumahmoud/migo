@@ -1,12 +1,12 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'atendo-v6';
-const STATIC_CACHE = 'atendo-static-v6';
-const DYNAMIC_CACHE = 'atendo-dynamic-v6';
-const API_CACHE = 'atendo-api-v6';
+const CACHE_NAME = 'atendo-v7';
+const STATIC_CACHE = 'atendo-static-v7';
+const DYNAMIC_CACHE = 'atendo-dynamic-v7';
+const API_CACHE = 'atendo-api-v7';
 
 // Build version — update this comment to force SW cache bust
-// BUILD_VERSION: 2.1.0
+// BUILD_VERSION: 2.2.0
 
 // Static assets to precache
 // NOTE: /manifest.json is removed — the app uses the dynamic manifest at /api/manifest
@@ -310,6 +310,21 @@ self.addEventListener('push', (event) => {
         { action: 'open', title: 'عرض الطلب' },
         { action: 'dismiss', title: 'لاحقاً' },
       ];
+    } else if (data.type === 'report') {
+      options.actions = [
+        { action: 'open', title: 'عرض البلاغ' },
+        { action: 'dismiss', title: 'تجاهل' },
+      ];
+    } else if (data.type === 'poll') {
+      options.actions = [
+        { action: 'open', title: 'عرض الاستفتاء' },
+        { action: 'dismiss', title: 'لاحقاً' },
+      ];
+    } else if (data.type === 'team_message') {
+      options.actions = [
+        { action: 'open', title: 'عرض الملاحظة' },
+        { action: 'dismiss', title: 'تجاهل' },
+      ];
     }
 
     event.waitUntil(
@@ -362,4 +377,3 @@ self.addEventListener('notificationclick', (event) => {
 self.addEventListener('notificationclose', (event) => {
   console.log('[SW] Notification closed:', event.notification.tag);
 });
-

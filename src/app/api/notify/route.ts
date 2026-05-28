@@ -195,17 +195,20 @@ export async function POST(request: NextRequest) {
 
       // ─── 8) Team message (teacher sends note to a group) ───
       case 'team_message': {
-        const { studentIds: teamStudentIds, message: teamMsg, teacherName: teamTeacher } = body;
+        const { studentIds: teamStudentIds, message: teamMsg, teacherName: teamTeacher, subjectId: teamSubjectId } = body;
         if (!teamStudentIds || !Array.isArray(teamStudentIds) || teamStudentIds.length === 0 || !teamMsg) {
           return NextResponse.json({ error: 'معرفات الطلاب والرسالة مطلوبة' }, { status: 400 });
         }
+
+        // Deep link: navigate to the subject's teams tab so the student sees the team context
+        const teamLink = teamSubjectId ? `subject:${teamSubjectId}:teams` : 'teams';
 
         await notifyUsers(
           teamStudentIds,
           'team_message',
           'ملاحظة من المعلم',
           `${teamTeacher || 'المعلم'}: ${teamMsg}`,
-          'teams'
+          teamLink
         );
         return NextResponse.json({ success: true, notified: teamStudentIds.length });
       }
@@ -220,7 +223,7 @@ export async function POST(request: NextRequest) {
         const pollStudentIds = await getStudentIds(pollSubjectId);
         const pollNotifTitle = 'استفتاء جديد';
         const pollNotifMessage = `أنشأ المعلم ${pollTeacherName || 'المعلم'} استفتاء "${pollQuestion}"`;
-        const pollNotifLink = `poll:${pollSubjectId}:polls`;
+        const pollNotifLink = `subject:${pollSubjectId}:polls`;
 
         await notifyUsers(pollStudentIds, 'poll', pollNotifTitle, pollNotifMessage, pollNotifLink);
 
