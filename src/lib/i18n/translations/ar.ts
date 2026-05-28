@@ -2530,6 +2530,7 @@ export const ar: TranslationDict = {
     selectCourseFileLabel: 'اختر ملف من مقرراتك',
     noPdfWordFiles: 'لا توجد ملفات (PDF/Word) في هذا المقرر',
     questionCountByType: 'عدد الأسئلة حسب النوع',
+    questionsCount: '{count} سؤال',
     generatingQuestions: 'جاري إنشاء الأسئلة...',
     generateQuestions: 'إنشاء الأسئلة',
     subjectQuestions: '{subject} · {count} سؤال',

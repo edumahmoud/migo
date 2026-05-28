@@ -3420,6 +3420,7 @@
     "optionLabel": "Option",
     "options": "Options",
     "questionCountByType": "{count} question types",
+    "questionsCount": "{count} questions",
     "questionText": "Question Text",
     "questionTextPlaceholder": "Enter question text...",
     "questionType": "Question Type",
