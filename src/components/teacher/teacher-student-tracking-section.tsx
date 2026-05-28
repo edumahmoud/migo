@@ -82,36 +82,36 @@ const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
     key: 'excellent',
     label: 'teacher.trackingLevelExcellent',
     color: 'bg-emerald-500',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
     ringColor: 'ring-emerald-100',
-    textColor: 'text-emerald-700 dark:text-emerald-300',
+    textColor: 'text-emerald-700 dark:text-emerald-500',
     icon: '★',
   },
   {
     key: 'good',
     label: 'teacher.trackingLevelGood',
     color: 'bg-sky-500',
-    bgColor: 'bg-sky-50 dark:bg-sky-950/30',
+    bgColor: 'bg-sky-50 dark:bg-sky-900/15',
     ringColor: 'ring-sky-100',
-    textColor: 'text-sky-700 dark:text-sky-300',
+    textColor: 'text-sky-700 dark:text-sky-400',
     icon: '◆',
   },
   {
     key: 'average',
     label: 'teacher.trackingLevelAverage',
     color: 'bg-amber-500',
-    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+    bgColor: 'bg-amber-50 dark:bg-amber-900/20',
     ringColor: 'ring-amber-100',
-    textColor: 'text-amber-700 dark:text-amber-300',
+    textColor: 'text-amber-700 dark:text-amber-500',
     icon: '●',
   },
   {
     key: 'weak',
     label: 'teacher.trackingLevelWeak',
     color: 'bg-rose-500',
-    bgColor: 'bg-rose-50 dark:bg-rose-950/30',
+    bgColor: 'bg-rose-50 dark:bg-rose-900/20',
     ringColor: 'ring-rose-100',
-    textColor: 'text-rose-700 dark:text-rose-300',
+    textColor: 'text-rose-700 dark:text-rose-500',
     icon: '▼',
   },
 ];
@@ -137,45 +137,45 @@ const PERCENTAGE_RANGES: PercentageRangeConfig[] = [
     label: 'teacher.trackingRangeExcellent',
     range: '90% - 100%',
     color: 'bg-emerald-500',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
-    textColor: 'text-emerald-700 dark:text-emerald-300',
-    borderColor: 'border-emerald-200 dark:border-emerald-800',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
+    textColor: 'text-emerald-700 dark:text-emerald-500',
+    borderColor: 'border-emerald-200 dark:border-emerald-900/60',
   },
   {
     key: '80-89',
     label: 'teacher.trackingRangeVeryGood',
     range: '80% - 89%',
     color: 'bg-sky-500',
-    bgColor: 'bg-sky-50 dark:bg-sky-950/30',
-    textColor: 'text-sky-700 dark:text-sky-300',
-    borderColor: 'border-sky-200 dark:border-sky-800',
+    bgColor: 'bg-sky-50 dark:bg-sky-900/15',
+    textColor: 'text-sky-700 dark:text-sky-400',
+    borderColor: 'border-sky-200 dark:border-sky-900/60',
   },
   {
     key: '70-79',
     label: 'teacher.trackingRangeGood',
     range: '70% - 79%',
     color: 'bg-teal-500',
-    bgColor: 'bg-teal-50 dark:bg-teal-950/30',
-    textColor: 'text-teal-700 dark:text-teal-300',
-    borderColor: 'border-teal-200 dark:border-teal-800',
+    bgColor: 'bg-teal-50 dark:bg-teal-900/20',
+    textColor: 'text-teal-700 dark:text-teal-500',
+    borderColor: 'border-teal-200 dark:border-teal-900/60',
   },
   {
     key: '60-69',
     label: 'teacher.trackingRangeAcceptable',
     range: '60% - 69%',
     color: 'bg-amber-500',
-    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
-    textColor: 'text-amber-700 dark:text-amber-300',
-    borderColor: 'border-amber-200 dark:border-amber-800',
+    bgColor: 'bg-amber-50 dark:bg-amber-900/20',
+    textColor: 'text-amber-700 dark:text-amber-500',
+    borderColor: 'border-amber-200 dark:border-amber-900/60',
   },
   {
     key: 'below-60',
     label: 'teacher.trackingRangeWeak',
     range: 'teacher.trackingBelow60',
     color: 'bg-rose-500',
-    bgColor: 'bg-rose-50 dark:bg-rose-950/30',
-    textColor: 'text-rose-700 dark:text-rose-300',
-    borderColor: 'border-rose-200 dark:border-rose-800',
+    bgColor: 'bg-rose-50 dark:bg-rose-900/20',
+    textColor: 'text-rose-700 dark:text-rose-500',
+    borderColor: 'border-rose-200 dark:border-rose-900/60',
   },
 ];
 
@@ -197,25 +197,25 @@ const EFFICIENCY_LEVELS: EfficiencyLevelConfig[] = [
   {
     key: 'high',
     label: 'teacher.trackingEfficiencyHigh',
-    color: 'text-emerald-600 dark:text-emerald-400',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
-    textColor: 'text-emerald-700 dark:text-emerald-300',
+    color: 'text-emerald-600 dark:text-emerald-500',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
+    textColor: 'text-emerald-700 dark:text-emerald-500',
     ringColor: 'stroke-emerald-500',
   },
   {
     key: 'medium',
     label: 'teacher.trackingEfficiencyMedium',
-    color: 'text-amber-600 dark:text-amber-400',
-    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
-    textColor: 'text-amber-700 dark:text-amber-300',
+    color: 'text-amber-600 dark:text-amber-500',
+    bgColor: 'bg-amber-50 dark:bg-amber-900/20',
+    textColor: 'text-amber-700 dark:text-amber-500',
     ringColor: 'stroke-amber-500',
   },
   {
     key: 'low',
     label: 'teacher.trackingEfficiencyLow',
-    color: 'text-rose-600 dark:text-rose-400',
-    bgColor: 'bg-rose-50 dark:bg-rose-950/30',
-    textColor: 'text-rose-700 dark:text-rose-300',
+    color: 'text-rose-600 dark:text-rose-500',
+    bgColor: 'bg-rose-50 dark:bg-rose-900/20',
+    textColor: 'text-rose-700 dark:text-rose-500',
     ringColor: 'stroke-rose-500',
   },
 ];
@@ -721,11 +721,11 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-sky-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-950/30 ring-2 ring-sky-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 dark:bg-sky-900/15 ring-2 ring-sky-100">
                   <Users className="h-5 w-5 text-sky-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{overviewStats.totalStudents}</p>
+                  <p className="text-2xl font-bold text-sky-800 dark:text-sky-400">{overviewStats.totalStudents}</p>
                   <p className="text-xs text-muted-foreground">{t('teacher.trackingTotalStudents')}</p>
                 </div>
               </div>
@@ -736,11 +736,11 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-teal-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 dark:bg-teal-950/30 ring-2 ring-teal-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 dark:bg-teal-900/20 ring-2 ring-teal-100">
                   <TrendingUp className="h-5 w-5 text-teal-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-teal-700 dark:text-teal-300">{Math.round(overviewStats.avgPerformance)}%</p>
+                  <p className="text-2xl font-bold text-teal-700 dark:text-teal-500">{Math.round(overviewStats.avgPerformance)}%</p>
                   <p className="text-xs text-muted-foreground">{t('teacher.trackingAvgPerformance')}</p>
                 </div>
               </div>
@@ -751,11 +751,11 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-amber-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/30 ring-2 ring-amber-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/20 ring-2 ring-amber-100">
                   <Clock className="h-5 w-5 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{Math.round(overviewStats.avgAttendance)}%</p>
+                  <p className="text-2xl font-bold text-amber-700 dark:text-amber-500">{Math.round(overviewStats.avgAttendance)}%</p>
                   <p className="text-xs text-muted-foreground">{t('teacher.trackingAttendanceRate')}</p>
                 </div>
               </div>
@@ -766,7 +766,7 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-violet-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/30 ring-2 ring-violet-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-900/20 ring-2 ring-violet-100">
                   <Zap className="h-5 w-5 text-violet-600" />
                 </div>
                 <div>
@@ -781,11 +781,11 @@ export default function TeacherStudentTrackingSection({
           <Card className="border-emerald-100/50 shadow-sm col-span-2 lg:col-span-1">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/30 ring-2 ring-emerald-100">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/20 ring-2 ring-emerald-100">
                   <Award className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{overviewStats.topPerformers}</p>
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-500">{overviewStats.topPerformers}</p>
                   <p className="text-xs text-muted-foreground">{t('teacher.trackingTopPerformers')}</p>
                 </div>
               </div>
@@ -804,7 +804,7 @@ export default function TeacherStudentTrackingSection({
                 {t('teacher.trackingClassificationByPerformance')}
               </CardTitle>
               {/* Tab switcher */}
-              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800/50 rounded-lg p-0.5">
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800/40 rounded-lg p-0.5">
                 <button
                   onClick={() => setActiveFilterTab('level')}
                   className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
@@ -851,7 +851,7 @@ export default function TeacherStudentTrackingSection({
                           className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${
                             isActive
                               ? `${level.bgColor} ${level.ringColor} ring-2 border-current ${level.textColor}`
-                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-muted-foreground dark:text-gray-300'
+                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-muted-foreground dark:text-gray-500'
                           }`}
                         >
                           <span className={`text-3xl font-bold ${isActive ? level.textColor : 'text-gray-400 dark:text-muted-foreground'}`}>
@@ -897,7 +897,7 @@ export default function TeacherStudentTrackingSection({
                           className={`relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200 ${
                             isActive
                               ? `${range.bgColor} ${range.borderColor} border-current ${range.textColor}`
-                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-muted-foreground dark:text-gray-300'
+                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-muted-foreground dark:text-gray-500'
                           }`}
                         >
                           <span className={`text-2xl font-bold ${isActive ? range.textColor : 'text-gray-400 dark:text-muted-foreground'}`}>
@@ -915,7 +915,7 @@ export default function TeacherStudentTrackingSection({
                   </div>
 
                   {/* Performance Distribution Horizontal Bar Chart */}
-                  <div className="mt-2 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 dark:from-gray-800/50 to-white dark:to-card border border-gray-100/80 dark:border-gray-700">
+                  <div className="mt-2 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 dark:from-gray-800/50 to-white dark:to-card border border-gray-100/80 dark:border-gray-800/60">
                     <div className="flex items-center gap-2 mb-3">
                       <BarChart3 className="h-4 w-4 text-sky-600" />
                       <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingPerformanceDistribution')}</span>
@@ -929,7 +929,7 @@ export default function TeacherStudentTrackingSection({
                             <span className="text-[11px] font-medium text-gray-600 dark:text-muted-foreground min-w-[70px] text-start">
                               {range.key === 'below-60' ? t(range.range) : range.range}
                             </span>
-                            <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
+                            <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-800/40 rounded-full overflow-hidden">
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${Math.max(percentage, 0)}%` }}
@@ -1014,7 +1014,7 @@ export default function TeacherStudentTrackingSection({
                     placeholder={t('teacher.trackingSearchStudent')}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full sm:w-48 h-9 pe-9 ps-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 transition-all"
+                    className="w-full sm:w-48 h-9 pe-9 ps-3 rounded-lg border border-gray-200 dark:border-gray-800/60 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 transition-all"
                     dir={direction}
                   />
                 </div>
@@ -1024,7 +1024,7 @@ export default function TeacherStudentTrackingSection({
                   <select
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value as SortOption)}
-                    className="h-9 ps-3 pe-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 appearance-none cursor-pointer"
+                    className="h-9 ps-3 pe-8 rounded-lg border border-gray-200 dark:border-gray-800/60 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 appearance-none cursor-pointer"
                     dir={direction}
                   >
                     {SORT_OPTIONS.map(opt => (
@@ -1166,7 +1166,7 @@ function EfficiencyGauge({
 function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
   const { t } = useTranslations();
   return (
-    <div className="p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80 space-y-2">
+    <div className="p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80 space-y-2">
       <div className="flex items-center gap-2">
         <BookOpen className="h-3.5 w-3.5 text-sky-600 shrink-0" />
         <span className="text-xs font-medium text-gray-900 dark:text-foreground truncate">{subject.subjectName}</span>
@@ -1175,7 +1175,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
         {/* Quiz avg */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-gray-500 dark:text-muted-foreground min-w-[50px]">{t('teacher.trackingQuizzes')}</span>
-          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
+          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/40 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(subject.quizAvg, 100)}%` }}
@@ -1183,14 +1183,14 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
               className="h-full bg-sky-500 rounded-full"
             />
           </div>
-          <span className="text-[10px] font-bold text-sky-700 dark:text-sky-300 min-w-[28px] text-start">
+          <span className="text-[10px] font-bold text-sky-700 dark:text-sky-400 min-w-[28px] text-start">
             {Math.round(subject.quizAvg)}%
           </span>
         </div>
         {/* Attendance */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-gray-500 dark:text-muted-foreground min-w-[50px]">{t('teacher.trackingAttendance')}</span>
-          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
+          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/40 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(subject.attendanceRate, 100)}%` }}
@@ -1198,14 +1198,14 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
               className="h-full bg-teal-500 rounded-full"
             />
           </div>
-          <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300 min-w-[28px] text-start">
+          <span className="text-[10px] font-bold text-teal-700 dark:text-teal-500 min-w-[28px] text-start">
             {Math.round(subject.attendanceRate)}%
           </span>
         </div>
         {/* Assignments */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-gray-500 dark:text-muted-foreground min-w-[50px]">{t('teacher.trackingAssignments')}</span>
-          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
+          <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/40 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${subject.assignmentCount > 0 ? (subject.completedAssignments / subject.assignmentCount) * 100 : 0}%` }}
@@ -1213,7 +1213,7 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
               className="h-full bg-amber-500 rounded-full"
             />
           </div>
-          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 min-w-[28px] text-start">
+          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-500 min-w-[28px] text-start">
             {subject.completedAssignments}/{subject.assignmentCount}
           </span>
         </div>
@@ -1253,7 +1253,7 @@ function StudentCard({
       className={`rounded-xl border-2 transition-all duration-200 ${
         isExpanded
           ? `${levelConfig.bgColor} ${levelConfig.ringColor} ring-1`
-          : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 hover:bg-gray-50/50'
+          : 'border-gray-100 dark:border-gray-800/60 hover:border-gray-200 hover:bg-gray-50/50'
       }`}
     >
       {/* ── Main Row ── */}
@@ -1310,8 +1310,8 @@ function StudentCard({
         {/* Efficiency mini indicator */}
         <div className="hidden sm:flex flex-col items-center gap-0.5 shrink-0">
           <div className={`text-sm font-bold ${
-            data.efficiencyLevel === 'high' ? 'text-emerald-600 dark:text-emerald-400' :
-            data.efficiencyLevel === 'medium' ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
+            data.efficiencyLevel === 'high' ? 'text-emerald-600 dark:text-emerald-500' :
+            data.efficiencyLevel === 'medium' ? 'text-amber-600 dark:text-amber-500' : 'text-rose-600 dark:text-rose-500'
           }`}>
             {Math.round(data.efficiency)}%
           </div>
@@ -1338,20 +1338,20 @@ function StudentCard({
               {/* Performance breakdown cards */}
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {/* Quiz average */}
-                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                    <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                    <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   </div>
-                  <span className="text-lg font-bold text-sky-800 dark:text-sky-200">{Math.round(data.quizAvg)}%</span>
+                  <span className="text-lg font-bold text-sky-800 dark:text-sky-400">{Math.round(data.quizAvg)}%</span>
                   <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingQuizAvg')}</span>
                 </div>
 
                 {/* Attendance rate */}
-                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
+                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-800/40">
                     <CheckCircle2 className="h-4 w-4 text-teal-700" />
                   </div>
-                  <span className="text-lg font-bold text-teal-700 dark:text-teal-300">{Math.round(data.attendanceRate)}%</span>
+                  <span className="text-lg font-bold text-teal-700 dark:text-teal-500">{Math.round(data.attendanceRate)}%</span>
                   <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingAttendanceRatio')}</span>
                   <span className="text-[9px] text-muted-foreground">
                     {data.attendedSessionIds.size}/{totalSessions} {t('teacher.trackingSession')}
@@ -1359,11 +1359,11 @@ function StudentCard({
                 </div>
 
                 {/* Assignment completion */}
-                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-700/80">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
+                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-800/40">
                     <ClipboardList className="h-4 w-4 text-amber-700" />
                   </div>
-                  <span className="text-lg font-bold text-amber-700 dark:text-amber-300">{Math.round(data.assignmentCompletion)}%</span>
+                  <span className="text-lg font-bold text-amber-700 dark:text-amber-500">{Math.round(data.assignmentCompletion)}%</span>
                   <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingAssignmentCompletion')}</span>
                   <span className="text-[9px] text-muted-foreground">
                     {data.studentSubmissions.filter(s => s.status === 'graded' || s.status === 'submitted').length}/{totalAssignments} {t('teacher.trackingTask')}
@@ -1387,7 +1387,7 @@ function StudentCard({
                   />
                   {/* Efficiency breakdown */}
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-700/50">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-800/60/50">
                       <span className="text-[11px] text-gray-600 dark:text-muted-foreground">{t('teacher.trackingEffort')}</span>
                       <div className="flex items-center gap-2">
                         <Progress value={Math.round(data.effortScore)} className="h-1.5 w-16" />
@@ -1397,7 +1397,7 @@ function StudentCard({
                     <div className="text-[9px] text-gray-400 dark:text-muted-foreground pe-2">
                       {t('teacher.trackingEffortFormula', { attendance: Math.round(data.attendanceRate), assignments: Math.round(data.assignmentCompletion) })}
                     </div>
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-700/50">
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-800/60/50">
                       <span className="text-[11px] text-gray-600 dark:text-muted-foreground">{t('teacher.trackingResults')}</span>
                       <div className="flex items-center gap-2">
                         <Progress value={Math.round(data.resultScore)} className="h-1.5 w-16" />
@@ -1432,7 +1432,7 @@ function StudentCard({
                   <div className="flex items-center gap-2 mb-3">
                     <BookOpen className="h-4 w-4 text-sky-600" />
                     <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingPerformanceBySubject')}</span>
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800">
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-100 dark:border-sky-900/60">
                       {t('teacher.trackingSubjectCount', { count: data.subjectPerformances.length })}
                     </Badge>
                   </div>
@@ -1453,15 +1453,15 @@ function StudentCard({
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-[10px] text-muted-foreground">{t('teacher.trackingQuizWeight')}</p>
-                    <p className="text-sm font-bold text-sky-700 dark:text-sky-300">{Math.round(data.quizAvg * 0.4)}</p>
+                    <p className="text-sm font-bold text-sky-700 dark:text-sky-400">{Math.round(data.quizAvg * 0.4)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAttendanceWeight')}</p>
-                    <p className="text-sm font-bold text-teal-700 dark:text-teal-300">{Math.round(data.attendanceRate * 0.3)}</p>
+                    <p className="text-sm font-bold text-teal-700 dark:text-teal-500">{Math.round(data.attendanceRate * 0.3)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAssignmentWeight')}</p>
-                    <p className="text-sm font-bold text-amber-700 dark:text-amber-300">{Math.round(data.assignmentCompletion * 0.3)}</p>
+                    <p className="text-sm font-bold text-amber-700 dark:text-amber-500">{Math.round(data.assignmentCompletion * 0.3)}</p>
                   </div>
                 </div>
               </div>
@@ -1472,7 +1472,7 @@ function StudentCard({
                   <div className="flex items-center gap-2 mb-3">
                     <Route className="h-4 w-4 text-teal-600" />
                     <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingStudentPath')}</span>
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800">
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500 border-teal-100 dark:border-teal-900/60">
                       {t('teacher.trackingActivityCount', { count: data.recentActivities.length })}
                     </Badge>
                   </div>
@@ -1487,9 +1487,9 @@ function StudentCard({
                         assignment: <ClipboardList className="h-3.5 w-3.5 text-amber-600" />,
                       };
                       const bgMap = {
-                        attendance: 'bg-teal-50 dark:bg-teal-950/30 ring-teal-100',
-                        quiz: 'bg-sky-50 dark:bg-sky-950/30 ring-sky-100',
-                        assignment: 'bg-amber-50 dark:bg-amber-950/30 ring-amber-100',
+                        attendance: 'bg-teal-50 dark:bg-teal-900/20 ring-teal-100',
+                        quiz: 'bg-sky-50 dark:bg-sky-900/15 ring-sky-100',
+                        assignment: 'bg-amber-50 dark:bg-amber-900/20 ring-amber-100',
                       };
                       const dotColorMap = {
                         attendance: 'bg-teal-400',
@@ -1497,9 +1497,9 @@ function StudentCard({
                         assignment: 'bg-amber-400',
                       };
                       const badgeMap = {
-                        attendance: { label: t('teacher.trackingAttendanceBadge'), className: 'bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300 border-teal-100 dark:border-teal-800' },
-                        quiz: { label: t('teacher.trackingQuizBadge'), className: 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800' },
-                        assignment: { label: t('teacher.trackingAssignmentBadge'), className: 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-800' },
+                        attendance: { label: t('teacher.trackingAttendanceBadge'), className: 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500 border-teal-100 dark:border-teal-900/60' },
+                        quiz: { label: t('teacher.trackingQuizBadge'), className: 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-100 dark:border-sky-900/60' },
+                        assignment: { label: t('teacher.trackingAssignmentBadge'), className: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-500 border-amber-100 dark:border-amber-900/60' },
                       };
 
                       return (

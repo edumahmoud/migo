@@ -19,7 +19,7 @@ export default function OfflinePage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 p-4" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/20 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/15 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-100/40 dark:bg-teal-900/20 rounded-full blur-3xl" />
       </div>
 
@@ -87,7 +87,7 @@ export default function OfflinePage() {
 
             <button
               onClick={handleExit}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-red-200 dark:border-red-800 px-6 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 shadow-sm hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-950 transition-all duration-200 w-full sm:w-auto"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-red-200 dark:border-red-900/60 px-6 py-2.5 text-sm font-semibold text-red-600 dark:text-red-500 shadow-sm hover:bg-red-50 dark:hover:bg-red-900/25 active:bg-red-100 dark:active:bg-red-900/20 transition-all duration-200 w-full sm:w-auto"
             >
               <X className="h-4 w-4" />
               {t('offline.exit')}

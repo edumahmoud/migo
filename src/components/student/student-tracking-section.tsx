@@ -121,7 +121,7 @@ function CircularProgress({ value, size = 100, strokeWidth = 8, label }: { value
         </defs>
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-bold text-sky-800 dark:text-sky-200">{Math.round(value)}%</span>
+        <span className="text-2xl font-bold text-sky-800 dark:text-sky-400">{Math.round(value)}%</span>
       </div>
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
     </div>
@@ -320,8 +320,8 @@ export default function StudentTrackingSection({
 
               {/* Stats cards */}
               <div className="grid grid-cols-3 gap-4 flex-1 w-full">
-                <div className="text-center p-3 rounded-xl bg-sky-50/50 dark:bg-sky-950/30 border border-sky-100/50">
-                  <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{attendanceStats.totalSessions}</p>
+                <div className="text-center p-3 rounded-xl bg-sky-50/50 dark:bg-sky-900/15 border border-sky-100/50">
+                  <p className="text-2xl font-bold text-sky-800 dark:text-sky-400">{attendanceStats.totalSessions}</p>
                   <p className="text-xs text-muted-foreground">{t('student.trackingTotalSessions')}</p>
                 </div>
                 <div className="text-center p-3 rounded-xl bg-teal-50/50 border border-teal-100/50">
@@ -363,7 +363,7 @@ export default function StudentTrackingSection({
                         <p className="text-sm font-medium text-gray-900 dark:text-foreground truncate">{item.name}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <Progress value={item.rate} className="h-2 flex-1" />
-                          <span className="text-xs font-medium text-sky-700 dark:text-sky-300 min-w-[40px] text-start">
+                          <span className="text-xs font-medium text-sky-700 dark:text-sky-400 min-w-[40px] text-start">
                             {Math.round(item.rate)}%
                           </span>
                         </div>
@@ -391,15 +391,15 @@ export default function StudentTrackingSection({
             <CardContent>
               <div className="space-y-4">
                 {/* Average quiz score */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-sky-50/50 dark:bg-sky-950/30 border border-sky-100/50">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-sky-50/50 dark:bg-sky-900/15 border border-sky-100/50">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100">
-                    <BarChart3 className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                    <BarChart3 className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900 dark:text-foreground">{t('student.trackingQuizScoreAvg')}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Progress value={performanceStats.avgScore} className="h-2 flex-1" />
-                      <span className="text-xs font-bold text-sky-700 dark:text-sky-300">
+                      <span className="text-xs font-bold text-sky-700 dark:text-sky-400">
                         {Math.round(performanceStats.avgScore)}%
                       </span>
                     </div>
@@ -533,12 +533,12 @@ export default function StudentTrackingSection({
                     };
                     const bgMap = {
                       attendance: 'bg-teal-50 ring-teal-100',
-                      quiz: 'bg-sky-50 dark:bg-sky-950/30 ring-sky-100 dark:ring-sky-800',
+                      quiz: 'bg-sky-50 dark:bg-sky-900/15 ring-sky-100 dark:ring-sky-800',
                       assignment: 'bg-amber-50 ring-amber-100',
                     };
                     const badgeMap = {
                       attendance: { label: t('student.trackingAttendanceBadge'), className: 'bg-teal-50 text-teal-700 border-teal-100' },
-                      quiz: { label: t('student.trackingQuizBadge'), className: 'bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800' },
+                      quiz: { label: t('student.trackingQuizBadge'), className: 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-100 dark:border-sky-900/60' },
                       assignment: { label: t('student.trackingAssignmentBadge'), className: 'bg-amber-50 text-amber-700 border-amber-100' },
                     };
 

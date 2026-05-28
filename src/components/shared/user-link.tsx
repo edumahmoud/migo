@@ -22,7 +22,7 @@ interface UserLinkProps {
 function getRoleBadgeColor(role: string): string {
   switch (role) {
     case 'superadmin':
-      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-500';
     case 'admin':
       return 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400';
     case 'teacher':
@@ -30,7 +30,7 @@ function getRoleBadgeColor(role: string): string {
     case 'student':
       return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400';
     default:
-      return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+      return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-500';
   }
 }
 

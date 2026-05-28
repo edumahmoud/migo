@@ -57,19 +57,19 @@ const itemVariants = {
 // Priority badge color map
 // -------------------------------------------------------
 const priorityBadgeClasses: Record<TodoPriority, string> = {
-  urgent: 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300',
-  medium: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
-  low: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300',
+  urgent: 'bg-rose-100 dark:bg-rose-800/40 text-rose-700 dark:text-rose-500',
+  medium: 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500',
+  low: 'bg-emerald-100 dark:bg-emerald-800/40 text-emerald-700 dark:text-emerald-500',
 };
 
 // -------------------------------------------------------
 // Category badge color map
 // -------------------------------------------------------
 const categoryBadgeClasses: Record<TodoCategory, string> = {
-  study: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
-  assignment: 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300',
-  review: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300',
-  personal: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300',
+  study: 'bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400',
+  assignment: 'bg-violet-100 dark:bg-violet-800/40 text-violet-700 dark:text-violet-500',
+  review: 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500',
+  personal: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-500',
 };
 
 // -------------------------------------------------------
@@ -570,7 +570,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
         layout
         className={`group relative rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md ${
           todo.completed ? 'opacity-60' : ''
-        } ${overdue ? 'border-rose-300 dark:border-rose-800' : ''}`}
+        } ${overdue ? 'border-rose-300 dark:border-rose-900/60' : ''}`}
       >
         <div className="flex items-start gap-3" dir={direction}>
           {/* Checkbox */}
@@ -675,10 +675,10 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                     overdue
-                      ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
+                      ? 'bg-rose-100 dark:bg-rose-800/40 text-rose-700 dark:text-rose-500'
                       : dueSoon
-                        ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                        ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-500'
                   }`}
                 >
                   <Calendar className="h-2.5 w-2.5" />
@@ -686,7 +686,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                   {formatDueDate(todo.due_date, locale)}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 dark:bg-gray-800/50 text-gray-400 dark:text-gray-500 px-2 py-0.5 text-[10px] font-medium">
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-50 dark:bg-gray-800/40 text-gray-400 dark:text-gray-500 px-2 py-0.5 text-[10px] font-medium">
                   <Calendar className="h-2.5 w-2.5" />
                   {t('todos.noDueDate')}
                 </span>
@@ -694,14 +694,14 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
               {/* Subject name */}
               {todo.subject_name && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 px-2 py-0.5 text-[10px] font-semibold">
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400 px-2 py-0.5 text-[10px] font-semibold">
                   {todo.subject_name}
                 </span>
               )}
 
               {/* Auto source indicator */}
               {todo.source === 'auto' && (
-                <span className="inline-flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 text-[9px] font-medium">
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 px-1.5 py-0.5 text-[9px] font-medium">
                   <Clock className="h-2 w-2" />
                   auto
                 </span>
@@ -869,7 +869,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             {/* Modal header */}
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                <Plus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <Plus className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('todos.addTodo')}
               </h3>
               <button
@@ -942,7 +942,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             {/* Modal header */}
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('todos.editTodo')}
               </h3>
               <button
@@ -996,10 +996,10 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   const renderEmptyState = () => (
     <motion.div
       variants={itemVariants}
-      className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+      className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
     >
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-        <ListTodo className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+        <ListTodo className="h-8 w-8 text-sky-700 dark:text-sky-400" />
       </div>
       <p className="text-lg font-semibold text-foreground mb-1">
         {t('todos.noTodos')}
@@ -1025,8 +1025,8 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       {/* Header */}
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-            <ListTodo className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+            <ListTodo className="h-5 w-5 text-sky-700 dark:text-sky-400" />
           </div>
           <div>
             <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
@@ -1135,7 +1135,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       {/* Todo list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : filteredTodos.length === 0 ? (
         renderEmptyState()

@@ -245,7 +245,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
       </div>
     );
   }
@@ -287,7 +287,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                 {t('latestLectures')}
               </h3>
             </div>
@@ -300,8 +300,8 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                 <div className="divide-y">
                   {recentLectures.map((lecture) => (
                     <div key={lecture.id} className="flex items-center gap-3 p-4">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                        <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                        <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{lecture.title}</p>
@@ -314,7 +314,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                               day: 'numeric',
                             })}
                             {(lecture.description?.match(/__LECTURE_TIME__:([0-9]{1,2}:[0-9]{2})__/) || [])[1] && (
-                              <span className="text-sky-800 dark:text-sky-200 font-medium flex items-center gap-0.5">
+                              <span className="text-sky-800 dark:text-sky-400 font-medium flex items-center gap-0.5">
                                 <Clock className="h-3 w-3" />
                                 {(() => {
                                   const timeMatch = lecture.description!.match(/__LECTURE_TIME__:([0-9]{1,2}:[0-9]{2})__/)![1];
@@ -341,7 +341,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <File className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <File className="h-4 w-4 text-amber-600 dark:text-amber-500" />
                 {t('latestFiles')}
               </h3>
             </div>
@@ -354,8 +354,8 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                 <div className="divide-y">
                   {recentFiles.map((file) => (
                     <div key={file.id} className="flex items-center gap-3 p-4">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
-                        <File className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-800/40">
+                        <File className="h-4 w-4 text-amber-600 dark:text-amber-500" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
@@ -369,7 +369,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                         </p>
                       </div>
                       {file.category && (
-                        <span className="shrink-0 rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2 py-0.5 text-[10px] font-medium">
+                        <span className="shrink-0 rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 px-2 py-0.5 text-[10px] font-medium">
                           {file.category}
                         </span>
                       )}
@@ -390,13 +390,13 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <UserCog className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                <UserCog className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                 {t('coTeachers')}
               </h3>
               {isOwner && (
                 <button
                   onClick={() => setAddCoTeacherOpen(true)}
-                  className="flex items-center gap-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
+                  className="flex items-center gap-1.5 rounded-lg bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-400 hover:bg-sky-100 transition-colors"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
                   {t('addCoTeacher')}
@@ -407,14 +407,14 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             <div className="p-4">
               {/* Co-teacher badge for current user */}
               {isCoTeacher && (
-                <div className="mb-4 flex items-center justify-between gap-2 rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-800 px-4 py-2.5">
-                  <div className="flex items-center gap-2 text-sm text-teal-700 dark:text-teal-300">
+                <div className="mb-4 flex items-center justify-between gap-2 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-900/60 px-4 py-2.5">
+                  <div className="flex items-center gap-2 text-sm text-teal-700 dark:text-teal-500">
                     <Shield className="h-4 w-4 shrink-0" />
                     <span>{t('youAreCoTeacher')}</span>
                   </div>
                   <button
                     onClick={() => setLeaveConfirmOpen(true)}
-                    className="flex items-center gap-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-100 transition-colors"
+                    className="flex items-center gap-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-900/60 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-500 hover:bg-rose-100 transition-colors"
                   >
                     <LogOut className="h-3.5 w-3.5" />
                     {t('leaveCourse')}
@@ -424,7 +424,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
 
               {loadingCoTeachers ? (
                 <div className="flex items-center justify-center py-6">
-                  <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300" />
+                  <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-400" />
                 </div>
               ) : coTeachers.length === 0 ? (
                 <div className="py-6 text-center text-muted-foreground text-sm">
@@ -460,7 +460,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                             className="text-sm font-medium text-foreground hover:text-sky-700 transition-colors"
                           >
                             {titleLabel && (
-                              <span className="text-sky-700 dark:text-sky-300 me-0.5 text-xs font-normal">{titleLabel}</span>
+                              <span className="text-sky-700 dark:text-sky-400 me-0.5 text-xs font-normal">{titleLabel}</span>
                             )}
                             {ct.teacher_name || t('teacherFallback')}
                           </button>
@@ -478,8 +478,8 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
                         {/* Role badge */}
                         <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
                           ct.role === 'owner'
-                            ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                            : 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
+                            ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500'
+                            : 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
                         }`}>
                           {ct.role === 'owner' ? (
                             <><Shield className="h-3 w-3" /> {t('owner')}</>
@@ -535,8 +535,8 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             dir={direction}
           >
             <div className="flex flex-col items-center text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
-                <LogOut className="h-7 w-7 text-rose-600 dark:text-rose-400" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40 mb-4">
+                <LogOut className="h-7 w-7 text-rose-600 dark:text-rose-500" />
               </div>
               <h3 className="text-lg font-bold text-foreground mb-2">{t('leaveCourseTitle')}</h3>
               <p className="text-sm text-muted-foreground mb-2">
@@ -600,7 +600,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
             {/* Header */}
             <div className="flex items-center justify-between border-b px-6 pt-5 pb-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400">
                   <UserPlus className="h-5 w-5" />
                 </div>
                 <div>

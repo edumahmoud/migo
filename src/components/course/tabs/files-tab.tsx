@@ -167,24 +167,24 @@ function getFileTypeLabel(fileType: string): string {
 
 function getFileTypeBadgeColor(fileType: string): string {
   const lower = fileType.toLowerCase();
-  if (lower.includes('pdf')) return 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300';
-  if (lower.includes('word') || lower.includes('document') && lower.includes('wordprocessing') || lower.includes('doc')) return 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300';
-  if (lower.includes('spreadsheet') || lower.includes('excel') || lower.includes('sheet')) return 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300';
-  if (lower.includes('presentation') || lower.includes('powerpoint')) return 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300';
-  if (lower.includes('image/')) return 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300';
-  if (lower.includes('video/')) return 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300';
-  if (lower.includes('audio/')) return 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300';
-  if (lower.includes('zip') || lower.includes('compressed') || lower.includes('rar') || lower.includes('7z')) return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300';
+  if (lower.includes('pdf')) return 'bg-rose-100 dark:bg-rose-800/40 text-rose-700 dark:text-rose-500';
+  if (lower.includes('word') || lower.includes('document') && lower.includes('wordprocessing') || lower.includes('doc')) return 'bg-blue-100 dark:bg-blue-800/40 text-blue-700 dark:text-blue-400';
+  if (lower.includes('spreadsheet') || lower.includes('excel') || lower.includes('sheet')) return 'bg-emerald-100 dark:bg-emerald-800/40 text-emerald-700 dark:text-emerald-500';
+  if (lower.includes('presentation') || lower.includes('powerpoint')) return 'bg-orange-100 dark:bg-orange-800/40 text-orange-700 dark:text-orange-300';
+  if (lower.includes('image/')) return 'bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400';
+  if (lower.includes('video/')) return 'bg-violet-100 dark:bg-violet-800/40 text-violet-700 dark:text-violet-500';
+  if (lower.includes('audio/')) return 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500';
+  if (lower.includes('zip') || lower.includes('compressed') || lower.includes('rar') || lower.includes('7z')) return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-500';
   return 'bg-muted text-muted-foreground';
 }
 
 function getCategoryBadgeColor(category: FileCategory): string {
   switch (category) {
-    case 'images': return 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300';
-    case 'documents': return 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300';
-    case 'videos': return 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300';
-    case 'audio': return 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300';
-    case 'other': return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300';
+    case 'images': return 'bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400';
+    case 'documents': return 'bg-rose-100 dark:bg-rose-800/40 text-rose-700 dark:text-rose-500';
+    case 'videos': return 'bg-violet-100 dark:bg-violet-800/40 text-violet-700 dark:text-violet-500';
+    case 'audio': return 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500';
+    case 'other': return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-500';
     default: return 'bg-muted text-muted-foreground';
   }
 }
@@ -638,12 +638,12 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               onClick={() => setCategoryFilter(cat)}
               className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
                 categoryFilter === cat
-                  ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
+                  ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
               {t(`course.category${cat.charAt(0).toUpperCase()}${cat.slice(1)}`)}
-              <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'}`}>
+              <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}`}>
                 ({count})
               </span>
             </button>
@@ -669,14 +669,14 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 {selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
-                  <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                 ) : (
                   <Square className="h-4 w-4" />
                 )}
                 {t('course.selectAll')}
               </button>
               {selectedFileIds.size > 0 && (
-                <span className="text-xs text-sky-700 dark:text-sky-300 font-medium">
+                <span className="text-xs text-sky-700 dark:text-sky-400 font-medium">
                   {t('course.filesSelected', { count: selectedFileIds.size })}
                 </span>
               )}
@@ -694,15 +694,15 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
       {/* Files list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : filteredFiles.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <File className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+            <File className="h-8 w-8 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('course.noFiles')}</p>
           <p className="text-sm text-muted-foreground">
@@ -720,7 +720,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                     onClick={() => toggleFileSelection(file.id)}
                     className={`touch-target shrink-0 flex items-center justify-center rounded-md transition-colors ${
                       selectedFileIds.has(file.id)
-                        ? 'text-sky-700 dark:text-sky-300'
+                        ? 'text-sky-700 dark:text-sky-400'
                         : 'text-muted-foreground/40 hover:text-foreground'
                     }`}
                   >
@@ -729,7 +729,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                 )}
 
                 {/* File icon in colored circle */}
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40">
                   {getFileIcon(file.file_type)}
                 </div>
 
@@ -798,7 +798,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                         <DropdownMenuItem
                           onClick={() => setConfirmDeleteId(file.id)}
                           disabled={deletingId === file.id}
-                          className="text-rose-600 dark:text-rose-400 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
+                          className="text-rose-600 dark:text-rose-500 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
                         >
                           {deletingId === file.id ? <Loader2 className="h-4 w-4 me-2 animate-spin" /> : <Trash2 className="h-4 w-4 me-2" />}
                           {t('common.delete')}
@@ -839,7 +839,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                     <DropdownMenuContent align="start" className="w-48">
                       <DropdownMenuItem
                         onClick={() => setConfirmBulkDelete(true)}
-                        className="text-rose-600 dark:text-rose-400 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
+                        className="text-rose-600 dark:text-rose-500 focus:text-rose-600 focus:bg-rose-50 cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4 me-2" />
                         {t('common.delete')}
@@ -969,7 +969,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <FolderPlus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <FolderPlus className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   {t('course.assignToOtherCourses')}
                 </h3>
                 <button
@@ -981,8 +981,8 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
               </div>
               <div className="p-5 space-y-4">
                 <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                    <FolderPlus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                    <FolderPlus className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   </div>
                   <p className="text-sm font-medium text-foreground">
                     {t('course.filesSelectedCount', { count: selectedFileIds.size })}
@@ -1007,7 +1007,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
                                 return next;
                               });
                             }}
-                            className="rounded border-gray-300 dark:border-gray-700 text-sky-700 dark:text-sky-300 focus:ring-sky-600"
+                            className="rounded border-gray-300 dark:border-gray-800/60 text-sky-700 dark:text-sky-400 focus:ring-sky-600"
                           />
                           <span className="text-sm text-foreground">{s.name}</span>
                         </label>

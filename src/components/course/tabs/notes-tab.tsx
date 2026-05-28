@@ -508,7 +508,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               {note.visibility === 'public' ? (
                 <Badge
                   variant="outline"
-                  className="text-[10px] border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200"
+                  className="text-[10px] border-sky-300 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400"
                 >
                   <Globe className="h-2.5 w-2.5 me-1" />
                   {isGeneral ? t('announcement') : t('publicNote')}
@@ -516,7 +516,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               ) : (
                 <Badge
                   variant="outline"
-                  className="text-[10px] border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300"
+                  className="text-[10px] border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-500"
                 >
                   <Lock className="h-2.5 w-2.5 me-1" />
                   {t('draft')}
@@ -621,10 +621,10 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
             transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border-2 border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 p-4 space-y-3">
+            <div className="rounded-xl border-2 border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <StickyNote className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <StickyNote className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   {editingNoteId ? t('editNoteTitle') : t('writeNewNote')}
                 </h4>
                 <button
@@ -642,7 +642,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   onClick={() => setNoteVisibility('public')}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                     noteVisibility === 'public'
-                      ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border border-sky-200 dark:border-sky-800'
+                      ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60'
                       : 'text-muted-foreground hover:bg-muted border border-transparent'
                   }`}
                 >
@@ -653,7 +653,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   onClick={() => setNoteVisibility('private')}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                     noteVisibility === 'private'
-                      ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                      ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 border border-amber-200 dark:border-amber-900/60'
                       : 'text-muted-foreground hover:bg-muted border border-transparent'
                   }`}
                 >
@@ -719,12 +719,12 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       {/* Notes content */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : visibleNotes.length === 0 ? (
-        <motion.div variants={itemVariants} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-20">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-5">
-            <StickyNote className="h-10 w-10 text-sky-700 dark:text-sky-300" />
+        <motion.div variants={itemVariants} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-20">
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-800/40 mb-5">
+            <StickyNote className="h-10 w-10 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1">{t('noNotesYetFull')}</p>
           <p className="text-sm text-muted-foreground">
@@ -737,9 +737,9 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           {generalNotes.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Megaphone className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                <Megaphone className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                 <h4 className="text-sm font-bold text-foreground">{t('announcementsAndNotes')}</h4>
-                <Badge variant="outline" className="text-[10px] border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200">
+                <Badge variant="outline" className="text-[10px] border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400">
                   {generalNotes.length}
                 </Badge>
               </div>
@@ -753,9 +753,9 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           {lectureNotes.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <BookOpen className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <BookOpen className="h-4 w-4 text-amber-600 dark:text-amber-500" />
                 <h4 className="text-sm font-bold text-foreground">{t('lectureNotesTitle')}</h4>
-                <Badge variant="outline" className="text-[10px] border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300">
+                <Badge variant="outline" className="text-[10px] border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-500">
                   {lectureNotes.length}
                 </Badge>
               </div>
@@ -787,7 +787,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
             >
               <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
                 <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <Eye className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   {t('noteViewers')}
                 </h4>
                 <button

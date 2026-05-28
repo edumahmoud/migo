@@ -1035,10 +1035,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {!loadingSubjects && subjects.length === 0 && (
         <motion.div
           variants={cardVariants}
-          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-800 bg-gradient-to-b from-sky-50/50 dark:from-sky-950/30 to-transparent py-20"
+          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-gradient-to-b from-sky-50/50 dark:from-sky-900/20 to-transparent py-20"
         >
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-5">
-            <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-800/40 mb-5">
+            <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1.5">
             {role === 'teacher' ? t('dashboard.noSubjectsYet') : t('course.noStudents')}
@@ -1181,7 +1181,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 {subject.join_code}
                               </span>
                               {copiedCodeId === subject.id ? (
-                                <Check className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300 shrink-0" />
+                                <Check className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400 shrink-0" />
                               ) : (
                                 <Copy
                                   className="h-3.5 w-3.5 shrink-0 opacity-50"
@@ -1201,7 +1201,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 </div>
                               )}
                               {subject.sub_level && (
-                                <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 px-2.5 py-1 text-xs text-sky-800 dark:text-sky-200">
+                                <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60 px-2.5 py-1 text-xs text-sky-800 dark:text-sky-400">
                                   <Calendar className="h-3 w-3 shrink-0" />
                                   <span className="font-medium">{translateSubLevel(subject.sub_level)}</span>
                                 </div>
@@ -1531,7 +1531,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       </div>
                       <button
                         onClick={() => { setNewSubjectThumb(null); if (newSubjectThumbRef.current) newSubjectThumbRef.current.value = ''; }}
-                        className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                        className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
                         title="{t('common.delete')}"
                         disabled={creatingSubject}
                       >

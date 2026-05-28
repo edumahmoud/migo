@@ -75,10 +75,10 @@ function getReasonLabel(value: string, t: (key: string) => string): string {
 // -------------------------------------------------------
 function StatusBadge({ status, t }: { status: ReportStatus; t: (key: string) => string }) {
   const config: Record<ReportStatus, { label: string; className: string }> = {
-    pending: { label: t('reports.status.pending'), className: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' },
-    in_progress: { label: t('reports.status.in_progress'), className: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800' },
-    resolved: { label: t('reports.status.resolved'), className: 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800' },
-    dismissed: { label: t('reports.status.dismissed'), className: 'bg-gray-100 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' },
+    pending: { label: t('reports.status.pending'), className: 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60' },
+    in_progress: { label: t('reports.status.in_progress'), className: 'bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60' },
+    resolved: { label: t('reports.status.resolved'), className: 'bg-teal-100 dark:bg-teal-800/40 text-teal-700 dark:text-teal-500 border-teal-200 dark:border-teal-900/60' },
+    dismissed: { label: t('reports.status.dismissed'), className: 'bg-gray-100 dark:bg-gray-800/40 text-gray-600 dark:text-gray-500 border-gray-200 dark:border-gray-800/60' },
   };
   const c = config[status] || config.pending;
   return (
@@ -764,13 +764,13 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const getActionColor = (action: string) => {
     switch (action) {
       case 'reply': return 'text-sky-600 dark:text-sky-400';
-      case 'forward': return 'text-amber-600 dark:text-amber-400';
-      case 'resolve': return 'text-teal-600 dark:text-teal-400';
-      case 'dismiss': return 'text-gray-600 dark:text-gray-400';
-      case 'reopen': return 'text-rose-600 dark:text-rose-400';
-      case 'block': return 'text-red-600 dark:text-red-400';
+      case 'forward': return 'text-amber-600 dark:text-amber-500';
+      case 'resolve': return 'text-teal-600 dark:text-teal-500';
+      case 'dismiss': return 'text-gray-600 dark:text-gray-500';
+      case 'reopen': return 'text-rose-600 dark:text-rose-500';
+      case 'block': return 'text-red-600 dark:text-red-500';
       case 'warn': return 'text-orange-600 dark:text-orange-400';
-      case 'return': return 'text-violet-600 dark:text-violet-400';
+      case 'return': return 'text-violet-600 dark:text-violet-500';
       default: return 'text-muted-foreground';
     }
   };
@@ -781,7 +781,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
   const UserLink = ({ userId, name }: { userId: string; name: string }) => (
     <button
       onClick={(e) => { e.stopPropagation(); openProfile(userId); }}
-      className="text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline"
+      className="text-sm font-medium text-sky-700 dark:text-sky-400 hover:underline"
     >
       {name}
     </button>
@@ -937,7 +937,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
       {/* Reports list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : reports.length === 0 ? (
         <motion.div variants={itemVariants} className="text-center py-16">
@@ -953,8 +953,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               onClick={() => fetchReportDetail(report.id)}
               className={`w-full text-start rounded-xl border p-4 transition-all hover:shadow-md ${
                 selectedReport?.id === report.id
-                  ? 'border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20'
-                  : 'border-border bg-card hover:border-sky-200 dark:hover:border-sky-800'
+                  ? 'border-sky-300 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/15'
+                  : 'border-border bg-card hover:border-sky-200 dark:hover:border-sky-900/60'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -962,18 +962,18 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   <div className="flex items-center gap-2 mb-1.5">
                     <StatusBadge status={report.status} t={t} />
                     {report.reopen_count && report.reopen_count > 0 && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-violet-100 dark:bg-violet-800/30 text-violet-700 dark:text-violet-500 border border-violet-200 dark:border-violet-900/60">
                         <RotateCcw className="h-2.5 w-2.5" />
                         {t('reports.reopened')}
                       </span>
                     )}
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400">
                       <Hash className="h-2.5 w-2.5" />
                       {report.report_number}
                     </span>
                     <span className="text-xs text-muted-foreground">{getTargetTypeLabel(report.target_type, t)}</span>
                     {report.reporter_count && report.reporter_count > 1 && isStaff && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-500">
                         <Users className="h-3 w-3" />
                         {report.reporter_count} {t('reports.reporterCountBadge', { count: report.reporter_count })}
                       </span>
@@ -986,7 +986,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                     <span>{t('reports.reporter')}: {report.reporter ? <UserLink userId={report.reporter.id} name={report.reporter.name || t('reports.unknown')} /> : t('reports.unknown')}</span>
                     {report.target_user && (
-                      <span className="flex items-center gap-1"><span className="font-bold text-rose-600 dark:text-rose-400">{t('reports.against')}</span> <UserLink userId={report.target_user.id} name={report.target_user.name} /></span>
+                      <span className="flex items-center gap-1"><span className="font-bold text-rose-600 dark:text-rose-500">{t('reports.against')}</span> <UserLink userId={report.target_user.id} name={report.target_user.name} /></span>
                     )}
                     {report.assigned_user && isStaff && (
                       <span>{t('reports.assignedTo')}: {report.assigned_user.name}</span>
@@ -1014,7 +1014,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     const reporterCount = report.reporter_count || 1;
 
     return (
-      <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/20 p-4">
+      <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-900/20 p-4">
         <div className="flex items-center gap-2 mb-3">
           <Flag className="h-4 w-4 text-rose-500" />
           <h4 className="text-sm font-semibold text-foreground">{t('reports.accused')}</h4>
@@ -1034,14 +1034,14 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         {isStaff ? (
           <div className="grid grid-cols-3 gap-2">
             <div className="rounded-lg bg-background/80 p-2 text-center">
-              <div className="flex items-center justify-center gap-1 text-rose-600 dark:text-rose-400">
+              <div className="flex items-center justify-center gap-1 text-rose-600 dark:text-rose-500">
                 <BarChart3 className="h-3.5 w-3.5" />
                 <span className="text-lg font-bold">{targetUserStats?.total_against ?? tu.report_count ?? 0}</span>
               </div>
               <p className="text-[10px] text-muted-foreground mt-0.5">{t('reports.complaintCount')}</p>
             </div>
             <div className="rounded-lg bg-background/80 p-2 text-center">
-              <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-400">
+              <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-500">
                 <Users className="h-3.5 w-3.5" />
                 <span className="text-lg font-bold">{targetUserStats?.total_reporters ?? reporterCount}</span>
               </div>
@@ -1075,7 +1075,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
     if (!report?.target_content) return null;
 
     return (
-      <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20 p-4">
+      <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-900/20 p-4">
         <div className="flex items-center gap-2 mb-2">
           <FileText className="h-4 w-4 text-amber-500" />
           <h4 className="text-sm font-semibold text-foreground">
@@ -1186,7 +1186,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <p className="text-sm text-foreground whitespace-pre-wrap mt-1 ms-10">{resp.content}</p>
                         )}
                         {resp.forwarded_to_user && (
-                          <div className="flex items-center gap-2 mt-2 ms-10 text-xs text-amber-600 dark:text-amber-400">
+                          <div className="flex items-center gap-2 mt-2 ms-10 text-xs text-amber-600 dark:text-amber-500">
                             <ArrowRightLeft className="h-3.5 w-3.5" />
                             <span>{t('reports.forwardReport', { to: formatNameWithTitle(resp.forwarded_to_user.name, resp.forwarded_to_user.role, resp.forwarded_to_user.title_id, resp.forwarded_to_user.gender, t) })}</span>
                           </div>
@@ -1201,8 +1201,8 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                         key={msg.id}
                         className={`rounded-lg border p-3 ${
                           isWarning
-                            ? 'border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-900/20'
-                            : 'border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-900/10'
+                            ? 'border-orange-300 dark:border-orange-900/60 bg-orange-50/50 dark:bg-orange-900/20'
+                            : 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/10'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2 mb-1">
@@ -1232,7 +1232,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                           <span className="text-xs text-muted-foreground">{formatDate(msg.created_at)}</span>
                         </div>
                         <p className={`text-sm whitespace-pre-wrap mt-1 ms-10 ${
-                          isWarning ? 'text-orange-800 dark:text-orange-200' : 'text-foreground'
+                          isWarning ? 'text-orange-800 dark:text-orange-300' : 'text-foreground'
                         }`}>{msg.content}</p>
                         {/* Message attachments in timeline */}
                         {msg.attachments && Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
@@ -1289,13 +1289,13 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
         {/* ─── Report Header Card ─── */}
         <div className="rounded-xl border border-border bg-card p-4 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400">
               <Hash className="h-3 w-3" />
               {selectedReport.report_number}
             </span>
             <StatusBadge status={selectedReport.status} t={t} />
             {isReopened && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 dark:bg-violet-800/30 text-violet-700 dark:text-violet-500 border border-violet-200 dark:border-violet-900/60">
                 <RotateCcw className="h-3 w-3" />
                 {t('reports.reopened')}
               </span>
@@ -1305,7 +1305,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             </span>
             <span className="text-sm font-bold text-foreground">{getReasonLabel(selectedReport.reason, t)}</span>
             {isStaff && selectedReport.reporter_count && selectedReport.reporter_count > 1 && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-500">
                 <Users className="h-3 w-3" />
                 {selectedReport.reporter_count} {t('reports.reporterCountBadge', { count: selectedReport.reporter_count })}
               </span>
@@ -1326,7 +1326,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               <>
                 <span className="text-border">|</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-rose-600 dark:text-rose-400">{t('reports.against')}</span>
+                  <span className="font-bold text-rose-600 dark:text-rose-500">{t('reports.against')}</span>
                   <UserAvatar name={selectedReport.target_user.name} avatarUrl={selectedReport.target_user.avatar_url} size="sm" />
                   <UserLink userId={selectedReport.target_user.id} name={formatNameWithTitle(selectedReport.target_user.name, selectedReport.target_user.role, selectedReport.target_user.title_id, selectedReport.target_user.gender, t)} />
                 </div>
@@ -1484,7 +1484,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               <div className="space-y-2">
                 <button
                   onClick={() => { setShowMessageReporter(!showMessageReporter); setShowMessageReported(false); }}
-                  className="flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-300 hover:underline"
+                  className="flex items-center gap-2 text-sm font-medium text-sky-700 dark:text-sky-400 hover:underline"
                 >
                   <Mail className="h-4 w-4" />
                   {t('reports.sendMessageReporter')}
@@ -1523,7 +1523,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               <div className="space-y-2">
                 <button
                   onClick={() => { setShowMessageReported(!showMessageReported); setShowMessageReporter(false); }}
-                  className="flex items-center gap-2 text-sm font-medium text-rose-700 dark:text-rose-300 hover:underline"
+                  className="flex items-center gap-2 text-sm font-medium text-rose-700 dark:text-rose-500 hover:underline"
                 >
                   <Bell className="h-4 w-4" />
                   {t('reports.sendMessageAccused')}
@@ -1603,7 +1603,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
             <button
               onClick={() => setConfirmDeleteId(selectedReport.id)}
               disabled={submitting}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-rose-600 border border-rose-200 dark:border-rose-800 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-rose-600 border border-rose-200 dark:border-rose-900/60 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-50 transition-colors"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               {t('reports.deleteReport')}
@@ -1696,7 +1696,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
       {loadingInbox ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : inboxMessages.length === 0 ? (
         <motion.div variants={itemVariants} className="text-center py-16">
@@ -1713,7 +1713,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               variants={itemVariants}
               className={`rounded-xl border p-4 hover:shadow-sm transition-shadow ${
                 isWarning
-                  ? 'border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-950/30'
+                  ? 'border-orange-300 dark:border-orange-900/60 bg-orange-50 dark:bg-orange-900/20'
                   : 'border-border bg-card'
               }`}
             >
@@ -1745,10 +1745,10 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                       isWarning
                         ? 'bg-orange-200 dark:bg-orange-800/60 text-orange-700 dark:text-orange-300'
                         : msg.recipient_role === 'reporter'
-                          ? 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300'
+                          ? 'bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400'
                           : msg.recipient_role === 'reported'
-                            ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
-                            : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                            ? 'bg-rose-100 dark:bg-rose-800/30 text-rose-700 dark:text-rose-500'
+                            : 'bg-amber-100 dark:bg-amber-800/30 text-amber-700 dark:text-amber-500'
                     }`}>
                       {isWarning ? (
                         <><AlertTriangle className="h-3 w-3" /> {t('reports.warn')}</>
@@ -1761,7 +1761,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                       )}
                     </span>
                     {msg.report?.report_number && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400">
                         <Hash className="h-2.5 w-2.5" />
                         {msg.report.report_number}
                       </span>
@@ -1777,7 +1777,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               {/* Report info (reporter, reported user, report number) */}
               {msg.report && (
                 <div className="mt-2 ms-13 bg-muted/50 rounded-lg p-2 flex items-center gap-3 flex-wrap text-xs">
-                  <span className="inline-flex items-center gap-1 font-mono font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 px-1.5 py-0.5 rounded-full text-[10px]">
+                  <span className="inline-flex items-center gap-1 font-mono font-medium bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 rounded-full text-[10px]">
                     <Hash className="h-2.5 w-2.5" />
                     {msg.report.report_number}
                   </span>
@@ -1788,7 +1788,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   )}
                   {msg.report.target_user?.name && (
                     <span className="text-muted-foreground">
-                      {t('reports.against')}: <span className="text-rose-600 dark:text-rose-400 font-medium">{msg.report.target_user.name}</span>
+                      {t('reports.against')}: <span className="text-rose-600 dark:text-rose-500 font-medium">{msg.report.target_user.name}</span>
                     </span>
                   )}
                 </div>
@@ -1798,7 +1798,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
               <div className="mt-3 ms-13">
                 {isWarning ? (
                   // Structured warning details
-                  <div className="text-sm rounded-lg p-3 border text-orange-800 dark:text-orange-200 bg-orange-100/60 dark:bg-orange-900/30 border-orange-300/50 dark:border-orange-700/50 space-y-1.5">
+                  <div className="text-sm rounded-lg p-3 border text-orange-800 dark:text-orange-300 bg-orange-100/60 dark:bg-orange-900/30 border-orange-300/50 dark:border-orange-900/60/50 space-y-1.5">
                     {msg.content.split('\n').map((line: string, i: number) => {
                       if (line.startsWith('⚠️')) return <p key={i} className="font-bold text-base">{line}</p>;
                       const colonIdx = line.indexOf(':');
@@ -1835,7 +1835,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 {msg.report_id && msg.recipient_type === 'reporter' && msg.message_type !== 'auto' && (
                   <button
                     onClick={() => fetchReportDetail(msg.report_id)}
-                    className="text-xs text-sky-700 dark:text-sky-300 hover:underline flex items-center gap-1"
+                    className="text-xs text-sky-700 dark:text-sky-400 hover:underline flex items-center gap-1"
                   >
                     <ShieldAlert className="h-3 w-3" />
                     {t('reports.viewRelatedReport')}
@@ -1943,7 +1943,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
 
       {loadingAgainst ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : againstReports.length === 0 ? (
         <motion.div variants={itemVariants} className="text-center py-16">
@@ -1963,7 +1963,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1.5">
                     <StatusBadge status={report.status} t={t} />
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400">
                       <Hash className="h-2.5 w-2.5" />
                       {report.report_number}
                     </span>
@@ -2017,7 +2017,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
                   onClick={() => setBanDuration(d.id)}
                   className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
                     banDuration === d.id
-                      ? 'border-red-300 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                      ? 'border-red-300 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-500'
                       : 'border-border text-muted-foreground hover:bg-muted'
                   }`}
                 >
@@ -2148,7 +2148,7 @@ export default function ReportsSection({ profile, role }: ReportsSectionProps) {
           <motion.div key="detail" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             {loadingDetail ? (
               <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+                <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
               </div>
             ) : (
               renderReportDetail()

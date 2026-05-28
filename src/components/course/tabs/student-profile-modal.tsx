@@ -187,14 +187,14 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir={direction}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <User className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+            <User className="h-5 w-5 text-sky-700 dark:text-sky-400" />
             {t("studentProfileTitle")}
           </DialogTitle>
         </DialogHeader>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+            <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
           </div>
         ) : !performance ? (
           <div className="text-center py-12 text-muted-foreground">{t('studentDataNotFound')}</div>
@@ -214,9 +214,9 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
               />
 
               {/* Overall performance card */}
-              <div className="rounded-xl border bg-sky-50/50 dark:bg-sky-950/30 p-4 space-y-3">
+              <div className="rounded-xl border bg-sky-50/50 dark:bg-sky-900/15 p-4 space-y-3">
                 <h5 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <Award className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   {t("overallPerformance")}
                 </h5>
                 <div className="flex items-center gap-4">
@@ -238,7 +238,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                         />
                       </svg>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-sm font-bold text-sky-800 dark:text-sky-200">{performance.average_score}%</span>
+                        <span className="text-sm font-bold text-sky-800 dark:text-sky-400">{performance.average_score}%</span>
                       </div>
                     </div>
                     <span className="text-xs text-muted-foreground mt-1">{t('averagePerformance')}</span>
@@ -260,7 +260,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
               {performance.scores.length > 0 && (
                 <div className="space-y-2">
                   <h5 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                    <Award className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                     {t("quizResults")}
                   </h5>
                   <div className="space-y-2">
@@ -275,7 +275,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-sm font-bold text-foreground">{score.score}/{score.total}</span>
                             <Badge className={`text-[10px] ${
-                              pct >= 80 ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200' :
+                              pct >= 80 ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400' :
                               pct >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
                             }`}>
                               {pct}%
@@ -292,7 +292,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
               {performance.submissions.length > 0 && (
                 <div className="space-y-2">
                   <h5 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                    <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                     {t("submissionsLabel")}
                   </h5>
                   <div className="space-y-2">
@@ -306,10 +306,10 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {sub.status === 'graded' && sub.score !== undefined && sub.score !== null ? (
-                            <span className="text-sm font-bold text-sky-800 dark:text-sky-200">{sub.score}</span>
+                            <span className="text-sm font-bold text-sky-800 dark:text-sky-400">{sub.score}</span>
                           ) : null}
                           <Badge className={`text-[10px] ${
-                            sub.status === 'graded' ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200' :
+                            sub.status === 'graded' ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400' :
                             sub.status === 'submitted' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
                           }`}>
                             {sub.status === 'graded' ? t('gradedStatus') : sub.status === 'submitted' ? t('submittedStatus') : t('returnedStatus')}

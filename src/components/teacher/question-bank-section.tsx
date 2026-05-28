@@ -126,9 +126,9 @@ function difficultyLabel(d: string | null | undefined, t: (key: string) => strin
 
 function difficultyColor(d?: string | null): string {
   switch (d) {
-    case 'easy': return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
-    case 'medium': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
-    case 'hard': return 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800';
+    case 'easy': return 'bg-emerald-100 dark:bg-emerald-900/15 text-emerald-700 dark:text-emerald-500 border-emerald-200 dark:border-emerald-900/60';
+    case 'medium': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60';
+    case 'hard': return 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-500 border-rose-200 dark:border-rose-900/60';
     default: return 'bg-muted/50 text-muted-foreground border-border';
   }
 }
@@ -915,7 +915,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
       </div>
     );
   }
@@ -940,7 +940,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               onClick={() => setCurrentQuestionType(opt.type)}
               className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                 currentQuestionType === opt.type
-                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -1000,13 +1000,13 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             <button
               onClick={() => setBooleanCorrect(true)}
               className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-all ${
-                booleanCorrect ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200' : 'border-border text-muted-foreground hover:bg-muted/50'
+                booleanCorrect ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400' : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >{t('quiz.booleanTrue')}</button>
             <button
               onClick={() => setBooleanCorrect(false)}
               className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-all ${
-                !booleanCorrect ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300' : 'border-border text-muted-foreground hover:bg-muted/50'
+                !booleanCorrect ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500' : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >{t('quiz.booleanFalse')}</button>
           </div>
@@ -1059,7 +1059,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               )}
             </div>
           ))}
-          <button onClick={() => setMatchingPairs([...matchingPairs, { key: '', value: '' }])} className="flex items-center gap-1 text-xs font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800 transition-colors">
+          <button onClick={() => setMatchingPairs([...matchingPairs, { key: '', value: '' }])} className="flex items-center gap-1 text-xs font-medium text-sky-700 dark:text-sky-400 hover:text-sky-800 transition-colors">
             <Plus className="h-3.5 w-3.5" />
             {t('questionBank.addPair')}
           </button>
@@ -1106,7 +1106,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Database className="h-6 w-6 text-sky-700 dark:text-sky-300" />
+            <Database className="h-6 w-6 text-sky-700 dark:text-sky-400" />
             {t('nav.questionBank')}
           </h2>
           <p className="text-muted-foreground mt-1">{t('questionBank.manageBanksDesc')}</p>
@@ -1154,7 +1154,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30">
-              <Database className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+              <Database className="h-5 w-5 text-sky-700 dark:text-sky-400" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{banks.length}</p>
@@ -1165,7 +1165,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/30">
-              <ListChecks className="h-5 w-5 text-teal-700 dark:text-teal-300" />
+              <ListChecks className="h-5 w-5 text-teal-700 dark:text-teal-500" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{banks.reduce((sum, b) => sum + (b.question_count || 0), 0)}</p>
@@ -1176,7 +1176,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
-              <BookOpen className="h-5 w-5 text-amber-700 dark:text-amber-300" />
+              <BookOpen className="h-5 w-5 text-amber-700 dark:text-amber-500" />
             </div>
             <div>
               <p className="text-2xl font-bold text-foreground">{subjects.length}</p>
@@ -1231,7 +1231,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                       <button
                         onClick={e => { e.stopPropagation(); handleDeleteBank(bank.id); }}
                         disabled={deletingBankId === bank.id}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors opacity-0 group-hover:opacity-100"
                       >
                         {deletingBankId === bank.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </button>
@@ -1304,7 +1304,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             </label>
             <button
               onClick={() => { setAiModalOpen(true); loadCourseFiles(selectedBank.subject_id); }}
-              className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-2.5 text-xs font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
+              className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-violet-100 dark:bg-violet-900/15 text-violet-700 dark:text-violet-500 px-2.5 text-xs font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
               title={t('questionBank.generateFromFileTitle')}
             >
               <Sparkles className="h-3.5 w-3.5" />
@@ -1345,7 +1345,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               </button>
               <button
                 onClick={() => { setAiModalOpen(true); loadCourseFiles(selectedBank.subject_id); }}
-                className="flex items-center gap-1.5 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-3 py-2 text-xs font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg bg-violet-100 dark:bg-violet-900/15 text-violet-700 dark:text-violet-500 px-3 py-2 text-xs font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 {t('questionBank.generateWithAiShort')}
@@ -1355,15 +1355,15 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         ) : (
           <motion.div variants={itemVariants} className="space-y-2">
             {questions.map((q, idx) => (
-              <div key={q.id} className="rounded-lg border bg-card p-4 shadow-sm group hover:border-sky-200 dark:hover:border-sky-800 transition-all">
+              <div key={q.id} className="rounded-lg border bg-card p-4 shadow-sm group hover:border-sky-200 dark:hover:border-sky-900/60 transition-all">
                 <div className="flex items-start gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 text-xs font-bold">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 text-xs font-bold">
                     {idx + 1}
                   </span>
                   <div className="min-w-0 flex-1 space-y-2">
                     <p className="text-sm font-medium text-foreground">{q.question}</p>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800">
+                      <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60">
                         {questionTypeLabel(q.type, t)}
                       </span>
                       {q.difficulty && (
@@ -1385,7 +1385,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                             key={oi}
                             className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] ${
                               opt === q.correct_answer
-                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-medium'
+                                ? 'bg-emerald-100 dark:bg-emerald-900/15 text-emerald-700 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-900/60 font-medium'
                                 : 'bg-muted/50 text-muted-foreground border border-border'
                             }`}
                           >
@@ -1398,21 +1398,21 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                     {q.type === 'boolean' && q.correct_answer && (
                       <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium ${
                         q.correct_answer === 'صح'
-                          ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                          : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                          ? 'bg-emerald-100 dark:bg-emerald-900/15 text-emerald-700 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-900/60'
+                          : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-500 border border-rose-200 dark:border-rose-900/60'
                       }`}>
                         {q.correct_answer}
                       </span>
                     )}
                     {q.type === 'completion' && q.correct_answer && (
-                      <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium bg-emerald-100 dark:bg-emerald-900/15 text-emerald-700 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-900/60">
                         {t('questionBank.answerLabel')} {q.correct_answer}
                       </span>
                     )}
                     {q.type === 'matching' && q.pairs && (
                       <div className="flex flex-wrap gap-1.5 mt-1">
                         {(q.pairs as { key: string; value: string }[]).map((pair, pi) => (
-                          <span key={pi} className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                          <span key={pi} className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-500 border border-amber-200 dark:border-amber-900/60">
                             {pair.key} ← {pair.value}
                           </span>
                         ))}
@@ -1422,7 +1422,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   <button
                     onClick={() => handleDeleteQuestion(q.id)}
                     disabled={deletingQuestionId === q.id}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors opacity-0 group-hover:opacity-100"
                   >
                     {deletingQuestionId === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   </button>
@@ -1433,12 +1433,12 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         )}
 
         {/* Go to course exams tab */}
-        <motion.div variants={itemVariants} className="rounded-lg border bg-sky-50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800 p-4">
+        <motion.div variants={itemVariants} className="rounded-lg border bg-sky-50 dark:bg-sky-900/15 border-sky-200 dark:border-sky-900/60 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+              <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-400" />
               <div>
-                <p className="text-sm font-medium text-sky-800 dark:text-sky-200">{t('questionBank.createQuizFromBank')}</p>
+                <p className="text-sm font-medium text-sky-800 dark:text-sky-400">{t('questionBank.createQuizFromBank')}</p>
                 <p className="text-xs text-sky-600 dark:text-sky-400">{t('questionBank.createQuizFromBankDesc')}</p>
               </div>
             </div>
@@ -1478,7 +1478,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           >
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Database className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <Database className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('questionBank.createNewBankTitle')}
               </h3>
               <button onClick={() => { if (!creatingBank) setCreateModalOpen(false); }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
@@ -1559,7 +1559,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           >
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Plus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <Plus className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('questionBank.addQuestion')}
               </h3>
               <button onClick={() => { if (!addingQuestion) { setAddQuestionModalOpen(false); resetQuestionForm(); } }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
@@ -1571,7 +1571,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               <button
                 onClick={handleAddQuestion}
                 disabled={addingQuestion}
-                className="w-full mt-5 flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-3 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-50 hover:border-sky-400 transition-colors disabled:opacity-50"
+                className="w-full mt-5 flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-3 text-sm font-medium text-sky-800 dark:text-sky-400 hover:bg-sky-50 hover:border-sky-400 transition-colors disabled:opacity-50"
               >
                 {addingQuestion ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 {t('questionBank.addQuestionBtn')}
@@ -1606,7 +1606,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           >
             <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+                <Sparkles className="h-5 w-5 text-violet-600 dark:text-violet-500" />
                 {t('questionBank.generateAiTitle')}
               </h3>
               <button onClick={() => { if (!generatingFromAi) { setAiModalOpen(false); setSelectedCourseFile(null); setCourseFiles([]); } }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
@@ -1634,7 +1634,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                         onClick={() => setSelectedCourseFile(file)}
                         className={`w-full flex items-center gap-2 rounded-lg border p-2.5 text-end transition-all ${
                           selectedCourseFile?.id === file.id
-                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30'
+                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15'
                             : 'border-border hover:bg-muted/50'
                         }`}
                       >

@@ -26,11 +26,11 @@ function SectionErrorUI({ name, errorMsg, isDev, onRetry }: { name?: string; err
         {name ? `${t('common.section')} "${name}"` : t('common.thisSection')} {t('common.encounteredProblem')}
       </p>
       {isDev && (
-        <div className="mb-4 max-w-md rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 p-3 text-end" dir="ltr">
-          <p className="text-xs font-mono text-red-700 dark:text-red-300 break-all">{errorMsg}</p>
+        <div className="mb-4 max-w-md rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/60 p-3 text-end" dir="ltr">
+          <p className="text-xs font-mono text-red-700 dark:text-red-500 break-all">{errorMsg}</p>
           {errorMsg && (
             <details className="mt-2">
-              <summary className="text-xs text-red-600 dark:text-red-400 cursor-pointer">Stack trace</summary>
+              <summary className="text-xs text-red-600 dark:text-red-500 cursor-pointer">Stack trace</summary>
             </details>
           )}
         </div>

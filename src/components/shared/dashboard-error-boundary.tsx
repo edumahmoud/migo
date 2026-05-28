@@ -69,7 +69,7 @@ function DashboardErrorUI({
   // Auto-retry UI
   if (autoRetrying) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={direction}>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-900 dark:via-card dark:to-teal-900 p-4" dir={direction}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-teal-500 flex items-center justify-center shadow-lg shadow-sky-500/30">
@@ -78,7 +78,7 @@ function DashboardErrorUI({
           </div>
           <div className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4 animate-spin text-sky-700" />
-            <span className="text-sm font-medium text-sky-800 dark:text-sky-300">{t('common.retrying')}</span>
+            <span className="text-sm font-medium text-sky-800 dark:text-sky-400">{t('common.retrying')}</span>
           </div>
         </div>
       </div>
@@ -86,10 +86,10 @@ function DashboardErrorUI({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-950 dark:via-card dark:to-teal-950 p-4" dir={direction}>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-teal-50 dark:from-slate-900 dark:via-card dark:to-teal-900 p-4" dir={direction}>
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -end-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/20 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -end-40 w-80 h-80 bg-sky-100/40 dark:bg-sky-900/15 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -start-40 w-80 h-80 bg-teal-100/40 dark:bg-teal-900/20 rounded-full blur-3xl" />
       </div>
 
@@ -188,7 +188,7 @@ function DashboardErrorUI({
 
               <button
                 onClick={onResetApp}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-red-200 dark:border-red-800 px-6 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 shadow-sm hover:bg-red-50 dark:hover:bg-red-950/50 active:bg-red-100 dark:active:bg-red-950 transition-all duration-200 w-full sm:w-auto"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-card border border-red-200 dark:border-red-900/60 px-6 py-2.5 text-sm font-semibold text-red-600 dark:text-red-500 shadow-sm hover:bg-red-50 dark:hover:bg-red-900/25 active:bg-red-100 dark:active:bg-red-900/20 transition-all duration-200 w-full sm:w-auto"
               >
                 <RotateCcw className="h-4 w-4" />
                 {t('dashboard.resetApp')}

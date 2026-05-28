@@ -134,7 +134,7 @@ function getFileIcon(fileType: string) {
     lower.includes('spreadsheet') ||
     lower.includes('presentation')
   ) {
-    return <FileText className="h-5 w-5 text-rose-500 dark:text-rose-400" />;
+    return <FileText className="h-5 w-5 text-rose-500 dark:text-rose-500" />;
   }
   if (
     lower.includes('image') ||
@@ -151,7 +151,7 @@ function getFileIcon(fileType: string) {
     return <FileVideo className="h-5 w-5 text-sky-600 dark:text-sky-400 dark:text-sky-400" />;
   }
   if (lower.includes('audio') || lower.includes('mp3') || lower.includes('wav') || lower.includes('ogg')) {
-    return <FileAudio className="h-5 w-5 text-amber-500 dark:text-amber-400" />;
+    return <FileAudio className="h-5 w-5 text-amber-500 dark:text-amber-500" />;
   }
   return <File className="h-5 w-5 text-muted-foreground" />;
 }
@@ -2018,7 +2018,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 onClick={() => toggleFileSelection(file.id)}
                 className={`touch-target shrink-0 flex items-center justify-center rounded-md transition-colors ${
                   selectedFileIds.has(file.id)
-                    ? 'text-sky-700 dark:text-sky-300'
+                    ? 'text-sky-700 dark:text-sky-400'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -2087,7 +2087,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => setConfirmDeleteId(file.id)}
-                  className="text-rose-600 dark:text-rose-400 focus:text-rose-600 dark:focus:text-rose-400 focus:bg-rose-50 dark:focus:bg-rose-950/30"
+                  className="text-rose-600 dark:text-rose-500 focus:text-rose-600 dark:focus:text-rose-400 focus:bg-rose-50 dark:focus:bg-rose-900/20/30"
                 >
                   <Trash2 className="h-4 w-4 me-2" />
                   {t('common.delete')}
@@ -2105,7 +2105,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
               {file.file_type.split('/').pop() || file.file_type}
             </span>
-            <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.5 text-[10px] font-medium">
+            <span className="inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.5 text-[10px] font-medium">
               {categoryLabels[fileCategory]}
             </span>
           </div>
@@ -2114,20 +2114,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <div className="flex items-center gap-1.5 flex-wrap mt-2">
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
               file.visibility === 'public'
-                ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
-                : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
+                ? 'bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
+                : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-500'
             }`}>
               {file.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
               {file.visibility === 'public' ? t('files.public') : t('files.private')}
             </span>
             {shareCount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 dark:bg-violet-950/30 text-violet-800 dark:text-violet-200 px-2 py-0.5 text-[10px] font-medium">
+              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-800 dark:text-violet-200 px-2 py-0.5 text-[10px] font-medium">
                 <Users className="h-3 w-3" />
                 {shareCount}
               </span>
             )}
             {courseCount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 dark:bg-orange-950/30 text-orange-800 dark:text-orange-200 px-2 py-0.5 text-[10px] font-medium">
+              <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300 px-2 py-0.5 text-[10px] font-medium">
                 <FolderPlus className="h-3 w-3" />
                 {courseCount}
               </span>
@@ -2202,16 +2202,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
               visibilityFilter === vf.key
                 ? vf.key === 'public'
-                  ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
+                  ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
                   : vf.key === 'private'
-                    ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                    : 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
+                    ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500'
+                    : 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
             {vf.icon}
             {vf.label}
-            <span className={`text-[10px] ${visibilityFilter === vf.key ? (vf.key === 'private' ? 'text-amber-600' : 'text-sky-700 dark:text-sky-300') : 'text-muted-foreground'}`}>
+            <span className={`text-[10px] ${visibilityFilter === vf.key ? (vf.key === 'private' ? 'text-amber-600' : 'text-sky-700 dark:text-sky-400') : 'text-muted-foreground'}`}>
               ({vf.count})
             </span>
           </button>
@@ -2228,12 +2228,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               onClick={() => setCategoryFilter(cat)}
               className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
                 categoryFilter === cat
-                  ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
+                  ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
                   : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
               {categoryLabels[cat]}
-              <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'}`}>
+              <span className={`text-[10px] ${categoryFilter === cat ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}`}>
                 ({count})
               </span>
             </button>
@@ -2259,14 +2259,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
                 {selectedFileIds.size === filteredFiles.length && filteredFiles.length > 0 ? (
-                  <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <CheckSquare className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                 ) : (
                   <Square className="h-4 w-4" />
                 )}
                 {t('course.selectAll')}
               </button>
               {selectedFileIds.size > 0 && (
-                <span className="text-xs text-sky-700 dark:text-sky-300 font-medium">
+                <span className="text-xs text-sky-700 dark:text-sky-400 font-medium">
                   {t('files.selectedCount', { count: selectedFileIds.size })}
                 </span>
               )}
@@ -2284,15 +2284,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {/* Files grid */}
       {loadingFiles ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : filteredFiles.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/20 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <FileText className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+            <FileText className="h-8 w-8 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('files.noFilesYet')}</p>
           <p className="text-sm text-muted-foreground">
@@ -2328,7 +2328,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div className="h-6 w-px bg-border" />
             {confirmBulkDelete ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">{t('files.deleteSelectedFiles')}</span>
+                <span className="text-xs text-rose-600 dark:text-rose-500 font-medium">{t('files.deleteSelectedFiles')}</span>
                 <button
                   onClick={handleBulkDelete}
                   disabled={bulkActionLoading}
@@ -2354,7 +2354,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   <DropdownMenuContent align="start" className="w-48">
                     <DropdownMenuItem
                       onClick={() => setConfirmBulkDelete(true)}
-                      className="text-rose-600 dark:text-rose-400 focus:text-rose-600 dark:focus:text-rose-400 focus:bg-rose-50 dark:focus:bg-rose-950/30 cursor-pointer"
+                      className="text-rose-600 dark:text-rose-500 focus:text-rose-600 dark:focus:text-rose-400 focus:bg-rose-50 dark:focus:bg-rose-900/20/30 cursor-pointer"
                     >
                       <Trash2 className="h-4 w-4 me-2" />
                       {t('common.delete')}
@@ -2440,15 +2440,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {/* Shared files list */}
       {loadingShared ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : sharedWithMe.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/20 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <Share2 className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+            <Share2 className="h-8 w-8 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('files.noSharedFiles')}</p>
           <p className="text-sm text-muted-foreground">{t('files.sharedFilesWillAppear')}</p>
@@ -2469,7 +2469,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       {t('files.sharedBy')}{' '}
                       <button
                         onClick={() => file.shared_by_user?.id && openProfile(file.shared_by_user.id)}
-                        className="font-medium text-foreground hover:text-sky-700 dark:hover:text-sky-300 dark:text-sky-300 transition-colors cursor-pointer"
+                        className="font-medium text-foreground hover:text-sky-700 dark:hover:text-sky-300 dark:text-sky-400 transition-colors cursor-pointer"
                       >
                         {formatNameWithTitle(file.shared_by_user?.name || t('common.user'), file.shared_by_user?.role, file.shared_by_user?.title_id, file.shared_by_user?.gender, t)}
                       </button>
@@ -2506,7 +2506,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   <div className="mb-3">
                     <button
                       onClick={() => setShowRecipientsFile(file)}
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-sky-700 dark:hover:text-sky-300 dark:text-sky-300 transition-colors w-full"
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-sky-700 dark:hover:text-sky-300 dark:text-sky-400 transition-colors w-full"
                     >
                       <Users className="h-3.5 w-3.5" />
                       <span>{t('files.sharedWithCount', { count: file.total_recipients_count || (file.other_recipients.length + 1) })}</span>
@@ -2537,7 +2537,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   {/* Preview button */}
                   <button
                     onClick={() => handlePreview(file)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 px-3 py-2 text-xs font-medium hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400 px-3 py-2 text-xs font-medium hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
                   >
                     <Maximize2 className="h-3.5 w-3.5" />
                     {t('files.preview')}
@@ -2589,7 +2589,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Modal header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Upload className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <Upload className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('files.uploadFiles')}
               </h3>
               <button
@@ -2634,7 +2634,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                               return next;
                             });
                           }}
-                          className="rounded border-gray-300 dark:border-border text-sky-700 dark:text-sky-300 focus:ring-sky-600 dark:focus:ring-sky-500"
+                          className="rounded border-gray-300 dark:border-border text-sky-700 dark:text-sky-400 focus:ring-sky-600 dark:focus:ring-sky-500"
                         />
                         <span className="text-sm text-foreground">{s.name}</span>
                       </label>
@@ -2657,7 +2657,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/20 p-6 transition-colors hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-950/30 active:bg-sky-50/70 dark:active:bg-sky-950/40 touch-manipulation"
+                  className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 p-6 transition-colors hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-900/20 active:bg-sky-50/70 dark:active:bg-sky-900/20 touch-manipulation"
                 >
                   <Upload className="h-8 w-8 text-sky-400" />
                   <span className="text-sm font-medium text-muted-foreground">{t('files.clickToSelectFiles')}</span>
@@ -2673,9 +2673,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     <div
                       key={item.id}
                       className={`rounded-xl border p-3 space-y-2 ${
-                        item.errorCode === 'duplicate_name' ? 'border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/30' :
-                        item.progress === -1 ? 'border-rose-200 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-950/20' :
-                        item.done ? 'border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/20' :
+                        item.errorCode === 'duplicate_name' ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-900/20' :
+                        item.progress === -1 ? 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/15' :
+                        item.done ? 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15' :
                         'bg-card'
                       }`}
                     >
@@ -2693,7 +2693,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                             disabled={item.uploading || item.done}
                             className={`flex-1 rounded-md border px-2 py-1 text-sm focus:outline-none focus:ring-1 disabled:opacity-60 min-w-0 ${
                               item.errorCode === 'duplicate_name'
-                                ? 'border-amber-300 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-amber-500 dark:focus:border-amber-400'
+                                ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-100 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-amber-500 dark:focus:border-amber-400'
                                 : 'border-border bg-background text-foreground focus:ring-sky-600'
                             }`}
                             placeholder={t('files.fileNamePlaceholder')}
@@ -2701,7 +2701,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                           />
                           {item.extension && (
                             <span className={`text-xs shrink-0 ${
-                              item.errorCode === 'duplicate_name' ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
+                              item.errorCode === 'duplicate_name' ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'
                             }`}>.{item.extension}</span>
                           )}
                         </div>
@@ -2709,7 +2709,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         {!item.uploading && !item.done && (
                           <button
                             onClick={() => removePendingUpload(item.id)}
-                            className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-500 dark:hover:text-rose-400 dark:text-rose-400"
+                            className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500 dark:hover:text-rose-400 dark:text-rose-500"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -2722,17 +2722,17 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                           <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
                         )}
                         {item.progress === -1 && item.errorCode !== 'duplicate_name' && (
-                          <X className="h-4 w-4 text-rose-500 dark:text-rose-400 shrink-0" />
+                          <X className="h-4 w-4 text-rose-500 dark:text-rose-500 shrink-0" />
                         )}
                         {item.uploading && (
-                          <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-300 shrink-0" />
+                          <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-400 shrink-0" />
                         )}
                       </div>
                       {/* Duplicate name error message */}
                       {item.error && item.errorCode === 'duplicate_name' && (
                         <div className="flex items-start gap-1.5 px-1">
-                          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-500 dark:text-amber-400" />
-                          <span className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">{item.error}</span>
+                          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-500 dark:text-amber-500" />
+                          <span className="text-[11px] text-amber-700 dark:text-amber-500 leading-relaxed">{item.error}</span>
                         </div>
                       )}
                       {/* Progress bar */}
@@ -2743,7 +2743,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                               {formatFileSize(item.fileSize)}
                             </span>
                             <span className={`text-[10px] font-medium ${
-                              item.progress === -1 ? 'text-rose-500' : item.done ? 'text-sky-700 dark:text-sky-300' : 'text-sky-700 dark:text-sky-300'
+                              item.progress === -1 ? 'text-rose-500' : item.done ? 'text-sky-700 dark:text-sky-400' : 'text-sky-700 dark:text-sky-400'
                             }`}>
                               {item.progress === -1 ? t('files.failed') : `${Math.round(item.progress)}%`}
                             </span>
@@ -2772,7 +2772,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <span className="text-sm text-muted-foreground">
                   {t('files.completed', { done: pendingUploads.filter((p) => p.done).length, total: pendingUploads.length })}
                   {pendingUploads.some((p) => p.errorCode === 'duplicate_name') && (
-                    <span className="text-amber-600 dark:text-amber-400 text-xs ms-1">({t('files.needRename', { count: pendingUploads.filter((p) => p.errorCode === 'duplicate_name').length })})</span>
+                    <span className="text-amber-600 dark:text-amber-500 text-xs ms-1">({t('files.needRename', { count: pendingUploads.filter((p) => p.errorCode === 'duplicate_name').length })})</span>
                   )}
                 </span>
                 <div className="flex items-center gap-2">
@@ -2830,7 +2830,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           >
             <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Info className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <Info className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('files.fileDetails')}
               </h3>
               <button
@@ -2898,8 +2898,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         <div className="flex items-center gap-2">
                           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
                             course.visibility === 'public'
-                              ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
-                              : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
+                              ? 'bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
+                              : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-500'
                           }`}>
                             {course.visibility === 'public' ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
                             {course.visibility === 'public' ? t('files.public') : t('files.private')}
@@ -2979,7 +2979,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Modal header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Share2 className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <Share2 className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('files.shareFile')}
               </h3>
               <button
@@ -3019,7 +3019,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       onClick={() => setSelectedPermission(perm)}
                       className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                         selectedPermission === perm
-                          ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                          ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                           : 'border-border bg-background text-muted-foreground hover:bg-muted'
                       }`}
                     >
@@ -3045,7 +3045,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     disabled={searchingUsers}
                   />
                   {searchingUsers && (
-                    <Loader2 className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-sky-700 dark:text-sky-300" />
+                    <Loader2 className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-sky-700 dark:text-sky-400" />
                   )}
                 </div>
 
@@ -3113,7 +3113,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         onClick={() => setShareByEmailPermission(perm)}
                         className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                           shareByEmailPermission === perm
-                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                             : 'border-border bg-background text-muted-foreground hover:bg-muted'
                         }`}
                       >
@@ -3176,7 +3176,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {/* Already shared with list */}
               {loadingShares ? (
                 <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300" />
+                  <Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-400" />
                 </div>
               ) : fileShares.length > 0 ? (
                 <div>
@@ -3199,7 +3199,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         <button
                           onClick={() => handleRemoveShare(share.id)}
                           disabled={removingShareId === share.id}
-                          className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:text-rose-500 dark:hover:text-rose-400 disabled:opacity-60"
+                          className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500 dark:hover:text-rose-400 disabled:opacity-60"
                           title={t('files.removeShare')}
                         >
                           {removingShareId === share.id ? (
@@ -3244,7 +3244,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           >
             <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <FolderPlus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <FolderPlus className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('files.assignToCourse')}
               </h3>
               <button
@@ -3258,8 +3258,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               {/* File info */}
               {bulkAssignMode ? (
                 <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                    <FolderPlus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                    <FolderPlus className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   </div>
                   <p className="text-sm font-medium text-foreground">
                     {t('files.selectedFilesCount', { count: selectedFileIds.size })}
@@ -3302,7 +3302,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                               return next;
                             });
                           }}
-                          className="rounded border-gray-300 dark:border-border text-sky-700 dark:text-sky-300 focus:ring-sky-600 dark:focus:ring-sky-500"
+                          className="rounded border-gray-300 dark:border-border text-sky-700 dark:text-sky-400 focus:ring-sky-600 dark:focus:ring-sky-500"
                         />
                         <span className="text-sm text-foreground">{s.name}</span>
                       </label>
@@ -3312,7 +3312,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </div>
 
               {role === 'student' && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2">
+                <p className="text-xs text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2">
                   {t('files.fileWillBePublic')}
                 </p>
               )}
@@ -3477,7 +3477,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Share2 className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <Share2 className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('files.bulkShare')}
               </h3>
               <button
@@ -3492,8 +3492,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <div className="p-5 space-y-4 overflow-y-auto custom-scrollbar min-h-0">
               {/* Selected files info */}
               <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                  <Users className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                  <Users className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">
@@ -3515,7 +3515,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       onClick={() => setBulkSharePermission(perm)}
                       className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                         bulkSharePermission === perm
-                          ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                          ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                           : 'border-border bg-background text-muted-foreground hover:bg-muted'
                       }`}
                     >
@@ -3541,7 +3541,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     disabled={bulkShareSearching}
                   />
                   {bulkShareSearching && (
-                    <Loader2 className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-sky-700 dark:text-sky-300" />
+                    <Loader2 className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-sky-700 dark:text-sky-400" />
                   )}
                 </div>
                 {/* Search results */}
@@ -3646,7 +3646,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         onClick={() => setBulkShareByEmailPermission(perm)}
                         className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                           bulkShareByEmailPermission === perm
-                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                             : 'border-border bg-background text-muted-foreground hover:bg-muted'
                         }`}
                       >
@@ -3701,7 +3701,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Header */}
             <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
               <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Users className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                <Users className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                 {t('files.recipients')}
               </h3>
               <button
@@ -3810,7 +3810,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <span className={`inline-flex items-center justify-center rounded-full text-[10px] font-bold min-w-[18px] h-[18px] px-1 ${
               activeTab === 'shared'
                 ? 'bg-white/20 dark:bg-muted/20 text-white'
-                : 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
+                : 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
             }`}>
               {sharedWithMe.length}
             </span>

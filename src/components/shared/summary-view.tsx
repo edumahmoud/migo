@@ -1350,7 +1350,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           onClick={() => setSummaryTab('summary')}
           className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all ${
             summaryTab === 'summary'
-              ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 shadow-sm'
+              ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           }`}
         >
@@ -1361,7 +1361,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           onClick={() => setSummaryTab('quiz')}
           className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all ${
             summaryTab === 'quiz'
-              ? 'bg-teal-100 dark:bg-teal-900/50 text-teal-800 dark:text-teal-200 shadow-sm'
+              ? 'bg-teal-100 dark:bg-teal-800/40 text-teal-800 dark:text-teal-200 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           }`}
         >
@@ -1372,7 +1372,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
           onClick={() => setSummaryTab('completed')}
           className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all ${
             summaryTab === 'completed'
-              ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-800 dark:text-violet-200 shadow-sm'
+              ? 'bg-violet-100 dark:bg-violet-800/40 text-violet-800 dark:text-violet-200 shadow-sm'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           }`}
         >

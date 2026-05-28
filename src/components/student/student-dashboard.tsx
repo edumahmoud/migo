@@ -2794,12 +2794,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                 {t('student.latestSummaries')}
               </h3>
               <button
                 onClick={() => setActiveSection('summaries')}
-                className="text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 font-medium flex items-center gap-1"
+                className="text-xs text-sky-700 dark:text-sky-400 hover:text-sky-800 font-medium flex items-center gap-1"
               >
                 {t('common.viewAll')}
                 <ChevronLeft className="h-3 w-3" />
@@ -2808,9 +2808,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             <div className="max-h-80 overflow-y-auto custom-scrollbar">
               {/* Pending summaries banner */}
               {pendingSummaries.length > 0 && (
-                <div className="p-3 border-b bg-sky-50/50 dark:bg-sky-950/30">
+                <div className="p-3 border-b bg-sky-50/50 dark:bg-sky-900/15">
                   {pendingSummaries.map(ps => (
-                    <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 dark:text-sky-200 py-1">
+                    <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 dark:text-sky-400 py-1">
                       {ps.status !== 'cancelled' ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
@@ -2826,7 +2826,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       {ps.status !== 'cancelled' && ps.status !== 'saving' && (
                         <button
                           onClick={() => cancelPendingSummary(ps.id)}
-                          className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 transition-colors"
+                          className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 dark:text-rose-500 hover:bg-rose-50 transition-colors"
                         >
                           <XCircle className="h-3 w-3" />
                           {t('common.cancel')}
@@ -2849,8 +2849,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       onClick={() => setViewingSummaryId(summary.id)}
                       className="flex w-full items-start gap-3 p-4 text-end transition-colors"
                     >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                        <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                        <FileText className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
@@ -2859,10 +2859,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                             const quizResult = getScoreForSummary(summary.id);
                             if (!quizResult) return null;
                             const colorClass = quizResult.percentage >= 80
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-800/30 dark:text-emerald-500'
                               : quizResult.percentage >= 60
-                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                                : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-800/30 dark:text-amber-500'
+                                : 'bg-rose-100 text-rose-700 dark:bg-rose-800/30 dark:text-rose-500';
                             return (
                               <span className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${colorClass}`}>
                                 <Award className="h-2.5 w-2.5" />
@@ -2889,7 +2889,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b p-4">
               <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <Award className="h-4 w-4 text-amber-600 dark:text-amber-500" />
                 {t('student.latestResults')}
               </h3>
             </div>
@@ -2904,14 +2904,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     const pct = scorePercentage(score.score, score.total);
                     const pctColor =
                       pct >= 80
-                        ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30'
+                        ? 'text-teal-700 dark:text-teal-500 bg-teal-50 dark:bg-teal-900/20'
                         : pct >= 60
-                          ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50'
-                          : 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50';
+                          ? 'text-amber-700 dark:text-amber-500 bg-amber-100 dark:bg-amber-800/40'
+                          : 'text-rose-700 dark:text-rose-500 bg-rose-100 dark:bg-rose-800/40';
                     return (
                       <div key={score.id} className="flex items-center gap-3 p-4">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-950/30">
-                          <Award className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-900/20">
+                          <Award className="h-4 w-4 text-amber-600 dark:text-amber-500" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-foreground truncate">{score.quiz_title}</p>
@@ -2956,15 +2956,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
       {/* Pending summaries progress */}
       {pendingSummaries.length > 0 && (
-        <motion.div variants={itemVariants} className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-4">
+        <motion.div variants={itemVariants} className="rounded-xl border border-sky-200 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-900/15 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-300" />
-            <span className="text-sm font-medium text-sky-800 dark:text-sky-200">
+            <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-400" />
+            <span className="text-sm font-medium text-sky-800 dark:text-sky-400">
               {t('student.creatingCount', { count: pendingSummaries.length })}
             </span>
           </div>
           {pendingSummaries.map(ps => (
-            <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 dark:text-sky-200 py-1 ms-6">
+            <div key={ps.id} className="flex items-center gap-2 text-xs text-sky-800 dark:text-sky-400 py-1 ms-6">
               <span className="font-medium">{ps.title}</span>
               <span className="text-sky-600/70 dark:text-sky-400">
                 {ps.status === 'extracting' && (ps.mode === 'transcribe' ? t('student.extractingTextTranscribe') : t('student.extractingText'))}
@@ -2975,7 +2975,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {ps.status !== 'cancelled' && ps.status !== 'saving' && (
                 <button
                   onClick={() => cancelPendingSummary(ps.id)}
-                  className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 transition-colors"
+                  className="ms-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-rose-600 dark:text-rose-500 hover:bg-rose-50 transition-colors"
                   title={t('common.cancel')}
                 >
                   <XCircle className="h-3 w-3" />
@@ -2991,10 +2991,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {summaries.length === 0 && pendingSummaries.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <FileText className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+            <FileText className="h-8 w-8 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1 text-center">{t('student.noSummaries')}</p>
           <p className="text-sm text-muted-foreground mb-4 text-center">{t('student.createFirstSummary')}</p>
@@ -3055,7 +3055,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         e.stopPropagation();
                         setConfirmDeleteSummaryId(summary.id);
                       }}
-                      className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950"
+                      className="text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-900/20"
                     >
                       <Trash2 className="h-4 w-4 me-2" />
                       {t('common.delete')}
@@ -3068,8 +3068,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   className="w-full text-end"
                 >
                   <div className="flex items-center gap-3 mb-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50 transition-transform group-hover:scale-110">
-                      <FileText className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40 transition-transform group-hover:scale-110">
+                      <FileText className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                     </div>
                     <h3 className="font-semibold text-foreground truncate">{summary.title}</h3>
                   </div>
@@ -3085,10 +3085,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       const quizResult = getScoreForSummary(summary.id);
                       if (!quizResult) return null;
                       const colorClass = quizResult.percentage >= 80
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-800/30 dark:text-emerald-500'
                         : quizResult.percentage >= 60
-                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                          : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-800/30 dark:text-amber-500'
+                          : 'bg-rose-100 text-rose-700 dark:bg-rose-800/30 dark:text-rose-500';
                       return (
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${colorClass}`}>
                           <Award className="h-3 w-3" />
@@ -3126,7 +3126,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {/* Modal header — sticky so close button stays visible while scrolling */}
               <div className="flex items-center justify-between border-b p-5 sticky top-0 bg-background z-10">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                  <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-500" />
                   {t('student.createQuiz')}
                 </h3>
                 <button
@@ -3142,8 +3142,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {/* Modal body */}
               <div className="p-5 space-y-5">
                 {/* Summary title */}
-                <div className="rounded-lg bg-teal-50/70 dark:bg-teal-950/30 border border-teal-100 p-3">
-                  <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">{t('student.summaryLabel')}</p>
+                <div className="rounded-lg bg-teal-50/70 dark:bg-teal-900/20 border border-teal-100 p-3">
+                  <p className="text-xs text-teal-600 dark:text-teal-500 mb-1">{t('student.summaryLabel')}</p>
                   <p className="text-sm font-medium text-teal-800 truncate">{quizConfigSummaryTitle}</p>
                 </div>
 
@@ -3188,7 +3188,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       onClick={() => setQuizAnswerMode('after')}
                       className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
                         quizAnswerMode === 'after'
-                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -3198,7 +3198,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       onClick={() => setQuizAnswerMode('during')}
                       className={`flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all ${
                         quizAnswerMode === 'during'
-                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -3294,7 +3294,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <FileText className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   {t('student.newSummary')}
                 </h3>
                 <button
@@ -3329,7 +3329,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'text'
-                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300'
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -3342,7 +3342,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'file'
-                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300'
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -3355,7 +3355,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'transcribe'
-                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -3389,7 +3389,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         summaryInputMode === 'existing'
-                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300'
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -3398,7 +3398,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     </button>
                   </div>
                   {summaryInputMode === 'transcribe' && (
-                    <p className="text-xs text-teal-600/80 dark:text-teal-400 mt-2">
+                    <p className="text-xs text-teal-600/80 dark:text-teal-500 mt-2">
                       {t('student.transcribeOnlyDesc')}
                     </p>
                   )}
@@ -3414,7 +3414,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           onClick={() => setExistingFileTranscribe(false)}
                           className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
                             !existingFileTranscribe
-                              ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300'
+                              ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400'
                               : 'border-border text-muted-foreground hover:bg-muted/50'
                           }`}
                         >
@@ -3426,7 +3426,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           onClick={() => setExistingFileTranscribe(true)}
                           className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all ${
                             existingFileTranscribe
-                              ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                              ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                               : 'border-border text-muted-foreground hover:bg-muted/50'
                           }`}
                         >
@@ -3435,7 +3435,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         </button>
                       </div>
                       {existingFileTranscribe && (
-                        <p className="text-xs text-teal-600/70 dark:text-teal-400">
+                        <p className="text-xs text-teal-600/70 dark:text-teal-500">
                           {t('student.transcribeFileHint')}
                         </p>
                       )}
@@ -3486,14 +3486,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                       className={`flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
                         summaryInputMode === 'transcribe'
-                          ? 'border-teal-300 bg-teal-50/30 dark:bg-teal-950/30 hover:border-teal-400 hover:bg-teal-50/50'
-                          : 'border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 hover:border-sky-400 hover:bg-sky-50/50'
+                          ? 'border-teal-300 bg-teal-50/30 dark:bg-teal-900/20 hover:border-teal-400 hover:bg-teal-50/50'
+                          : 'border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 hover:border-sky-400 hover:bg-sky-50/50'
                       }`}
                     >
                       {summaryFile ? (
                         <>
-                          <FileUp className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-600 dark:text-teal-400' : 'text-sky-700 dark:text-sky-300'}`} />
-                          <span className={`text-sm font-medium ${summaryInputMode === 'transcribe' ? 'text-teal-700 dark:text-teal-300' : 'text-sky-800 dark:text-sky-200'}`}>{summaryFile.name}</span>
+                          <FileUp className={`h-8 w-8 ${summaryInputMode === 'transcribe' ? 'text-teal-600 dark:text-teal-500' : 'text-sky-700 dark:text-sky-400'}`} />
+                          <span className={`text-sm font-medium ${summaryInputMode === 'transcribe' ? 'text-teal-700 dark:text-teal-500' : 'text-sky-800 dark:text-sky-400'}`}>{summaryFile.name}</span>
                           <span className="text-xs text-muted-foreground">
                             {(summaryFile.size / 1024 / 1024).toFixed(2)} MB
                           </span>
@@ -3521,7 +3521,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         <span className="text-sm text-muted-foreground">{t('student.loadingFiles')}</span>
                       </div>
                     ) : existingFiles.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30">
+                      <div className="flex flex-col items-center justify-center py-8 gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15">
                         <FolderOpen className="h-8 w-8 text-sky-400" />
                         <span className="text-sm text-muted-foreground">{t('student.noDocFiles')}</span>
                         <span className="text-xs text-muted-foreground/60">{t('student.uploadFromFiles')}</span>
@@ -3537,15 +3537,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                               onClick={() => setSelectedExistingFile(file)}
                               className={`flex items-center gap-3 w-full rounded-lg border p-3 text-end transition-all ${
                                 selectedExistingFile?.id === file.id
-                                  ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30'
+                                  ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/15'
                                   : 'border-border hover:bg-muted/50'
                               }`}
                             >
                               <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                                isPdf ? 'bg-rose-100 dark:bg-rose-900/50' : 'bg-blue-100 dark:bg-blue-900/50'
+                                isPdf ? 'bg-rose-100 dark:bg-rose-800/40' : 'bg-blue-100 dark:bg-blue-800/40'
                               }`}>
                                 {isPdf ? (
-                                  <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                                  <FileText className="h-4 w-4 text-rose-600 dark:text-rose-500" />
                                 ) : (
                                   <File className="h-4 w-4 text-blue-600" />
                                 )}
@@ -3625,10 +3625,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {quizzes.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-teal-300 bg-teal-50/30 dark:bg-teal-950/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-teal-300 bg-teal-50/30 dark:bg-teal-900/20 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-900/50 mb-4">
-            <ClipboardList className="h-8 w-8 text-teal-600 dark:text-teal-400" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-100 dark:bg-teal-800/40 mb-4">
+            <ClipboardList className="h-8 w-8 text-teal-600 dark:text-teal-500" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('student.noQuizzes')}</p>
           <p className="text-sm text-muted-foreground mb-4">
@@ -3669,14 +3669,14 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         <div className="group rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow relative">
                           {/* Completed badge */}
                           {isCompleted && (
-                            <span className="absolute top-3 start-3 flex items-center gap-1 rounded-full bg-teal-100 dark:bg-teal-900/50 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:text-teal-300">
+                            <span className="absolute top-3 start-3 flex items-center gap-1 rounded-full bg-teal-100 dark:bg-teal-800/40 px-2 py-0.5 text-[10px] font-bold text-teal-700 dark:text-teal-500">
                               <CheckCircle2 className="h-3 w-3" />
                               {t('common.completed')}
                             </span>
                           )}
                           <div className="flex items-start gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50 transition-transform group-hover:scale-110">
-                              <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-800/40 transition-transform group-hover:scale-110">
+                              <ClipboardList className="h-5 w-5 text-teal-600 dark:text-teal-500" />
                             </div>
                             <div className="min-w-0 flex-1">
                               <h3 className="font-semibold text-foreground truncate">{quiz.title}</h3>
@@ -3699,10 +3699,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                               <span
                                 className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
                                   pct >= 80
-                                    ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30'
+                                    ? 'text-teal-700 dark:text-teal-500 bg-teal-50 dark:bg-teal-900/20'
                                     : pct >= 60
-                                      ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50'
-                                      : 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50'
+                                      ? 'text-amber-700 dark:text-amber-500 bg-amber-100 dark:bg-amber-800/40'
+                                      : 'text-rose-700 dark:text-rose-500 bg-rose-100 dark:bg-rose-800/40'
                                 }`}
                               >
                                 {pct}%
@@ -3715,7 +3715,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                               <>
                                 <button
                                   onClick={() => setViewingQuizId(quiz.id, true)}
-                                  className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 transition-colors hover:bg-sky-100"
+                                  className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-400 transition-colors hover:bg-sky-100"
                                 >
                                   <Eye className="h-3.5 w-3.5" />
                                   {t('student.viewResults')}
@@ -3792,10 +3792,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                                 <span
                                   className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
                                     pct >= 80
-                                      ? 'text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/30'
+                                      ? 'text-teal-700 dark:text-teal-500 bg-teal-50 dark:bg-teal-900/20'
                                       : pct >= 60
-                                        ? 'text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50'
-                                        : 'text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/50'
+                                        ? 'text-amber-700 dark:text-amber-500 bg-amber-100 dark:bg-amber-800/40'
+                                        : 'text-rose-700 dark:text-rose-500 bg-rose-100 dark:bg-rose-800/40'
                                   }`}
                                 >
                                   {pct}%
@@ -3805,7 +3805,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                             <div className="mt-4 flex items-center gap-2">
                               <button
                                 onClick={() => setViewingQuizId(quiz.id, true)}
-                                className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 transition-colors hover:bg-sky-100"
+                                className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-400 transition-colors hover:bg-sky-100"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 {t('student.viewResults')}
@@ -3843,7 +3843,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           {/* Incoming Link Requests Button */}
           <button
             onClick={() => setIncomingPanelOpen(true)}
-            className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 dark:border-amber-800 bg-gradient-to-b from-amber-50 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
+            className="relative flex items-center gap-2 rounded-xl border border-amber-200/70 dark:border-amber-900/60 bg-gradient-to-b from-amber-50 to-orange-50/50 px-3.5 py-2 text-sm font-medium text-amber-700 dark:text-amber-500 hover:from-amber-100 hover:to-orange-100/60 shadow-sm shadow-amber-100/30 hover:shadow-md hover:shadow-amber-100/40 transition-all duration-200 active:scale-[0.97]"
           >
             <UserPlus className="h-4 w-4" />
             <span>{t('student.incomingRequests')}</span>
@@ -3852,7 +3852,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {incomingLinkRequests.length}
               </span>
             ) : (
-              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-200/80 px-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-200/80 px-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-500">
                 0
               </span>
             )}
@@ -3871,10 +3871,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {!hasAnyTeachers && (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <Users className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+            <Users className="h-8 w-8 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('student.noTeachers')}</p>
           <p className="text-sm text-muted-foreground mb-4">
@@ -3925,7 +3925,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3.5">
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 shadow-sm shadow-amber-200/50">
-                      <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                      <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-500" />
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-foreground">{t('student.incomingLinkRequests')}</h3>
@@ -3962,7 +3962,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <button
                       onClick={() => setConfirmIncomingRejectAllOpen(true)}
                       disabled={processingIncomingBulk}
-                      className="flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/80 dark:bg-rose-950/30 px-4 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-100 hover:border-rose-300 transition-all duration-200 disabled:opacity-50"
+                      className="flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/80 dark:bg-rose-900/20 px-4 py-2.5 text-xs font-semibold text-rose-600 dark:text-rose-500 hover:bg-rose-100 hover:border-rose-300 transition-all duration-200 disabled:opacity-50"
                     >
                       {processingIncomingBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-4 w-4" />}
                       {t('common.rejectAll')}
@@ -3974,7 +3974,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                 {incomingLinkRequests.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-950/30 mb-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-900/20 mb-4">
                       <UserPlus className="h-7 w-7 text-amber-300" />
                     </div>
                     <p className="text-sm font-medium text-muted-foreground">{t('student.noIncomingRequestsShort')}</p>
@@ -4017,7 +4017,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                         <button
                           onClick={() => handleRejectIncomingRequest(teacher.id, notificationId)}
                           disabled={processingIncomingId === teacher.id || processingIncomingBulk}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 text-rose-500 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50 transition-all duration-200 active:scale-90"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 text-rose-500 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50 transition-all duration-200 active:scale-90"
                           title={t('common.reject')}
                         >
                           {processingIncomingId === teacher.id ? (
@@ -4054,8 +4054,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               dir={direction}
             >
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50 mb-4">
-                  <CheckCircle2 className="h-7 w-7 text-amber-600 dark:text-amber-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40 mb-4">
+                  <CheckCircle2 className="h-7 w-7 text-amber-600 dark:text-amber-500" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-2">{t('student.confirmAcceptAllTitle')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
@@ -4101,8 +4101,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               dir={direction}
             >
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
-                  <AlertTriangle className="h-7 w-7 text-rose-600 dark:text-rose-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40 mb-4">
+                  <AlertTriangle className="h-7 w-7 text-rose-600 dark:text-rose-500" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-2">{t('student.confirmRejectAllTitle')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
@@ -4133,10 +4133,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {/* Pending requests */}
       {pendingLinkTeachers.length > 0 && (
         <motion.div variants={itemVariants}>
-          <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 shadow-sm overflow-hidden">
-            <div className="flex items-center gap-2 border-b border-amber-200 dark:border-amber-800 p-4">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
-                <Loader2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <div className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-900/20 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-amber-200 dark:border-amber-900/60 p-4">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40">
+                <Loader2 className="h-4 w-4 text-amber-600 dark:text-amber-500" />
               </div>
               <h3 className="font-semibold text-amber-800 dark:text-amber-200">{t('student.pendingLinkRequests')}</h3>
               <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-bold text-amber-800 dark:text-amber-200">
@@ -4161,7 +4161,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <button
                       onClick={() => handleCancelLinkRequest(teacher.id)}
                       disabled={cancelingRequestId === teacher.id}
-                      className="flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition-colors disabled:opacity-60"
+                      className="flex items-center gap-1.5 rounded-lg border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-500 hover:bg-amber-100 transition-colors disabled:opacity-60"
                     >
                       {cancelingRequestId === teacher.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4181,10 +4181,10 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       {/* Rejected requests */}
       {rejectedLinkTeachers.length > 0 && (
         <motion.div variants={itemVariants}>
-          <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-950/30 shadow-sm overflow-hidden">
-            <div className="flex items-center gap-2 border-b border-rose-200 dark:border-rose-800 p-4">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50">
-                <X className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-900/20 shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-rose-200 dark:border-rose-900/60 p-4">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40">
+                <X className="h-4 w-4 text-rose-600 dark:text-rose-500" />
               </div>
               <h3 className="font-semibold text-rose-800">{t('student.rejectedLinkRequests')}</h3>
               <span className="rounded-full bg-rose-200 px-2 py-0.5 text-xs font-bold text-rose-800">
@@ -4209,7 +4209,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                     <button
                       onClick={() => handleDismissRejectedLink(teacher.id)}
                       disabled={cancelingRequestId === teacher.id}
-                      className="flex items-center gap-1.5 rounded-lg border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition-colors disabled:opacity-60"
+                      className="flex items-center gap-1.5 rounded-lg border border-rose-300 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 px-3 py-1.5 text-xs font-medium text-rose-600 dark:text-rose-500 hover:bg-rose-100 transition-colors disabled:opacity-60"
                     >
                       {cancelingRequestId === teacher.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4288,7 +4288,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <Users className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <Users className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   {t('student.teacherDetails')}
                 </h3>
                 <button
@@ -4320,15 +4320,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {/* Teacher's subjects */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                    <BookMarked className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                    <BookMarked className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                     {t('student.subjectsLabel')}
                   </h4>
                   {loadingTeacherSubjects ? (
                     <div className="flex items-center justify-center py-6">
-                      <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-300" />
+                      <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
                     </div>
                   ) : teacherSubjects.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 p-4 text-center">
+                    <div className="rounded-lg border border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 p-4 text-center">
                       <p className="text-sm text-muted-foreground">{t('student.noSubjectsForTeacher')}</p>
                     </div>
                   ) : (
@@ -4338,8 +4338,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           key={subject.id}
                           className="flex items-center gap-3 rounded-lg border bg-card p-3"
                         >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                            <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                            <BookOpen className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-foreground truncate">{subject.name}</p>
@@ -4354,18 +4354,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 </div>
 
                 {/* Unlink section */}
-                <div className="rounded-lg border border-rose-100 bg-rose-50/30 dark:bg-rose-950/30 p-3 space-y-2">
+                <div className="rounded-lg border border-rose-100 bg-rose-50/30 dark:bg-rose-900/20 p-3 space-y-2">
                   {!unlinkConfirmOpen ? (
                     <button
                       onClick={() => setUnlinkConfirmOpen(true)}
-                      className="flex items-center gap-1.5 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-100 hover:border-rose-300 transition-colors"
+                      className="flex items-center gap-1.5 rounded-md border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 px-2.5 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-100 hover:border-rose-300 transition-colors"
                     >
                       <Unlink className="h-3 w-3" />
                       {t('student.unlink')}
                     </button>
                   ) : (
                     <div className="space-y-2">
-                      <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                      <p className="text-xs text-rose-600 dark:text-rose-500 font-medium">
                         {t('student.unlinkConfirm')}
                       </p>
                       <div className="flex items-center gap-2">
@@ -4427,7 +4427,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {/* Modal header */}
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <UserPlus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <UserPlus className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   {t('student.linkNewTeacherTitle')}
                 </h3>
                 <button
@@ -4449,8 +4449,8 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                 {!teacherPreview && (
                   <>
                     <div className="flex flex-col items-center gap-3 py-4">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50">
-                        <Search className="h-7 w-7 text-sky-700 dark:text-sky-300" />
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40">
+                        <Search className="h-7 w-7 text-sky-700 dark:text-sky-400" />
                       </div>
                       <p className="text-sm text-muted-foreground text-center">
                         {t('student.enterCodeToSearch')}
@@ -4480,7 +4480,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
                 {/* Step 2: Teacher preview card */}
                 {teacherPreview && (
-                  <div className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50/40 dark:bg-sky-950/30 p-4 space-y-3">
+                  <div className="rounded-xl border border-sky-200 dark:border-sky-900/60 bg-sky-50/40 dark:bg-sky-900/15 p-4 space-y-3">
                     <UserLink
                       userId={teacherPreview.id}
                       name={teacherPreview.name || t('roles.teacher')}
@@ -4492,9 +4492,9 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                       showAvatar={true}
                       showUsername={false}
                     />
-                    <div className="flex items-center gap-2 rounded-lg bg-sky-100/60 dark:bg-sky-900/50 px-3 py-2">
-                      <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
-                      <span className="text-xs text-sky-800 dark:text-sky-200 font-medium">{t('student.teacherFound')}</span>
+                    <div className="flex items-center gap-2 rounded-lg bg-sky-100/60 dark:bg-sky-800/40 px-3 py-2">
+                      <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-400 shrink-0" />
+                      <span className="text-xs text-sky-800 dark:text-sky-400 font-medium">{t('student.teacherFound')}</span>
                     </div>
                     <button
                       onClick={() => {
@@ -4593,7 +4593,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     if (loadingData) {
       return (
         <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300 mb-4" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400 mb-4" />
           <p className="text-muted-foreground text-sm">{t('student.loadingData')}</p>
         </div>
       );

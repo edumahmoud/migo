@@ -115,14 +115,14 @@ function toUTCISOString(localDatetime: string): string {
 // Badge color maps
 // -------------------------------------------------------
 const typeBadgeColors: Record<PollType, string> = {
-  vote: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300',
-  rating: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
-  open: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300',
+  vote: 'bg-sky-100 text-sky-700 dark:bg-sky-800/40 dark:text-sky-400',
+  rating: 'bg-amber-100 text-amber-700 dark:bg-amber-800/40 dark:text-amber-500',
+  open: 'bg-violet-100 text-violet-700 dark:bg-violet-800/40 dark:text-violet-500',
 };
 
 const statusBadgeColors: Record<PollStatus, string> = {
-  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300',
-  closed: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-800/40 dark:text-emerald-500',
+  closed: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-500',
 };
 
 // -------------------------------------------------------
@@ -625,8 +625,8 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
       <DialogContent className="sm:max-w-lg" dir={direction}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-              <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+              <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
             </div>
             {t('create')}
           </DialogTitle>
@@ -685,7 +685,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
                   disabled={creating}
                   className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-sm font-medium transition-all ${
                     newType === type
-                      ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 dark:border-sky-500'
+                      ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-500'
                       : 'border-border text-muted-foreground hover:border-foreground/20 hover:bg-muted/50'
                   }`}
                 >
@@ -731,7 +731,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
                 type="button"
                 onClick={handleAddOption}
                 disabled={creating || newOptions.length >= 10}
-                className="flex items-center gap-1.5 text-sm font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 text-sm font-medium text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-200 transition-colors disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" />
                 {t('addOption')}
@@ -830,8 +830,8 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
       <DialogContent className="sm:max-w-sm" dir={direction}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-900/50">
-              <Trash2 className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-800/40">
+              <Trash2 className="h-4 w-4 text-rose-600 dark:text-rose-500" />
             </div>
             {t('deleteConfirm') || 'Delete Poll?'}
           </DialogTitle>
@@ -879,7 +879,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
     return (
       <div className="space-y-3 mt-4">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+          <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
           {t('results')}
           <span className="text-muted-foreground font-normal">
             ({t('totalResponses')}: {totalResponses})
@@ -933,7 +933,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
     return (
       <div className="space-y-3 mt-4">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Star className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <Star className="h-4 w-4 text-amber-600 dark:text-amber-500" />
           {t('results')}
         </div>
 
@@ -995,7 +995,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
     return (
       <div className="space-y-3 mt-4">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <MessageSquare className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <MessageSquare className="h-4 w-4 text-violet-600 dark:text-violet-500" />
           {t('results')}
           <span className="text-muted-foreground font-normal">
             ({t('totalResponses')}: {responses.length})
@@ -1196,7 +1196,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
 
         {/* Already responded message */}
         {hasResponded && !isClosed && (
-          <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 mb-2">
+          <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-500 mb-2">
             <CheckCircle className="h-4 w-4" />
             {t('alreadyResponded') || 'You have already responded'}
           </div>
@@ -1219,7 +1219,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
                 variant="outline"
                 size="sm"
                 onClick={() => handleClosePoll(poll.id)}
-                className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-900/30"
+                className="text-amber-600 border-amber-300 hover:bg-amber-50 dark:text-amber-500 dark:border-amber-700 dark:hover:bg-amber-900/30"
               >
                 <Clock className="h-3.5 w-3.5" />
                 {t('closePoll')}
@@ -1229,7 +1229,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
               variant="outline"
               size="sm"
               onClick={() => setDeleteConfirmId(poll.id)}
-              className="text-rose-600 border-rose-300 hover:bg-rose-50 dark:text-rose-400 dark:border-rose-700 dark:hover:bg-rose-900/30"
+              className="text-rose-600 border-rose-300 hover:bg-rose-50 dark:text-rose-500 dark:border-rose-700 dark:hover:bg-rose-900/30"
             >
               <Trash2 className="h-3.5 w-3.5" />
               {tc('delete')}
@@ -1293,7 +1293,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
               </span>
 
               {/* Anonymous badge */}
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-500">
                 {poll.is_anonymous ? (
                   <EyeOff className="h-2.5 w-2.5" />
                 ) : (
@@ -1304,7 +1304,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
 
               {/* Already responded indicator */}
               {poll.user_has_responded && (
-                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-800/40 dark:text-emerald-500">
                   <CheckCircle className="h-2.5 w-2.5" />
                   {t('responded') || 'Responded'}
                 </span>
@@ -1438,10 +1438,10 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
       ) : filteredPolls.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <BarChart3 className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+            <BarChart3 className="h-8 w-8 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('noPolls')}</p>
           <p className="text-sm text-muted-foreground">{t('noPollsDesc')}</p>

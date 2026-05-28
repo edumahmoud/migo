@@ -941,8 +941,8 @@ export default function LectureModal({
               <div className="sticky top-0 z-10 bg-background border-b p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-900/50">
-                      <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-800/40">
+                      <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                     </div>
                     <div className="min-w-0">
                       <h2 className="text-lg font-bold text-foreground truncate">{lecture.title}</h2>
@@ -951,7 +951,7 @@ export default function LectureModal({
                           <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date, locale)}</span>
                         )}
                         {extractLectureTime(lecture.description) && (
-                          <span className="flex items-center gap-1 text-sky-800 dark:text-sky-200 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description), t)}</span>
+                          <span className="flex items-center gap-1 text-sky-800 dark:text-sky-400 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description), t)}</span>
                         )}
                         {lecture.attendance_session && (
                           <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatTime(lecture.attendance_session.started_at, locale)}</span>
@@ -968,7 +968,7 @@ export default function LectureModal({
                   <div className="flex items-center gap-2 shrink-0">
                     {/* Status badge */}
                     {isActive ? (
-                      <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800">
+                      <Badge className="bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60">
                         <span className="relative flex h-2 w-2 me-1">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
@@ -995,7 +995,7 @@ export default function LectureModal({
 
                 {/* ─── No session yet (teacher) ─── */}
                 {!hasSession && role === 'teacher' && (
-                  <div className="rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 p-8 text-center">
+                  <div className="rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 p-8 text-center">
                     <Users className="h-10 w-10 text-sky-400 mx-auto mb-3" />
                     <p className="text-sm font-semibold text-foreground mb-1">{t('lecture.notOpenedYet')}</p>
                     <p className="text-xs text-muted-foreground">{t('lecture.pressStartToBegin')}</p>
@@ -1013,25 +1013,25 @@ export default function LectureModal({
                 {/* ─── Attendance Stats Cards ─── */}
                 {hasSession && (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="rounded-xl border bg-sky-50/50 dark:bg-sky-950/30 p-3 text-center">
-                      <UserCheck className="h-5 w-5 text-sky-700 dark:text-sky-300 mx-auto mb-1" />
-                      <p className="text-xl font-bold text-sky-800 dark:text-sky-200">{presentCount}</p>
-                      <p className="text-[10px] text-sky-700 dark:text-sky-300 font-medium">{t('lecture.present')}</p>
+                    <div className="rounded-xl border bg-sky-50/50 dark:bg-sky-900/15 p-3 text-center">
+                      <UserCheck className="h-5 w-5 text-sky-700 dark:text-sky-400 mx-auto mb-1" />
+                      <p className="text-xl font-bold text-sky-800 dark:text-sky-400">{presentCount}</p>
+                      <p className="text-[10px] text-sky-700 dark:text-sky-400 font-medium">{t('lecture.present')}</p>
                     </div>
-                    <div className="rounded-xl border bg-rose-50/50 dark:bg-rose-950/30 p-3 text-center">
-                      <UserX className="h-5 w-5 text-rose-600 dark:text-rose-400 mx-auto mb-1" />
-                      <p className="text-xl font-bold text-rose-700 dark:text-rose-300">{absentCount}</p>
-                      <p className="text-[10px] text-rose-600 dark:text-rose-400 font-medium">{t('lecture.absent')}</p>
+                    <div className="rounded-xl border bg-rose-50/50 dark:bg-rose-900/20 p-3 text-center">
+                      <UserX className="h-5 w-5 text-rose-600 dark:text-rose-500 mx-auto mb-1" />
+                      <p className="text-xl font-bold text-rose-700 dark:text-rose-500">{absentCount}</p>
+                      <p className="text-[10px] text-rose-600 dark:text-rose-500 font-medium">{t('lecture.absent')}</p>
                     </div>
-                    <div className="rounded-xl border bg-amber-50/50 dark:bg-amber-950/30 p-3 text-center">
-                      <Users className="h-5 w-5 text-amber-600 dark:text-amber-400 mx-auto mb-1" />
-                      <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{totalStudents}</p>
-                      <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">{t('lecture.total')}</p>
+                    <div className="rounded-xl border bg-amber-50/50 dark:bg-amber-900/20 p-3 text-center">
+                      <Users className="h-5 w-5 text-amber-600 dark:text-amber-500 mx-auto mb-1" />
+                      <p className="text-xl font-bold text-amber-700 dark:text-amber-500">{totalStudents}</p>
+                      <p className="text-[10px] text-amber-600 dark:text-amber-500 font-medium">{t('lecture.total')}</p>
                     </div>
-                    <div className="rounded-xl border bg-teal-50/50 dark:bg-teal-950/30 p-3 text-center">
-                      <Percent className="h-5 w-5 text-teal-600 dark:text-teal-400 mx-auto mb-1" />
-                      <p className="text-xl font-bold text-teal-700 dark:text-teal-300">{attendancePercent}%</p>
-                      <p className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">{t('lecture.attendanceRate')}</p>
+                    <div className="rounded-xl border bg-teal-50/50 dark:bg-teal-900/20 p-3 text-center">
+                      <Percent className="h-5 w-5 text-teal-600 dark:text-teal-500 mx-auto mb-1" />
+                      <p className="text-xl font-bold text-teal-700 dark:text-teal-500">{attendancePercent}%</p>
+                      <p className="text-[10px] text-teal-600 dark:text-teal-500 font-medium">{t('lecture.attendanceRate')}</p>
                     </div>
                   </div>
                 )}
@@ -1041,13 +1041,13 @@ export default function LectureModal({
                   <div className="rounded-xl border overflow-hidden">
                     <div className="flex items-center justify-between bg-muted/50 px-4 py-3 border-b">
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <Upload className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                        <Upload className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                         {t('lecture.lectureFiles')}
                       </h4>
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploadingFiles}
-                        className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 hover:bg-sky-100 disabled:opacity-60 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 hover:bg-sky-100 disabled:opacity-60 transition-colors"
                       >
                         <Plus className="h-3.5 w-3.5" />
                         {t('lecture.addFiles')}
@@ -1070,16 +1070,16 @@ export default function LectureModal({
                             <div
                               key={idx}
                               className={`rounded-lg border p-3 ${
-                                pf.status === 'done' ? 'border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30' :
-                                pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/30' : 'border-rose-200 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-950/30') :
-                                pf.status === 'uploading' ? 'border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/30' :
+                                pf.status === 'done' ? 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15' :
+                                pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-900/20' : 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/20') :
+                                pf.status === 'uploading' ? 'border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/20' :
                                 'border-border bg-muted/20'
                               }`}
                             >
                               <div className="flex items-center gap-2 mb-2">
                                 <FileText className={`h-4 w-4 shrink-0 ${
-                                  pf.status === 'done' ? 'text-sky-700 dark:text-sky-300' :
-                                  pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400') :
+                                  pf.status === 'done' ? 'text-sky-700 dark:text-sky-400' :
+                                  pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'text-amber-600 dark:text-amber-500' : 'text-rose-600 dark:text-rose-500') :
                                   'text-muted-foreground'
                                 }`} />
                                 <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName}</span>
@@ -1094,14 +1094,14 @@ export default function LectureModal({
                                   </button>
                                 )}
                                 {pf.status === 'done' && (
-                                  <Check className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
+                                  <Check className="h-4 w-4 text-sky-700 dark:text-sky-400 shrink-0" />
                                 )}
                               </div>
                               {/* Error message for failed files */}
                               {pf.status === 'error' && pf.error && (
                                 <div className="flex items-start gap-1.5 mb-2 px-1">
-                                  <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                                  <span className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">{pf.error}</span>
+                                  <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" />
+                                  <span className="text-[11px] text-amber-700 dark:text-amber-500 leading-relaxed">{pf.error}</span>
                                 </div>
                               )}
                               {/* Rename field — visible for pending AND error files */}
@@ -1282,7 +1282,7 @@ export default function LectureModal({
                                       {pf.status === 'done' ? t('lecture.uploaded') : t('lecture.uploading')}
                                     </span>
                                     <span className={`text-[10px] font-medium ${
-                                      pf.status === 'done' ? 'text-sky-700 dark:text-sky-300' : 'text-amber-600 dark:text-amber-400'
+                                      pf.status === 'done' ? 'text-sky-700 dark:text-sky-400' : 'text-amber-600 dark:text-amber-500'
                                     }`}>
                                       {pf.progress}%
                                     </span>
@@ -1315,24 +1315,24 @@ export default function LectureModal({
                             return (
                               <div
                                 key={note.id}
-                                className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-3"
+                                className="rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-900/15 p-3"
                               >
                                 <div className="flex items-center gap-2 mb-1">
-                                  <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                                  <FileText className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                                   <span className="text-xs font-medium text-foreground">{note.author_name}</span>
                                   <span className="text-[10px] text-muted-foreground ms-auto">{formatTime(note.created_at, locale)}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={() => setPreviewFile({ url: fileRef.url, name: fileRef.name })}
-                                    className="flex items-center gap-2 rounded-lg bg-sky-700/10 border border-sky-200 dark:border-sky-800 px-3 py-2 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors flex-1 text-end"
+                                    className="flex items-center gap-2 rounded-lg bg-sky-700/10 border border-sky-200 dark:border-sky-900/60 px-3 py-2 text-sm font-medium text-sky-800 dark:text-sky-400 hover:bg-sky-100 transition-colors flex-1 text-end"
                                   >
                                     <Eye className="h-4 w-4 shrink-0" />
                                     <span className="truncate">{fileRef.name}</span>
                                   </button>
                                   <button
                                     onClick={() => downloadWithCustomName(fileRef.url, fileRef.name)}
-                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
+                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-100 transition-colors"
                                     title={t('lecture.download')}
                                   >
                                     <Download className="h-4 w-4" />
@@ -1357,7 +1357,7 @@ export default function LectureModal({
                   <div className="rounded-xl border overflow-hidden">
                     <div className="flex items-center bg-muted/50 px-4 py-3 border-b">
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                        <FileText className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                         {t('lecture.lectureFiles')}
                       </h4>
                     </div>
@@ -1368,20 +1368,20 @@ export default function LectureModal({
                         return (
                           <div
                             key={note.id}
-                            className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-3"
+                            className="rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-900/15 p-3"
                           >
                             <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
+                              <FileText className="h-4 w-4 text-sky-700 dark:text-sky-400 shrink-0" />
                               <button
                                 onClick={() => setPreviewFile({ url: fileRef.url, name: fileRef.name })}
-                                className="flex items-center gap-2 flex-1 text-end text-sm font-medium text-sky-800 dark:text-sky-200 hover:text-sky-900 transition-colors min-w-0"
+                                className="flex items-center gap-2 flex-1 text-end text-sm font-medium text-sky-800 dark:text-sky-400 hover:text-sky-900 transition-colors min-w-0"
                               >
                                 <Eye className="h-4 w-4 shrink-0" />
                                 <span className="truncate">{fileRef.name}</span>
                               </button>
                               <button
                                 onClick={() => downloadWithCustomName(fileRef.url, fileRef.name)}
-                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-200 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-100 transition-colors"
                                 title={t('lecture.download')}
                               >
                                 <Download className="h-3.5 w-3.5" />
@@ -1398,7 +1398,7 @@ export default function LectureModal({
                 <div className="rounded-xl border overflow-hidden">
                   <div className="flex items-center justify-between bg-muted/50 px-4 py-3 border-b">
                     <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                      <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-500" />
                       {t('lecture.notes')}
                     </h4>
                   </div>
@@ -1411,7 +1411,7 @@ export default function LectureModal({
                             onClick={() => setNoteVisibility('public')}
                             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                               noteVisibility === 'public'
-                                ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                                ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                                 : 'border-border text-muted-foreground hover:bg-muted/50'
                             }`}
                           >
@@ -1422,7 +1422,7 @@ export default function LectureModal({
                             onClick={() => setNoteVisibility('private')}
                             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                               noteVisibility === 'private'
-                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
+                                ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-500'
                                 : 'border-border text-muted-foreground hover:bg-muted/50'
                             }`}
                           >
@@ -1463,13 +1463,13 @@ export default function LectureModal({
                           <div
                             key={note.id}
                             className={`rounded-lg border p-3 ${
-                              note.visibility === 'private' ? 'bg-amber-50/50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800' : 'bg-muted/30'
+                              note.visibility === 'private' ? 'bg-amber-50/50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/60' : 'bg-muted/30'
                             }`}
                           >
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-xs font-medium text-foreground">{note.author_name}</span>
                               {note.visibility === 'private' && (
-                                <Badge variant="outline" className="text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-[9px] py-0">
+                                <Badge variant="outline" className="text-amber-700 dark:text-amber-500 border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 text-[9px] py-0">
                                   <Lock className="h-2.5 w-2.5 ms-0.5" />{t('lecture.privateLabel')}
                                 </Badge>
                               )}
@@ -1488,11 +1488,11 @@ export default function LectureModal({
                   <div className="rounded-xl border overflow-hidden">
                     <div className="flex items-center justify-between bg-muted/50 px-4 py-3 border-b">
                       <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                        <Users className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                        <Users className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                         {t('lecture.attendanceRecord')}
                       </h4>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-sky-800 dark:text-sky-200">{presentCount}/{totalStudents}</span>
+                        <span className="text-sm font-bold text-sky-800 dark:text-sky-400">{presentCount}/{totalStudents}</span>
                         {role === 'teacher' && (
                           <button
                             onClick={() => {
@@ -1500,7 +1500,7 @@ export default function LectureModal({
                               setManualDialogOpen(true);
                               fetchAbsentStudents();
                             }}
-                            className="flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 transition-colors"
+                            className="flex items-center gap-1.5 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-500 hover:bg-amber-100 transition-colors"
                           >
                             <UserPlus className="h-3.5 w-3.5" />
                             {t('lecture.manualRegister')}
@@ -1520,7 +1520,7 @@ export default function LectureModal({
                     </div>
                     <div className="max-h-64 overflow-y-auto">
                       {loadingRecords ? (
-                        <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-300" /></div>
+                        <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-sky-700 dark:text-sky-400" /></div>
                       ) : attendanceRecords.length === 0 ? (
                         <div className="py-8 text-center text-sm text-muted-foreground">{t('lecture.noAttendanceYet')}</div>
                       ) : (
@@ -1578,8 +1578,8 @@ export default function LectureModal({
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
-                    <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-800/40">
+                    <UserPlus className="h-5 w-5 text-amber-600 dark:text-amber-500" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-foreground">{t('lecture.manualRegisterTitle')}</h3>
@@ -1616,8 +1616,8 @@ export default function LectureModal({
                   <div className="flex items-center justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-amber-500" /></div>
                 ) : absentStudents.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-3">
-                      <CheckCircle2 className="h-6 w-6 text-sky-700 dark:text-sky-300" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-3">
+                      <CheckCircle2 className="h-6 w-6 text-sky-700 dark:text-sky-400" />
                     </div>
                     <p className="text-sm font-medium text-foreground">{t('lecture.allStudentsRegistered')}</p>
                     <p className="text-xs text-muted-foreground mt-1">{t('lecture.noAbsentStudents')}</p>
@@ -1697,8 +1697,8 @@ export default function LectureModal({
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                    <FileText className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                    <FileText className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   </div>
                   <h3 className="text-sm font-bold text-foreground truncate">{previewFile.name}</h3>
                 </div>

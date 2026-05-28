@@ -342,7 +342,7 @@ function LectureTimer({ startedAt }: { startedAt: string }) {
   const pad = (n: number) => n.toString().padStart(2, '0');
 
   return (
-    <span className="flex items-center gap-1 font-mono font-bold text-sky-800 dark:text-sky-200 tabular-nums" dir="ltr">
+    <span className="flex items-center gap-1 font-mono font-bold text-sky-800 dark:text-sky-400 tabular-nums" dir="ltr">
       <span className="relative flex h-2 w-2 me-1">
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
         <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
@@ -2164,11 +2164,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
 
       {/* Lectures list */}
       {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" /></div>
+        <div className="flex items-center justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" /></div>
       ) : lectures.length === 0 ? (
-        <motion.div variants={itemVariants} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-20">
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-5">
-            <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-300" />
+        <motion.div variants={itemVariants} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-20">
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-800/40 mb-5">
+            <BookOpen className="h-10 w-10 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1">{t('noLectures')}</p>
           <p className="text-sm text-muted-foreground">{role === 'teacher' ? t('startByAddingLecture') : t('noLecturesYet')}</p>
@@ -2199,14 +2199,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       <>
                         {/* Row 1: Title + Status + Action Buttons */}
                         <div className="flex items-start gap-3 mb-3">
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted'}`}>
-                            <BookOpen className={`h-5 w-5 ${isActive ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'}`} />
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-sky-100 dark:bg-sky-800/40' : 'bg-muted'}`}>
+                            <BookOpen className={`h-5 w-5 ${isActive ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}`} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <h4 className="font-bold text-foreground truncate">{lecture.title}</h4>
                               {isActive ? (
-                                <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 text-[10px] shrink-0">
+                                <Badge className="bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60 text-[10px] shrink-0">
                                   <span className="relative flex h-2 w-2 me-1">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
@@ -2228,7 +2228,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                             {isActive && (
                               <button
                                 onClick={(e) => handleOpenQrModal(lecture, e)}
-                                className="touch-target flex items-center justify-center rounded-lg text-sky-700 dark:text-sky-300 hover:bg-sky-50 transition-colors"
+                                className="touch-target flex items-center justify-center rounded-lg text-sky-700 dark:text-sky-400 hover:bg-sky-50 transition-colors"
                                 title={t('viewQrCode')}
                               >
                                 <QrCode className="h-4 w-4" />
@@ -2263,14 +2263,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date, direction === 'rtl' ? 'ar-SA' : 'en-US')}</span>
                             )}
                             {extractLectureTime(lecture.description) && (
-                              <span className="flex items-center gap-1 text-sky-800 dark:text-sky-200 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description), tc('am'), tc('pm'))}</span>
+                              <span className="flex items-center gap-1 text-sky-800 dark:text-sky-400 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description), tc('am'), tc('pm'))}</span>
                             )}
                             {isActive && lecture.attendance_session?.started_at && (
                               <LectureTimer startedAt={lecture.attendance_session.started_at} />
                             )}
                           </div>
                           {hasSession && (
-                            <span className="flex items-center gap-1 font-semibold text-sky-800 dark:text-sky-200">
+                            <span className="flex items-center gap-1 font-semibold text-sky-800 dark:text-sky-400">
                               <Users className="h-3.5 w-3.5" />
                               {lecture.attendance_count || 0}/{lecture.total_students || totalStudents}
                             </span>
@@ -2311,14 +2311,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       <>
                         {/* ─── Student Card Layout ─── */}
                         <div className="flex items-start gap-3 mb-3">
-                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted'}`}>
-                            <BookOpen className={`h-5 w-5 ${isActive ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'}`} />
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-sky-100 dark:bg-sky-800/40' : 'bg-muted'}`}>
+                            <BookOpen className={`h-5 w-5 ${isActive ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}`} />
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <h4 className="font-bold text-foreground truncate">{lecture.title}</h4>
                               {isActive ? (
-                                <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 text-[10px] shrink-0">
+                                <Badge className="bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60 text-[10px] shrink-0">
                                   <span className="relative flex h-2 w-2 me-1">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" />
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-600" />
@@ -2342,14 +2342,14 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(lecture.lecture_date, direction === 'rtl' ? 'ar-SA' : 'en-US')}</span>
                             )}
                             {extractLectureTime(lecture.description) && (
-                              <span className="flex items-center gap-1 text-sky-800 dark:text-sky-200 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description), tc('am'), tc('pm'))}</span>
+                              <span className="flex items-center gap-1 text-sky-800 dark:text-sky-400 font-medium"><Clock className="h-3 w-3" />{formatTimeArabic(extractLectureTime(lecture.description), tc('am'), tc('pm'))}</span>
                             )}
                             {isActive && lecture.attendance_session?.started_at && (
                               <LectureTimer startedAt={lecture.attendance_session.started_at} />
                             )}
                           </div>
                           {/* Expand/collapse hint for students */}
-                          <span className="flex items-center gap-1 text-sky-700 dark:text-sky-300 font-medium">
+                          <span className="flex items-center gap-1 text-sky-700 dark:text-sky-400 font-medium">
                             <StickyNote className="h-3 w-3" />
                             {isExpanded ? t('hideNotes') : t('tapToShowNotes')}
                             {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -2371,7 +2371,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleGpsCheckIn(lecture.attendance_session!.id); }}
                                 disabled={checkingIn || gpsCheckingIn === lecture.attendance_session!.id}
-                                className="flex items-center justify-center gap-2 rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-4 py-3 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100 disabled:opacity-60 transition-colors"
+                                className="flex items-center justify-center gap-2 rounded-xl border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-4 py-3 text-sm font-medium text-sky-800 dark:text-sky-400 hover:bg-sky-100 disabled:opacity-60 transition-colors"
                               >
                                 {(gpsCheckingIn === lecture.attendance_session!.id || checkingIn) ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -2387,7 +2387,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         {/* Student: Already checked in */}
                         {role === 'student' && isCheckedIn && (
                           <div className="mt-4 pt-4 border-t">
-                            <div className="flex items-center justify-center gap-2 rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 px-4 py-3 text-sm font-semibold text-sky-800 dark:text-sky-200">
+                            <div className="flex items-center justify-center gap-2 rounded-xl bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60 px-4 py-3 text-sm font-semibold text-sky-800 dark:text-sky-400">
                               <CheckCircle2 className="h-5 w-5" />
                               {t('attendanceRegistered')}
                             </div>
@@ -2417,7 +2417,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       >
                         <div className="px-5 pb-5 border-t pt-4">
                           <h5 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                            <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                            <StickyNote className="h-4 w-4 text-amber-600 dark:text-amber-500" />
                             {t('teacherNotes')}
                           </h5>
                           {expandedNotes.length === 0 ? (
@@ -2428,23 +2428,23 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 const fileRef = parseFileNote(note.content);
                                 if (fileRef.isFile) {
                                   return (
-                                    <div key={note.id} className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-3">
+                                    <div key={note.id} className="rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-900/15 p-3">
                                       <div className="flex items-center gap-2 mb-1">
                                         <span className="text-xs font-medium text-foreground">{note.author_name}</span>
                                         <span className="text-[10px] text-muted-foreground">{formatTime(note.created_at, direction === 'rtl' ? 'ar-SA' : 'en-US')}</span>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
+                                        <FileText className="h-4 w-4 text-sky-700 dark:text-sky-400 shrink-0" />
                                         <button
                                           onClick={(e) => { e.stopPropagation(); setStudentPreviewFile({ url: fileRef.url, name: fileRef.name }); }}
-                                          className="flex items-center gap-1.5 text-sm font-medium text-sky-800 dark:text-sky-200 hover:text-sky-900 transition-colors min-w-0"
+                                          className="flex items-center gap-1.5 text-sm font-medium text-sky-800 dark:text-sky-400 hover:text-sky-900 transition-colors min-w-0"
                                         >
                                           <Eye className="h-3.5 w-3.5 shrink-0" />
                                           <span className="truncate">{fileRef.name}</span>
                                         </button>
                                         <button
                                           onClick={(e) => { e.stopPropagation(); downloadWithCustomName(fileRef.url, fileRef.name); }}
-                                          className="touch-target shrink-0 flex items-center justify-center rounded-md text-sky-800 dark:text-sky-200 hover:bg-sky-100 transition-colors"
+                                          className="touch-target shrink-0 flex items-center justify-center rounded-md text-sky-800 dark:text-sky-400 hover:bg-sky-100 transition-colors"
                                           title={tc('download')}
                                         >
                                           <Download className="h-3.5 w-3.5" />
@@ -2509,7 +2509,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             >
               <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <BookOpen className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   {t('newLecture')}
                 </h3>
                 <button onClick={() => {
@@ -2622,7 +2622,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                       fileInputRef.current?.click();
                     }}
                     disabled={creating}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 px-4 py-4 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-50 hover:border-sky-400 transition-colors disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 px-4 py-4 text-sm font-medium text-sky-800 dark:text-sky-400 hover:bg-sky-50 hover:border-sky-400 transition-colors disabled:opacity-60"
                   >
                     <Upload className="h-5 w-5" />
                     {t('uploadFiles')}
@@ -2633,16 +2633,16 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                         <div
                           key={idx}
                           className={`rounded-lg border p-3 ${
-                            pf.status === 'done' ? 'border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30' :
-                            pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/30' : 'border-rose-200 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-950/30') :
-                            pf.status === 'uploading' ? 'border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-950/30' :
+                            pf.status === 'done' ? 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15' :
+                            pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-900/20' : 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/20') :
+                            pf.status === 'uploading' ? 'border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/20' :
                             'border-border bg-muted/20'
                           }`}
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <FileText className={`h-4 w-4 shrink-0 ${
-                              pf.status === 'done' ? 'text-sky-700 dark:text-sky-300' :
-                              pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400') :
+                              pf.status === 'done' ? 'text-sky-700 dark:text-sky-400' :
+                              pf.status === 'error' ? (pf.errorCode === 'duplicate_name' ? 'text-amber-600 dark:text-amber-500' : 'text-rose-600 dark:text-rose-500') :
                               'text-muted-foreground'
                             }`} />
                             <span className="text-xs text-muted-foreground truncate flex-1">{pf.fileName}</span>
@@ -2656,13 +2656,13 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 <X className="h-3 w-3" />
                               </button>
                             )}
-                            {pf.status === 'done' && <Check className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />}
+                            {pf.status === 'done' && <Check className="h-4 w-4 text-sky-700 dark:text-sky-400 shrink-0" />}
                           </div>
                           {/* Error message for failed files */}
                           {pf.status === 'error' && pf.error && (
                             <div className="flex items-start gap-1.5 mb-2 px-1">
-                              <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                              <span className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">{pf.error}</span>
+                              <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-600 dark:text-amber-500" />
+                              <span className="text-[11px] text-amber-700 dark:text-amber-500 leading-relaxed">{pf.error}</span>
                             </div>
                           )}
                           {/* Rename field — visible for pending AND error files (so user can rename and retry) */}
@@ -2707,7 +2707,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                 <span className="text-[10px] text-muted-foreground">
                                   {pf.status === 'done' ? t('uploadComplete') : t('uploadingProgress')}
                                 </span>
-                                <span className={`text-[10px] font-medium ${pf.status === 'done' ? 'text-sky-700 dark:text-sky-300' : 'text-amber-600 dark:text-amber-400'}`}>
+                                <span className={`text-[10px] font-medium ${pf.status === 'done' ? 'text-sky-700 dark:text-sky-400' : 'text-amber-600 dark:text-amber-500'}`}>
                                   {pf.progress}%
                                 </span>
                               </div>
@@ -2771,7 +2771,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
             >
               <div className="flex items-center justify-between border-b p-5 shrink-0 sticky top-0 z-10 bg-background">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   {t('editLecture')}
                 </h3>
                 <button onClick={() => { if (!savingEdit) setEditOpen(false); }} className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
@@ -2842,7 +2842,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               {/* QR Code with auto-refresh */}
               <div className="flex justify-center mb-4">
                 {qrDataUrl ? (
-                  <div className="relative rounded-2xl border-2 border-sky-200 dark:border-sky-800 bg-white dark:bg-card p-4 shadow-lg">
+                  <div className="relative rounded-2xl border-2 border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card p-4 shadow-lg">
                     <img src={qrDataUrl} alt="QR Code" className="w-64 h-64 rounded-lg" />
                     {/* Refresh countdown ring */}
                     <div className="absolute -top-2 -end-2 flex h-8 w-8 items-center justify-center rounded-full bg-sky-700 text-white text-xs font-bold shadow-lg">
@@ -2851,7 +2851,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   </div>
                 ) : (
                   <div className="w-64 h-64 flex items-center justify-center rounded-2xl border bg-muted">
-                    <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+                    <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
                   </div>
                 )}
               </div>
@@ -2862,11 +2862,11 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               </p>
 
               {/* Attendee count */}
-              <div className="inline-flex items-center gap-3 rounded-2xl border bg-sky-50 dark:bg-sky-950/30 px-6 py-3">
-                <Users className="h-6 w-6 text-sky-700 dark:text-sky-300" />
+              <div className="inline-flex items-center gap-3 rounded-2xl border bg-sky-50 dark:bg-sky-900/15 px-6 py-3">
+                <Users className="h-6 w-6 text-sky-700 dark:text-sky-400" />
                 <div className="text-end">
-                  <p className="text-2xl font-bold text-sky-800 dark:text-sky-200">{qrAttendeeCount}</p>
-                  <p className="text-xs text-sky-700 dark:text-sky-300 font-medium">{t('checkedInSoFar')}</p>
+                  <p className="text-2xl font-bold text-sky-800 dark:text-sky-400">{qrAttendeeCount}</p>
+                  <p className="text-xs text-sky-700 dark:text-sky-400 font-medium">{t('checkedInSoFar')}</p>
                 </div>
               </div>
 
@@ -2908,8 +2908,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               dir={direction}
             >
               <div className="flex justify-center mb-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50">
-                  <AlertTriangle className="h-7 w-7 text-rose-600 dark:text-rose-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40">
+                  <AlertTriangle className="h-7 w-7 text-rose-600 dark:text-rose-500" />
                 </div>
               </div>
               <h3 className="text-lg font-bold text-foreground mb-2">{t('deleteLecture')}</h3>
@@ -2919,7 +2919,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <p className="text-sm font-semibold text-foreground mb-6">
                 «{deleteTargetLecture.title}»
               </p>
-              <p className="text-xs text-rose-600 dark:text-rose-400 mb-6">{t('actionCannotBeUndone')}</p>
+              <p className="text-xs text-rose-600 dark:text-rose-500 mb-6">{t('actionCannotBeUndone')}</p>
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleConfirmDelete}
@@ -2960,8 +2960,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4 shrink-0 sticky top-0 z-10 bg-background">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                    <Scan className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                    <Scan className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-foreground">{t('scanQrCode')}</h3>
@@ -2987,7 +2987,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               <div className="border-t px-5 py-3 shrink-0 sticky bottom-0 z-10 bg-background">
                 <button
                   onClick={handleStopScan}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-4 py-2.5 text-sm font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 px-4 py-2.5 text-sm font-medium text-rose-700 dark:text-rose-500 hover:bg-rose-100 transition-colors"
                 >
                   <X className="h-4 w-4" />
                   {t('cancelScan')}
@@ -3018,8 +3018,8 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
               {/* Header */}
               <div className="flex items-center justify-between border-b px-5 py-4 shrink-0 sticky top-0 z-10 bg-background">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                    <FileText className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                    <FileText className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   </div>
                   <h3 className="text-sm font-bold text-foreground truncate">{studentPreviewFile.name}</h3>
                 </div>

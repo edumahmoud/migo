@@ -212,7 +212,7 @@ export default function NotificationPermission() {
       <button
         onClick={handleDisable}
         disabled={loading}
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-sky-700 dark:text-sky-300 hover:bg-sky-50 active:bg-sky-100 transition-colors touch-manipulation"
+        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-sky-700 dark:text-sky-400 hover:bg-sky-50 active:bg-sky-100 transition-colors touch-manipulation"
         aria-label={t('enabledTap')}
         title={t('enabled')}
       >

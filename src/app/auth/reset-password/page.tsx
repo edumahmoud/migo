@@ -238,7 +238,7 @@ export default function ResetPasswordPage() {
             <div className="bg-white dark:bg-card rounded-2xl shadow-2xl border-0 overflow-hidden">
               <div className="flex flex-col items-center py-10 px-6 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30 mb-4">
-                  <ShieldCheck className="h-8 w-8 text-rose-600 dark:text-rose-400" />
+                  <ShieldCheck className="h-8 w-8 text-rose-600 dark:text-rose-500" />
                 </div>
                 <h2 className="text-xl font-bold text-gray-900 mb-2">
                   {pageState === 'invalid' ? t('auth.invalidOrExpiredLink') : t('auth.errorOccurred')}
@@ -266,8 +266,8 @@ export default function ResetPasswordPage() {
           >
             <div className="bg-white dark:bg-card rounded-2xl shadow-2xl border-0 overflow-hidden">
               <div className="flex flex-col items-center py-10 px-6 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 mb-4">
-                  <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-400" />
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/15 mb-4">
+                  <CheckCircle2 className="h-9 w-9 text-emerald-600 dark:text-emerald-500" />
                 </div>
                 <h2 className="text-xl font-bold text-gray-900 mb-2">{t('auth.passwordUpdated')}</h2>
                 <p className="text-sm text-gray-500">{t('auth.passwordUpdatedDesc')}</p>
@@ -345,7 +345,7 @@ export default function ResetPasswordPage() {
                           <div
                             key={level}
                             className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
-                              strength > level ? strengthColors[strength - 1] : 'bg-gray-200 dark:bg-gray-700'
+                              strength > level ? strengthColors[strength - 1] : 'bg-gray-200 dark:bg-gray-800'
                             }`}
                           />
                         ))}

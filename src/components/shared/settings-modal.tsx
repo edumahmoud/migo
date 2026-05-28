@@ -293,7 +293,7 @@ export default function SettingsModal({
                       className="h-16 w-16 rounded-full object-cover border-2 border-sky-200"
                     />
                   ) : (
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 font-bold text-lg border-2 border-sky-200 dark:border-sky-800">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 font-bold text-lg border-2 border-sky-200 dark:border-sky-900/60">
                       {initials || tc('appNameFallback')[0]}
                     </div>
                   )}
@@ -357,7 +357,7 @@ export default function SettingsModal({
             <div className="space-y-2">
               <Label className="text-sm text-muted-foreground">{t('role')}</Label>
               <div>
-                <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800">
+                <Badge className="bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60">
                   {roleLabel}
                 </Badge>
               </div>

@@ -42,14 +42,14 @@ function getPriorityStyle(priority: string) {
     case 'low':
       return {
         bg: 'bg-gray-50 dark:bg-muted/50 border-gray-200 dark:border-border',
-        icon: <Info className="h-4 w-4 text-gray-600 dark:text-gray-400 shrink-0" />,
-        title: 'text-gray-700 dark:text-gray-300',
+        icon: <Info className="h-4 w-4 text-gray-600 dark:text-gray-500 shrink-0" />,
+        title: 'text-gray-700 dark:text-gray-500',
       };
     default:
       return {
-        bg: 'bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800',
+        bg: 'bg-sky-50 dark:bg-sky-900/15 border-sky-200 dark:border-sky-900/60',
         icon: <Megaphone className="h-4 w-4 text-sky-600 shrink-0" />,
-        title: 'text-sky-700 dark:text-sky-300',
+        title: 'text-sky-700 dark:text-sky-400',
       };
   }
 }

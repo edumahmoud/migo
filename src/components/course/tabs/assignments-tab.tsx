@@ -816,11 +816,11 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
   const getStatusBadge = (status: 'submitted' | 'graded' | 'returned') => {
     switch (status) {
       case 'submitted':
-        return <Badge className="bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px]"><Clock className="h-2.5 w-2.5 me-1" />{t('submittedStatus')}</Badge>;
+        return <Badge className="bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 text-[10px]"><Clock className="h-2.5 w-2.5 me-1" />{t('submittedStatus')}</Badge>;
       case 'graded':
-        return <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 text-[10px]"><CheckCircle2 className="h-2.5 w-2.5 me-1" />{t('gradedStatus')}</Badge>;
+        return <Badge className="bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 text-[10px]"><CheckCircle2 className="h-2.5 w-2.5 me-1" />{t('gradedStatus')}</Badge>;
       case 'returned':
-        return <Badge className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px]"><MessageSquare className="h-2.5 w-2.5 me-1" />{t('returnedStatus')}</Badge>;
+        return <Badge className="bg-blue-100 dark:bg-blue-800/40 text-blue-700 dark:text-blue-400 text-[10px]"><MessageSquare className="h-2.5 w-2.5 me-1" />{t('returnedStatus')}</Badge>;
     }
   };
 
@@ -891,15 +891,15 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : assignments.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-20"
+          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-20"
         >
-          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-5">
-            <ClipboardCheck className="h-10 w-10 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-800/40 mb-5">
+            <ClipboardCheck className="h-10 w-10 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-bold text-foreground mb-1">{t('noAssignmentsYet')}</p>
           <p className="text-sm text-muted-foreground">
@@ -909,10 +909,10 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
       ) : filteredAssignments.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+          className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <Filter className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-100 dark:bg-sky-800/40 mb-4">
+            <Filter className="h-8 w-8 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-sm font-medium text-foreground mb-1">
             {activeTab === 'active' ? t('noActiveAssignments') : t('noExpiredAssignments')}
@@ -962,10 +962,10 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
 
                   <div className="flex items-center gap-3 mb-3 mt-1">
                     <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                      pastDue ? 'bg-rose-100 dark:bg-rose-900/50' : countdown?.urgent ? 'bg-amber-100 dark:bg-amber-900/50' : 'bg-sky-100 dark:bg-sky-900/50'
+                      pastDue ? 'bg-rose-100 dark:bg-rose-800/40' : countdown?.urgent ? 'bg-amber-100 dark:bg-amber-800/40' : 'bg-sky-100 dark:bg-sky-800/40'
                     }`}>
                       <ClipboardCheck className={`h-5 w-5 ${
-                        pastDue ? 'text-rose-600 dark:text-rose-400' : countdown?.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'
+                        pastDue ? 'text-rose-600 dark:text-rose-500' : countdown?.urgent ? 'text-amber-600 dark:text-amber-500' : 'text-sky-700 dark:text-sky-400'
                       }`} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -984,28 +984,28 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     {assignment.due_date && (
                       <div className={`flex items-center gap-1.5 text-xs ${
-                        pastDue ? 'text-rose-600 dark:text-rose-400' : countdown?.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'
+                        pastDue ? 'text-rose-600 dark:text-rose-500' : countdown?.urgent ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'
                       }`}>
                         <Calendar className="h-3 w-3" />
                         {formatDateTime(assignment.due_date)}
                         {!pastDue && countdown && (
-                          <span className={`font-medium ${countdown.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}`}>
+                          <span className={`font-medium ${countdown.urgent ? 'text-amber-600 dark:text-amber-500' : 'text-sky-700 dark:text-sky-400'}`}>
                             ({formatCountdown(countdown)})
                           </span>
                         )}
                         {pastDue && (
-                          <span className="font-medium text-rose-600 dark:text-rose-400">({t('expiredParens')})</span>
+                          <span className="font-medium text-rose-600 dark:text-rose-500">({t('expiredParens')})</span>
                         )}
                       </div>
                     )}
                     {role === 'student' && (
                       mySub ? getStatusBadge(mySub.status) : (
                         pastDue ? (
-                          <Badge className="bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-[10px]">
+                          <Badge className="bg-rose-100 dark:bg-rose-800/40 text-rose-700 dark:text-rose-500 text-[10px]">
                             <AlertCircle className="h-2.5 w-2.5 me-1" />{t('expiredStatus')}
                           </Badge>
                         ) : (
-                          <Badge className="bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-[10px]">
+                          <Badge className="bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 text-[10px]">
                             <AlertCircle className="h-2.5 w-2.5 me-1" />{t('notSubmittedStatus')}
                           </Badge>
                         )
@@ -1043,8 +1043,8 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
               className="w-full max-w-sm rounded-2xl border bg-background shadow-xl p-6 text-center"
               dir={direction}
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mx-auto mb-4">
-                <Trash2 className="h-6 w-6 text-rose-600 dark:text-rose-400" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40 mx-auto mb-4">
+                <Trash2 className="h-6 w-6 text-rose-600 dark:text-rose-500" />
               </div>
               <h3 className="text-lg font-bold text-foreground mb-2">{t('deleteAssignmentTitle')}</h3>
               <p className="text-sm text-muted-foreground mb-6">{t('deleteAssignmentConfirm')}</p>
@@ -1106,7 +1106,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         </div>
         <button
           onClick={() => openEditModal(selectedAssignment!)}
-          className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-50 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-50 transition-colors"
         >
           <Pencil className="h-3 w-3" />
           {tc('edit')}
@@ -1125,7 +1125,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         </h4>
         {loadingSubmissions ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-300" />
+            <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
           </div>
         ) : submissions.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground text-sm">{t('noSubmissionsYet')}</div>
@@ -1144,7 +1144,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                   <div className="flex items-center gap-2">
                     {getStatusBadge(sub.status)}
                     {sub.score !== undefined && sub.score !== null && (
-                      <span className="text-sm font-bold text-sky-800 dark:text-sky-200">{sub.score}/{selectedAssignment!.max_score}</span>
+                      <span className="text-sm font-bold text-sky-800 dark:text-sky-400">{sub.score}/{selectedAssignment!.max_score}</span>
                     )}
                   </div>
                 </div>
@@ -1157,7 +1157,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                       const { data } = await supabase.from('user_files').select('file_url, file_name').eq('id', sub.file_id!).single();
                       if (data) window.open((data as { file_url: string }).file_url, '_blank');
                     }}
-                    className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 transition-colors"
+                    className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/15 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 transition-colors"
                   >
                     <FileText className="h-3 w-3" />
                     {t('filePreview')}
@@ -1247,12 +1247,12 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                 </span>
               )}
               {selectedAssignment!.due_date && (
-                <span className={`flex items-center gap-1 ${pastDue ? 'text-rose-600 dark:text-rose-400' : countdown?.urgent ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                <span className={`flex items-center gap-1 ${pastDue ? 'text-rose-600 dark:text-rose-500' : countdown?.urgent ? 'text-amber-600 dark:text-amber-500' : ''}`}>
                   <Calendar className="h-3.5 w-3.5" />
                   {t('deadlineLabel')} {formatDateTime(selectedAssignment!.due_date)}
                   {pastDue && <span className="font-medium">({t('expiredParens')})</span>}
                   {!pastDue && countdown && (
-                    <span className={`font-medium ${countdown.urgent ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}`}>
+                    <span className={`font-medium ${countdown.urgent ? 'text-amber-600 dark:text-amber-500' : 'text-sky-700 dark:text-sky-400'}`}>
                       ({formatCountdown(countdown)} {t('remaining')})
                     </span>
                   )}
@@ -1274,9 +1274,9 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
 
         {/* Deadline warning */}
         {pastDue && !mySub && (
-          <motion.div variants={itemVariants} className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 p-4 flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0" />
-            <p className="text-sm text-rose-700 dark:text-rose-300 font-medium">{t('deadlineExpiredCannotSubmit')}</p>
+          <motion.div variants={itemVariants} className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 p-4 flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-500 shrink-0" />
+            <p className="text-sm text-rose-700 dark:text-rose-500 font-medium">{t('deadlineExpiredCannotSubmit')}</p>
           </motion.div>
         )}
 
@@ -1294,17 +1294,17 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                   const { data } = await supabase.from('user_files').select('file_url, file_name').eq('id', mySub.file_id!).single();
                   if (data) window.open((data as { file_url: string }).file_url, '_blank');
                 }}
-                className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/15 rounded-lg px-2.5 py-1.5 w-fit hover:bg-sky-100 transition-colors"
               >
                 <FileText className="h-3 w-3" />
                 {t('filePreview')}
               </button>
             )}
             {mySub.score !== undefined && mySub.score !== null && selectedAssignment!.show_grade !== false && (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-sky-50 dark:bg-sky-950/30">
-                <Award className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                <span className="text-sm font-bold text-sky-800 dark:text-sky-200">{mySub.score} / {selectedAssignment!.max_score}</span>
-                <span className="text-xs text-sky-700 dark:text-sky-300">
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-sky-50 dark:bg-sky-900/15">
+                <Award className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                <span className="text-sm font-bold text-sky-800 dark:text-sky-400">{mySub.score} / {selectedAssignment!.max_score}</span>
+                <span className="text-xs text-sky-700 dark:text-sky-400">
                   ({Math.round((mySub.score / selectedAssignment!.max_score) * 100)}%)
                 </span>
               </div>
@@ -1329,7 +1329,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                 onClick={() => setSubmitMode('text')}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                   submitMode === 'text'
-                    ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                    ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                     : 'border-border text-muted-foreground hover:bg-muted/50'
                 }`}
               >
@@ -1342,7 +1342,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                     onClick={() => setSubmitMode('upload')}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                       submitMode === 'upload'
-                        ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                        ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1353,7 +1353,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                     onClick={() => { setSubmitMode('existing'); fetchMyFiles(); }}
                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                       submitMode === 'existing'
-                        ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                        ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1384,12 +1384,12 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
-                  isDragOver ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-950/30' : 'border-muted-foreground/20 hover:border-sky-300'
+                  isDragOver ? 'border-sky-600 bg-sky-50/50 dark:bg-sky-900/15' : 'border-muted-foreground/20 hover:border-sky-300'
                 }`}
               >
                 {submitFile ? (
                   <div className="flex items-center gap-3 justify-center">
-                    <FileText className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+                    <FileText className="h-8 w-8 text-sky-700 dark:text-sky-400" />
                     <div className="text-end">
                       <p className="text-sm font-medium text-foreground">{submitFile.name}</p>
                       <p className="text-xs text-muted-foreground">{(submitFile.size / 1024).toFixed(1)} KB</p>
@@ -1407,7 +1407,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                     <p className="text-sm text-muted-foreground">{t('dragFileOr')}</p>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="mt-2 text-sm font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800"
+                      className="mt-2 text-sm font-medium text-sky-700 dark:text-sky-400 hover:text-sky-800"
                     >
                       {t('chooseFile')}
                     </button>
@@ -1445,19 +1445,19 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                       onClick={() => setSelectedExistingFile(selectedExistingFile?.id === file.id ? null : file)}
                       className={`w-full flex items-center gap-3 rounded-lg border p-3 text-end transition-all ${
                         selectedExistingFile?.id === file.id
-                          ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30'
+                          ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15'
                           : 'hover:bg-muted/50'
                       }`}
                     >
                       <FileText className={`h-5 w-5 shrink-0 ${
-                        selectedExistingFile?.id === file.id ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'
+                        selectedExistingFile?.id === file.id ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'
                       }`} />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{file.file_name}</p>
                         <p className="text-xs text-muted-foreground">{(file.file_size / 1024).toFixed(1)} KB</p>
                       </div>
                       {selectedExistingFile?.id === file.id && (
-                        <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
+                        <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-400 shrink-0" />
                       )}
                     </button>
                   ))
@@ -1520,7 +1520,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
             >
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <ClipboardCheck className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <ClipboardCheck className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   {mode === 'create' ? t('createNewAssignment') : t('editAssignment')}
                 </h3>
                 <button onClick={() => { if (!isProcessing) setIsOpen(false); }} className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted">
@@ -1554,7 +1554,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                 </div>
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
+                    <Calendar className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
                     {t('deadlineDatetimeLabel')}
                   </label>
                   <input
@@ -1586,7 +1586,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                         type="checkbox"
                         checked={allowFile}
                         onChange={(e) => setAllowFile(e.target.checked)}
-                        className="h-4 w-4 rounded border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 focus:ring-sky-600"
+                        className="h-4 w-4 rounded border-sky-300 dark:border-sky-900/60 text-sky-700 dark:text-sky-400 focus:ring-sky-600"
                         disabled={isProcessing}
                       />
                       <span className="text-sm font-medium text-foreground">{t('allowFileUpload')}</span>
@@ -1598,7 +1598,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
                         type="checkbox"
                         checked={showGrade}
                         onChange={(e) => setShowGrade(e.target.checked)}
-                        className="h-4 w-4 rounded border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 focus:ring-sky-600"
+                        className="h-4 w-4 rounded border-sky-300 dark:border-sky-900/60 text-sky-700 dark:text-sky-400 focus:ring-sky-600"
                         disabled={isProcessing}
                       />
                       <span className="text-sm font-medium text-foreground">{t('showGradeToStudent')}</span>

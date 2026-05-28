@@ -97,22 +97,22 @@ const TYPE_BADGE_MAP: Record<PlatformAnnouncementType, { labelAr: string; labelE
   celebration: {
     labelAr: 'احتفال',
     labelEn: 'Celebration',
-    classes: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+    classes: 'bg-emerald-100 dark:bg-emerald-800/40 text-emerald-700 dark:text-emerald-500 border-emerald-200 dark:border-emerald-900/60',
   },
   announcement: {
     labelAr: 'إعلان',
     labelEn: 'Announcement',
-    classes: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800',
+    classes: 'bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60',
   },
   alert: {
     labelAr: 'تنبيه',
     labelEn: 'Alert',
-    classes: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+    classes: 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60',
   },
   maintenance: {
     labelAr: 'صيانة',
     labelEn: 'Maintenance',
-    classes: 'bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700',
+    classes: 'bg-gray-100 dark:bg-gray-800/40 text-gray-700 dark:text-gray-500 border-gray-200 dark:border-gray-800/60',
   },
 };
 
@@ -522,7 +522,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
     return (
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
           <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
         </div>
       </div>
@@ -544,14 +544,14 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-teal-100 dark:from-sky-900/50 dark:to-teal-900/50">
-            <Megaphone className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+            <Megaphone className="h-5 w-5 text-sky-700 dark:text-sky-400" />
           </div>
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-foreground">
               {t('platformAnnouncements.title') || 'المعايدات والإعلانات العامة'}
             </h2>
           </div>
-          <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 text-xs">
+          <Badge className="bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60 text-xs">
             {totalCount}
           </Badge>
         </div>
@@ -581,9 +581,9 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
         </motion.div>
         <motion.div
           variants={itemVariants}
-          className="rounded-xl border bg-emerald-50 dark:bg-emerald-950/30 shadow-sm p-4 text-center"
+          className="rounded-xl border bg-emerald-50 dark:bg-emerald-900/20 shadow-sm p-4 text-center"
         >
-          <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{activeCount}</p>
+          <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-500">{activeCount}</p>
           <p className="text-xs text-muted-foreground mt-1">
             {locale === 'en' ? 'Active' : 'نشط'}
           </p>
@@ -592,7 +592,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
           variants={itemVariants}
           className="rounded-xl border bg-gray-50 dark:bg-gray-900/30 shadow-sm p-4 text-center"
         >
-          <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">{inactiveCount}</p>
+          <p className="text-2xl font-bold text-gray-600 dark:text-gray-500">{inactiveCount}</p>
           <p className="text-xs text-muted-foreground mt-1">
             {locale === 'en' ? 'Inactive' : 'غير نشط'}
           </p>
@@ -661,7 +661,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                           {announcement.title}
                         </h3>
                         {!announcement.is_active && (
-                          <Badge className="bg-gray-100 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 text-[10px] px-1.5">
+                          <Badge className="bg-gray-100 dark:bg-gray-800/40 text-gray-500 dark:text-gray-500 border-gray-200 dark:border-gray-800/60 text-[10px] px-1.5">
                             {locale === 'en' ? 'Inactive' : 'غير نشط'}
                           </Badge>
                         )}
@@ -721,7 +721,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                         }
                       >
                         {announcement.is_active ? (
-                          <ToggleRight className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                          <ToggleRight className="h-5 w-5 text-emerald-600 dark:text-emerald-500" />
                         ) : (
                           <ToggleLeft className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                         )}
@@ -754,7 +754,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                         {isDeleting ? (
                           <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
                         ) : (
-                          <Trash2 className="h-4 w-4 text-rose-500 dark:text-rose-400" />
+                          <Trash2 className="h-4 w-4 text-rose-500 dark:text-rose-500" />
                         )}
                       </Button>
                     </div>
@@ -793,9 +793,9 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
               <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-5 py-4">
                 <div className="flex items-center gap-2">
                   {editingId ? (
-                    <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                    <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   ) : (
-                    <Plus className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                    <Plus className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   )}
                   <h3 className="font-semibold text-foreground">
                     {editingId
@@ -881,7 +881,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                           className={`flex items-center gap-2 rounded-lg p-2.5 border-2 transition-all text-xs font-medium ${
                             form.type === opt.value
                               ? `${badgeInfo.classes} border-current shadow-sm`
-                              : 'border-border text-muted-foreground hover:border-sky-200 dark:hover:border-sky-800'
+                              : 'border-border text-muted-foreground hover:border-sky-200 dark:hover:border-sky-900/60'
                           }`}
                         >
                           <TypeIcon type={opt.value} className="h-4 w-4 shrink-0" />
@@ -957,8 +957,8 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                           onClick={() => setForm((f) => ({ ...f, display_location: opt.value }))}
                           className={`rounded-lg p-2 border-2 transition-all text-[10px] sm:text-xs font-medium ${
                             form.display_location === opt.value
-                              ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 shadow-sm'
-                              : 'border-border text-muted-foreground hover:border-sky-200 dark:hover:border-sky-800'
+                              ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400 shadow-sm'
+                              : 'border-border text-muted-foreground hover:border-sky-200 dark:hover:border-sky-900/60'
                           }`}
                         >
                           {locale === 'en' ? opt.labelEn : opt.labelAr}
@@ -979,8 +979,8 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                           onClick={() => setForm((f) => ({ ...f, display_size: opt.value }))}
                           className={`rounded-lg p-2 border-2 transition-all text-[10px] sm:text-xs font-medium ${
                             form.display_size === opt.value
-                              ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 shadow-sm'
-                              : 'border-border text-muted-foreground hover:border-sky-200 dark:hover:border-sky-800'
+                              ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400 shadow-sm'
+                              : 'border-border text-muted-foreground hover:border-sky-200 dark:hover:border-sky-900/60'
                           }`}
                         >
                           {locale === 'en' ? opt.labelEn : opt.labelAr}
@@ -1121,7 +1121,7 @@ export default function PlatformAnnouncementsSection({ profile }: PlatformAnnoun
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-8 text-xs gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                          className="h-8 text-xs gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-500 dark:hover:bg-rose-900/20"
                           onClick={() => setForm((f) => ({ ...f, image_url: '' }))}
                           disabled={uploading}
                         >

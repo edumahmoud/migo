@@ -968,15 +968,15 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
       {/* Video cards */}
       {loading ? (
         <div className="flex items-center justify-center py-16 mt-6">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : videos.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16 mt-6"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16 mt-6"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <FileVideo className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+            <FileVideo className="h-8 w-8 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">{t('course.noVideos')}</p>
           <p className="text-sm text-muted-foreground">{t('course.noVideosUploaded')}</p>
@@ -1186,7 +1186,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               variant="outline"
               size="sm"
               onClick={() => setConfirmDeleteId(selectedVideo.id)}
-              className="flex items-center gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-800"
+              className="flex items-center gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-500 dark:hover:bg-rose-900/20 border-rose-200 dark:border-rose-900/60"
             >
               <Trash2 className="h-3.5 w-3.5" />
               {t('common.delete')}
@@ -1198,10 +1198,10 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
         {selectedVideo.comments_enabled && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+              <MessageSquare className="h-5 w-5 text-sky-700 dark:text-sky-400" />
               <h3 className="text-base font-bold text-foreground">{t('course.commentsTitle')}</h3>
               {comments.length > 0 && (
-                <span className="rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2 py-0.5 text-[11px] font-medium">
+                <span className="rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 px-2 py-0.5 text-[11px] font-medium">
                   {comments.length}
                 </span>
               )}
@@ -1241,7 +1241,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
             {/* Comments list */}
             {commentsLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-300" />
+                <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
               </div>
             ) : comments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -1297,7 +1297,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                                 <button
                                   onClick={handleSaveEditComment}
                                   disabled={savingComment || !editingCommentContent.trim()}
-                                  className="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 disabled:opacity-60 transition-colors"
+                                  className="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-60 transition-colors"
                                   title={t('common.save')}
                                 >
                                   {savingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
@@ -1321,7 +1321,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                               {canEdit && (
                                 <button
                                   onClick={() => handleEditComment(comment)}
-                                  className="flex items-center justify-center rounded-md text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors p-1"
+                                  className="flex items-center justify-center rounded-md text-muted-foreground hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors p-1"
                                   title={t('course.editComment')}
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
@@ -1331,7 +1331,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                                 <button
                                   onClick={() => setConfirmDeleteCommentId(comment.id)}
                                   disabled={deletingCommentId === comment.id}
-                                  className="flex items-center justify-center rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors p-1 disabled:opacity-60"
+                                  className="flex items-center justify-center rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors p-1 disabled:opacity-60"
                                   title="{t('course.deleteCommentTitle')}"
                                 >
                                   {deletingCommentId === comment.id ? (
@@ -1436,7 +1436,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5 shrink-0">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <Upload className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <Upload className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   {t('course.uploadVideo')}
                 </h3>
                 <button
@@ -1500,14 +1500,14 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                     <div className="mt-2 space-y-1.5">
                       {videoFiles.map((f, i) => (
                         <div key={i} className="flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
-                          <FileVideo className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
+                          <FileVideo className="h-4 w-4 text-sky-700 dark:text-sky-400 shrink-0" />
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-medium text-foreground truncate">{f.name}</p>
                             <p className="text-[11px] text-muted-foreground">{formatFileSize(f.size)}</p>
                           </div>
                           <button
                             onClick={() => setVideoFiles((prev) => prev.filter((_, idx) => idx !== i))}
-                            className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                            className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
                             title={t('common.remove')}
                           >
                             <X className="h-3.5 w-3.5" />
@@ -1540,14 +1540,14 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                   </div>
                   {thumbnailFile && (
                     <div className="mt-2 flex items-center gap-2 rounded-lg border bg-muted/30 p-2.5">
-                      <ImageIcon className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
+                      <ImageIcon className="h-4 w-4 text-sky-700 dark:text-sky-400 shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium text-foreground truncate">{thumbnailFile.name}</p>
                         <p className="text-[11px] text-muted-foreground">{formatFileSize(thumbnailFile.size)}</p>
                       </div>
                       <button
                         onClick={() => { setThumbnailFile(null); if (thumbInputRef.current) thumbInputRef.current.value = ''; }}
-                        className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                        className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
                         title={t('common.remove')}
                       >
                         <X className="h-3.5 w-3.5" />
@@ -1558,9 +1558,9 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
 
                 {/* Info note about background upload */}
                 {videoFiles.length > 0 && (
-                  <div className="flex items-start gap-2 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 p-2.5">
+                  <div className="flex items-start gap-2 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-900/15 p-2.5">
                     <Upload className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
-                    <p className="text-xs text-sky-700 dark:text-sky-300">{t('course.uploadInBackground')}</p>
+                    <p className="text-xs text-sky-700 dark:text-sky-400">{t('course.uploadInBackground')}</p>
                   </div>
                 )}
               </div>
@@ -1605,7 +1605,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
               {/* Header */}
               <div className="flex items-center justify-between border-b p-5">
                 <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  <Pencil className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   {t('course.editVideo')}
                 </h3>
                 <button
@@ -1652,7 +1652,7 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="flex items-center gap-2">
                     {editCommentsEnabled ? (
-                      <MessageSquare className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                      <MessageSquare className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                     ) : (
                       <MessageSquareOff className="h-4 w-4 text-muted-foreground" />
                     )}

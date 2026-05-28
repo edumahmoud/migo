@@ -101,18 +101,18 @@ const STATUS_OPTIONS: {
     value: 'online',
     labelKey: 'settings.status.online',
     color: 'bg-sky-600',
-    textColor: 'text-sky-800 dark:text-sky-200',
+    textColor: 'text-sky-800 dark:text-sky-400',
     borderColor: 'border-sky-600',
-    bgColor: 'bg-sky-50 dark:bg-sky-950/30',
+    bgColor: 'bg-sky-50 dark:bg-sky-900/15',
     descriptionKey: 'settings.status.onlineDesc',
   },
   {
     value: 'busy',
     labelKey: 'settings.status.busy',
     color: 'bg-amber-500',
-    textColor: 'text-amber-700 dark:text-amber-300',
+    textColor: 'text-amber-700 dark:text-amber-500',
     borderColor: 'border-amber-500',
-    bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+    bgColor: 'bg-amber-50 dark:bg-amber-900/20',
     descriptionKey: 'settings.status.busyDesc',
   },
   {
@@ -128,18 +128,18 @@ const STATUS_OPTIONS: {
     value: 'invisible',
     labelKey: 'settings.status.invisible',
     color: 'bg-gray-400',
-    textColor: 'text-gray-600 dark:text-gray-400',
+    textColor: 'text-gray-600 dark:text-gray-500',
     borderColor: 'border-gray-400',
-    bgColor: 'bg-gray-50 dark:bg-gray-800/50',
+    bgColor: 'bg-gray-50 dark:bg-gray-800/40',
     descriptionKey: 'settings.status.invisibleDesc',
   },
   {
     value: 'offline',
     labelKey: 'settings.status.offline',
     color: 'bg-gray-400',
-    textColor: 'text-gray-500 dark:text-gray-400',
+    textColor: 'text-gray-500 dark:text-gray-500',
     borderColor: 'border-gray-400',
-    bgColor: 'bg-gray-50 dark:bg-gray-800/50',
+    bgColor: 'bg-gray-50 dark:bg-gray-800/40',
     descriptionKey: 'settings.status.offlineDesc',
   },
 ];
@@ -361,12 +361,12 @@ export default function SettingsSection({
   const roleLabel = getRoleLabel(profile.role, gender || profile.gender, titleId || profile.title_id);
 
   const roleBadgeClass = profile.role === 'superadmin'
-    ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+    ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60'
     : profile.role === 'admin'
-      ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800'
+      ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60'
       : profile.role === 'teacher'
-        ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800'
-        : 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800';
+        ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60'
+        : 'bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60';
 
   // ─── Server-side profile update (bypasses RLS) ───
   const updateProfileServer = async (updates: Partial<UserProfile>): Promise<{ error: string | null }> => {
@@ -787,7 +787,7 @@ export default function SettingsSection({
             custom={0}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <User className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <User className="h-4 w-4 text-sky-700 dark:text-sky-400" />
               <h3 className="font-semibold text-foreground text-sm">{t('settings.profile.title')}</h3>
             </div>
 
@@ -796,11 +796,11 @@ export default function SettingsSection({
               <div className="flex items-start gap-4">
                 <div className="relative shrink-0 group">
                   <Avatar
-                    className="h-20 w-20 border-2 border-sky-200 dark:border-sky-800 shadow-sm cursor-pointer"
+                    className="h-20 w-20 border-2 border-sky-200 dark:border-sky-900/60 shadow-sm cursor-pointer"
                     onClick={() => profile.avatar_url && setAvatarPreviewOpen(true)}
                   >
                     <AvatarImage src={avatarSrc} alt={profile.name} className="object-cover" />
-                    <AvatarFallback className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
+                    <AvatarFallback className="bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400">
                       <User className="h-8 w-8" />
                     </AvatarFallback>
                   </Avatar>
@@ -908,7 +908,7 @@ export default function SettingsSection({
                         onClick={() => setGender(gender === opt.value ? '' : opt.value)}
                         className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                           gender === opt.value
-                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                            ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                             : 'border-border text-muted-foreground hover:bg-muted/50'
                         }`}
                         disabled={isSaving}
@@ -965,7 +965,7 @@ export default function SettingsSection({
                           onClick={() => setTitleId(title.value)}
                           className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
                             titleId === title.value
-                              ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                              ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                               : 'border-border text-muted-foreground hover:bg-muted/50'
                           }`}
                           disabled={isSaving}
@@ -977,7 +977,7 @@ export default function SettingsSection({
                   </div>
                   <div className="flex items-center gap-1.5 mt-1">
                     <span className="text-[10px] text-muted-foreground">{t('settings.profile.willAppearAs')}</span>
-                    <span className="text-xs font-semibold text-sky-800 dark:text-sky-200">
+                    <span className="text-xs font-semibold text-sky-800 dark:text-sky-400">
                       {(() => {
                         const titleObj = ACADEMIC_TITLES.find((at) => at.value === titleId);
                         if (!titleObj) return '';
@@ -1021,7 +1021,7 @@ export default function SettingsSection({
           >
             {/* Header */}
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-sky-100 dark:bg-sky-900/50">
+              <div className="flex h-5 w-5 items-center justify-center rounded-md bg-sky-100 dark:bg-sky-800/40">
                 <div className={`h-2.5 w-2.5 rounded-full ${currentStatusInfo.color} ${userStatus === 'online' && isConnected ? 'animate-pulse' : ''}`} />
               </div>
               <h3 className="font-semibold text-foreground text-sm">{t('settings.status.presenceTitle')}</h3>
@@ -1053,8 +1053,8 @@ export default function SettingsSection({
                           : 'bg-red-400'
                       }`} />
                       <span className={`text-[10px] ${
-                        isConnected ? 'text-sky-700 dark:text-sky-300' 
-                          : socketStatus === 'connecting' ? 'text-amber-600 dark:text-amber-400' 
+                        isConnected ? 'text-sky-700 dark:text-sky-400' 
+                          : socketStatus === 'connecting' ? 'text-amber-600 dark:text-amber-500' 
                           : 'text-red-500'
                       }`}>
                         {isConnected ? t('settings.status.connectedShort') 
@@ -1117,9 +1117,9 @@ export default function SettingsSection({
 
               {/* Invisible mode note */}
               {userStatus === 'invisible' && (
-                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 p-2.5 flex items-start gap-2">
-                  <WifiOff className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400 shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-gray-600 dark:text-gray-400">
+                <div className="rounded-lg border border-gray-200 dark:border-gray-800/60 bg-gray-50/50 dark:bg-gray-800/40 p-2.5 flex items-start gap-2">
+                  <WifiOff className="h-3.5 w-3.5 text-gray-500 dark:text-gray-500 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-gray-600 dark:text-gray-500">
                     {t('settings.status.invisibleNote')}
                   </p>
                 </div>
@@ -1139,7 +1139,7 @@ export default function SettingsSection({
             custom={2}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <Smartphone className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <Smartphone className="h-4 w-4 text-sky-700 dark:text-sky-400" />
               <h3 className="font-semibold text-foreground text-sm">{t('settings.appSettingsTitle')}</h3>
             </div>
 
@@ -1149,10 +1149,10 @@ export default function SettingsSection({
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
                     pushPermission === 'granted'
-                      ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300'
+                      ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400'
                       : pushPermission === 'denied'
-                        ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400'
-                        : 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
+                        ? 'bg-rose-100 dark:bg-rose-800/40 text-rose-600 dark:text-rose-500'
+                        : 'bg-amber-100 dark:bg-amber-800/40 text-amber-600 dark:text-amber-500'
                   }`}>
                     {pushPermission === 'granted' ? (
                       <BellRing className="h-4 w-4" />
@@ -1190,7 +1190,7 @@ export default function SettingsSection({
                   }`}>
                     {isTogglingPush && (
                       <div className="flex h-full w-full items-center justify-center">
-                        <Loader2 className="h-3 w-3 animate-spin text-sky-700 dark:text-sky-300" />
+                        <Loader2 className="h-3 w-3 animate-spin text-sky-700 dark:text-sky-400" />
                       </div>
                     )}
                   </div>
@@ -1201,7 +1201,7 @@ export default function SettingsSection({
               {pushPermission === 'granted' && (
                 <button
                   onClick={handleTestNotification}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/30 px-3 py-2 text-xs font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-100/60 active:bg-sky-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-900/15 px-3 py-2 text-xs font-medium text-sky-800 dark:text-sky-400 hover:bg-sky-100/60 active:bg-sky-100 transition-colors"
                 >
                   <BellRing className="h-3.5 w-3.5" />
                   {t('settings.push.testButton')}
@@ -1216,8 +1216,8 @@ export default function SettingsSection({
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
                     orientationLocked
-                      ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300'
-                      : 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
+                      ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400'
+                      : 'bg-amber-100 dark:bg-amber-800/40 text-amber-600 dark:text-amber-500'
                   }`}>
                     {orientationLocked ? (
                       <Lock className="h-4 w-4" />
@@ -1262,7 +1262,7 @@ export default function SettingsSection({
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30">
-                    <Globe className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                    <Globe className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">{t('settings.language')}</p>
@@ -1304,7 +1304,7 @@ export default function SettingsSection({
             custom={2}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <Lock className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <Lock className="h-4 w-4 text-sky-700 dark:text-sky-400" />
               <h3 className="font-semibold text-foreground text-sm">{t('settings.password.title')}</h3>
             </div>
 
@@ -1410,25 +1410,25 @@ export default function SettingsSection({
           {/* Danger Zone Card - hidden for superadmin */}
           {profile.role !== 'superadmin' && (
           <motion.div
-            className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50/30 dark:bg-rose-950/30 shadow-sm overflow-hidden"
+            className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/20 shadow-sm overflow-hidden"
             variants={sectionVariants}
             initial="hidden"
             animate="visible"
             custom={3}
           >
-            <div className="flex items-center gap-2 border-b border-rose-200 dark:border-rose-800 px-4 py-2.5 bg-rose-50/50 dark:bg-rose-950/30">
+            <div className="flex items-center gap-2 border-b border-rose-200 dark:border-rose-900/60 px-4 py-2.5 bg-rose-50/50 dark:bg-rose-900/20">
               <Shield className="h-4 w-4 text-rose-500" />
-              <h3 className="font-semibold text-rose-700 dark:text-rose-300 text-sm">{t('settings.danger.title')}</h3>
+              <h3 className="font-semibold text-rose-700 dark:text-rose-500 text-sm">{t('settings.danger.title')}</h3>
             </div>
 
             <div className="p-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h4 className="text-sm font-semibold text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                  <h4 className="text-sm font-semibold text-rose-700 dark:text-rose-500 flex items-center gap-1.5">
                     <AlertTriangle className="h-3.5 w-3.5" />
                     {t('settings.danger.deleteButton')}
                   </h4>
-                  <p className="text-[11px] text-rose-600/80 dark:text-rose-400 mt-0.5">
+                  <p className="text-[11px] text-rose-600/80 dark:text-rose-500 mt-0.5">
                     {t('settings.danger.deleteDesc')}
                   </p>
                 </div>
@@ -1462,7 +1462,7 @@ export default function SettingsSection({
 
                   <div className="space-y-3 py-2">
                     <p className="text-sm text-muted-foreground">
-                      {t('settings.profile.deleteTypeHint')} <span className="font-bold text-rose-600 dark:text-rose-400">{t('common.delete')}</span>:
+                      {t('settings.profile.deleteTypeHint')} <span className="font-bold text-rose-600 dark:text-rose-500">{t('common.delete')}</span>:
                     </p>
                     <Input
                       value={deleteConfirmText}

@@ -408,10 +408,10 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
         {selectedVideo.comments_enabled && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+              <MessageSquare className="h-5 w-5 text-sky-700 dark:text-sky-400" />
               <h3 className="text-base font-bold text-foreground">{t('videos.comments')}</h3>
               {comments.length > 0 && (
-                <span className="rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2 py-0.5 text-[11px] font-medium">
+                <span className="rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 px-2 py-0.5 text-[11px] font-medium">
                   {comments.length}
                 </span>
               )}
@@ -419,7 +419,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
 
             {commentsLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-300" />
+                <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
               </div>
             ) : comments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -469,7 +469,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
       <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <Video className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+            <Video className="h-5 w-5 text-sky-700 dark:text-sky-400" />
             {t('videos.title')}
           </h3>
           <p className="text-muted-foreground text-sm mt-1 mb-3">
@@ -496,7 +496,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
             variant="outline"
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
-            className={showFilters ? 'bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800' : ''}
+            className={showFilters ? 'bg-sky-50 dark:bg-sky-900/15 border-sky-200 dark:border-sky-900/60' : ''}
           >
             <Filter className="h-4 w-4" />
           </Button>
@@ -546,15 +546,15 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
       {/* Video cards */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : filteredVideos.length === 0 ? (
         <motion.div
           variants={itemVariants}
-          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-            <FileVideo className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+            <FileVideo className="h-8 w-8 text-sky-700 dark:text-sky-400" />
           </div>
           <p className="text-lg font-semibold text-foreground mb-1">
             {searchQuery || selectedSubjectId ? t('videos.noResults') : t('videos.noVideos')}

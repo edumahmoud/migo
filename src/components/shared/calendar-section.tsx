@@ -69,44 +69,44 @@ interface EventTypeConfig {
 const eventTypeConfig: Record<CalendarEventType, EventTypeConfig> = {
   lecture: {
     dotClass: 'bg-sky-500',
-    bgClass: 'bg-sky-100 dark:bg-sky-900/40',
-    textClass: 'text-sky-700 dark:text-sky-300',
-    borderClass: 'border-sky-200 dark:border-sky-800',
+    bgClass: 'bg-sky-100 dark:bg-sky-800/30',
+    textClass: 'text-sky-700 dark:text-sky-400',
+    borderClass: 'border-sky-200 dark:border-sky-900/60',
     pillClass: 'bg-sky-500',
   },
   quiz: {
     dotClass: 'bg-rose-500',
-    bgClass: 'bg-rose-100 dark:bg-rose-900/40',
-    textClass: 'text-rose-700 dark:text-rose-300',
-    borderClass: 'border-rose-200 dark:border-rose-800',
+    bgClass: 'bg-rose-100 dark:bg-rose-800/30',
+    textClass: 'text-rose-700 dark:text-rose-500',
+    borderClass: 'border-rose-200 dark:border-rose-900/60',
     pillClass: 'bg-rose-500',
   },
   assignment: {
     dotClass: 'bg-amber-500',
-    bgClass: 'bg-amber-100 dark:bg-amber-900/40',
-    textClass: 'text-amber-700 dark:text-amber-300',
-    borderClass: 'border-amber-200 dark:border-amber-800',
+    bgClass: 'bg-amber-100 dark:bg-amber-800/30',
+    textClass: 'text-amber-700 dark:text-amber-500',
+    borderClass: 'border-amber-200 dark:border-amber-900/60',
     pillClass: 'bg-amber-500',
   },
   todo: {
     dotClass: 'bg-emerald-500',
-    bgClass: 'bg-emerald-100 dark:bg-emerald-900/40',
-    textClass: 'text-emerald-700 dark:text-emerald-300',
-    borderClass: 'border-emerald-200 dark:border-emerald-800',
+    bgClass: 'bg-emerald-100 dark:bg-emerald-800/30',
+    textClass: 'text-emerald-700 dark:text-emerald-500',
+    borderClass: 'border-emerald-200 dark:border-emerald-900/60',
     pillClass: 'bg-emerald-500',
   },
   poll: {
     dotClass: 'bg-violet-500',
-    bgClass: 'bg-violet-100 dark:bg-violet-900/40',
-    textClass: 'text-violet-700 dark:text-violet-300',
-    borderClass: 'border-violet-200 dark:border-violet-800',
+    bgClass: 'bg-violet-100 dark:bg-violet-800/30',
+    textClass: 'text-violet-700 dark:text-violet-500',
+    borderClass: 'border-violet-200 dark:border-violet-900/60',
     pillClass: 'bg-violet-500',
   },
   attendance: {
     dotClass: 'bg-teal-500',
-    bgClass: 'bg-teal-100 dark:bg-teal-900/40',
-    textClass: 'text-teal-700 dark:text-teal-300',
-    borderClass: 'border-teal-200 dark:border-teal-800',
+    bgClass: 'bg-teal-100 dark:bg-teal-800/30',
+    textClass: 'text-teal-700 dark:text-teal-500',
+    borderClass: 'border-teal-200 dark:border-teal-900/60',
     pillClass: 'bg-teal-500',
   },
 };
@@ -115,16 +115,16 @@ const eventTypeConfig: Record<CalendarEventType, EventTypeConfig> = {
 // Todo priority badge helpers
 // -------------------------------------------------------
 const priorityConfig: Record<TodoPriority, { icon: typeof AlertCircle; className: string; label: string }> = {
-  urgent: { icon: AlertCircle, className: 'text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/40', label: '🔴' },
-  medium: { icon: MinusCircle, className: 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40', label: '🟡' },
-  low: { icon: ArrowDownCircle, className: 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/40', label: '🔵' },
+  urgent: { icon: AlertCircle, className: 'text-red-600 dark:text-red-500 bg-red-100 dark:bg-red-800/30', label: '🔴' },
+  medium: { icon: MinusCircle, className: 'text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-800/30', label: '🟡' },
+  low: { icon: ArrowDownCircle, className: 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-800/30', label: '🔵' },
 };
 
 const categoryConfig: Record<TodoCategory, { icon: typeof BookMarked; className: string }> = {
   study: { icon: BookMarked, className: 'text-purple-600 dark:text-purple-400' },
-  assignment: { icon: FileText, className: 'text-amber-600 dark:text-amber-400' },
-  review: { icon: ClipboardList, className: 'text-teal-600 dark:text-teal-400' },
-  personal: { icon: User, className: 'text-gray-600 dark:text-gray-400' },
+  assignment: { icon: FileText, className: 'text-amber-600 dark:text-amber-500' },
+  review: { icon: ClipboardList, className: 'text-teal-600 dark:text-teal-500' },
+  personal: { icon: User, className: 'text-gray-600 dark:text-gray-500' },
 };
 
 // -------------------------------------------------------
@@ -541,7 +541,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
         {/* "All" badge */}
         <button
           onClick={() => setExpandedBadge('all')}
-          className={`inline-flex items-center rounded-full text-xs font-medium transition-all duration-200 bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 ring-1 border-sky-200 dark:border-sky-800 ${
+          className={`inline-flex items-center rounded-full text-xs font-medium transition-all duration-200 bg-sky-100 dark:bg-sky-800/30 text-sky-700 dark:text-sky-400 ring-1 border-sky-200 dark:border-sky-900/60 ${
             isExpandedAll ? 'gap-1.5 px-2.5 py-1.5' : 'gap-1 px-1.5 py-1.5 sm:gap-1.5 sm:px-2.5'
           }`}
         >
@@ -612,14 +612,14 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                   onClick={() => setSelectedDate(cell.date)}
                   className={`relative flex flex-col items-center justify-start py-1.5 sm:py-2 px-0.5 transition-all rounded-lg sm:rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 min-h-[44px] sm:min-h-[72px] md:min-h-[90px] lg:min-h-[100px] ${
                     !cell.isCurrentMonth ? 'text-muted-foreground/30' : isPast && !isToday ? (allCompleted ? 'text-muted-foreground/50' : 'text-muted-foreground/70') : 'text-foreground'
-                  } ${isToday ? 'bg-sky-50 dark:bg-sky-900/20 ring-2 ring-sky-500 dark:ring-sky-400' : ''} ${
+                  } ${isToday ? 'bg-sky-50 dark:bg-sky-900/15 ring-2 ring-sky-500 dark:ring-sky-400' : ''} ${
                     isSelected && !isToday ? 'bg-muted/60 ring-1 ring-sky-400/50' : ''
                   } ${!isToday && !isSelected ? 'hover:bg-muted/30' : ''}`}
                   aria-label={`${cell.day} - ${dayEvents.length} ${t('calendar.eventCount', { count: dayEvents.length })}`}
                   aria-current={isToday ? 'date' : undefined}
                 >
                   {/* Day number */}
-                  <span className={`text-[11px] sm:text-sm md:text-base leading-none mb-0.5 ${isToday ? 'font-bold text-sky-700 dark:text-sky-300' : ''} ${isSelected && !isToday ? 'font-semibold' : ''}`}>
+                  <span className={`text-[11px] sm:text-sm md:text-base leading-none mb-0.5 ${isToday ? 'font-bold text-sky-700 dark:text-sky-400' : ''} ${isSelected && !isToday ? 'font-semibold' : ''}`}>
                     {cell.day}
                   </span>
 
@@ -680,14 +680,14 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
             variants={itemVariants}
             onClick={() => setSelectedDate(day.date)}
             className={`rounded-xl border p-3 sm:p-4 cursor-pointer transition-all hover:shadow-sm ${
-              isToday ? 'border-sky-300 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-950/20' :
+              isToday ? 'border-sky-300 dark:border-sky-900/60 bg-sky-50/50 dark:bg-sky-900/15' :
               isSelected ? 'border-sky-200 dark:border-sky-900 bg-muted/30' :
               'border-border/50 bg-card hover:border-border'
             } ${isPast ? 'opacity-70' : ''}`}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <span className={`text-sm font-semibold ${isToday ? 'text-sky-700 dark:text-sky-300' : 'text-foreground'}`}>{day.dayName}</span>
+                <span className={`text-sm font-semibold ${isToday ? 'text-sky-700 dark:text-sky-400' : 'text-foreground'}`}>{day.dayName}</span>
                 <span className={`text-xs ${isToday ? 'text-sky-600 dark:text-sky-400 font-medium' : 'text-muted-foreground'}`}>{day.date}</span>
                 {isToday && <span className="rounded-full bg-sky-600 px-1.5 py-0.5 text-[9px] font-bold text-white">{t('calendar.today')}</span>}
               </div>
@@ -915,7 +915,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       {/* ============================================ */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : (
         <motion.div variants={itemVariants} className="flex flex-col lg:flex-row gap-4">

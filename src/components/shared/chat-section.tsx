@@ -125,13 +125,13 @@ function TypingIndicator({ names, t }: { names: string[]; t: (key: string, param
         : t('chat.typingMultiple', { name: names[0] });
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50/80 border border-sky-100 dark:bg-sky-950/30 dark:border-sky-800">
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-50/80 border border-sky-100 dark:bg-sky-900/15 dark:border-sky-900/60">
       <div className="flex items-center gap-1">
         <span className="h-1.5 w-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '0ms' }} />
         <span className="h-1.5 w-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '150ms' }} />
         <span className="h-1.5 w-1.5 rounded-full bg-sky-600 animate-bounce" style={{ animationDelay: '300ms' }} />
       </div>
-      <span className="text-xs text-sky-800 dark:text-sky-300 font-medium">{label}...</span>
+      <span className="text-xs text-sky-800 dark:text-sky-400 font-medium">{label}...</span>
     </div>
   );
 }
@@ -422,7 +422,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 }
                 toast(t('chat.newMessage'), {
                   description: fastMsg.content.substring(0, 60) + (fastMsg.content.length > 60 ? '...' : ''),
-                  icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
+                  icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-400" />,
                   duration: 5000,
                 });
                 setLocalUnread((prev) => {
@@ -442,7 +442,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     if (fullMsg?.sender?.name) {
                       toast(t('chat.newMessageFrom', { name: fullMsg.sender.name }), {
                         description: fullMsg.content.substring(0, 60) + (fullMsg.content.length > 60 ? '...' : ''),
-                        icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
+                        icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-400" />,
                         duration: 5000,
                         id: `msg-${convId}`,
                       });
@@ -752,7 +752,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
         const content = (data.content as string) || msg.content || '';
         toast(t('chat.newMessageFrom', { name: senderName }), {
           description: content.substring(0, 60) + (content.length > 60 ? '...' : ''),
-          icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
+          icon: <Bell className="h-4 w-4 text-sky-700 dark:text-sky-400" />,
           duration: 5000,
         });
         setLocalUnread((prev) => {
@@ -780,7 +780,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     // since there are no messages yet
     toast(t('chat.newConversationFrom', { name: data.fromUser.name }), {
       description: t('chat.newConversationCreated'),
-      icon: <MessageCircle className="h-4 w-4 text-sky-700 dark:text-sky-300" />,
+      icon: <MessageCircle className="h-4 w-4 text-sky-700 dark:text-sky-400" />,
       duration: 5000,
     });
     debouncedFetchConversations();
@@ -1668,7 +1668,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openProfile(msg.sender_id); }}
-              className="text-[10px] text-muted-foreground mb-0.5 font-medium px-1 hover:text-sky-700 dark:text-sky-300 transition-colors"
+              className="text-[10px] text-muted-foreground mb-0.5 font-medium px-1 hover:text-sky-700 dark:text-sky-400 transition-colors"
             >
               {senderName}
             </button>
@@ -1799,7 +1799,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         <p className="text-sm text-muted-foreground">{t('chat.loadingChat')}</p>
       </div>
     );
@@ -1845,8 +1845,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           <div className="shrink-0 p-4 border-b bg-card">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-                  <MessageCircle className="h-4 w-4 text-sky-800 dark:text-sky-200" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+                  <MessageCircle className="h-4 w-4 text-sky-800 dark:text-sky-400" />
                 </div>
                 <h2 className="text-base font-bold text-foreground">{t('chat.title')}</h2>
               </div>
@@ -1956,14 +1956,14 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                 )}
                 <button
                   onClick={() => { setSetupInfo(null); fetchConversations(); }}
-                  className="text-xs text-sky-700 dark:text-sky-300 hover:text-sky-800 dark:hover:text-sky-200 font-medium transition-colors"
+                  className="text-xs text-sky-700 dark:text-sky-400 hover:text-sky-800 dark:hover:text-sky-200 font-medium transition-colors"
                 >
                   {t('chat.retrySetup')}
                 </button>
               </div>
             ) : conversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-50 dark:bg-sky-950/30 mb-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-50 dark:bg-sky-900/15 mb-4">
                   <MessageCircle className="h-8 w-8 text-sky-400" />
                 </div>
                 <p className="text-sm font-semibold text-foreground mb-1">{t('chat.noConversations')}</p>
@@ -2026,7 +2026,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       }}
                       className={`w-full flex items-center gap-3 p-3 text-end transition-all hover:bg-muted/50 cursor-pointer ${
                         isActive
-                          ? 'bg-sky-50 dark:bg-sky-950/30 border-s-2 border-sky-600'
+                          ? 'bg-sky-50 dark:bg-sky-900/15 border-s-2 border-sky-600'
                           : 'border-s-2 border-transparent'
                       }`}
                     >
@@ -2060,7 +2060,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                               );
                             }
                             return (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400">
                                 <Hash className="h-5 w-5" />
                               </div>
                             );
@@ -2079,7 +2079,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span className={`text-sm truncate ${isActive ? 'font-bold text-sky-800 dark:text-sky-200' : 'font-semibold text-foreground'}`}>
+                          <span className={`text-sm truncate ${isActive ? 'font-bold text-sky-800 dark:text-sky-400' : 'font-semibold text-foreground'}`}>
                             {displayName}
                           </span>
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -2182,7 +2182,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                         >
                           <div className="shrink-0">
                             {isGroup ? (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400">
                                 <Hash className="h-5 w-5" />
                               </div>
                             ) : (
@@ -2200,7 +2200,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                                 )}
                                 <button
                                   onClick={() => handleUnarchiveConversation(conv.id)}
-                                  className="flex h-5 w-5 items-center justify-center rounded text-sky-700 dark:text-sky-300/60 hover:text-sky-700 dark:text-sky-300 dark:hover:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
+                                  className="flex h-5 w-5 items-center justify-center rounded text-sky-700 dark:text-sky-400/60 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors"
                                   title={t('chat.unarchive')}
                                 >
                                   <ArchiveRestore className="h-3 w-3" />
@@ -2271,7 +2271,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                           );
                         }
                         return (
-                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400">
                             <Hash className="h-4 w-4" />
                           </div>
                         );
@@ -2290,7 +2290,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
                     <h3 className="text-sm font-semibold text-foreground truncate">{chatHeaderName}</h3>
                     <div className="flex items-center gap-1.5">
                       {activeConvInfo.type === 'individual' ? (
-                        <span className={`text-[10px] font-medium ${chatHeaderStatus === 'online' ? 'text-sky-700 dark:text-sky-300' : chatHeaderStatus === 'busy' ? 'text-amber-600' : chatHeaderStatus === 'away' ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                        <span className={`text-[10px] font-medium ${chatHeaderStatus === 'online' ? 'text-sky-700 dark:text-sky-400' : chatHeaderStatus === 'busy' ? 'text-amber-600' : chatHeaderStatus === 'away' ? 'text-orange-600' : 'text-muted-foreground'}`}>
                           {getStatusLabel(chatHeaderStatus)}
                         </span>
                       ) : (
@@ -2361,7 +2361,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
               >
                 {messagesLoading ? (
                   <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-300" />
+                    <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center px-6">
@@ -2429,7 +2429,7 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
             /* ─── Empty state: no conversation selected ─── */
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
               <motion.div variants={slideInRight} className="flex flex-col items-center">
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 dark:bg-sky-950/30 mb-4">
+                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-sky-50 dark:bg-sky-900/15 mb-4">
                   <MessageCircle className="h-10 w-10 text-sky-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">{t('chat.welcome')}</h3>

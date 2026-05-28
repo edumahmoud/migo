@@ -326,7 +326,7 @@ export default function UpdatePasswordForm({ onSuccess }: UpdatePasswordFormProp
                         <div
                           key={level}
                           className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
-                            strength > level ? strengthColors[strength - 1] : 'bg-gray-200 dark:bg-gray-700'
+                            strength > level ? strengthColors[strength - 1] : 'bg-gray-200 dark:bg-gray-800'
                           }`}
                         />
                       ))}

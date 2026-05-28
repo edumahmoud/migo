@@ -209,7 +209,7 @@ export default function ReportButton({ targetType, targetId, compact, className,
                           onClick={() => setReason(r.value)}
                           className={`px-3 py-2 rounded-lg border text-xs font-medium transition-colors text-start ${
                             reason === r.value
-                              ? 'border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300'
+                              ? 'border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500'
                               : 'border-border bg-background text-muted-foreground hover:border-rose-200 dark:hover:border-rose-800'
                           }`}
                         >
@@ -284,10 +284,10 @@ export default function ReportButton({ targetType, targetId, compact, className,
                 <>
                   {/* Confirmation step */}
                   <div className="space-y-4 mb-4">
-                    <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 p-4 space-y-2">
+                    <div className="rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 p-4 space-y-2">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-muted-foreground">{t('reports.reasonLabel')}</span>
-                        <span className="text-sm font-semibold text-rose-700 dark:text-rose-300">{getReasonLabel(reason, t)}</span>
+                        <span className="text-sm font-semibold text-rose-700 dark:text-rose-500">{getReasonLabel(reason, t)}</span>
                       </div>
                       {description.trim() && (
                         <div>

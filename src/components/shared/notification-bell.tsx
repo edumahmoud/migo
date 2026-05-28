@@ -101,7 +101,7 @@ function getNotifIcon(type: string, title?: string, t?: (key: string) => string)
     case 'lecture': return <BookOpen className="h-4 w-4 text-teal-600" />;
     case 'chat': return <Bell className="h-4 w-4 text-sky-600" />;
     case 'report': return <ShieldAlert className="h-4 w-4 text-orange-600" />;
-    default: return <Info className="h-4 w-4 text-sky-700 dark:text-sky-300" />;
+    default: return <Info className="h-4 w-4 text-sky-700 dark:text-sky-400" />;
   }
 }
 
@@ -606,7 +606,7 @@ export default function NotificationBell() {
                 {bellUnreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors"
                   >
                     <CheckCheck className="h-3.5 w-3.5" />
                     {t('notifications.markAllRead')}
@@ -615,7 +615,7 @@ export default function NotificationBell() {
                 {bellNotifications.length > 0 && (
                   <button
                     onClick={clearAll}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-rose-600 dark:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     {t('notifications.clearAll')}
@@ -642,11 +642,11 @@ export default function NotificationBell() {
                       layout
                       onClick={() => handleNotificationClick(notif)}
                       className={`group flex items-start gap-3 p-3 cursor-pointer transition-colors hover:bg-muted/30 ${
-                        !notif.read ? 'bg-sky-50/30 dark:bg-sky-950/20' : ''
+                        !notif.read ? 'bg-sky-50/30 dark:bg-sky-900/15' : ''
                       } ${notif.link ? 'hover:bg-muted/50' : ''}`}
                     >
                       <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                        !notif.read ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted/50'
+                        !notif.read ? 'bg-sky-100 dark:bg-sky-800/40' : 'bg-muted/50'
                       }`}>
                         {getNotifIcon(notif.type, notif.title, t)}
                       </div>

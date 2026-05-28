@@ -305,7 +305,7 @@ export default function AppHeader({
                         setDropdownOpen(false);
                         onSignOut();
                       }}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 active:bg-rose-100 dark:text-rose-400 dark:hover:bg-rose-950/50 transition-colors"
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50 active:bg-rose-100 dark:text-rose-500 dark:hover:bg-rose-900/25 transition-colors"
                     >
                       <LogOut className="h-4 w-4" />
                       {t('auth.logout')}

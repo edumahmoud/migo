@@ -280,16 +280,16 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                           className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
                             level <= passwordStrength.score
                               ? passwordStrength.color
-                              : 'bg-gray-200 dark:bg-gray-700'
+                              : 'bg-gray-200 dark:bg-gray-800'
                           }`}
                         />
                       ))}
                     </div>
                     <p className={`text-xs font-medium ${
-                      passwordStrength.score <= 1 ? 'text-red-500 dark:text-red-400' :
+                      passwordStrength.score <= 1 ? 'text-red-500 dark:text-red-500' :
                       passwordStrength.score <= 2 ? 'text-yellow-600 dark:text-yellow-400' :
                       passwordStrength.score <= 3 ? 'text-blue-600 dark:text-blue-400' :
-                      'text-teal-600 dark:text-teal-400'
+                      'text-teal-600 dark:text-teal-500'
                     }`}>
                       {t('auth.passwordStrengthLabel')}: {passwordStrength.label}
                     </p>
@@ -344,7 +344,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.45 }}
               >
-                <div className="rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 p-2 sm:p-3 text-xs text-sky-700 dark:text-sky-300 flex items-start gap-2">
+                <div className="rounded-lg bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60 p-2 sm:p-3 text-xs text-sky-700 dark:text-sky-400 flex items-start gap-2">
                   <GraduationCap className="h-4 w-4 shrink-0 mt-0.5" />
                   <span>
                     {t('auth.studentNote')}

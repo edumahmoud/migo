@@ -56,7 +56,7 @@ const PollsTab = lazy(() => import('@/components/shared/polls-section'));
 function TabLoader() {
   return (
     <div className="flex items-center justify-center py-16">
-      <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-300" />
+      <Loader2 className="h-6 w-6 animate-spin text-sky-700 dark:text-sky-400" />
     </div>
   );
 }
@@ -456,7 +456,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+        <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
       </div>
     );
   }
@@ -467,8 +467,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   if (!subject) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-          <BookOpen className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+          <BookOpen className="h-8 w-8 text-sky-700 dark:text-sky-400" />
         </div>
         <p className="text-lg font-semibold text-foreground mb-1">{t('course.subjectNotFound')}</p>
         <p className="text-sm text-muted-foreground mb-4">{t('course.subjectNotFoundDesc')}</p>
@@ -971,8 +971,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               dir={direction}
             >
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
-                  <Trash2 className="h-7 w-7 text-rose-600 dark:text-rose-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40 mb-4">
+                  <Trash2 className="h-7 w-7 text-rose-600 dark:text-rose-500" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-2">{t('course.deleteSubject')}</h3>
                 <p className="text-sm text-muted-foreground mb-6">
@@ -1035,8 +1035,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               dir={direction}
             >
               <div className="flex flex-col items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50 mb-4">
-                  <LogOut className="h-7 w-7 text-rose-600 dark:text-rose-400" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40 mb-4">
+                  <LogOut className="h-7 w-7 text-rose-600 dark:text-rose-500" />
                 </div>
                 <h3 className="text-lg font-bold text-foreground mb-2">{t('course.leaveSubject')}</h3>
                 <p className="text-sm text-muted-foreground mb-2">

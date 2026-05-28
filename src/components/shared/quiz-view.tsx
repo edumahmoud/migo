@@ -1157,15 +1157,15 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   if (!loading && (error || !quiz)) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={direction}>
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/50">
-          <XCircle className="h-8 w-8 text-rose-600 dark:text-rose-400" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40">
+          <XCircle className="h-8 w-8 text-rose-600 dark:text-rose-500" />
         </div>
         <p className="text-lg font-semibold text-foreground">{error || t('common.unexpectedError')}</p>
         <div className="flex gap-2">
           <Button
             onClick={() => { setError(null); hasValidDataRef.current = false; fetchQuiz(); }}
             variant="outline"
-            className="gap-2 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+            className="gap-2 border-sky-300 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
           >
             <RotateCcw className="h-4 w-4" />
             {t('common.retry')}
@@ -1173,7 +1173,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           <Button
             onClick={onBack}
             variant="outline"
-            className="gap-2 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+            className="gap-2 border-sky-300 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
           >
             <ChevronRight className="h-4 w-4" />
             {t('common.back')}
@@ -1189,15 +1189,15 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   if (alreadyTaken && !reviewMode) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={direction}>
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
-          <CheckCircle2 className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40">
+          <CheckCircle2 className="h-8 w-8 text-amber-600 dark:text-amber-500" />
         </div>
         <p className="text-lg font-semibold text-foreground">{t('quiz.quizCompleted')}</p>
         <p className="text-sm text-muted-foreground">{t('quiz.quizCompleted')}</p>
         <Button
           onClick={onBack}
           variant="outline"
-          className="gap-2 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+          className="gap-2 border-sky-300 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
         >
           <ChevronRight className="h-4 w-4" />
           {t('common.returnToApp')}
@@ -1214,16 +1214,16 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     const percentage = totalQuestions > 0 ? Math.round((finalScore / totalQuestions) * 100) : 0;
     const scoreColor =
       percentage >= 80
-        ? 'text-sky-800 dark:text-sky-200'
+        ? 'text-sky-800 dark:text-sky-400'
         : percentage >= 60
-          ? 'text-amber-600 dark:text-amber-400'
-          : 'text-rose-600 dark:text-rose-400';
+          ? 'text-amber-600 dark:text-amber-500'
+          : 'text-rose-600 dark:text-rose-500';
     const scoreBg =
       percentage >= 80
-        ? 'bg-sky-100 dark:bg-sky-900/50'
+        ? 'bg-sky-100 dark:bg-sky-800/40'
         : percentage >= 60
-          ? 'bg-amber-100 dark:bg-amber-900/50'
-          : 'bg-rose-100 dark:bg-rose-900/50';
+          ? 'bg-amber-100 dark:bg-amber-800/40'
+          : 'bg-rose-100 dark:bg-rose-800/40';
     const scoreRing =
       percentage >= 80
         ? 'ring-sky-200 dark:ring-sky-800'
@@ -1275,7 +1275,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           <Button
             onClick={() => setShowReview(true)}
             variant="outline"
-            className="gap-2 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+            className="gap-2 border-sky-300 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
           >
             <Eye className="h-4 w-4" />
             {t('quiz.reviewMode')}
@@ -1285,7 +1285,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           <Button
             onClick={handleRetry}
             variant="outline"
-            className="gap-2 border-teal-300 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/30"
+            className="gap-2 border-teal-300 dark:border-teal-900/60 text-teal-700 dark:text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20"
             style={{ display: quiz?.allow_retake ? undefined : 'none' }}
           >
             <RotateCcw className="h-4 w-4" />
@@ -1351,15 +1351,15 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-200 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-sky-200 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
             {loading ? (
               <>
-                <div className="h-5 w-32 animate-pulse rounded bg-sky-100 dark:bg-sky-900/50" />
-                <div className="mt-1.5 h-3 w-20 animate-pulse rounded bg-sky-50 dark:bg-sky-950/30" />
+                <div className="h-5 w-32 animate-pulse rounded bg-sky-100 dark:bg-sky-800/40" />
+                <div className="mt-1.5 h-3 w-20 animate-pulse rounded bg-sky-50 dark:bg-sky-900/15" />
               </>
             ) : (
               <>
@@ -1374,10 +1374,10 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           {timeLeft !== null && !showResults && (
             <div className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold tabular-nums transition-all ${
               timerWarning
-                ? 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300 animate-pulse'
+                ? 'bg-rose-100 dark:bg-rose-800/40 text-rose-700 dark:text-rose-500 animate-pulse'
                 : timeLeft <= 300
-                  ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
-                  : 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
+                  ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500'
+                  : 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
             }`}>
               <Clock className="h-4 w-4" />
               {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{(timeLeft % 60).toString().padStart(2, '0')}
@@ -1387,7 +1387,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
         {/* Progress bar */}
         <div className="space-y-1.5">
-          <Progress value={progressPct} className="h-2.5 bg-sky-100 dark:bg-sky-900/50 [&>div]:bg-sky-700 dark:[&>div]:bg-sky-500" />
+          <Progress value={progressPct} className="h-2.5 bg-sky-100 dark:bg-sky-800/40 [&>div]:bg-sky-700 dark:[&>div]:bg-sky-500" />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{currentIdx + 1}</span>
             <span>{totalQuestions}</span>
@@ -1401,7 +1401,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 dark:border-emerald-800 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300"
+              className="flex items-center gap-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-900/60 dark:border-emerald-900/60 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-500"
             >
               <Save className="h-3.5 w-3.5" />
               <span>{t('quiz.progressSaved')} — {userAnswers.length}/{totalQuestions}</span>
@@ -1428,28 +1428,28 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           exit="exit"
         >
           {loading ? (
-            <Card className="border-sky-200 dark:border-sky-800 bg-white dark:bg-card shadow-sm">
+            <Card className="border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card shadow-sm">
               <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">
                 <div className="space-y-3">
-                  <div className="h-5 w-28 animate-pulse rounded bg-sky-100 dark:bg-sky-900/50" />
-                  <div className="h-4 w-full animate-pulse rounded bg-sky-50 dark:bg-sky-950/30" />
-                  <div className="h-4 w-3/4 animate-pulse rounded bg-sky-50 dark:bg-sky-950/30" />
+                  <div className="h-5 w-28 animate-pulse rounded bg-sky-100 dark:bg-sky-800/40" />
+                  <div className="h-4 w-full animate-pulse rounded bg-sky-50 dark:bg-sky-900/15" />
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-sky-50 dark:bg-sky-900/15" />
                 </div>
                 <div className="space-y-3 pt-2">
-                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50 dark:bg-sky-950/30" />
-                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50 dark:bg-sky-950/30" />
-                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50 dark:bg-sky-950/30" />
+                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50 dark:bg-sky-900/15" />
+                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50 dark:bg-sky-900/15" />
+                  <div className="h-12 w-full animate-pulse rounded-xl bg-sky-50 dark:bg-sky-900/15" />
                 </div>
               </CardContent>
             </Card>
           ) : currentQuestion ? (
-            <Card className="border-sky-200 dark:border-sky-800 bg-white dark:bg-card shadow-sm">
+            <Card className="border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card shadow-sm">
               <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">
                 {/* Type badge + question */}
                 <div className="space-y-3">
                   <Badge
                     variant="outline"
-                    className="gap-1.5 border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 text-xs"
+                    className="gap-1.5 border-sky-300 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400 text-xs"
                   >
                     {typeIcons[currentQuestion.type]}
                     {typeLabels[currentQuestion.type]}
@@ -1517,8 +1517,8 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                       animate={{ opacity: 1, y: 0 }}
                       className={`flex items-center gap-2 rounded-lg p-3 ${
                         isCorrect
-                          ? 'bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
-                          : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'
+                          ? 'bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
+                          : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500'
                       }`}
                     >
                       {isCorrect ? (
@@ -1571,7 +1571,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                         setCurrentIdx(prev => prev - 1);
                       }}
                       variant="outline"
-                      className="gap-1.5 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200 hover:bg-sky-50 dark:hover:bg-sky-950/30 text-xs sm:text-sm"
+                      className="gap-1.5 border-sky-300 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 text-xs sm:text-sm"
                     >
                       <ChevronRight className="h-4 w-4" />
                       <span className="hidden sm:inline">{t('quiz.previousQuestion')}</span>
@@ -1584,7 +1584,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
                     <Button
                       onClick={handleChangeAnswer}
                       variant="outline"
-                      className="gap-1.5 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30 text-xs sm:text-sm"
+                      className="gap-1.5 border-amber-300 dark:border-amber-900/60 text-amber-700 dark:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-xs sm:text-sm"
                     >
                       <PenLine className="h-4 w-4" />
                       <span className="hidden sm:inline">{t('quiz.chooseAnswer')}</span>
@@ -1661,23 +1661,23 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
           if (showCorrectness) {
             // Show correct/incorrect colors
             if (isCorrectOption) {
-              btnClass += ' border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200';
+              btnClass += ' border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400';
             } else if (isSelected && !isCorrect) {
-              btnClass += ' border-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300';
+              btnClass += ' border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500';
             } else {
               btnClass += ' border-border bg-muted/30 text-muted-foreground';
             }
           } else {
             // Hide correctness — just show selected state
             if (isSelected) {
-              btnClass += ' border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300';
+              btnClass += ' border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500';
             } else {
               btnClass += ' border-border bg-muted/30 text-muted-foreground';
             }
           }
         } else {
           btnClass +=
-            ' border-sky-200 dark:border-sky-800 bg-white dark:bg-card text-foreground hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-950/30 cursor-pointer';
+            ' border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card text-foreground hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-900/20 cursor-pointer';
         }
 
         return (
@@ -1698,7 +1698,7 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
                     ? 'bg-rose-600 text-white'
                     : answered && isSelected
                       ? 'bg-teal-600 text-white'
-                      : 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
+                      : 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
               }`}
             >
               {String.fromCharCode(1571 + idx)}
@@ -1708,10 +1708,10 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
 
             {/* Feedback icon — only when showing correctness */}
             {showCorrectness && answered && isCorrectOption && (
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-sky-700 dark:text-sky-300" />
+              <CheckCircle2 className="h-5 w-5 shrink-0 text-sky-700 dark:text-sky-400" />
             )}
             {showCorrectness && answered && isSelected && !isCorrect && (
-              <XCircle className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
+              <XCircle className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-500" />
             )}
           </motion.button>
         );
@@ -1758,22 +1758,22 @@ function BooleanQuestion({
         if (answered) {
           if (showCorrectness) {
             if (isCorrectOption) {
-              btnClass += ' border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200';
+              btnClass += ' border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400';
             } else if (isSelected && !isCorrect) {
-              btnClass += ' border-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300';
+              btnClass += ' border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500';
             } else {
               btnClass += ' border-border bg-muted/30 text-muted-foreground';
             }
           } else {
             if (isSelected) {
-              btnClass += ' border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300';
+              btnClass += ' border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500';
             } else {
               btnClass += ' border-border bg-muted/30 text-muted-foreground';
             }
           }
         } else {
           btnClass +=
-            ' border-sky-200 dark:border-sky-800 bg-white dark:bg-card text-foreground hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-950/30 cursor-pointer';
+            ' border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card text-foreground hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-900/20 cursor-pointer';
         }
 
         return (
@@ -1788,10 +1788,10 @@ function BooleanQuestion({
             {opt.icon}
             {opt.label}
             {showCorrectness && answered && isCorrectOption && (
-              <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <CheckCircle2 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
             )}
             {showCorrectness && answered && isSelected && !isCorrect && (
-              <XCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+              <XCircle className="h-4 w-4 text-rose-600 dark:text-rose-500" />
             )}
           </motion.button>
         );
@@ -1831,7 +1831,7 @@ function CompletionQuestion({
           onChange={(e) => onInputChange(e.target.value)}
           placeholder={t('quiz.typeAnswer')}
           disabled={answered || evaluating}
-          className="h-12 text-base border-sky-200 dark:border-sky-800 focus:border-sky-600 dark:focus:border-sky-500 focus:ring-sky-600/20"
+          className="h-12 text-base border-sky-200 dark:border-sky-900/60 focus:border-sky-600 dark:focus:border-sky-500 focus:ring-sky-600/20"
           dir={direction}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !answered && !evaluating) {
@@ -1881,11 +1881,11 @@ interface MatchingQuestionProps {
 
 // Pair colors for visual connection
 const PAIR_COLORS = [
-  { bg: 'bg-sky-100 dark:bg-sky-900/50', border: 'border-sky-400 dark:border-sky-600', text: 'text-sky-800 dark:text-sky-200', badge: 'bg-sky-600', ring: 'ring-sky-300 dark:ring-sky-700' },
-  { bg: 'bg-teal-100 dark:bg-teal-900/50', border: 'border-teal-400 dark:border-teal-600', text: 'text-teal-700 dark:text-teal-300', badge: 'bg-teal-500', ring: 'ring-teal-300 dark:ring-teal-700' },
-  { bg: 'bg-amber-100 dark:bg-amber-900/50', border: 'border-amber-400 dark:border-amber-600', text: 'text-amber-700 dark:text-amber-300', badge: 'bg-amber-500', ring: 'ring-amber-300 dark:ring-amber-700' },
-  { bg: 'bg-rose-100 dark:bg-rose-900/50', border: 'border-rose-400 dark:border-rose-600', text: 'text-rose-700 dark:text-rose-300', badge: 'bg-rose-500', ring: 'ring-rose-300 dark:ring-rose-700' },
-  { bg: 'bg-sky-100 dark:bg-sky-900/50', border: 'border-sky-400 dark:border-sky-600', text: 'text-sky-800 dark:text-sky-200', badge: 'bg-sky-600', ring: 'ring-sky-300 dark:ring-sky-700' },
+  { bg: 'bg-sky-100 dark:bg-sky-800/40', border: 'border-sky-400 dark:border-sky-600', text: 'text-sky-800 dark:text-sky-400', badge: 'bg-sky-600', ring: 'ring-sky-300 dark:ring-sky-700' },
+  { bg: 'bg-teal-100 dark:bg-teal-800/40', border: 'border-teal-400 dark:border-teal-600', text: 'text-teal-700 dark:text-teal-500', badge: 'bg-teal-500', ring: 'ring-teal-300 dark:ring-teal-700' },
+  { bg: 'bg-amber-100 dark:bg-amber-800/40', border: 'border-amber-400 dark:border-amber-600', text: 'text-amber-700 dark:text-amber-500', badge: 'bg-amber-500', ring: 'ring-amber-300 dark:ring-amber-700' },
+  { bg: 'bg-rose-100 dark:bg-rose-800/40', border: 'border-rose-400 dark:border-rose-600', text: 'text-rose-700 dark:text-rose-500', badge: 'bg-rose-500', ring: 'ring-rose-300 dark:ring-rose-700' },
+  { bg: 'bg-sky-100 dark:bg-sky-800/40', border: 'border-sky-400 dark:border-sky-600', text: 'text-sky-800 dark:text-sky-400', badge: 'bg-sky-600', ring: 'ring-sky-300 dark:ring-sky-700' },
   { bg: 'bg-cyan-100 dark:bg-cyan-900/50', border: 'border-cyan-400 dark:border-cyan-600', text: 'text-cyan-700 dark:text-cyan-300', badge: 'bg-cyan-500', ring: 'ring-cyan-300 dark:ring-cyan-700' },
 ];
 
@@ -1988,17 +1988,17 @@ function MatchingQuestion({
               const userValue = matchedPairs[key];
               const isPairCorrect = userValue === correctValue;
               if (isPairCorrect) {
-                btnClass += ' border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200';
+                btnClass += ' border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400';
               } else {
-                btnClass += ' border-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300';
+                btnClass += ' border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500';
               }
             } else if (isMatched && color) {
               btnClass += ` ${color.border} ${color.bg} ${color.text}`;
             } else if (isSelected) {
-              btnClass += ' border-sky-600 bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 ring-2 ring-sky-300 dark:ring-sky-700';
+              btnClass += ' border-sky-600 bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 ring-2 ring-sky-300 dark:ring-sky-700';
             } else {
               btnClass +=
-                ' border-sky-200 dark:border-sky-800 bg-white dark:bg-card text-foreground hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-950/30 cursor-pointer';
+                ' border-sky-200 dark:border-sky-900/60 bg-white dark:bg-card text-foreground hover:border-sky-400 dark:hover:border-sky-600 hover:bg-sky-50/50 dark:hover:bg-sky-900/20 cursor-pointer';
             }
 
             return (
@@ -2040,8 +2040,8 @@ function MatchingQuestion({
                 {answered && matchedPairs[key] && (
                   <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${
                     matchedPairs[key] === question.pairs?.find((p) => p.key === key)?.value
-                      ? 'bg-sky-200 dark:bg-sky-800 text-sky-800 dark:text-sky-200'
-                      : 'bg-rose-200 dark:bg-rose-800 text-rose-700 dark:text-rose-300'
+                      ? 'bg-sky-200 dark:bg-sky-800 text-sky-800 dark:text-sky-400'
+                      : 'bg-rose-200 dark:bg-rose-800 text-rose-700 dark:text-rose-500'
                   }`}>
                     {matchedPairs[key] === question.pairs?.find((p) => p.key === key)?.value
                       ? <CheckCircle2 className="h-2.5 w-2.5" />
@@ -2077,17 +2077,17 @@ function MatchingQuestion({
               )?.[0];
               const isPairCorrect = userKey === correctKey;
               if (isPairCorrect) {
-                btnClass += ' border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200';
+                btnClass += ' border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400';
               } else {
-                btnClass += ' border-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300';
+                btnClass += ' border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500';
               }
             } else if (isMatched && color) {
               btnClass += ` ${color.border} ${color.bg} ${color.text}`;
             } else if (isSelected) {
-              btnClass += ' border-teal-500 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 ring-2 ring-teal-300 dark:ring-teal-700';
+              btnClass += ' border-teal-500 bg-teal-100 dark:bg-teal-800/40 text-teal-700 dark:text-teal-500 ring-2 ring-teal-300 dark:ring-teal-700';
             } else {
               btnClass +=
-                ' border-teal-200 dark:border-teal-800 bg-white dark:bg-card text-foreground hover:border-teal-400 dark:hover:border-teal-600 hover:bg-teal-50/50 dark:hover:bg-teal-950/30 cursor-pointer';
+                ' border-teal-200 dark:border-teal-900/60 bg-white dark:bg-card text-foreground hover:border-teal-400 dark:hover:border-teal-600 hover:bg-teal-50/50 dark:hover:bg-teal-900/20 cursor-pointer';
             }
 
             return (
@@ -2145,9 +2145,9 @@ function MatchingQuestion({
                   animate={{ opacity: 1, scale: 1 }}
                   className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium ${
                     isPairCorrect
-                      ? 'bg-sky-50 dark:bg-sky-950/30 border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-200'
+                      ? 'bg-sky-50 dark:bg-sky-900/15 border-sky-300 dark:border-sky-900/60 text-sky-800 dark:text-sky-400'
                       : isPairWrong
-                        ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                        ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-300 dark:border-rose-900/60 text-rose-700 dark:text-rose-500'
                         : `${color.bg} ${color.border} ${color.text}`
                   }`}
                 >
@@ -2162,7 +2162,7 @@ function MatchingQuestion({
                   {!answered && (
                     <button
                       onClick={() => onRemovePair(key)}
-                      className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-rose-200 dark:hover:bg-rose-900/50 hover:text-rose-700 dark:hover:text-rose-300 dark:text-rose-300 transition-colors"
+                      className="flex h-4 w-4 items-center justify-center rounded-full hover:bg-rose-200 dark:hover:bg-rose-900/50 hover:text-rose-700 dark:hover:text-rose-300 dark:text-rose-500 transition-colors"
                     >
                       <XCircle className="h-3 w-3" />
                     </button>
@@ -2192,9 +2192,9 @@ function MatchingQuestion({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 p-4"
+          className="rounded-xl border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 p-4"
         >
-          <p className="text-xs font-bold text-sky-800 dark:text-sky-200 mb-3 flex items-center gap-1.5">
+          <p className="text-xs font-bold text-sky-800 dark:text-sky-400 mb-3 flex items-center gap-1.5">
             <CheckCircle2 className="h-3.5 w-3.5" />
             {t('quiz.correctAnswer')}:
           </p>
@@ -2202,14 +2202,14 @@ function MatchingQuestion({
             {question.pairs.map((pair, idx) => (
               <div
                 key={pair.key}
-                className="flex items-center gap-2 rounded-lg bg-white dark:bg-card border border-sky-200 dark:border-sky-800 px-3 py-2"
+                className="flex items-center gap-2 rounded-lg bg-white dark:bg-card border border-sky-200 dark:border-sky-900/60 px-3 py-2"
               >
                 <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${PAIR_COLORS[idx % PAIR_COLORS.length].badge}`}>
                   {idx + 1}
                 </span>
                 <span className="text-xs font-medium text-foreground">{pair.key}</span>
                 <Link2 className="h-3 w-3 text-sky-600 shrink-0" />
-                <span className="text-xs font-medium text-sky-800 dark:text-sky-200">{pair.value}</span>
+                <span className="text-xs font-medium text-sky-800 dark:text-sky-400">{pair.value}</span>
               </div>
             ))}
           </div>
@@ -2251,8 +2251,8 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
         <div
           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
             userAnswer?.isCorrect
-              ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200'
-              : 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300'
+              ? 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
+              : 'bg-rose-100 dark:bg-rose-800/40 text-rose-700 dark:text-rose-500'
           }`}
         >
           {userAnswer?.isCorrect ? (
@@ -2282,7 +2282,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                       const isPairCorrect = question.pairs?.find(p => p.key === k)?.value === v;
                       return (
                         <div key={k} className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs ${
-                          isPairCorrect ? 'bg-sky-50 border border-sky-200' : 'bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800'
+                          isPairCorrect ? 'bg-sky-50 border border-sky-200' : 'bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-900/60'
                         }`}>
                           <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white ${
                             isPairCorrect ? 'bg-sky-600' : 'bg-rose-500'
@@ -2291,7 +2291,7 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                           </span>
                           <span className="font-medium">{k}</span>
                           <Link2 className="h-3 w-3 shrink-0" />
-                          <span className={isPairCorrect ? 'text-sky-800 dark:text-sky-200 font-medium' : 'text-rose-700 dark:text-rose-300 font-medium'}>{v}</span>
+                          <span className={isPairCorrect ? 'text-sky-800 dark:text-sky-400 font-medium' : 'text-rose-700 dark:text-rose-500 font-medium'}>{v}</span>
                           {isPairCorrect ? <CheckCircle2 className="h-3 w-3 text-sky-600 ms-auto" /> : <XCircle className="h-3 w-3 text-rose-500 ms-auto" />}
                         </div>
                       );
@@ -2305,13 +2305,13 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                   <p className="text-xs font-medium text-sky-800 mb-1.5">{t('quiz.correctAnswer')}:</p>
                   <div className="space-y-1.5">
                     {question.pairs.map((p, idx) => (
-                      <div key={p.key} className="flex items-center gap-2 rounded-lg bg-white dark:bg-card border border-sky-200 dark:border-sky-800 px-2.5 py-1.5 text-xs">
+                      <div key={p.key} className="flex items-center gap-2 rounded-lg bg-white dark:bg-card border border-sky-200 dark:border-sky-900/60 px-2.5 py-1.5 text-xs">
                         <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold text-white ${PAIR_COLORS[idx % PAIR_COLORS.length].badge}`}>
                           {idx + 1}
                         </span>
                         <span className="font-medium">{p.key}</span>
                         <Link2 className="h-3 w-3 text-sky-600 shrink-0" />
-                        <span className="text-sky-800 dark:text-sky-200 font-medium">{p.value}</span>
+                        <span className="text-sky-800 dark:text-sky-400 font-medium">{p.value}</span>
                       </div>
                     ))}
                   </div>
@@ -2401,13 +2401,13 @@ function ReviewQuestionCard({ question, index, userAnswer }: ReviewQuestionCardP
                     setExplaining(false);
                   }
                 }}
-                className="flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 dark:hover:text-rose-300 dark:text-rose-300 hover:underline"
+                className="flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 dark:hover:text-rose-300 dark:text-rose-500 hover:underline"
               >
                 {explaining ? <Loader2 className="h-3 w-3 animate-spin" /> : <Lightbulb className="h-3 w-3" />}
                 {t('quiz.incorrect')}
               </button>
               {explanation && (
-                <div className="mt-2 rounded-lg bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900 p-3 text-sm text-rose-800 dark:text-rose-200 leading-relaxed">
+                <div className="mt-2 rounded-lg bg-rose-50/50 dark:bg-rose-900/15 border border-rose-100 dark:border-rose-900 p-3 text-sm text-rose-800 dark:text-rose-200 leading-relaxed">
                   {explanation}
                 </div>
               )}

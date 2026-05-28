@@ -137,9 +137,9 @@ function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string
 
   if (started) {
     return (
-      <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800">
+      <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-sky-50 dark:bg-sky-900/15 border border-sky-200 dark:border-sky-900/60">
         <Play className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-        <span className="text-xs font-bold text-sky-700 dark:text-sky-300">{t('exams.availableNow')}</span>
+        <span className="text-xs font-bold text-sky-700 dark:text-sky-400">{t('exams.availableNow')}</span>
       </div>
     );
   }
@@ -153,9 +153,9 @@ function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string
   parts.push(t('exams.secondUnit', { n: remaining.s }));
 
   return (
-    <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-      <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 animate-pulse" />
-      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+    <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/60">
+      <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500 animate-pulse" />
+      <span className="text-xs font-semibold text-amber-700 dark:text-amber-500">
         {t('exams.startsIn')} {parts.join(` ${t('exams.and')} `)}
       </span>
     </div>
@@ -965,28 +965,28 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     switch (status) {
       case 'scheduled':
         return (
-          <Badge variant="outline" className="text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-[10px]">
+          <Badge variant="outline" className="text-amber-700 dark:text-amber-500 border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 text-[10px]">
             <Clock className="h-2.5 w-2.5 me-1" />
             {t('exams.scheduled')}
           </Badge>
         );
       case 'active':
         return (
-          <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 text-[10px]">
+          <Badge className="bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60 text-[10px]">
             <Play className="h-2.5 w-2.5 me-1" />
             {t('exams.available')}
           </Badge>
         );
       case 'completed':
         return (
-          <Badge variant="outline" className="text-teal-700 dark:text-teal-300 border-teal-300 bg-teal-50 dark:bg-teal-950/30 text-[10px]">
+          <Badge variant="outline" className="text-teal-700 dark:text-teal-500 border-teal-300 bg-teal-50 dark:bg-teal-900/20 text-[10px]">
             <Trophy className="h-2.5 w-2.5 me-1" />
             {t('exams.completed')}
           </Badge>
         );
       case 'expired':
         return (
-          <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 dark:bg-orange-950/30 text-[10px]">
+          <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 dark:bg-orange-900/20 text-[10px]">
             <Clock className="h-2.5 w-2.5 me-1" />
             {t('exams.timeExpired')}
           </Badge>
@@ -1015,7 +1015,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   const renderQuestionBuilder = () => (
     <div className="border-t pt-5">
       <h4 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
-        <Plus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+        <Plus className="h-4 w-4 text-sky-700 dark:text-sky-400" />
         {t('exams.addQuestion')}
       </h4>
 
@@ -1035,7 +1035,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               disabled={savingQuiz}
               className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
                 currentQuestionType === opt.type
-                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -1109,7 +1109,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               disabled={savingQuiz}
               className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-all ${
                 booleanCorrect
-                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200'
+                  ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -1120,7 +1120,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               disabled={savingQuiz}
               className={`rounded-lg border px-5 py-2.5 text-sm font-medium transition-all ${
                 !booleanCorrect
-                  ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300'
+                  ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500'
                   : 'border-border text-muted-foreground hover:bg-muted/50'
               }`}
             >
@@ -1196,7 +1196,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           <button
             onClick={() => setMatchingPairs([...matchingPairs, { key: '', value: '' }])}
             disabled={savingQuiz}
-            className="flex items-center gap-1 text-xs font-medium text-sky-700 dark:text-sky-300 hover:text-sky-800 transition-colors"
+            className="flex items-center gap-1 text-xs font-medium text-sky-700 dark:text-sky-400 hover:text-sky-800 transition-colors"
           >
             <Plus className="h-3.5 w-3.5" />
             {t('exams.addPair')}
@@ -1208,7 +1208,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       <button
         onClick={handleAddQuestion}
         disabled={savingQuiz}
-        className="flex items-center gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 px-4 py-3 text-sm font-medium text-sky-800 dark:text-sky-200 hover:bg-sky-50 hover:border-sky-400 transition-colors w-full justify-center"
+        className="flex items-center gap-2 rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 px-4 py-3 text-sm font-medium text-sky-800 dark:text-sky-400 hover:bg-sky-50 hover:border-sky-400 transition-colors w-full justify-center"
       >
         <Plus className="h-4 w-4" />
         {t('exams.addQuestion')}
@@ -1229,7 +1229,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
           {quizQuestions.map((q, idx) => (
             <div key={idx} className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 text-xs font-bold">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 text-xs font-bold">
                 {idx + 1}
               </span>
               <div className="min-w-0 flex-1">
@@ -1277,7 +1277,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4 sm:p-5 sticky top-0 bg-background z-10">
               <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2 min-w-0 truncate">
-                <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300 shrink-0" />
+                <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-400 shrink-0" />
                 <span className="truncate">{editingQuiz ? t('exams.editQuiz') : t('exams.createQuiz')}</span>
               </h3>
               <button
@@ -1344,7 +1344,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               {/* ─── Quiz Settings Toggles ─── */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
-                  <Settings className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+                  <Settings className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   <span className="text-sm font-semibold text-foreground">{t('exams.quizSettings')}</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -1355,7 +1355,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     disabled={savingQuiz || generatingFromAi}
                     className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-end ${
                       quizShowResults
-                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1369,7 +1369,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     disabled={savingQuiz || generatingFromAi}
                     className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-end ${
                       quizAllowRetake
-                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1383,7 +1383,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     disabled={savingQuiz || generatingFromAi}
                     className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-end ${
                       quizShuffleQuestions
-                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                        ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
                   >
@@ -1403,7 +1403,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       disabled={savingQuiz || generatingFromAi}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         quizInputMode === 'manual'
-                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300'
+                          ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -1418,7 +1418,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       disabled={savingQuiz || generatingFromAi}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         quizInputMode === 'ai-file'
-                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30 text-teal-700 dark:text-teal-300'
+                          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -1433,7 +1433,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       disabled={savingQuiz || generatingFromAi}
                       className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-all ${
                         quizInputMode === 'bank'
-                          ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300'
+                          ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-500'
                           : 'border-border text-muted-foreground hover:bg-muted/50'
                       }`}
                     >
@@ -1446,14 +1446,14 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
               {/* ─── AI File Quiz Generation Section ─── */}
               {quizInputMode === 'ai-file' && !editingQuiz && (
-                <div className="space-y-4 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-950/20 p-4">
+                <div className="space-y-4 rounded-xl border border-teal-200 dark:border-teal-900/60 bg-teal-50/30 dark:bg-teal-900/15 p-4">
                   {/* Section header */}
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/50">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-800/40">
                       <Sparkles className="h-4 w-4 text-teal-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-teal-700 dark:text-teal-300">{t('exams.createFromFileTitle')}</p>
+                      <p className="text-sm font-bold text-teal-700 dark:text-teal-500">{t('exams.createFromFileTitle')}</p>
                       <p className="text-xs text-teal-600/70">{t('exams.createFromFileDesc')}</p>
                     </div>
                   </div>
@@ -1502,7 +1502,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                         <span className="text-sm text-muted-foreground">{t('exams.loadingFiles')}</span>
                       </div>
                     ) : courseFiles.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-6 gap-2 rounded-lg border-2 border-dashed border-teal-300 dark:border-teal-800 bg-teal-50/30 dark:bg-teal-950/30">
+                      <div className="flex flex-col items-center justify-center py-6 gap-2 rounded-lg border-2 border-dashed border-teal-300 dark:border-teal-900/60 bg-teal-50/30 dark:bg-teal-900/20">
                         <FolderOpen className="h-8 w-8 text-teal-400" />
                         <span className="text-sm text-muted-foreground">{t('exams.noDocumentFiles')}</span>
                         <span className="text-xs text-muted-foreground/60">{t('exams.uploadDocsHint')}</span>
@@ -1518,12 +1518,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                               disabled={generatingFromAi}
                               className={`flex items-center gap-3 w-full rounded-lg border p-3 text-end transition-all ${
                                 selectedCourseFile?.id === file.id
-                                  ? 'border-teal-500 bg-teal-50 dark:bg-teal-950/30'
+                                  ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
                                   : 'border-border hover:bg-muted/50'
                               }`}
                             >
                               <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                                isPdf ? 'bg-rose-100 dark:bg-rose-900/50' : 'bg-blue-100 dark:bg-blue-900/50'
+                                isPdf ? 'bg-rose-100 dark:bg-rose-800/40' : 'bg-blue-100 dark:bg-blue-800/40'
                               }`}>
                                 {isPdf ? (
                                   <FileText className="h-4 w-4 text-rose-600" />
@@ -1572,14 +1572,14 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
               {/* ─── Import from Bank Section ─── */}
               {quizInputMode === 'bank' && !editingQuiz && (
-                <div className="space-y-4 rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/30 dark:bg-violet-950/20 p-4">
+                <div className="space-y-4 rounded-xl border border-violet-200 dark:border-violet-900/60 bg-violet-50/30 dark:bg-violet-900/15 p-4">
                   {/* Section header */}
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-800/40">
                       <Database className="h-4 w-4 text-violet-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-violet-700 dark:text-violet-300">{t('exams.importFromBankTitle')}</p>
+                      <p className="text-sm font-bold text-violet-700 dark:text-violet-500">{t('exams.importFromBankTitle')}</p>
                       <p className="text-xs text-violet-600/70">{t('exams.importFromBankDesc')}</p>
                     </div>
                   </div>
@@ -1591,7 +1591,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                       <span className="text-sm text-muted-foreground">{t('exams.loadingBanks')}</span>
                     </div>
                   ) : subjectBanks.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-6 gap-2 rounded-lg border-2 border-dashed border-violet-300 dark:border-violet-800 bg-violet-50/30 dark:bg-violet-950/30">
+                    <div className="flex flex-col items-center justify-center py-6 gap-2 rounded-lg border-2 border-dashed border-violet-300 dark:border-violet-900/60 bg-violet-50/30 dark:bg-violet-900/20">
                       <Database className="h-8 w-8 text-violet-400" />
                       <span className="text-sm text-muted-foreground">{t('exams.noBanksInCourse')}</span>
                       <span className="text-xs text-muted-foreground/60">{t('exams.createBankHint')}</span>
@@ -1604,10 +1604,10 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                           onClick={() => handleSelectBank(bank)}
                           disabled={importingFromBank}
                           className={`flex items-center gap-3 w-full rounded-lg border p-3 text-end transition-all ${
-                            'border-border hover:bg-violet-50 dark:hover:bg-violet-950/20'
+                            'border-border hover:bg-violet-50 dark:hover:bg-violet-900/15'
                           }`}
                         >
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/50">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-800/40">
                             <BookOpen className="h-4 w-4 text-violet-600" />
                           </div>
                           <div className="min-w-0 flex-1">
@@ -1639,7 +1639,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                               setSelectedBankQuestionIds(new Set(bankQuestions.map(q => q.id)));
                             }
                           }}
-                          className="ms-auto text-xs text-violet-600 dark:text-violet-400 hover:underline"
+                          className="ms-auto text-xs text-violet-600 dark:text-violet-500 hover:underline"
                         >
                           {selectedBankQuestionIds.size === bankQuestions.length ? t('exams.deselectAll') : t('exams.selectAll')}
                         </button>
@@ -1659,7 +1659,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                                 disabled={importingFromBank}
                                 className={`w-full flex items-start gap-2.5 rounded-lg border p-2.5 text-end transition-all ${
                                   isSelected
-                                    ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/30'
+                                    ? 'border-violet-400 bg-violet-50 dark:bg-violet-900/20'
                                     : 'border-border hover:bg-muted/50'
                                 }`}
                               >
@@ -1774,7 +1774,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             {/* Settings */}
             <button
               onClick={() => setSettingsQuiz(quiz)}
-              className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-950/50 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-teal-50 sm:dark:hover:bg-teal-50 sm:hover:text-teal-600 sm:text-sm sm:font-normal"
+              className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-900/60 bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/25 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-teal-50 sm:dark:hover:bg-teal-50 sm:hover:text-teal-600 sm:text-sm sm:font-normal"
               title={t('exams.settings')}
             >
               <Settings className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
@@ -1783,7 +1783,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             {/* Edit */}
             <button
               onClick={() => handleEditQuiz(quiz)}
-              className="flex items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-950/50 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-sky-50 sm:dark:hover:bg-sky-50 sm:hover:text-sky-700 sm:text-sm sm:font-normal"
+              className="flex items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/25 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-sky-50 sm:dark:hover:bg-sky-50 sm:hover:text-sky-700 sm:text-sm sm:font-normal"
               title={t('exams.edit')}
             >
               <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
@@ -1793,7 +1793,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             <button
               onClick={() => setDeleteQuizConfirmId(quiz.id)}
               disabled={deletingId === quiz.id}
-              className="flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-colors disabled:opacity-50 sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-rose-50 sm:dark:hover:bg-rose-50 sm:hover:text-rose-600 sm:text-sm sm:font-normal"
+              className="flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/25 transition-colors disabled:opacity-50 sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-rose-50 sm:dark:hover:bg-rose-50 sm:hover:text-rose-600 sm:text-sm sm:font-normal"
               title={t('exams.delete')}
             >
               {deletingId === quiz.id ? (
@@ -1806,8 +1806,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           </div>
 
           <div className="flex items-center gap-3 mb-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-              <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+              <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-400" />
             </div>
             <div className="min-w-0 flex-1">
               <h4 className="font-semibold text-foreground truncate">{quiz.title}</h4>
@@ -1845,7 +1845,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                 <span className="text-xs text-muted-foreground">{qScores.length} {t('exams.participants')}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <Trophy className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                <Trophy className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
                 <span className="text-xs font-medium text-foreground">{t('exams.average')}: {avgScore}%</span>
               </div>
             </div>
@@ -1861,11 +1861,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               {togglingQuizId === quiz.id ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
               ) : quiz.show_results === false ? (
-                <EyeOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                <EyeOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
               ) : (
-                <Eye className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
+                <Eye className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
               )}
-              <span className={quiz.show_results === false ? 'text-amber-600 dark:text-amber-400' : 'text-sky-700 dark:text-sky-300'}>
+              <span className={quiz.show_results === false ? 'text-amber-600 dark:text-amber-500' : 'text-sky-700 dark:text-sky-400'}>
                 {quiz.show_results === false ? t('exams.resultsHidden') : t('exams.showResults')}
               </span>
             </button>
@@ -1875,11 +1875,11 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               className="flex items-center gap-1.5 transition-colors"
             >
               {quiz.allow_retake ? (
-                <RotateCcw className="h-3.5 w-3.5 text-sky-700 dark:text-sky-300" />
+                <RotateCcw className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
               ) : (
                 <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
               )}
-              <span className={quiz.allow_retake ? 'text-sky-700 dark:text-sky-300' : 'text-muted-foreground'}>
+              <span className={quiz.allow_retake ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}>
                 {quiz.allow_retake ? t('exams.retakeAllowed') : t('exams.retakeNotAllowed')}
               </span>
             </button>
@@ -1893,8 +1893,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               disabled={togglingQuizId === quiz.id}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                 isFinishedTab
-                  ? 'text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 hover:bg-sky-100'
-                  : 'text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100'
+                  ? 'text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 hover:bg-sky-100'
+                  : 'text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100'
               }`}
             >
               {isFinishedTab ? t('exams.reactivate') : t('exams.finishQuiz')}
@@ -1904,7 +1904,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             {isFinishedTab && qScores.length > 0 && (
               <button
                 onClick={() => handleExportQuizResults(quiz)}
-                className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/30 hover:bg-teal-100 transition-colors"
+                className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-500 border-teal-200 dark:border-teal-900/60 bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 transition-colors"
               >
                 <Download className="h-3.5 w-3.5" />
                 {t('exams.exportResults')}
@@ -1927,8 +1927,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       <motion.div key={quiz.id} variants={itemVariants}>
         <div className="group relative rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all">
           <div className="flex items-center gap-3 mb-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
-              <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
+              <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-400" />
             </div>
             <div className="min-w-0 flex-1">
               <h4 className="font-semibold text-foreground truncate">{quiz.title}</h4>
@@ -1945,16 +1945,16 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           {myScore && (
             <div className="flex items-center gap-2 mt-2 p-2.5 rounded-lg bg-muted/50">
               <Trophy className={`h-4 w-4 ${
-                scorePct !== null && scorePct >= 80 ? 'text-sky-700 dark:text-sky-300' :
-                scorePct !== null && scorePct >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
+                scorePct !== null && scorePct >= 80 ? 'text-sky-700 dark:text-sky-400' :
+                scorePct !== null && scorePct >= 60 ? 'text-amber-600 dark:text-amber-500' : 'text-rose-600 dark:text-rose-500'
               }`} />
               <span className="text-sm font-medium text-foreground">
                 {myScore.score} / {myScore.total}
               </span>
               {scorePct !== null && (
                 <span className={`text-xs font-bold ${
-                  scorePct >= 80 ? 'text-sky-800 dark:text-sky-200' :
-                  scorePct >= 60 ? 'text-amber-700 dark:text-amber-300' : 'text-rose-700 dark:text-rose-300'
+                  scorePct >= 80 ? 'text-sky-800 dark:text-sky-400' :
+                  scorePct >= 60 ? 'text-amber-700 dark:text-amber-500' : 'text-rose-700 dark:text-rose-500'
                 }`}>
                   {scorePct}%
                 </span>
@@ -2065,17 +2065,17 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       {/* Quiz list */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
         </div>
       ) : subTab === 'active' ? (
         // ─── Active tab ───
         activeQuizzes.length === 0 ? (
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
           >
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-900/50 mb-4">
-              <ClipboardList className="h-8 w-8 text-sky-700 dark:text-sky-300" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 dark:bg-sky-800/40 mb-4">
+              <ClipboardList className="h-8 w-8 text-sky-700 dark:text-sky-400" />
             </div>
             <p className="text-lg font-semibold text-foreground mb-1">{t('exams.noActiveQuizzes')}</p>
             <p className="text-sm text-muted-foreground">
@@ -2105,7 +2105,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
         finishedQuizzes.length === 0 ? (
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-800 bg-sky-50/30 dark:bg-sky-950/30 py-16"
+            className="flex flex-col items-center justify-center rounded-xl border border-dashed border-sky-300 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15 py-16"
           >
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted-100 mb-4">
               <ClipboardList className="h-8 w-8 text-muted-400" />

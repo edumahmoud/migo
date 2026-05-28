@@ -672,7 +672,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="w-full gap-1.5 text-xs h-8 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/30"
+                                    className="w-full gap-1.5 text-xs h-8 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-500 dark:hover:bg-amber-900/30"
                                     disabled={processingRequestId === file.requestId}
                                     onClick={async () => {
                                       if (!file.requestId) return;
@@ -713,7 +713,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="w-full gap-1.5 text-xs h-8 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
+                                    className="w-full gap-1.5 text-xs h-8 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-500 dark:hover:bg-red-900/30"
                                     disabled={processingRequestId === file.requestId}
                                     onClick={async () => {
                                       if (!file.requestId) return;
@@ -984,7 +984,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-8 text-xs gap-1.5 border-sky-300 text-sky-800 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-400 dark:hover:bg-sky-900/30"
+                                  className="h-8 text-xs gap-1.5 border-sky-300 text-sky-800 hover:bg-sky-50 dark:border-sky-900/60 dark:text-sky-400 dark:hover:bg-sky-900/30"
                                   disabled={processingRequestId === req.id}
                                   onClick={() => handleRequestAction(req.id, 'approve')}
                                 >
@@ -998,7 +998,7 @@ export default function UserProfilePage({ userId, currentUser, onBack }: UserPro
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-8 text-xs gap-1.5 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
+                                  className="h-8 text-xs gap-1.5 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-500 dark:hover:bg-red-900/30"
                                   disabled={processingRequestId === req.id}
                                   onClick={() => handleRequestAction(req.id, 'reject')}
                                 >

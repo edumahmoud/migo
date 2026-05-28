@@ -75,15 +75,15 @@ function TypeIcon({ type, className }: { type: PlatformAnnouncementType; classNa
 function getTypeBadgeStyle(type: PlatformAnnouncementType): string {
   switch (type) {
     case 'celebration':
-      return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300';
+      return 'bg-amber-100 text-amber-800 dark:bg-amber-800/30 dark:text-amber-500';
     case 'announcement':
-      return 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300';
+      return 'bg-sky-100 text-sky-800 dark:bg-sky-800/30 dark:text-sky-400';
     case 'alert':
-      return 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300';
+      return 'bg-rose-100 text-rose-800 dark:bg-rose-800/30 dark:text-rose-500';
     case 'maintenance':
       return 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300';
     default:
-      return 'bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300';
+      return 'bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-500';
   }
 }
 
@@ -539,11 +539,11 @@ function LoginPopupAnnouncement({
             <h2 id="login-popup-title" className="text-xl font-bold text-gray-900 dark:text-gray-100 leading-tight">
               {title}
             </h2>
-            <p id="login-popup-message" className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-line">
+            <p id="login-popup-message" className="text-sm text-gray-600 dark:text-gray-500 leading-relaxed whitespace-pre-line">
               {message}
             </p>
             {announcement.image_url && (
-              <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+              <div className="mt-3 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800/60">
                 <img src={announcement.image_url} alt={title} className="w-full h-auto max-h-64 object-cover" />
               </div>
             )}
@@ -553,7 +553,7 @@ function LoginPopupAnnouncement({
           <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex items-center justify-end gap-3">
             <button
               onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-              className="inline-flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900 cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 dark:focus:ring-offset-gray-900 cursor-pointer"
             >
              Dismiss
             </button>

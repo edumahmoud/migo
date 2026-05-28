@@ -72,7 +72,7 @@ function ToggleSwitch({
     <div className="flex items-center justify-between rounded-lg border bg-card p-3 gap-3">
       <div className="flex items-center gap-2.5 min-w-0">
         {icon && (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-100 dark:bg-teal-900/50">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-100 dark:bg-teal-800/40">
             {icon}
           </div>
         )}
@@ -179,14 +179,14 @@ export default function QuizSettingsModal({
         <div className="space-y-5 py-2">
           {/* ── Quiz Info ── */}
           <motion.div
-            className="rounded-lg bg-teal-50/70 dark:bg-teal-950/30 border border-teal-100 p-3"
+            className="rounded-lg bg-teal-50/70 dark:bg-teal-900/20 border border-teal-100 p-3"
             variants={sectionVariants}
             initial="hidden"
             animate="visible"
             custom={0}
           >
-            <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">{t('quiz.quiz')}</p>
-            <p className="text-sm font-medium text-teal-800 dark:text-teal-300 truncate">{quiz.title}</p>
+            <p className="text-xs text-teal-600 dark:text-teal-500 mb-1">{t('quiz.quiz')}</p>
+            <p className="text-sm font-medium text-teal-800 dark:text-teal-500 truncate">{quiz.title}</p>
             <p className="text-xs text-teal-600/70 mt-1">
               {quiz.questions?.length || 0} {t('quiz.question')}
             </p>
@@ -208,7 +208,7 @@ export default function QuizSettingsModal({
             <ToggleSwitch
               label={t('quiz.allowRetake')}
               description={t('quiz.allowRetake')}
-              icon={<RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
+              icon={<RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
               checked={allowRetake}
               onChange={setAllowRetake}
               disabled={saving}
@@ -217,7 +217,7 @@ export default function QuizSettingsModal({
             <ToggleSwitch
               label={t('quiz.showResults')}
               description={t('quiz.showResultsAfter')}
-              icon={<Eye className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
+              icon={<Eye className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
               checked={showResults}
               onChange={setShowResults}
               disabled={saving}
@@ -226,7 +226,7 @@ export default function QuizSettingsModal({
             <ToggleSwitch
               label={t('quiz.shuffleQuestions')}
               description={t('quiz.shuffleOptions')}
-              icon={<Shuffle className="h-4 w-4 text-teal-600 dark:text-teal-400" />}
+              icon={<Shuffle className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
               checked={shuffleQuestions}
               onChange={setShuffleQuestions}
               disabled={saving}
@@ -249,8 +249,8 @@ export default function QuizSettingsModal({
             </div>
 
             <div className="flex items-center gap-3 rounded-lg border bg-card p-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-100 dark:bg-teal-900/50">
-                <Clock className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-100 dark:bg-teal-800/40">
+                <Clock className="h-4 w-4 text-teal-600 dark:text-teal-500" />
               </div>
               <div className="flex-1">
                 <Label className="text-sm text-muted-foreground">{t('quiz.duration')}</Label>
@@ -293,7 +293,7 @@ export default function QuizSettingsModal({
             variant="outline"
             onClick={onClose}
             disabled={saving}
-            className="border-teal-300 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:border-teal-800 dark:hover:bg-teal-950/30"
+            className="border-teal-300 text-teal-700 hover:bg-teal-50 dark:text-teal-500 dark:border-teal-900/60 dark:hover:bg-teal-900/20"
           >
             {t('common.cancel')}
           </Button>

@@ -245,7 +245,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
     return (
       <div className="flex items-center justify-center py-20">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-300" />
+          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
           <span className="text-sm text-muted-foreground">{t('common.loading')}</span>
         </div>
       </div>
@@ -275,18 +275,18 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-sky-700 dark:text-sky-300" />
+            <Building2 className="h-6 w-6 text-sky-700 dark:text-sky-400" />
             {t('admin.institutionSettings')}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">{t('admin.institutionSettings')}</p>
 
           {/* Migration banner for tagline column */}
           {taglineMigrationStatus === 'pending' && (
-            <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-900/20 p-3 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-amber-800 dark:text-amber-200">{t('admin.databaseHealth')}</p>
-                <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-0.5">
+                <p className="text-[10px] text-amber-700 dark:text-amber-500 mt-0.5">
                   {t('admin.databaseHealth')}
                 </p>
                 <code className="mt-1 block text-[10px] bg-amber-100/80 rounded p-1.5 font-mono text-amber-900 select-all">
@@ -297,7 +297,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           )}
         </div>
         {institution.name && (
-          <Badge className="bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800 text-xs">
+          <Badge className="bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400 border-sky-200 dark:border-sky-900/60 text-xs">
             {typeLabelMap[institution.type]}
           </Badge>
         )}
@@ -316,7 +316,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={0}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <ImagePlus className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <ImagePlus className="h-4 w-4 text-sky-700 dark:text-sky-400" />
               <h3 className="font-semibold text-foreground text-sm">{t('admin.institutionLogo')}</h3>
             </div>
             <div className="p-4 flex flex-col items-center gap-4">
@@ -325,10 +325,10 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   <img
                     src={institution.logo_url}
                     alt={t('admin.institutionLogo')}
-                    className="h-28 w-28 rounded-2xl object-cover border-2 border-sky-200 dark:border-sky-800 shadow-sm"
+                    className="h-28 w-28 rounded-2xl object-cover border-2 border-sky-200 dark:border-sky-900/60 shadow-sm"
                   />
                 ) : (
-                  <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-sky-50 to-teal-50 dark:from-sky-950/30 dark:to-teal-950/30 border-2 border-dashed border-sky-300 dark:border-sky-800 flex flex-col items-center justify-center gap-2">
+                  <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-sky-50 to-teal-50 dark:from-sky-900/20 dark:to-teal-900/20 border-2 border-dashed border-sky-300 dark:border-sky-900/60 flex flex-col items-center justify-center gap-2">
                     <Building2 className="h-10 w-10 text-sky-400" />
                     <span className="text-[10px] text-sky-600 dark:text-sky-400">{t('common.noData')}</span>
                   </div>
@@ -354,7 +354,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    className="h-8 text-xs text-rose-600 dark:text-rose-500 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20"
                     onClick={() => updateField('logo_url', null)}
                     disabled={uploadingLogo}
                   >
@@ -383,7 +383,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={1}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <School className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <School className="h-4 w-4 text-sky-700 dark:text-sky-400" />
               <h3 className="font-semibold text-foreground text-sm">{t('admin.institutionType')}</h3>
             </div>
             <div className="p-4 space-y-2">
@@ -394,13 +394,13 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
                   onClick={() => updateField('type', key)}
                   className={`w-full flex items-center gap-3 rounded-xl p-3 border-2 transition-all duration-200 ${
                     institution.type === key
-                      ? 'border-sky-600 bg-sky-50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200 shadow-sm'
-                      : 'border-border text-muted-foreground hover:border-sky-200 dark:hover:border-sky-800 hover:bg-sky-50/50 dark:hover:bg-sky-950/30'
+                      ? 'border-sky-600 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400 shadow-sm'
+                      : 'border-border text-muted-foreground hover:border-sky-200 dark:hover:border-sky-900/60 hover:bg-sky-50/50 dark:hover:bg-sky-900/20'
                   }`}
                   disabled={saving}
                 >
                   <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-                    institution.type === key ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted/50'
+                    institution.type === key ? 'bg-sky-100 dark:bg-sky-800/40' : 'bg-muted/50'
                   }`}>
                     {icon}
                   </div>
@@ -416,7 +416,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
           {/* Quick info card */}
           {institution.name && (
             <motion.div
-              className="rounded-xl border bg-sky-50/50 dark:bg-sky-950/30 shadow-sm overflow-hidden"
+              className="rounded-xl border bg-sky-50/50 dark:bg-sky-900/15 shadow-sm overflow-hidden"
               variants={sectionVariants}
               initial="hidden"
               animate="visible"
@@ -424,8 +424,8 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             >
               <div className="p-4 space-y-2">
                 <div className="flex items-center gap-2 mb-3">
-                  <AlertCircle className="h-4 w-4 text-sky-700 dark:text-sky-300" />
-                  <span className="text-xs font-medium text-sky-800 dark:text-sky-200">{t('summary.summary')}</span>
+                  <AlertCircle className="h-4 w-4 text-sky-700 dark:text-sky-400" />
+                  <span className="text-xs font-medium text-sky-800 dark:text-sky-400">{t('summary.summary')}</span>
                 </div>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between">
@@ -475,7 +475,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={3}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <FileText className="h-4 w-4 text-sky-700 dark:text-sky-400" />
               <h3 className="font-semibold text-foreground text-sm">{t('settings.profile.title')}</h3>
             </div>
             <div className="p-4 space-y-4">
@@ -585,7 +585,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={4}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <Phone className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <Phone className="h-4 w-4 text-sky-700 dark:text-sky-400" />
               <h3 className="font-semibold text-foreground text-sm">{t('admin.institutionContact')}</h3>
             </div>
             <div className="p-4 space-y-4">
@@ -711,7 +711,7 @@ export default function InstitutionSection({ profile }: InstitutionSectionProps)
             custom={5}
           >
             <div className="flex items-center gap-2 border-b px-4 py-2.5 bg-muted/30">
-              <FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />
+              <FileText className="h-4 w-4 text-sky-700 dark:text-sky-400" />
               <h3 className="font-semibold text-foreground text-sm">{t('course.description')}</h3>
             </div>
             <div className="p-4">
