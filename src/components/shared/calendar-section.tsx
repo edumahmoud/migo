@@ -184,7 +184,12 @@ function getWeekDayNames(locale: string, weekStartsOn: number): string[] {
   for (let i = 0; i < 7; i++) {
     const dayIndex = (weekStartsOn + i) % 7;
     const date = new Date(2023, 0, 1 + dayIndex);
-    names.push(date.toLocaleDateString(localeStr, { weekday: 'short' }));
+    let name = date.toLocaleDateString(localeStr, { weekday: 'short' });
+    // Strip Arabic article prefix 'ال' from day names
+    if (locale !== 'en') {
+      name = name.replace(/^ال/, '');
+    }
+    names.push(name);
   }
   return names;
 }
@@ -493,7 +498,9 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
     const days: { date: string; day: number; dayName: string }[] = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(startOfWeek); d.setDate(startOfWeek.getDate() + i);
-      days.push({ date: toDateString(d), day: d.getDate(), dayName: d.toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', { weekday: 'short' }) });
+      let dayName = d.toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-SA', { weekday: 'short' });
+      if (locale !== 'en') dayName = dayName.replace(/^ال/, '');
+      days.push({ date: toDateString(d), day: d.getDate(), dayName });
     }
     return days;
   }, [selectedDate, today, weekStartsOn, locale]);
@@ -587,8 +594,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
         <div className="grid grid-cols-7 mb-1">
           {weekDayNames.map((name, i) => (
             <div key={i} className="py-2 text-center text-xs sm:text-sm font-semibold text-muted-foreground">
-              <span className="hidden sm:inline">{name}</span>
-              <span className="sm:hidden">{name.charAt(0)}</span>
+              <span>{name}</span>
             </div>
           ))}
         </div>
