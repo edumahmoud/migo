@@ -3713,7 +3713,10 @@
     "filters": "Filters",
     "showAll": "Show All",
     "hideAll": "Hide All",
-    "all": "All"
+    "all": "All",
+    "overdue": "Overdue",
+    "completed": "Completed",
+    "upcoming": "Upcoming"
   },
   "todos": {
     "title": "My Tasks",

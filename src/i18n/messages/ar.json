@@ -3713,7 +3713,10 @@
     "filters": "تصفية",
     "showAll": "عرض الكل",
     "hideAll": "إخفاء الكل",
-    "all": "الكل"
+    "all": "الكل",
+    "overdue": "فات أوانه",
+    "completed": "مكتمل",
+    "upcoming": "قادم"
   },
   "todos": {
     "title": "مهامي",

@@ -610,6 +610,8 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
               const hasEvents = dayEvents.length > 0;
               const uniqueTypes = [...new Set(dayEvents.map((e) => e.type))].slice(0, 3);
               const allCompleted = dayEvents.length > 0 && dayEvents.every((e) => e.completed);
+              const hasOverdue = dayEvents.length > 0 && isPast && !isToday && !allCompleted;
+              const isFuture = !isPast && !isToday;
 
               return (
                 <motion.button
@@ -617,39 +619,56 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                   variants={cellVariants}
                   onClick={() => setSelectedDate(cell.date)}
                   className={`relative flex flex-col items-center justify-start py-1.5 sm:py-2 px-0.5 transition-all rounded-lg sm:rounded-xl text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-600 min-h-[44px] sm:min-h-[72px] md:min-h-[90px] lg:min-h-[100px] ${
-                    !cell.isCurrentMonth ? 'text-muted-foreground/30' : isPast && !isToday ? (allCompleted ? 'text-muted-foreground/50' : 'text-muted-foreground/70') : 'text-foreground'
+                    !cell.isCurrentMonth ? 'text-muted-foreground/30' : isPast && !isToday ? (allCompleted ? 'text-emerald-600/60 dark:text-emerald-400/60' : 'text-foreground') : 'text-foreground'
                   } ${isToday ? 'bg-sky-50 dark:bg-sky-900/15 ring-2 ring-sky-500 dark:ring-sky-400' : ''} ${
                     isSelected && !isToday ? 'bg-muted/60 ring-1 ring-sky-400/50' : ''
-                  } ${!isToday && !isSelected ? 'hover:bg-muted/30' : ''}`}
+                  } ${!isToday && !isSelected ? 'hover:bg-muted/30' : ''} ${
+                    hasOverdue && cell.isCurrentMonth ? 'bg-rose-50/50 dark:bg-rose-900/10 ring-1 ring-rose-300/50 dark:ring-rose-800/40' : ''
+                  } ${allCompleted && isPast && !isToday && cell.isCurrentMonth ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : ''}`}
                   aria-label={`${cell.day} - ${dayEvents.length} ${t('calendar.eventCount', { count: dayEvents.length })}`}
                   aria-current={isToday ? 'date' : undefined}
                 >
                   {/* Day number */}
-                  <span className={`text-[11px] sm:text-sm md:text-base leading-none mb-0.5 ${isToday ? 'font-bold text-sky-700 dark:text-sky-400' : ''} ${isSelected && !isToday ? 'font-semibold' : ''}`}>
+                  <span className={`text-[11px] sm:text-sm md:text-base leading-none mb-0.5 ${isToday ? 'font-bold text-sky-700 dark:text-sky-400' : ''} ${isSelected && !isToday ? 'font-semibold' : ''} ${allCompleted && isPast && !isToday ? 'text-emerald-500 dark:text-emerald-400' : ''}`}>
                     {cell.day}
                   </span>
 
                   {/* Today dot */}
                   {isToday && <span className="h-1 w-4 rounded-full bg-sky-600 dark:bg-sky-400 mb-0.5" />}
 
+                  {/* Status indicator for past dates with events */}
+                  {hasEvents && cell.isCurrentMonth && isPast && !isToday && (
+                    <span className={`h-1 w-3 rounded-full mb-0.5 ${allCompleted ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                  )}
+
                   {/* Event indicators - mobile: dots, desktop: mini pills */}
                   {hasEvents && cell.isCurrentMonth && (
                     <>
                       {/* Mobile: dots only */}
                       <div className="flex sm:hidden items-center gap-0.5 mt-0.5">
-                        {uniqueTypes.map((type) => (
-                          <span key={type} className={`h-1.5 w-1.5 rounded-full ${eventTypeConfig[type].dotClass} ${isPast && !isToday ? 'opacity-40' : ''}`} />
-                        ))}
+                        {dayEvents.slice(0, 3).map((ev) => {
+                          const isOverdue = isPast && !isToday && !ev.completed;
+                          const isDone = ev.completed;
+                          return (
+                            <span key={ev.id} className={`h-1.5 w-1.5 rounded-full ${isOverdue ? 'bg-rose-500' : isDone ? 'bg-emerald-500' : eventTypeConfig[ev.type].dotClass}`} />
+                          );
+                        })}
                         {dayEvents.length > 3 && <span className="text-[7px] text-muted-foreground">+{dayEvents.length - 3}</span>}
                       </div>
                       {/* Desktop: mini event pills */}
                       <div className="hidden sm:flex flex-col gap-0.5 mt-0.5 w-full px-0.5 overflow-hidden">
                         {dayEvents.slice(0, 2).map((ev) => {
                           const cfg = eventTypeConfig[ev.type];
+                          const isOverdue = isPast && !isToday && !ev.completed;
+                          const isDone = ev.completed;
                           return (
-                            <div key={ev.id} className={`flex items-center gap-1 rounded px-1 py-px ${cfg.bgClass} ${ev.completed ? 'opacity-50' : ''}`}>
-                              <span className={`h-1 w-1 rounded-full shrink-0 ${cfg.dotClass}`} />
-                              <span className={`text-[9px] md:text-[10px] truncate leading-tight ${cfg.textClass}`}>
+                            <div key={ev.id} className={`flex items-center gap-1 rounded px-1 py-px ${
+                              isOverdue ? 'bg-rose-100 dark:bg-rose-800/30' : isDone ? 'bg-emerald-100 dark:bg-emerald-800/30' : cfg.bgClass
+                            } ${isDone ? 'opacity-60' : ''}`}>
+                              <span className={`h-1 w-1 rounded-full shrink-0 ${isOverdue ? 'bg-rose-500' : isDone ? 'bg-emerald-500' : cfg.dotClass}`} />
+                              <span className={`text-[9px] md:text-[10px] truncate leading-tight ${
+                                isOverdue ? 'text-rose-700 dark:text-rose-400' : isDone ? 'text-emerald-700 dark:text-emerald-400 line-through' : cfg.textClass
+                              }`}>
                                 {ev.title}
                               </span>
                             </div>
@@ -711,7 +730,9 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                   const priorityLabel = todoMeta?.priority ? priorityConfig[todoMeta.priority].label : null;
 
                   return (
-                    <div key={event.id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${config.bgClass} ${event.completed ? 'opacity-50' : ''}`}>
+                    <div key={event.id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
+                      isPast && !isToday && !event.completed ? 'bg-rose-100 dark:bg-rose-800/30' : event.completed ? 'bg-emerald-100 dark:bg-emerald-800/30' : config.bgClass
+                    } ${event.completed ? 'opacity-60' : ''}`}>
                       {isTodo && todoId ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleToggleTodo(todoId, !!event.completed); }}
@@ -720,18 +741,35 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                         >
                           {event.completed ? (
                             <CheckCircle2 className={`h-3.5 w-3.5 text-emerald-500`} />
+                          ) : isPast && !isToday ? (
+                            <AlertCircle className={`h-3.5 w-3.5 text-rose-500`} />
                           ) : (
                             <Circle className={`h-3.5 w-3.5 ${config.textClass}`} />
                           )}
                         </button>
                       ) : (
-                        <EventIcon type={event.type} className={`h-3.5 w-3.5 ${config.textClass}`} />
+                        event.completed ? (
+                          <CheckCircle2 className={`h-3.5 w-3.5 text-emerald-500`} />
+                        ) : isPast && !isToday ? (
+                          <AlertCircle className={`h-3.5 w-3.5 text-rose-500`} />
+                        ) : (
+                          <EventIcon type={event.type} className={`h-3.5 w-3.5 ${config.textClass}`} />
+                        )
                       )}
-                      <span className={`text-xs font-medium ${config.textClass} truncate flex-1 ${event.completed && isTodo ? 'line-through' : ''}`}>
+                      <span className={`text-xs font-medium truncate flex-1 ${
+                        isPast && !isToday && !event.completed ? 'text-rose-700 dark:text-rose-400' : event.completed ? 'text-emerald-700 dark:text-emerald-400 line-through' : config.textClass
+                      } ${event.completed && isTodo ? 'line-through' : ''}`}>
                         {priorityLabel && <span className="me-0.5">{priorityLabel}</span>}
                         {event.title}
                       </span>
                       {event.time && <span className="text-[10px] text-muted-foreground shrink-0">{formatEventTime(event.time, locale)}</span>}
+                      {/* Status badge */}
+                      {isPast && !isToday && !event.completed && (
+                        <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.overdue')}</span>
+                      )}
+                      {event.completed && (
+                        <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white">{t('calendar.completed')}</span>
+                      )}
                     </div>
                   );
                 })}
@@ -783,36 +821,62 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
               const categoryInfo = todoMeta?.category ? categoryConfig[todoMeta.category] : null;
               const todoId = todoMeta?.todoId || (isTodo ? event.id.replace('todo-', '') : null);
               const isToggling = todoId ? togglingTodoId === todoId : false;
+              const isOverdue = isPast && !event.completed;
 
               return (
                 <motion.div
                   key={event.id}
                   variants={itemVariants}
-                  className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${config.borderClass} ${config.bgClass} ${event.completed || (isPast && event.type !== 'todo') ? 'opacity-60' : ''}`}
+                  className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${
+                    isOverdue ? 'border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-900/15' : event.completed ? 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-900/15' : config.borderClass + ' ' + config.bgClass
+                  } ${event.completed ? 'opacity-70' : ''}`}
                 >
                   {/* Todo: interactive checkbox | Others: static icon */}
                   {isTodo && todoId ? (
                     <button
                       onClick={() => handleToggleTodo(todoId, !!event.completed)}
                       disabled={isToggling}
-                      className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-lg ${config.bgClass} ${config.textClass} hover:opacity-80 transition-opacity cursor-pointer ${isToggling ? 'animate-pulse' : ''}`}
+                      className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-lg ${
+                        isOverdue ? 'bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-400' : event.completed ? 'bg-emerald-100 dark:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400' : config.bgClass + ' ' + config.textClass
+                      } hover:opacity-80 transition-opacity cursor-pointer ${isToggling ? 'animate-pulse' : ''}`}
                       aria-label={event.completed ? t('todos.markIncomplete') || 'Mark incomplete' : t('todos.markComplete') || 'Mark complete'}
                     >
                       {event.completed ? (
                         <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                      ) : isOverdue ? (
+                        <AlertCircle className="h-5 w-5 text-rose-500" />
                       ) : (
                         <Circle className="h-5 w-5" />
                       )}
                     </button>
                   ) : (
-                    <div className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-lg ${config.bgClass} ${config.textClass}`}>
-                      <EventIcon type={event.type} className="h-4 w-4" />
+                    <div className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-lg ${
+                      isOverdue ? 'bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-400' : event.completed ? 'bg-emerald-100 dark:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400' : config.bgClass + ' ' + config.textClass
+                    }`}>
+                      {event.completed ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      ) : isOverdue ? (
+                        <AlertCircle className="h-4 w-4 text-rose-500" />
+                      ) : (
+                        <EventIcon type={event.type} className="h-4 w-4" />
+                      )}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <p className={`text-sm font-medium ${config.textClass} ${event.completed ? 'line-through' : ''}`}>{event.title}</p>
-                      {!isTodo && event.completed && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />}
+                      <p className={`text-sm font-medium ${
+                        isOverdue ? 'text-rose-700 dark:text-rose-400' : event.completed ? 'text-emerald-700 dark:text-emerald-400 line-through' : config.textClass
+                      } ${event.completed ? 'line-through' : ''}`}>{event.title}</p>
+                      {/* Status badge */}
+                      {isOverdue && (
+                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.overdue')}</span>
+                      )}
+                      {event.completed && (
+                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white">{t('calendar.completed')}</span>
+                      )}
+                      {!isOverdue && !event.completed && !isPast && (
+                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-sky-500 text-white">{t('calendar.upcoming')}</span>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
