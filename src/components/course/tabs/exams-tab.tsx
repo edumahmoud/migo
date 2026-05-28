@@ -103,6 +103,42 @@ function scorePercentage(score: number, total: number): number {
 }
 
 // -------------------------------------------------------
+// Safe local-time date parser
+// Avoids timezone ambiguity when parsing "YYYY-MM-DDTHH:MM"
+// strings (some browsers treat them as UTC, others as local).
+// Using the Date constructor with numeric args guarantees local time.
+// -------------------------------------------------------
+function parseLocalDateTime(dateStr: string, timeStr?: string | null): Date | null {
+  try {
+    if (!dateStr) return null;
+    const datePart = dateStr.trim();
+    const timePart = (timeStr || '23:59').trim();
+    const [y, m, d] = datePart.split('-').map(Number);
+    const timeTokens = timePart.split(':').map(Number);
+    const h = timeTokens[0] ?? 23;
+    const min = timeTokens[1] ?? 59;
+    if (isNaN(y) || isNaN(m) || isNaN(d) || isNaN(h) || isNaN(min)) return null;
+    const dt = new Date(y, m - 1, d, h, min, 0, 0);
+    if (isNaN(dt.getTime())) return null;
+    return dt;
+  } catch { return null; }
+}
+
+// -------------------------------------------------------
+// Compute the quiz end time: scheduled_time + duration
+// If duration is not set, end time = scheduled start time
+// (a quiz without duration ends instantly once it starts)
+// -------------------------------------------------------
+function getQuizEndTime(quiz: Quiz): Date | null {
+  const start = parseLocalDateTime(quiz.scheduled_date, quiz.scheduled_time);
+  if (!start) return null;
+  if (quiz.duration && quiz.duration > 0) {
+    return new Date(start.getTime() + quiz.duration * 60_000);
+  }
+  return start;
+}
+
+// -------------------------------------------------------
 // Countdown timer for scheduled quizzes
 // -------------------------------------------------------
 function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string; scheduledTime?: string }) {
@@ -111,8 +147,8 @@ function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string
   const [started, setStarted] = useState(false);
 
   useEffect(() => {
-    const target = new Date(`${scheduledDate}T${scheduledTime || '00:00'}`);
-    if (isNaN(target.getTime())) return;
+    const target = parseLocalDateTime(scheduledDate, scheduledTime || '00:00');
+    if (!target) return;
 
     const tick = () => {
       const diff = target.getTime() - Date.now();
@@ -166,34 +202,30 @@ function QuizCountdown({ scheduledDate, scheduledTime }: { scheduledDate: string
  * Determines if a quiz belongs in the "finished" tab.
  * A quiz is considered finished if:
  * 1. The explicit `is_finished` flag is set, OR
- * 2. The quiz's scheduled date/time has passed AND the teacher has not set is_finished=false explicitly
+ * 2. The quiz's end time (start + duration) has passed AND the teacher has not set is_finished=false explicitly
  * This ensures expired quizzes automatically move to the finished tab
  * while still allowing teachers to manually control the state.
  */
 function isQuizFinished(quiz: Quiz): boolean {
   if (!quiz) return false;
   if (quiz.is_finished) return true;
-  // Auto-classify expired quizzes (scheduled date has passed) as finished
+  // Auto-classify expired quizzes (end time has passed) as finished
   if (quiz.scheduled_date && !quiz.is_finished) {
-    try {
-      const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '23:59'}`);
-      if (!isNaN(scheduledDate.getTime()) && scheduledDate < new Date()) return true;
-    } catch { /* invalid date — treat as not finished */ }
+    const endTime = getQuizEndTime(quiz);
+    if (endTime && endTime < new Date()) return true;
   }
   return false;
 }
 
 /**
- * Determines if a quiz's scheduled date/time has passed.
+ * Determines if a quiz's end time (start + duration) has passed.
  * Used ONLY for display badges, not for tab classification.
  */
 function isQuizExpired(quiz: Quiz): boolean {
   if (!quiz || !quiz.scheduled_date) return false;
-  try {
-    const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '23:59'}`);
-    if (isNaN(scheduledDate.getTime())) return false;
-    return scheduledDate < new Date();
-  } catch { return false; }
+  const endTime = getQuizEndTime(quiz);
+  if (!endTime) return false;
+  return endTime < new Date();
 }
 
 // -------------------------------------------------------
@@ -946,11 +978,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
     if (isQuizFinished(quiz)) return 'finished';
     if (isQuizExpired(quiz)) return 'expired';
     if (quiz.scheduled_date) {
-      try {
-        const scheduledDate = new Date(`${quiz.scheduled_date}T${quiz.scheduled_time || '00:00'}`);
-        const now = new Date();
-        if (!isNaN(scheduledDate.getTime()) && scheduledDate > now) return 'scheduled';
-      } catch { /* invalid date — skip */ }
+      const startTime = parseLocalDateTime(quiz.scheduled_date, quiz.scheduled_time || '00:00');
+      if (startTime && startTime > new Date()) return 'scheduled';
     }
     // Check if student completed
     const completed = scores.find((s) => s.quiz_id === quiz.id);

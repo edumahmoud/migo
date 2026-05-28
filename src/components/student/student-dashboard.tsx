@@ -158,6 +158,50 @@ function scorePercentage(score: number, total: number): number {
 }
 
 // -------------------------------------------------------
+// Safe local-time date parser
+// Avoids timezone ambiguity when parsing "YYYY-MM-DDTHH:MM"
+// Using the Date constructor with numeric args guarantees local time.
+// -------------------------------------------------------
+function parseLocalDateTime(dateStr: string, timeStr?: string | null): Date | null {
+  try {
+    if (!dateStr) return null;
+    const datePart = dateStr.trim();
+    const timePart = (timeStr || '23:59').trim();
+    const [y, m, d] = datePart.split('-').map(Number);
+    const timeTokens = timePart.split(':').map(Number);
+    const h = timeTokens[0] ?? 23;
+    const min = timeTokens[1] ?? 59;
+    if (isNaN(y) || isNaN(m) || isNaN(d) || isNaN(h) || isNaN(min)) return null;
+    const dt = new Date(y, m - 1, d, h, min, 0, 0);
+    if (isNaN(dt.getTime())) return null;
+    return dt;
+  } catch { return null; }
+}
+
+// -------------------------------------------------------
+// Compute quiz end time: scheduled_time + duration
+// -------------------------------------------------------
+function getQuizEndTime(quiz: { scheduled_date?: string; scheduled_time?: string; duration?: number }): Date | null {
+  const start = parseLocalDateTime(quiz.scheduled_date, quiz.scheduled_time);
+  if (!start) return null;
+  if (quiz.duration && quiz.duration > 0) {
+    return new Date(start.getTime() + quiz.duration * 60_000);
+  }
+  return start;
+}
+
+// -------------------------------------------------------
+// Check if quiz end time (start + duration) has passed
+// -------------------------------------------------------
+function isQuizTimeExpired(quiz: { scheduled_date?: string; scheduled_time?: string; duration?: number; is_finished?: boolean }): boolean {
+  if (!quiz || !quiz.scheduled_date) return false;
+  if (quiz.is_finished) return true;
+  const endTime = getQuizEndTime(quiz);
+  if (!endTime) return false;
+  return endTime < new Date();
+}
+
+// -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function StudentDashboard({ profile, onSignOut }: StudentDashboardProps) {
@@ -3644,12 +3688,20 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
         </motion.div>
       ) : (
         (() => {
-          // Separate quizzes: active (not completed OR retakeable) vs finished (completed + not retakeable)
+          // Separate quizzes: active vs finished (time-based + completion-based)
+          // A quiz is "finished" when:
+          //   1. Its end time (start + duration) has passed, OR
+          //   2. The student completed it AND retake is not allowed
+          // A quiz is "active" when it's still within its time window and (not completed OR retakeable)
           const activeQuizzes = quizzes.filter(q => {
+            const timeExpired = isQuizTimeExpired(q);
+            if (timeExpired) return false; // time expired → finished
             const completed = completedQuizIds.has(q.id);
             return !completed || q.allow_retake !== false;
           });
           const finishedQuizzes = quizzes.filter(q => {
+            const timeExpired = isQuizTimeExpired(q);
+            if (timeExpired) return true; // time expired → finished
             const completed = completedQuizIds.has(q.id);
             return completed && q.allow_retake === false;
           });
