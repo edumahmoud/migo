@@ -1291,7 +1291,7 @@ function StudentCard({
               variant="outline"
               className={`${rangeConfig.bgColor} ${rangeConfig.textColor} ${rangeConfig.borderColor} text-[9px] px-1.5 py-0 font-medium`}
             >
-              {rangeConfig.range}
+              {data.percentageRange === 'below-60' ? t(rangeConfig.range) : rangeConfig.range}
             </Badge>
           </div>
 
