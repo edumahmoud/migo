@@ -2518,7 +2518,6 @@ export const en: TranslationDict = {
     selectCourseFileLabel: 'Select a file from your courses',
     noPdfWordFiles: 'No files (PDF/Word) in this course',
     questionCountByType: 'Number of questions by type',
-    questionsCount: '{count} questions',
     generatingQuestions: 'Generating questions...',
     generateQuestions: 'Generate Questions',
     subjectQuestions: '{subject} · {count} questions',
