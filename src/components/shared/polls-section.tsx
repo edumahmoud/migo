@@ -147,6 +147,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
   const [newType, setNewType] = useState<PollType>('vote');
   const [newOptions, setNewOptions] = useState<string[]>(['', '']);
   const [newIsAnonymous, setNewIsAnonymous] = useState(true);
+  const [newHideResults, setNewHideResults] = useState(false);
   const [newClosesAt, setNewClosesAt] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -329,6 +330,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
     setNewType('vote');
     setNewOptions(['', '']);
     setNewIsAnonymous(true);
+    setNewHideResults(false);
     setNewClosesAt('');
   };
 
@@ -362,6 +364,7 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
           description: newDescription.trim() || null,
           type: newType,
           is_anonymous: newIsAnonymous,
+          hide_results: newHideResults,
           status: 'active',
           closes_at: newClosesAt ? toUTCISOString(newClosesAt) : null,
         })
@@ -399,6 +402,23 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
       setCreateOpen(false);
       resetCreateForm();
       fetchPolls();
+
+      // Notify students about the new poll
+      try {
+        const teacherName = profile.name || 'المعلم';
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'poll_created',
+            subjectId,
+            pollQuestion: question,
+            teacherName,
+          }),
+        });
+      } catch (notifyErr) {
+        console.error('[polls] Failed to send poll notification:', notifyErr);
+      }
     } catch {
       toast.error(tc('unexpectedError'));
     } finally {
@@ -771,6 +791,43 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
               <span
                 className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
                   newIsAnonymous ? 'translate-x-5' : 'translate-x-0.5'
+                } mt-0.5`}
+              />
+            </button>
+          </div>
+
+          {/* Hide results toggle */}
+          <div className="flex items-center justify-between rounded-xl border bg-muted/30 px-4 py-3">
+            <div className="flex items-center gap-3">
+              {newHideResults ? (
+                <EyeOff className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              )}
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {t('hideResults') || 'إخفاء النتائج'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {newHideResults
+                    ? (t('hideResultsDesc') || 'النتائج مخفية عن المصوتين حتى تقوم بإظهارها')
+                    : (t('showResultsDesc') || 'النتائج مرئية للمصوتين')}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={newHideResults}
+              onClick={() => setNewHideResults(!newHideResults)}
+              disabled={creating}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600/30 ${
+                newHideResults ? 'bg-violet-700' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
+                  newHideResults ? 'translate-x-5' : 'translate-x-0.5'
                 } mt-0.5`}
               />
             </button>
@@ -1202,13 +1259,21 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
           </div>
         )}
 
-        {/* Show results always for responded/closed polls, or for teacher/creator */}
-        {(hasResponded || isClosed || isCreator) && (
+        {/* Show results: creator always sees; voters see only if not hidden */}
+        {(isCreator || (!poll.hide_results && (hasResponded || isClosed))) && (
           <>
             {poll.type === 'vote' && renderVoteResults(poll)}
             {poll.type === 'rating' && renderRatingResults(poll)}
             {poll.type === 'open' && renderOpenResults(poll)}
           </>
+        )}
+
+        {/* Results hidden message for non-creator voters */}
+        {poll.hide_results && !isCreator && (hasResponded || isClosed) && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
+            <EyeOff className="h-4 w-4" />
+            {t('resultsHidden') || 'النتائج مخفية من قبل المنشئ'}
+          </div>
         )}
 
         {/* Creator actions */}
@@ -1225,6 +1290,28 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
                 {t('closePoll')}
               </Button>
             )}
+            {/* Toggle hide/show results */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                const newVal = !poll.hide_results;
+                const { error } = await supabase
+                  .from('polls')
+                  .update({ hide_results: newVal, updated_at: new Date().toISOString() })
+                  .eq('id', poll.id);
+                if (error) {
+                  toast.error(tc('unexpectedError'));
+                } else {
+                  setPolls(prev => prev.map(p => p.id === poll.id ? { ...p, hide_results: newVal } : p));
+                  toast.success(newVal ? (t('resultsHidden') || 'تم إخفاء النتائج') : (t('resultsRevealed') || 'تم إظهار النتائج'));
+                }
+              }}
+              className="text-violet-600 border-violet-300 hover:bg-violet-50 dark:text-violet-500 dark:border-violet-700 dark:hover:bg-violet-900/30"
+            >
+              {poll.hide_results ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              {poll.hide_results ? (t('revealResults') || 'إظهار النتائج') : (t('hideResults') || 'إخفاء النتائج')}
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -1307,6 +1394,14 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
                 <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-800/40 dark:text-emerald-500">
                   <CheckCircle className="h-2.5 w-2.5" />
                   {t('responded') || 'Responded'}
+                </span>
+              )}
+
+              {/* Results hidden indicator */}
+              {poll.hide_results && !isCreator && (
+                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-800/40 dark:text-violet-500">
+                  <EyeOff className="h-2.5 w-2.5" />
+                  {t('resultsHidden') || 'النتائج مخفية'}
                 </span>
               )}
             </div>

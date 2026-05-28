@@ -16,6 +16,7 @@ import {
   UserPlus,
   Loader2,
   ShieldAlert,
+  Vote,
 } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useAuthStore } from '@/stores/auth-store';
@@ -56,6 +57,7 @@ function getNotifIcon(type: string, title: string | undefined, t: (key: string) 
     case 'lecture': return <BookOpen className="h-5 w-5 text-teal-600 dark:text-teal-500" />;
     case 'chat': return <Bell className="h-5 w-5 text-sky-600 dark:text-sky-400" />;
     case 'report': return <ShieldAlert className="h-5 w-5 text-orange-600 dark:text-orange-400" />;
+    case 'poll': return <Vote className="h-5 w-5 text-violet-600 dark:text-violet-500" />;
     default: return <Info className="h-5 w-5 text-sky-700 dark:text-sky-400" />;
   }
 }
@@ -210,6 +212,8 @@ export default function NotificationsSection() {
       file: 'files',
       files: 'files',
       students: 'students',
+      poll: 'polls',
+      polls: 'polls',
     };
 
     // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID or subject:SUBJECT_ID:tab)

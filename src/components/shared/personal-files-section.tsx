@@ -1218,6 +1218,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       if (error) {
         toast.error(t('files.toastRenameFailed'));
       } else {
+        // Optimistic local state update so UI reflects immediately
+        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, file_name: newName, updated_at: new Date().toISOString() } : f));
         toast.success(t('files.toastRenameSuccess'));
       }
     } catch {

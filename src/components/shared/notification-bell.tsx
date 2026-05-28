@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle, ShieldAlert } from 'lucide-react';
+import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle, ShieldAlert, Vote } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
@@ -69,6 +69,7 @@ const notifTypeToTab: Record<string, CourseTab> = {
   note: 'notes',
   public_note_created: 'notes',
   report: 'overview',
+  poll: 'polls',
 };
 
 function timeAgo(dateStr: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string = 'ar'): string {
@@ -101,6 +102,7 @@ function getNotifIcon(type: string, title?: string, t?: (key: string) => string)
     case 'lecture': return <BookOpen className="h-4 w-4 text-teal-600" />;
     case 'chat': return <Bell className="h-4 w-4 text-sky-600" />;
     case 'report': return <ShieldAlert className="h-4 w-4 text-orange-600" />;
+    case 'poll': return <Vote className="h-4 w-4 text-violet-600" />;
     default: return <Info className="h-4 w-4 text-sky-700 dark:text-sky-400" />;
   }
 }
@@ -403,6 +405,8 @@ export default function NotificationBell() {
       students: 'students',
       teams: 'teams',
       team: 'teams',
+      poll: 'polls',
+      polls: 'polls',
     };
 
     // Check if this is a course-specific link (prefix:SUBJECT_ID or prefix:SUBJECT_ID:ITEM_ID or subject:SUBJECT_ID:tab)

@@ -295,7 +295,7 @@ export interface AttendanceRecord {
 // Notifications
 // =====================================================
 
-export type NotificationType = 'assignment' | 'grade' | 'enrollment' | 'file' | 'file_request' | 'system' | 'attendance' | 'link_request' | 'lecture' | 'chat' | 'report';
+export type NotificationType = 'assignment' | 'grade' | 'enrollment' | 'file' | 'file_request' | 'system' | 'attendance' | 'link_request' | 'lecture' | 'chat' | 'report' | 'poll';
 
 export interface DBNotification {
   id: string;
@@ -463,6 +463,7 @@ export interface Poll {
   description?: string | null;
   type: PollType;
   is_anonymous: boolean;
+  hide_results?: boolean;
   status: PollStatus;
   closes_at?: string | null;
   created_at: string;

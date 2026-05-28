@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const { action } = body;
 
     // Determine which actions require teacher role
-    const teacherOnlyActions = ['assignment_created', 'attendance_started', 'public_note_created', 'lecture_created', 'assignment_graded'];
+    const teacherOnlyActions = ['assignment_created', 'attendance_started', 'public_note_created', 'lecture_created', 'assignment_graded', 'poll_created'];
 
     // Authenticate based on action type
     let authResult;
@@ -208,6 +208,24 @@ export async function POST(request: NextRequest) {
           'teams'
         );
         return NextResponse.json({ success: true, notified: teamStudentIds.length });
+      }
+
+      // ─── 9) Teacher creates a new poll → notify all students ───
+      case 'poll_created': {
+        const { subjectId: pollSubjectId, pollQuestion, teacherName: pollTeacherName } = body;
+        if (!pollSubjectId || !pollQuestion) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        const pollStudentIds = await getStudentIds(pollSubjectId);
+        const pollNotifTitle = 'استفتاء جديد';
+        const pollNotifMessage = `أنشأ المعلم ${pollTeacherName || 'المعلم'} استفتاء "${pollQuestion}"`;
+        const pollNotifLink = `poll:${pollSubjectId}:polls`;
+
+        await notifyUsers(pollStudentIds, 'poll', pollNotifTitle, pollNotifMessage, pollNotifLink);
+
+        console.log(`[notify] poll_created: notified ${pollStudentIds.length} students for subject ${pollSubjectId}`);
+        return NextResponse.json({ success: true, notified: pollStudentIds.length });
       }
 
       default:

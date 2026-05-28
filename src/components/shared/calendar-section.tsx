@@ -934,7 +934,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
               </div>
               <div>
                 <h2 className="text-base sm:text-xl font-bold text-white">{t('calendar.title')}</h2>
-                <p className="text-xs text-sky-200">{totalEvents} {t('calendar.eventCount', { count: totalEvents })}</p>
+                <p className="text-xs text-sky-200">{t('calendar.eventCount', { count: totalEvents })}</p>
               </div>
             </div>
             <button
