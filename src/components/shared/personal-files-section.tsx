@@ -1211,16 +1211,23 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       if (!file) return;
       const ext = getFileExtension(file.file_name);
       const newName = renameValue.trim() + (ext ? '.' + ext : '');
-      const { error } = await supabase
-        .from('user_files')
-        .update({ file_name: newName, updated_at: new Date().toISOString() })
-        .eq('id', fileId);
-      if (error) {
-        toast.error(t('files.toastRenameFailed'));
-      } else {
-        // Optimistic local state update so UI reflects immediately
+
+      // Use server-side API for reliable auth (avoids RLS issues with expired sessions)
+      const headers = await getAuthHeaders(10000, { userId: profile.id });
+      const res = await fetch('/api/files/rename', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId, newName }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Update confirmed — apply to local state
         setFiles(prev => prev.map(f => f.id === fileId ? { ...f, file_name: newName, updated_at: new Date().toISOString() } : f));
         toast.success(t('files.toastRenameSuccess'));
+      } else {
+        console.error('Rename failed:', data.error);
+        toast.error(data.error || t('files.toastRenameFailed'));
       }
     } catch {
       toast.error(t('common.errorUnexpected'));
