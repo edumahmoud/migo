@@ -163,7 +163,7 @@ function scorePercentage(score: number, total: number): number {
 // Avoids timezone ambiguity when parsing "YYYY-MM-DDTHH:MM"
 // Using the Date constructor with numeric args guarantees local time.
 // -------------------------------------------------------
-function parseLocalDateTime(dateStr: string, timeStr?: string | null): Date | null {
+function parseLocalDateTime(dateStr: string | undefined, timeStr?: string | null | undefined): Date | null {
   try {
     if (!dateStr) return null;
     const datePart = dateStr.trim();
@@ -183,7 +183,7 @@ function parseLocalDateTime(dateStr: string, timeStr?: string | null): Date | nu
 // Compute quiz end time: scheduled_time + duration
 // -------------------------------------------------------
 function getQuizEndTime(quiz: { scheduled_date?: string; scheduled_time?: string; duration?: number }): Date | null {
-  const start = parseLocalDateTime(quiz.scheduled_date, quiz.scheduled_time);
+  const start = parseLocalDateTime(quiz.scheduled_date, quiz.scheduled_time ?? null);
   if (!start) return null;
   if (quiz.duration && quiz.duration > 0) {
     return new Date(start.getTime() + quiz.duration * 60_000);
