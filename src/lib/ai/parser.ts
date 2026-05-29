@@ -128,12 +128,31 @@ export function parseQuizResponse(text: string): Array<{
   // Normalize each question: map snake_case fields to camelCase
   // Also validate that completion/mcq/boolean questions have a correctAnswer
   return questions.map((q: any) => {
+    // Normalize pairs from alternate field names the AI might use
+    let pairs = q.pairs || q.matching_pairs || q.matchingPairs || q.pair_list || q.options || undefined;
+
+    // Normalize pair object structure: map alternate key/value names
+    if (Array.isArray(pairs) && pairs.length > 0) {
+      pairs = pairs.map((p: any) => {
+        if (!p || typeof p !== 'object') return null;
+        const key = p.key ?? p.term ?? p.left ?? p.word ?? p.concept ?? p.item1 ?? p.a ?? undefined;
+        const value = p.value ?? p.definition ?? p.right ?? p.meaning ?? p.description ?? p.item2 ?? p.b ?? undefined;
+        if (!key || !value) return null;
+        return { key: String(key).trim(), value: String(value).trim() };
+      }).filter((p: any): p is { key: string; value: string } => p !== null && p.key !== '' && p.value !== '');
+    }
+
+    // If pairs ended up empty/invalid, set to undefined
+    if (!Array.isArray(pairs) || pairs.length === 0) {
+      pairs = undefined;
+    }
+
     const normalized: any = {
       type: q.type || 'mcq',
       question: q.question || '',
-      options: q.options || undefined,
+      options: (q.type === 'matching') ? undefined : (q.options || undefined),
       correctAnswer: q.correctAnswer ?? q.correct_answer ?? undefined,
-      pairs: q.pairs || undefined,
+      pairs,
     };
 
     // Validate: completion, mcq, and boolean questions MUST have a correctAnswer

@@ -33,6 +33,9 @@ import {
   Maximize2,
   EyeOff,
   Users,
+  Pause,
+  Play,
+  XCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
@@ -274,7 +277,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Global file upload store (background uploads) ───
-  const { tasks: uploadTasks, addTask: addUploadTask, removeTask: removeUploadTask, clearCompleted: clearCompletedUploads } = useFileUploadStore();
+  const { tasks: uploadTasks, addTask: addUploadTask, removeTask: removeUploadTask, clearCompleted: clearCompletedUploads, pauseTask: pauseUploadTask, resumeTask: resumeUploadTask, cancelTask: cancelUploadTask, pauseAll: pauseAllUploads, cancelAll: cancelAllUploads } = useFileUploadStore();
   const hasActiveUploads = uploadTasks.some(t => t.status === 'uploading');
 
   // ─── Sidebar state for responsive upload indicator ───
@@ -3498,12 +3501,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // -------------------------------------------------------
   const renderUploadProgressIndicator = () => {
     const active = uploadTasks.filter(t => t.status === 'uploading');
+    const paused = uploadTasks.filter(t => t.status === 'paused');
     const completed = uploadTasks.filter(t => t.status === 'success');
     const failed = uploadTasks.filter(t => t.status === 'error');
+    const cancelled = uploadTasks.filter(t => t.status === 'cancelled');
     const overallProgress = uploadTasks.length > 0
       ? Math.round(uploadTasks.reduce((sum, t) => sum + t.progress, 0) / uploadTasks.length)
       : 0;
-    const allDone = active.length === 0;
+    const allDone = active.length === 0 && paused.length === 0;
+    const hasActiveOrPaused = active.length > 0 || paused.length > 0;
 
     return (
       <motion.div
@@ -3522,17 +3528,41 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <div className="flex items-center gap-2 min-w-0">
             {allDone ? (
               <CheckCircle2 className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0" />
+            ) : paused.length > 0 && active.length === 0 ? (
+              <Pause className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
             ) : (
               <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-400 shrink-0" />
             )}
             <span className="text-sm font-medium text-foreground truncate">
               {allDone
                 ? t('files.uploadComplete') || `تم الرفع — ${completed.length} ملف(ات)`
-                : t('files.uploadingFiles') || `جارٍ الرفع... ${active.length} ملف(ات)`
+                : paused.length > 0 && active.length === 0
+                  ? t('files.uploadPaused') || `متوقف مؤقتاً — ${paused.length} ملف(ات)`
+                  : t('files.uploadingFiles') || `جارٍ الرفع... ${active.length} ملف(ات)`
               }
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {hasActiveOrPaused && (
+              <>
+                {active.length > 0 && (
+                  <button
+                    onClick={pauseAllUploads}
+                    className="touch-target flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 transition-colors"
+                    title={t('files.pauseAll') || 'Pause All'}
+                  >
+                    <Pause className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={cancelAllUploads}
+                  className="touch-target flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500 transition-colors"
+                  title={t('files.cancelAll') || 'Cancel All'}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
             {allDone && (
               <button
                 onClick={clearCompletedUploads}
@@ -3549,7 +3579,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         <div className="px-4 py-2">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-muted-foreground">
-              {completed.length + failed.length} / {uploadTasks.length}
+              {completed.length + failed.length + cancelled.length} / {uploadTasks.length}
             </span>
             <span className="text-xs font-medium text-sky-700 dark:text-sky-400">
               {overallProgress}%
@@ -3571,21 +3601,63 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   ? 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/15'
                   : task.status === 'success'
                     ? 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15'
-                    : 'bg-card'
+                    : task.status === 'paused'
+                      ? 'border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/15'
+                      : task.status === 'cancelled'
+                        ? 'border-muted bg-muted/20'
+                        : 'bg-card'
               }`}
             >
               <div className="flex items-center gap-2">
                 <div className="shrink-0">
                   {getFileIcon(task.fileType || 'other')}
                 </div>
-                <span className="text-xs font-medium text-foreground truncate flex-1 min-w-0">
+                <span className={`text-xs font-medium truncate flex-1 min-w-0 ${
+                  task.status === 'cancelled' ? 'text-muted-foreground line-through' : 'text-foreground'
+                }`}>
                   {task.customName}{task.extension ? `.${task.extension}` : ''}
                 </span>
                 {task.status === 'uploading' && (
-                  <Loader2 className="h-3 w-3 animate-spin text-sky-700 dark:text-sky-400 shrink-0" />
+                  <>
+                    <button
+                      onClick={() => pauseUploadTask(task.id)}
+                      className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600"
+                      title={t('files.pauseUpload') || 'Pause'}
+                    >
+                      <Pause className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => cancelUploadTask(task.id)}
+                      className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500"
+                      title={t('files.cancelUpload') || 'Cancel'}
+                    >
+                      <XCircle className="h-3 w-3" />
+                    </button>
+                  </>
+                )}
+                {task.status === 'paused' && (
+                  <>
+                    <button
+                      onClick={() => resumeUploadTask(task.id)}
+                      className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:text-sky-600"
+                      title={t('files.resumeUpload') || 'Resume'}
+                    >
+                      <Play className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => cancelUploadTask(task.id)}
+                      className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500"
+                      title={t('files.cancelUpload') || 'Cancel'}
+                    >
+                      <XCircle className="h-3 w-3" />
+                    </button>
+                  </>
                 )}
                 {task.status === 'success' && (
                   <CheckCircle2 className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                )}
+                {task.status === 'cancelled' && (
+                  <XCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 )}
                 {task.status === 'error' && (
                   <button
@@ -3596,13 +3668,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   </button>
                 )}
               </div>
-              {task.status === 'uploading' && (
+              {(task.status === 'uploading' || task.status === 'paused') && (
                 <div className="flex items-center gap-2">
                   <Progress value={task.progress} className="h-1 flex-1" />
-                  <span className="text-[10px] font-medium text-sky-700 dark:text-sky-400 shrink-0">
-                    {task.progress}%
+                  <span className={`text-[10px] font-medium shrink-0 ${
+                    task.status === 'paused'
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-sky-700 dark:text-sky-400'
+                  }`}>
+                    {task.status === 'paused' ? (t('files.uploadPaused') || 'Paused') : `${task.progress}%`}
                   </span>
                 </div>
+              )}
+              {task.status === 'cancelled' && (
+                <span className="text-[10px] text-muted-foreground">{t('files.uploadCancelled') || 'Cancelled'}</span>
               )}
               {task.status === 'error' && task.error && (
                 <span className="text-[10px] text-rose-600 dark:text-rose-400 line-clamp-1">{task.error}</span>

@@ -288,16 +288,25 @@ export async function PUT(req: NextRequest) {
 
       // Insert new questions
       if (questions.length > 0) {
-        const questionRows = questions.map((q: Record<string, unknown>) => ({
+        const questionRows = questions.map((q: Record<string, unknown>) => {
+        const rawPairs = (q.pairs || q.matching_pairs || q.matchingPairs || q.pair_list) as Record<string, string>[] | null | undefined;
+        const normalizedPairs = Array.isArray(rawPairs) && rawPairs.length > 0
+          ? rawPairs.map((p: Record<string, string>) => ({
+              key: p.key ?? p.term ?? p.left ?? '',
+              value: p.value ?? p.definition ?? p.right ?? '',
+            })).filter((p: { key: string; value: string }) => p.key && p.value)
+          : null;
+        return {
           bank_id: bankId,
           type: q.type,
           question: q.question,
           options: q.options || null,
           correct_answer: q.correct_answer || q.correctAnswer || null,
-          pairs: q.pairs || null,
+          pairs: normalizedPairs,
           difficulty: q.difficulty || null,
           category: q.category || null,
-        }));
+        };
+      });
 
         const { error: qError } = await supabase
           .from('bank_questions')
@@ -311,16 +320,25 @@ export async function PUT(req: NextRequest) {
 
     // Add individual questions
     if (addQuestions && Array.isArray(addQuestions) && addQuestions.length > 0) {
-      const questionRows = addQuestions.map((q: Record<string, unknown>) => ({
-        bank_id: bankId,
-        type: q.type,
-        question: q.question,
-        options: q.options || null,
-        correct_answer: q.correct_answer || q.correctAnswer || null,
-        pairs: q.pairs || null,
-        difficulty: q.difficulty || null,
-        category: q.category || null,
-      }));
+      const questionRows = addQuestions.map((q: Record<string, unknown>) => {
+        const rawPairs = (q.pairs || q.matching_pairs || q.matchingPairs || q.pair_list) as Record<string, string>[] | null | undefined;
+        const normalizedPairs = Array.isArray(rawPairs) && rawPairs.length > 0
+          ? rawPairs.map((p: Record<string, string>) => ({
+              key: p.key ?? p.term ?? p.left ?? '',
+              value: p.value ?? p.definition ?? p.right ?? '',
+            })).filter((p: { key: string; value: string }) => p.key && p.value)
+          : null;
+        return {
+          bank_id: bankId,
+          type: q.type,
+          question: q.question,
+          options: q.options || null,
+          correct_answer: q.correct_answer || q.correctAnswer || null,
+          pairs: normalizedPairs,
+          difficulty: q.difficulty || null,
+          category: q.category || null,
+        };
+      });
 
       const { error: qError } = await supabase
         .from('bank_questions')

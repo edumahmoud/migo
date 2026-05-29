@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Database,
@@ -181,6 +181,16 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   const [generatingFromAi, setGeneratingFromAi] = useState(false);
   const [aiConfigTypes, setAiConfigTypes] = useState({ mcq: 3, boolean: 2, completion: 2, matching: 2 });
   const [aiBackgroundTask, setAiBackgroundTask] = useState<{ bankId: string; bankName: string; status: 'extracting' | 'generating' | 'saving' } | null>(null);
+  const aiAbortRef = useRef<AbortController | null>(null);
+
+  const handleCancelAiGeneration = useCallback(() => {
+    if (aiAbortRef.current) {
+      aiAbortRef.current.abort();
+      aiAbortRef.current = null;
+    }
+    setAiBackgroundTask(null);
+    toast.info(t('questionBank.toastGenerationCancelled'));
+  }, [t]);
 
   // ─── Edit bank ───
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -624,12 +634,20 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
     // Set background task indicator
     setAiBackgroundTask({ bankId: capturedBank.id, bankName: capturedBank.name, status: 'extracting' });
 
-    // Fire-and-forget async generation
+    // Create a shared AbortController for cancellation support
+    const abortController = new AbortController();
+    aiAbortRef.current = abortController;
+
+    // Background async generation with cancellation checks
     const generateAsync = async () => {
+      const signal = abortController.signal;
+      const isAborted = () => signal.aborted;
+
       try {
         const headers = await getCachedAuthHeaders();
 
         // ─── Step 1: Extract text from file (multi-strategy with fallbacks) ───
+        if (isAborted()) return;
         setAiBackgroundTask({ bankId: capturedBank.id, bankName: capturedBank.name, status: 'extracting' });
         let content: string | null = null;
 
@@ -641,7 +659,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           const extractRes = await fetchWithRetry('/api/files/extract-pdf-url', {
             method: 'POST',
             headers,
-            signal: extractController.signal,
+            signal: AbortSignal.any ? AbortSignal.any([extractController.signal, signal]) : extractController.signal,
             timeoutMs: 45000,
             body: JSON.stringify({
               url: capturedFile.file_url,
@@ -657,16 +675,18 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             console.log('[QB AI] Server-side extraction succeeded, text length:', content!.length);
           }
         } catch (extractErr) {
+          if (isAborted()) return;
           console.warn('[QB AI] Server-side extraction failed, trying client-side fallback:', extractErr);
         }
 
         // Strategy B: Client-side extraction fallback
-        // If server-side failed, download the file and extract on the client
+        if (isAborted()) return;
         if (!content || content.trim().length < 50) {
           try {
             console.log('[QB AI] Attempting client-side extraction fallback...');
             const downloadRes = await fetchWithRetry(capturedFile.file_url, {
               timeoutMs: 30000,
+              signal,
             });
 
             if (downloadRes.ok) {
@@ -682,11 +702,13 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               console.log('[QB AI] Client-side extraction succeeded, text length:', content.length);
             }
           } catch (fallbackErr) {
+            if (isAborted()) return;
             console.warn('[QB AI] Client-side extraction also failed:', fallbackErr);
           }
         }
 
         // Fallback: VLM-based extraction for scanned/image-heavy PDFs
+        if (isAborted()) return;
         if (!content || content.trim().length < 50) {
           try {
             console.log('[QB AI] Trying VLM fallback for image-heavy PDF...');
@@ -696,7 +718,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             const vlmRes = await fetchWithRetry('/api/files/extract-pdf-vlm', {
               method: 'POST',
               headers,
-              signal: vlmController.signal,
+              signal: AbortSignal.any ? AbortSignal.any([vlmController.signal, signal]) : vlmController.signal,
               timeoutMs: 55000,
               body: JSON.stringify({
                 url: capturedFile.file_url,
@@ -711,16 +733,19 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               console.log('[QB AI] VLM extraction succeeded, text length:', content!.length);
             }
           } catch (vlmErr) {
+            if (isAborted()) return;
             console.warn('[QB AI] VLM extraction also failed:', vlmErr instanceof Error ? vlmErr.message : vlmErr);
           }
         }
 
+        if (isAborted()) return;
         if (!content || content.trim().length < 50) {
           toast.error(t('questionBank.toastExtractionFailed'));
           return;
         }
 
         // ─── Step 2: Generate questions using AI ───
+        if (isAborted()) return;
         setAiBackgroundTask({ bankId: capturedBank.id, bankName: capturedBank.name, status: 'generating' });
 
         const quizController = new AbortController();
@@ -731,7 +756,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           quizRes = await fetchWithRetry('/api/gemini/quiz', {
             method: 'POST',
             headers,
-            signal: quizController.signal,
+            signal: AbortSignal.any ? AbortSignal.any([quizController.signal, signal]) : quizController.signal,
             timeoutMs: 120000,
             body: JSON.stringify({
               content,
@@ -740,6 +765,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           });
         } catch (quizErr) {
           clearTimeout(quizTimeoutId);
+          if (isAborted()) return;
           // Error recovery: re-fetch bank detail in case questions were generated but response was lost
           await fetchBankDetail(capturedBank.id);
           fetchBanks();
@@ -747,6 +773,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         }
 
         clearTimeout(quizTimeoutId);
+        if (isAborted()) return;
 
         const quizData = await quizRes.json();
         if (!quizRes.ok || !quizData.success) {
@@ -761,6 +788,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         }
 
         // ─── Step 3: Add questions to the bank via API ───
+        if (isAborted()) return;
         setAiBackgroundTask({ bankId: capturedBank.id, bankName: capturedBank.name, status: 'saving' });
 
         const bankQuestions = questions.map(q => ({
@@ -776,6 +804,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           const saveRes = await fetchWithRetry('/api/question-bank', {
             method: 'PUT',
             headers,
+            signal,
             timeoutMs: 30000,
             body: JSON.stringify({
               bankId: capturedBank.id,
@@ -789,6 +818,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             toast.error(result.error || t('questionBank.toastAddQuestionsError'));
           }
         } catch (saveErr) {
+          if (isAborted()) return;
           console.warn('[QB AI] Save request failed, attempting recovery:', saveErr);
           // Error recovery: re-fetch bank detail — the save may have succeeded on the server
           // even though the HTTP response was lost (network drop, timeout, etc.)
@@ -804,6 +834,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           fetchBanks();
         }
       } catch (err) {
+        if (isAborted()) return;
         const errMsg = err instanceof Error ? err.message : String(err);
         if (errMsg.includes('abort') || errMsg.includes('AbortError') || errMsg.includes('TIMEOUT')) {
           toast.error(t('questionBank.toastOperationTimeout'));
@@ -814,6 +845,9 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
           toast.error(t('questionBank.toastAiGenerateError'));
         }
       } finally {
+        if (aiAbortRef.current === abortController) {
+          aiAbortRef.current = null;
+        }
         setAiBackgroundTask(null);
       }
     };
@@ -1857,6 +1891,13 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   {aiBackgroundTask.status === 'saving' && t('questionBank.backgroundSaving')}
                 </p>
               </div>
+              <button
+                onClick={handleCancelAiGeneration}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-200/60 dark:bg-violet-800/40 text-violet-700 dark:text-violet-300 hover:bg-rose-200 dark:hover:bg-rose-800/40 hover:text-rose-700 dark:hover:text-rose-300 transition-colors"
+                title={t('questionBank.cancelGeneration')}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
           </motion.div>
         )}

@@ -629,19 +629,18 @@ function deduplicateQuestions(questions: QuizQuestion[]): QuizQuestion[] {
       }
     }
 
-    // For matching, deduplicate keys and values
+    // For matching, deduplicate only duplicate keys (allow duplicate values as they can be legitimate)
     if (q.type === 'matching' && q.pairs) {
       const seenKeys = new Set<string>();
-      const seenValues = new Set<string>();
       const uniquePairs = q.pairs.filter(p => {
-        if (seenKeys.has(p.key) || seenValues.has(p.value)) return false;
-        seenKeys.add(p.key);
-        seenValues.add(p.value);
+        const keyLower = p.key.trim().toLowerCase();
+        if (seenKeys.has(keyLower)) return false;
+        seenKeys.add(keyLower);
         return true;
       });
       q.pairs = uniquePairs;
-      if (q.pairs.length < 2) {
-        console.warn('[Quiz] Skipping matching question with too few unique pairs');
+      if (q.pairs.length < 3) {
+        console.warn('[Quiz] Skipping matching question with too few unique pairs:', q.pairs.length);
         seenQuestions.delete(normalizedQ);
         continue;
       }

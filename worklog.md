@@ -249,3 +249,53 @@ Stage Summary:
 - Live updates now work for: student enroll/unenroll, enrollment status changes, quiz score changes
 - Refetch on realtime events uses `showLoading=false` to avoid UI spinner flash
 - Files modified: src/components/course/tabs/students-tab.tsx
+
+---
+Task ID: 3+4
+Agent: Main
+Task: Add pause, resume, and cancel functionality to file upload system
+
+Work Log:
+- Read video-upload-store.ts as reference implementation for pause/resume/cancel
+- Read file-upload-store.ts, personal-files-section.tsx, en.json, ar.json for current state
+- Modified file-upload-store.ts:
+  1. Extended FileUploadStatus type: added 'paused' and 'cancelled' (was: 'uploading' | 'success' | 'error')
+  2. Added pauseSignals Map<string, { resolve: () => void }> for pause/resume coordination
+  3. Added activeXHRs Map<string, XMLHttpRequest> for XHR abort on pause/cancel
+  4. Added store actions: pauseTask, resumeTask, cancelTask, pauseAll, cancelAll
+  5. Added checkPauseState() helper that waits on pause signal when paused, returns false when cancelled
+  6. Modified startUpload to check pause/cancel at 6 points: after auth, before server upload, after server upload error, before direct upload, before SDK fallback, before DB record creation
+  7. Modified startUpload to register XHR in activeXHRs for abort capability
+  8. Modified startUpload catch blocks to return silently for paused/cancelled tasks
+  9. Modified removeTask to clean up pause signals, abort controllers, and XHR references
+  10. Modified clearCompleted to also clear cancelled tasks
+  11. Added pauseSignals cleanup on successful upload completion
+  12. Updated outer catch to skip error display for paused/cancelled tasks
+- Modified personal-files-section.tsx:
+  1. Added Pause, Play, XCircle icon imports from lucide-react
+  2. Destructured new store actions: pauseUploadTask, resumeUploadTask, cancelUploadTask, pauseAllUploads, cancelAllUploads
+  3. Added paused/cancelled task counts in renderUploadProgressIndicator
+  4. Added Pause All / Cancel All buttons in header when any task is active or paused
+  5. Added Pause + Cancel buttons per uploading task
+  6. Added Resume + Cancel buttons per paused task
+  7. Added amber styling for paused state, muted styling for cancelled state
+  8. Added line-through text for cancelled tasks
+  9. Added progress bar display for paused tasks with amber color
+  10. Added cancelled state label
+  11. Added Pause icon in header when all tasks are paused
+- Added translation keys to en.json and ar.json:
+  - pauseAll: "Pause All" / "إيقاف الكل مؤقتاً"
+  - cancelAll: "Cancel All" / "إلغاء الكل"
+  - (Other keys like pauseUpload, resumeUpload, cancelUpload, uploadPaused, uploadCancelled already existed)
+
+Stage Summary:
+- File upload system now fully supports pause/resume/cancel at both store and UI level
+- Pause aborts in-flight requests (both fetch via AbortController and XHR) and sets status to 'paused'
+- Resume resolves the pause signal and restarts the upload loop from where it paused
+- Cancel aborts in-flight requests, resolves pause signal, sets status to 'cancelled'
+- Bulk actions: pauseAll (pauses all uploading), cancelAll (cancels all uploading + paused)
+- UI shows amber styling for paused, muted+strikethrough for cancelled
+- Header shows Pause All / Cancel All buttons when active tasks exist
+- Backward compatible — existing uploads continue to work without changes
+- Lint passes with 0 errors
+- Files modified: src/stores/file-upload-store.ts, src/components/shared/personal-files-section.tsx, src/i18n/messages/en.json, src/i18n/messages/ar.json

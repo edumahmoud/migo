@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 
 // ─── Types ───
 
-export type FileUploadStatus = 'uploading' | 'success' | 'error';
+export type FileUploadStatus = 'uploading' | 'paused' | 'cancelled' | 'success' | 'error';
 
 export interface FileUploadTask {
   id: string;
@@ -36,6 +36,11 @@ interface FileUploadState {
   addTask: (task: Omit<FileUploadTask, 'status' | 'progress'>) => string;
   updateTask: (id: string, updates: Partial<FileUploadTask>) => void;
   removeTask: (id: string) => void;
+  pauseTask: (id: string) => void;
+  resumeTask: (id: string) => void;
+  cancelTask: (id: string) => void;
+  pauseAll: () => void;
+  cancelAll: () => void;
   clearCompleted: () => void;
 }
 
@@ -75,6 +80,12 @@ function formatFileSize(bytes: number): string {
 // ─── In-flight abort controllers per task ───
 const abortControllers = new Map<string, AbortController>();
 
+// ─── Pause signals per task ───
+const pauseSignals = new Map<string, { resolve: () => void }>();
+
+// ─── In-flight XHR references per task (for abort) ───
+const activeXHRs = new Map<string, XMLHttpRequest>();
+
 // ─── Store ───
 export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
   tasks: [],
@@ -94,6 +105,72 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
     }));
   },
 
+  pauseTask: (id) => {
+    // Abort current in-flight request (fetch or XHR)
+    const controller = abortControllers.get(id);
+    if (controller) {
+      controller.abort();
+      abortControllers.delete(id);
+    }
+    const xhr = activeXHRs.get(id);
+    if (xhr) {
+      xhr.abort();
+      activeXHRs.delete(id);
+    }
+    // Set pause signal so upload loop will wait when it checks
+    if (!pauseSignals.has(id)) {
+      pauseSignals.set(id, { resolve: () => {} });
+    }
+    get().updateTask(id, { status: 'paused' });
+  },
+
+  resumeTask: (id) => {
+    // Resolve the pause signal so the upload loop continues
+    const signal = pauseSignals.get(id);
+    if (signal) {
+      signal.resolve();
+      pauseSignals.delete(id);
+    }
+    get().updateTask(id, { status: 'uploading' });
+    // Restart the upload loop from where it paused
+    startUpload(id);
+  },
+
+  cancelTask: (id) => {
+    // Abort any in-flight request
+    const controller = abortControllers.get(id);
+    if (controller) {
+      controller.abort();
+      abortControllers.delete(id);
+    }
+    const xhr = activeXHRs.get(id);
+    if (xhr) {
+      xhr.abort();
+      activeXHRs.delete(id);
+    }
+    // Resolve and clear pause signal
+    const signal = pauseSignals.get(id);
+    if (signal) {
+      signal.resolve();
+      pauseSignals.delete(id);
+    }
+    get().updateTask(id, { status: 'cancelled', progress: 0 });
+  },
+
+  pauseAll: () => {
+    const activeTasks = get().tasks.filter((t) => t.status === 'uploading');
+    for (const task of activeTasks) {
+      get().pauseTask(task.id);
+    }
+  },
+
+  cancelAll: () => {
+    const activeTasks = get().tasks.filter((t) => t.status === 'uploading' || t.status === 'paused');
+    for (const task of activeTasks) {
+      get().cancelTask(task.id);
+    }
+  },
+
   removeTask: (id) => {
     // Abort any in-flight request
     const controller = abortControllers.get(id);
@@ -101,12 +178,23 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
       controller.abort();
       abortControllers.delete(id);
     }
+    const xhr = activeXHRs.get(id);
+    if (xhr) {
+      xhr.abort();
+      activeXHRs.delete(id);
+    }
+    // Clean up pause signal
+    const signal = pauseSignals.get(id);
+    if (signal) {
+      signal.resolve();
+      pauseSignals.delete(id);
+    }
     set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
   },
 
   clearCompleted: () => {
     set((state) => ({
-      tasks: state.tasks.filter((t) => t.status !== 'success'),
+      tasks: state.tasks.filter((t) => t.status !== 'success' && t.status !== 'cancelled'),
     }));
   },
 }));
@@ -115,9 +203,33 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
 // Upload implementation
 // ─────────────────────────────────────────────────────
 
+// ─── Helper: check if task is paused/cancelled and wait if paused ───
+async function checkPauseState(taskId: string): Promise<boolean> {
+  const task = useFileUploadStore.getState().tasks.find((t) => t.id === taskId);
+  if (!task || task.status === 'cancelled') return false; // cancelled → abort upload
+  if (task.status === 'paused' || pauseSignals.has(taskId)) {
+    // Wait for resume signal
+    await new Promise<void>((resolve) => {
+      const signal = pauseSignals.get(taskId);
+      if (signal) {
+        signal.resolve = resolve;
+      } else {
+        pauseSignals.set(taskId, { resolve });
+      }
+    });
+    // After resume, re-check status
+    const resumedTask = useFileUploadStore.getState().tasks.find((t) => t.id === taskId);
+    if (!resumedTask || resumedTask.status === 'cancelled') return false;
+  }
+  return true; // ok to continue
+}
+
 async function startUpload(taskId: string) {
   const task = useFileUploadStore.getState().tasks.find((t) => t.id === taskId);
   if (!task) return;
+
+  // If task is paused, don't start — resumeTask will call startUpload again
+  if (task.status === 'paused' || task.status === 'cancelled') return;
 
   const store = useFileUploadStore.getState();
 
@@ -125,9 +237,14 @@ async function startUpload(taskId: string) {
     // ── Step 1: Get auth token ──
     const token = await waitForSession(15000);
     if (!token) {
+      const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
+      if (t?.status === 'cancelled' || t?.status === 'paused') return;
       store.updateTask(taskId, { status: 'error', error: 'يرجى تسجيل الدخول أولاً' });
       return;
     }
+
+    // Check pause/cancel after async auth
+    if (!(await checkPauseState(taskId))) return;
 
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
     if (!supabaseUrl || !supabaseAnonKey) {
@@ -165,6 +282,9 @@ async function startUpload(taskId: string) {
 
     // ── Step 3 (PRIMARY): Server-side upload for small files (≤4MB) ──
     if (fileSize <= FILE_SIZE_LIMIT) {
+      // Check pause/cancel before server-side upload
+      if (!(await checkPauseState(taskId))) return;
+
       try {
         store.updateTask(taskId, { progress: 15 });
 
@@ -222,6 +342,9 @@ async function startUpload(taskId: string) {
           console.warn(`[File Upload] Server-side upload failed for ${displayName}:`, result.error, '— falling back to direct storage');
         }
       } catch (serverErr) {
+        // If aborted due to pause/cancel, return silently
+        const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
+        if (t?.status === 'paused' || t?.status === 'cancelled') return;
         console.warn(`[File Upload] Server-side upload error for ${displayName}:`, serverErr instanceof Error ? serverErr.message : serverErr, '— falling back to direct storage');
       }
     } else {
@@ -230,6 +353,9 @@ async function startUpload(taskId: string) {
 
     // ── Step 4 (FALLBACK): Direct upload to Supabase Storage ──
     if (!uploadSucceeded) {
+      // Check pause/cancel before direct upload
+      if (!(await checkPauseState(taskId))) return;
+
       let storageUploadSuccess = false;
 
       // Try XHR direct upload (real progress)
@@ -237,6 +363,9 @@ async function startUpload(taskId: string) {
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.timeout = 5 * 60 * 1000; // 5 min
+
+          // Store XHR reference for abort on pause/cancel
+          activeXHRs.set(taskId, xhr);
 
           xhr.upload.addEventListener('progress', (e) => {
             if (e.lengthComputable) {
@@ -246,6 +375,7 @@ async function startUpload(taskId: string) {
           });
 
           xhr.addEventListener('load', () => {
+            activeXHRs.delete(taskId);
             if (xhr.status >= 200 && xhr.status < 300) {
               resolve();
             } else {
@@ -253,9 +383,18 @@ async function startUpload(taskId: string) {
             }
           });
 
-          xhr.addEventListener('error', () => reject(new Error('Network error')));
-          xhr.addEventListener('abort', () => reject(new Error('Aborted')));
-          xhr.addEventListener('timeout', () => reject(new Error('انتهت مهلة الرفع')));
+          xhr.addEventListener('error', () => {
+            activeXHRs.delete(taskId);
+            reject(new Error('Network error'));
+          });
+          xhr.addEventListener('abort', () => {
+            activeXHRs.delete(taskId);
+            reject(new Error('Aborted'));
+          });
+          xhr.addEventListener('timeout', () => {
+            activeXHRs.delete(taskId);
+            reject(new Error('انتهت مهلة الرفع'));
+          });
 
           const storageUploadUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
           xhr.open('POST', storageUploadUrl);
@@ -271,11 +410,17 @@ async function startUpload(taskId: string) {
 
         storageUploadSuccess = true;
       } catch (xhrErr) {
+        // If aborted due to pause/cancel, return silently
+        const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
+        if (t?.status === 'paused' || t?.status === 'cancelled') return;
         console.warn(`[File Upload] XHR failed for ${task.customName}, trying SDK:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
       }
 
       // SDK fallback
       if (!storageUploadSuccess) {
+        // Check pause/cancel before SDK upload
+        if (!(await checkPauseState(taskId))) return;
+
         try {
           store.updateTask(taskId, { progress: 10 });
 
@@ -308,14 +453,22 @@ async function startUpload(taskId: string) {
           }
           storageUploadSuccess = true;
         } catch (sdkErr) {
+          // If aborted due to pause/cancel, return silently
+          const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
+          if (t?.status === 'paused' || t?.status === 'cancelled') return;
           console.error(`[File Upload] SDK also failed for ${task.customName}:`, sdkErr);
         }
       }
 
       if (!storageUploadSuccess) {
+        const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
+        if (t?.status === 'paused' || t?.status === 'cancelled') return;
         store.updateTask(taskId, { status: 'error', error: 'فشل رفع الملف' });
         return;
       }
+
+      // Check pause/cancel before DB record creation
+      if (!(await checkPauseState(taskId))) return;
 
       store.updateTask(taskId, { progress: 92 });
 
@@ -415,13 +568,15 @@ async function startUpload(taskId: string) {
 
     // ── Done! ──
     if (uploadSucceeded) {
+      // Clean up pause signals
+      pauseSignals.delete(taskId);
       store.updateTask(taskId, { status: 'success', progress: 100 });
       toast.success(`تم رفع "${displayName}" بنجاح`);
     }
   } catch (err: unknown) {
     const taskNow = useFileUploadStore.getState().tasks.find((t) => t.id === taskId);
-    // Don't update if task was removed
-    if (!taskNow) return;
+    // Don't show error for cancelled/paused tasks
+    if (!taskNow || taskNow.status === 'cancelled' || taskNow.status === 'paused') return;
 
     const message = err instanceof Error ? err.message : 'حدث خطأ أثناء رفع الملف';
     useFileUploadStore.getState().updateTask(taskId, { status: 'error', error: message });
