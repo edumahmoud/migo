@@ -1110,6 +1110,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               >
                 {approvedSubjects.map((subject) => {
                   const color = subject.color || '#0D9488';
+                  const hasCover = !!subject.thumbnail_url;
                   return (
                     <motion.div key={subject.id} variants={cardVariants}>
                       <div
@@ -1118,82 +1119,121 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           setStoreSelectedSubjectId(subject.id);
                         }}
                       >
-                        {/* Gradient background overlay */}
-                        <div
-                          className="absolute inset-0 pointer-events-none"
-                          style={{
-                            background: `linear-gradient(135deg, ${hexToRgba(color, 0.12)} 0%, ${hexToRgba(color, 0.03)} 50%, transparent 100%)`,
-                          }}
-                        />
-
-                        <div className="relative p-5 pt-6">
-                          {/* Subject icon + name */}
-                          <div className="flex items-start gap-3.5 mb-3">
-                            {subject.thumbnail_url ? (
-                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl shadow-sm">
-                                <img
-                                  src={subject.thumbnail_url}
-                                  alt={subject.name}
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                            ) : (
-                              <div
-                                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white font-bold text-lg shadow-sm"
-                                style={{ backgroundColor: color }}
-                              >
-                                {subject.name.charAt(0)}
-                              </div>
-                            )}
-                            <div className="min-w-0 flex-1 pt-0.5">
-                              <h3 className="font-bold text-foreground text-base leading-tight truncate">
+                        {/* ── Cover Image Section ── */}
+                        {hasCover ? (
+                          <div className="relative h-36 sm:h-40 overflow-hidden">
+                            <img
+                              src={subject.thumbnail_url!}
+                              alt={subject.name}
+                              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                            {/* Gradient overlay for text readability */}
+                            <div
+                              className="absolute inset-0"
+                              style={{
+                                background: `linear-gradient(to top, ${hexToRgba(color, 0.85)} 0%, ${hexToRgba(color, 0.4)} 40%, transparent 100%)`,
+                              }}
+                            />
+                            {/* Subject name on top of cover */}
+                            <div className="absolute bottom-0 start-0 end-0 p-4">
+                              <h3 className="font-bold text-white text-base leading-tight drop-shadow-sm line-clamp-2">
                                 {subject.name}
                               </h3>
                               {subject.description && (
-                                <p className="text-sm text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+                                <p className="text-sm text-white/80 mt-1 line-clamp-1 leading-relaxed">
                                   {subject.description}
                                 </p>
                               )}
                             </div>
-                          </div>
-
-                          {/* Join code pill — only for owned subjects */}
-                          {role === 'teacher' && subject.join_code && !subject.is_co_teacher && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyCode(subject.join_code!, subject.id);
-                              }}
-                              className="mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-all duration-200 hover:scale-[1.03] active:scale-[0.97]"
-                              style={{
-                                backgroundColor: hexToRgba(color, 0.1),
-                                border: `1px solid ${hexToRgba(color, 0.2)}`,
-                              }}
-                            >
-                              <Hash
-                                className="h-3 w-3 shrink-0"
-                                style={{ color }}
-                              />
-                              <span
-                                className="font-mono font-semibold tracking-wider text-xs"
-                                style={{ color }}
+                            {/* Join code pill on cover (teacher) */}
+                            {role === 'teacher' && subject.join_code && !subject.is_co_teacher && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCopyCode(subject.join_code!, subject.id);
+                                }}
+                                className="absolute top-3 start-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-sm px-2.5 py-1 text-xs transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] shadow-sm"
                               >
-                                {subject.join_code}
-                              </span>
-                              {copiedCodeId === subject.id ? (
-                                <Check className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400 shrink-0" />
-                              ) : (
-                                <Copy
-                                  className="h-3.5 w-3.5 shrink-0 opacity-50"
+                                <Hash
+                                  className="h-3 w-3 shrink-0"
                                   style={{ color }}
                                 />
-                              )}
-                            </button>
+                                <span
+                                  className="font-mono font-semibold tracking-wider text-xs"
+                                  style={{ color }}
+                                >
+                                  {subject.join_code}
+                                </span>
+                                {copiedCodeId === subject.id ? (
+                                  <Check className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400 shrink-0" />
+                                ) : (
+                                  <Copy
+                                    className="h-3.5 w-3.5 shrink-0 opacity-50"
+                                    style={{ color }}
+                                  />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          /* ── No cover: colored header with initial ── */
+                          <div
+                            className="relative h-28 sm:h-32 overflow-hidden flex items-center justify-center"
+                            style={{
+                              background: `linear-gradient(135deg, ${hexToRgba(color, 0.25)} 0%, ${hexToRgba(color, 0.08)} 100%)`,
+                            }}
+                          >
+                            <span
+                              className="text-6xl font-bold opacity-20 select-none"
+                              style={{ color }}
+                            >
+                              {subject.name.charAt(0)}
+                            </span>
+                            {/* Subject name at bottom */}
+                            <div className="absolute bottom-0 start-0 end-0 p-4"
+                              style={{
+                                background: `linear-gradient(to top, ${hexToRgba(color, 0.6)} 0%, transparent 100%)`,
+                              }}
+                            >
+                              <h3 className="font-bold text-foreground text-base leading-tight line-clamp-2">
+                                {subject.name}
+                              </h3>
+                            </div>
+                            {/* Join code pill (teacher) */}
+                            {role === 'teacher' && subject.join_code && !subject.is_co_teacher && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCopyCode(subject.join_code!, subject.id);
+                                }}
+                                className="absolute top-3 start-3 inline-flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-sm px-2.5 py-1 text-xs transition-all duration-200 hover:scale-[1.03] active:scale-[0.97] shadow-sm"
+                              >
+                                <Hash className="h-3 w-3 shrink-0" style={{ color }} />
+                                <span className="font-mono font-semibold tracking-wider text-xs" style={{ color }}>
+                                  {subject.join_code}
+                                </span>
+                                {copiedCodeId === subject.id ? (
+                                  <Check className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400 shrink-0" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5 shrink-0 opacity-50" style={{ color }} />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ── Card Body ── */}
+                        <div className="relative p-4">
+                          {/* Description (only when no cover, since cover already shows it) */}
+                          {!hasCover && subject.description && (
+                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">
+                              {subject.description}
+                            </p>
                           )}
 
                           {/* Level & Sub-level badges */}
                           {(subject.level || subject.sub_level) && (
-                            <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               {subject.level && (
                                 <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs text-blue-700">
                                   <GraduationCap className="h-3 w-3 shrink-0" />
@@ -1218,7 +1258,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           )}
 
                           {/* Footer: creation date + teacher name + leave button */}
-                          <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                          <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1.5">
                               <Calendar className="h-3 w-3" />
                               <span>{formatDate(subject.created_at)}</span>
