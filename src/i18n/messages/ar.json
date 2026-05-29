@@ -417,6 +417,7 @@
   },
   "course": {
     "coursePage": "صفحة المقرر",
+    "currentImage": "الصورة الحالية",
     "subjectName": "اسم المقرر",
     "subjectCode": "كود المقرر",
     "subjectDescription": "وصف المقرر",

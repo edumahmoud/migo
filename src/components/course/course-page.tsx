@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import { SectionErrorBoundary } from '@/components/shared/section-error-boundary';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -191,18 +191,20 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
     return subLevel;
   };
 
-  // Filter options (locale-aware)
+  // Filter options (locale-aware) — use course.levelN / course.subLevelN translations
+  // which exist in messages/*.json. The old 'levels.first' / 'sublevels.first' keys
+  // were in the wrong translation file and caused empty dropdown options.
   const LEVEL_OPTIONS = [
-    { value: t_level1, labelKey: 'levels.first' },
-    { value: t_level2, labelKey: 'levels.second' },
-    { value: t_level3, labelKey: 'levels.third' },
-    { value: t_level4, labelKey: 'levels.fourth' },
-    { value: t_level5, labelKey: 'levels.fifth' },
+    { value: t_level1, label: t_level1 },
+    { value: t_level2, label: t_level2 },
+    { value: t_level3, label: t_level3 },
+    { value: t_level4, label: t_level4 },
+    { value: t_level5, label: t_level5 },
   ];
 
   const SUB_LEVEL_OPTIONS = [
-    { value: t_subLevel1, labelKey: 'sublevels.first' },
-    { value: t_subLevel2, labelKey: 'sublevels.second' },
+    { value: t_subLevel1, label: t_subLevel1 },
+    { value: t_subLevel2, label: t_subLevel2 },
   ];
 
   const [subject, setSubject] = useState<Subject | null>(null);
@@ -222,6 +224,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const [editColor, setEditColor] = useState(SUBJECT_COLORS[0]);
   const [editLevel, setEditLevel] = useState('');
   const [editSubLevel, setEditSubLevel] = useState('');
+  const [editThumb, setEditThumb] = useState<File | null>(null);
+  const editThumbRef = useRef<HTMLInputElement>(null);
   const [savingSubject, setSavingSubject] = useState(false);
 
   // ─── Delete subject state ───
@@ -353,6 +357,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
     setEditColor(subject.color || SUBJECT_COLORS[0]);
     setEditLevel(subject.level || '');
     setEditSubLevel(subject.sub_level || '');
+    setEditThumb(null);
+    if (editThumbRef.current) editThumbRef.current.value = '';
     setEditModalOpen(true);
   };
 
@@ -367,15 +373,35 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
     }
     setSavingSubject(true);
     try {
+      // Upload thumbnail if a new one was selected
+      let newThumbnailUrl: string | null | undefined = undefined; // undefined = don't change
+      if (editThumb) {
+        const ext = editThumb.name.split('.').pop() || 'jpg';
+        const thumbPath = `${profile.id}/thumbnails/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: uploadError, data: urlData } = await supabase.storage
+          .from('video-files')
+          .upload(thumbPath, editThumb, { cacheControl: '3600', upsert: false });
+        if (uploadError) {
+          console.warn('Thumbnail upload failed (non-fatal):', uploadError);
+        } else {
+          newThumbnailUrl = urlData.publicUrl;
+        }
+      }
+
+      const updateData: Record<string, unknown> = {
+        name,
+        description: editDesc.trim() || null,
+        color: editColor,
+        level: editLevel || null,
+        sub_level: editSubLevel || null,
+      };
+      if (newThumbnailUrl !== undefined) {
+        updateData.thumbnail_url = newThumbnailUrl;
+      }
+
       const { error } = await supabase
         .from('subjects')
-        .update({
-          name,
-          description: editDesc.trim() || null,
-          color: editColor,
-          level: editLevel || null,
-          sub_level: editSubLevel || null,
-        })
+        .update(updateData)
         .eq('id', subject!.id);
 
       if (error) {
@@ -383,7 +409,15 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         toast.error(t('course.toastSubjectUpdateFailed'));
       } else {
         toast.success(t('course.toastSubjectUpdated'));
-        setSubject((prev) => prev ? { ...prev, name, description: editDesc.trim() || undefined, color: editColor, level: editLevel || undefined, sub_level: editSubLevel || undefined } : prev);
+        setSubject((prev) => prev ? {
+          ...prev,
+          name,
+          description: editDesc.trim() || undefined,
+          color: editColor,
+          level: editLevel || undefined,
+          sub_level: editSubLevel || undefined,
+          ...(newThumbnailUrl !== undefined ? { thumbnail_url: newThumbnailUrl } : {}),
+        } : prev);
         setEditModalOpen(false);
       }
     } catch (err) {
@@ -401,12 +435,18 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
     if (!subject) return;
     setDeletingSubject(true);
     try {
-      const { error } = await supabase.from('subjects').delete().eq('id', subject.id);
+      const subjectId = subject.id;
+      const { error } = await supabase.from('subjects').delete().eq('id', subjectId);
       if (error) {
         console.error('Delete subject error:', error);
         toast.error(t('course.toastSubjectDeleteFailed'));
       } else {
         toast.success(t('course.toastSubjectDeleted'));
+        // Dispatch event so subjects-section can remove it from local state instantly
+        // (Realtime will also fire, but this gives immediate feedback)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('subject-deleted', { detail: { subjectId } }));
+        }
         handleBack();
       }
     } catch (err) {
@@ -866,7 +906,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     >
                       <option value="">{t('course.noYear')}</option>
                       {LEVEL_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
                   </div>
@@ -883,7 +923,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     >
                       <option value="">{t('course.noTerm')}</option>
                       {SUB_LEVEL_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
                   </div>
@@ -916,6 +956,55 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Thumbnail picker */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-foreground">
+                    {t('course.coursePage')}
+                  </label>
+                  <input
+                    ref={editThumbRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      setEditThumb(file || null);
+                    }}
+                    className="w-full rounded-xl border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2.5 text-sm text-foreground file:me-3 file:rounded-lg file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-medium file:cursor-pointer file:transition-colors"
+                    disabled={savingSubject}
+                  />
+                  {/* Current or new thumbnail preview */}
+                  {(editThumb || subject?.thumbnail_url) && (
+                    <div className="flex items-center gap-3 rounded-xl border bg-muted/30 p-2.5">
+                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-muted">
+                        <img
+                          src={editThumb ? URL.createObjectURL(editThumb) : subject!.thumbnail_url!}
+                          alt={t('course.coursePage')}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        {editThumb ? (
+                          <>
+                            <p className="text-xs font-medium text-foreground truncate">{editThumb.name}</p>
+                            <p className="text-[11px] text-muted-foreground">{(editThumb.size / 1024).toFixed(1)} KB</p>
+                          </>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">{t('course.currentImage')}</p>
+                        )}
+                      </div>
+                      {editThumb && (
+                        <button
+                          onClick={() => { setEditThumb(null); if (editThumbRef.current) editThumbRef.current.value = ''; }}
+                          className="shrink-0 rounded-md p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                          disabled={savingSubject}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Save button */}

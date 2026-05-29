@@ -417,6 +417,7 @@
   },
   "course": {
     "coursePage": "Course Page",
+    "currentImage": "Current Image",
     "subjectName": "Subject Name",
     "subjectCode": "Subject Code",
     "subjectDescription": "Subject Description",

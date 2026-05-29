@@ -606,6 +606,21 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   }, [profile.id, role, fetchTeacherNames]);
 
   // -------------------------------------------------------
+  // Listen for subject-deleted events from course-page
+  // for instant removal without waiting for Realtime
+  // -------------------------------------------------------
+  useEffect(() => {
+    const handleSubjectDeleted = (e: Event) => {
+      const { subjectId } = (e as CustomEvent).detail;
+      if (subjectId) {
+        setSubjects(prev => prev.filter(s => s.id !== subjectId));
+      }
+    };
+    window.addEventListener('subject-deleted', handleSubjectDeleted);
+    return () => window.removeEventListener('subject-deleted', handleSubjectDeleted);
+  }, []);
+
+  // -------------------------------------------------------
   // Copy join code to clipboard
   // -------------------------------------------------------
   const handleCopyCode = useCallback((code: string, subjectId: string) => {
