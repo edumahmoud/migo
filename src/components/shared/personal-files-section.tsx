@@ -2500,7 +2500,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   >
                     {t('files.close')}
                   </button>
-                  {pendingUploads.some((p) => !p.done && !p.uploading && !p.error) && (
+                  {pendingUploads.some((p) => !p.done && !p.uploading && p.progress !== -1) && (
                     <button
                       type="button"
                       onClick={handleUploadAll}
