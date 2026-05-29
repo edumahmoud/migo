@@ -23,13 +23,16 @@ import {
   GraduationCap,
   Pause,
   Play,
+  Tag,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { toast } from 'sonner';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAppStore } from '@/stores/app-store';
-import type { UserProfile, Subject } from '@/lib/types';
+import type { UserProfile, Subject, Category } from '@/lib/types';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 
 // -------------------------------------------------------
@@ -220,9 +223,29 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [filterLevel, setFilterLevel] = useState<string>('');
   const [filterSubLevel, setFilterSubLevel] = useState<string>('');
   const [filterPaused, setFilterPaused] = useState<'all' | 'active' | 'paused'>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('');
+
+  // ─── Categories state ───
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [newCategoryNameAr, setNewCategoryNameAr] = useState('');
+  const [newCategoryNameEn, setNewCategoryNameEn] = useState('');
+  const [newCategoryColor, setNewCategoryColor] = useState(SUBJECT_COLORS[0]);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [deleteCategoryConfirm, setDeleteCategoryConfirm] = useState<Category | null>(null);
+  const [deletingCategory, setDeletingCategory] = useState(false);
+
+  // ─── Create subject: category ───
+  const [newSubjectCategory, setNewSubjectCategory] = useState<string>('');
 
   // ─── Refs for stable real-time callbacks ───
   const fetchSubjectsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | undefined>(undefined);
+
+  // ─── Helper: get category display name based on locale ───
+  const getCategoryName = useCallback((cat: Category): string => {
+    return locale === 'ar' ? cat.name_ar : cat.name_en || cat.name_ar;
+  }, [locale]);
 
   // ─── Enrollment ID → Subject ID mapping (student only, for surgical Realtime DELETE) ───
   const enrollmentIdMapRef = useRef<Record<string, string>>({});
@@ -674,6 +697,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           join_code: joinCode,
           level: newSubjectLevel || null,
           sub_level: newSubjectSubLevel || null,
+          category_id: newSubjectCategory || null,
           thumbnail_url: thumbnailUrl,
         })
         .select()
@@ -694,6 +718,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               join_code: joinCode,
               level: newSubjectLevel || null,
               sub_level: newSubjectSubLevel || null,
+              category_id: newSubjectCategory || null,
               thumbnail_url: thumbnailUrl,
             })
             .select()
@@ -720,6 +745,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         setNewSubjectColor(SUBJECT_COLORS[0]);
         setNewSubjectLevel('');
         setNewSubjectSubLevel('');
+        setNewSubjectCategory('');
         setNewSubjectThumb(null);
         if (newSubjectThumbRef.current) newSubjectThumbRef.current.value = '';
 
@@ -742,6 +768,126 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   useEffect(() => {
     initAuthCacheListener();
   }, []);
+
+  // -------------------------------------------------------
+  // Fetch categories (teacher only)
+  // -------------------------------------------------------
+  const fetchCategories = useCallback(async () => {
+    if (role !== 'teacher') return;
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('teacher_id', profile.id)
+        .order('name_ar', { ascending: true });
+      if (error) {
+        console.error('Error fetching categories:', error.message);
+      } else {
+        setCategories((data as Category[]) || []);
+      }
+    } catch (err) {
+      console.error('Fetch categories error:', err);
+    }
+  }, [role, profile.id]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  // -------------------------------------------------------
+  // Category CRUD handlers
+  // -------------------------------------------------------
+  const handleSaveCategory = async () => {
+    const nameAr = newCategoryNameAr.trim();
+    const nameEn = newCategoryNameEn.trim();
+    if (!nameAr && !nameEn) {
+      toast.error(t('subjects.categoryNameAr') + ': ' + t('common.required'));
+      return;
+    }
+    setSavingCategory(true);
+    try {
+      if (editingCategory) {
+        // Update
+        const { error } = await supabase
+          .from('categories')
+          .update({ name_ar: nameAr, name_en: nameEn, color: newCategoryColor })
+          .eq('id', editingCategory.id);
+        if (error) {
+          console.error('Update category error:', error);
+          toast.error(t('subjects.categoryUpdateFailed'));
+        } else {
+          toast.success(t('subjects.categoryUpdated'));
+          setCategories(prev => prev.map(c => c.id === editingCategory.id ? { ...c, name_ar: nameAr, name_en: nameEn, color: newCategoryColor } : c));
+          setCategoryModalOpen(false);
+          setEditingCategory(null);
+        }
+      } else {
+        // Create
+        const { data, error } = await supabase
+          .from('categories')
+          .insert({ teacher_id: profile.id, name_ar: nameAr, name_en: nameEn, color: newCategoryColor })
+          .select()
+          .single();
+        if (error) {
+          console.error('Create category error:', error);
+          toast.error(t('subjects.categoryAddFailed'));
+        } else {
+          toast.success(t('subjects.categoryAdded'));
+          if (data) setCategories(prev => [...prev, data as Category]);
+          setCategoryModalOpen(false);
+        }
+      }
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    } finally {
+      setSavingCategory(false);
+      setNewCategoryNameAr('');
+      setNewCategoryNameEn('');
+      setNewCategoryColor(SUBJECT_COLORS[0]);
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!deleteCategoryConfirm) return;
+    setDeletingCategory(true);
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', deleteCategoryConfirm.id);
+      if (error) {
+        console.error('Delete category error:', error);
+        toast.error(t('subjects.categoryDeleteFailed'));
+      } else {
+        toast.success(t('subjects.categoryDeleted'));
+        setCategories(prev => prev.filter(c => c.id !== deleteCategoryConfirm.id));
+        // Clear category filter if the deleted category was selected
+        if (filterCategory === deleteCategoryConfirm.id) setFilterCategory('');
+        if (newSubjectCategory === deleteCategoryConfirm.id) setNewSubjectCategory('');
+        setDeleteCategoryConfirm(null);
+      }
+    } catch {
+      toast.error(t('common.unexpectedError'));
+    } finally {
+      setDeletingCategory(false);
+    }
+  };
+
+  const openEditCategory = (cat: Category) => {
+    setEditingCategory(cat);
+    setNewCategoryNameAr(cat.name_ar);
+    setNewCategoryNameEn(cat.name_en);
+    setNewCategoryColor(cat.color || SUBJECT_COLORS[0]);
+    setCategoryModalOpen(true);
+  };
+
+  const openNewCategory = () => {
+    setEditingCategory(null);
+    setNewCategoryNameAr('');
+    setNewCategoryNameEn('');
+    setNewCategoryColor(SUBJECT_COLORS[0]);
+    setCategoryModalOpen(true);
+  };
 
   const handleSearchSubject = async () => {
     const code = joinCodeInput.trim().toUpperCase();
@@ -981,6 +1127,15 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               {t('dashboard.createSubject')}
             </button>
           )}
+          {role === 'teacher' && (
+            <button
+              onClick={openNewCategory}
+              className="flex items-center gap-2 rounded-xl border border-sky-200 dark:border-sky-800 px-4 py-2.5 text-sm font-medium text-sky-700 dark:text-sky-400 transition-all hover:bg-sky-50 dark:hover:bg-sky-900/20 active:scale-[0.97]"
+            >
+              <Tag className="h-4 w-4" />
+              {t('subjects.manageCategories')}
+            </button>
+          )}
         </div>
       </motion.div>
 
@@ -1048,10 +1203,28 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               </select>
             </div>
 
+            {/* Category filter (teacher only) */}
+            {role === 'teacher' && categories.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
+                  dir={direction}
+                >
+                  <option value="">{t('subjects.noCategory')}</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{getCategoryName(cat)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Clear filters button */}
-            {(filterLevel || filterSubLevel || filterPaused !== 'all') && (
+            {(filterLevel || filterSubLevel || filterPaused !== 'all' || filterCategory) && (
               <button
-                onClick={() => { setFilterLevel(''); setFilterSubLevel(''); setFilterPaused('all'); }}
+                onClick={() => { setFilterLevel(''); setFilterSubLevel(''); setFilterPaused('all'); setFilterCategory(''); }}
                 className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-3 w-3" />
@@ -1131,6 +1304,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           filteredSubjects = filteredSubjects.filter((s) => !s.is_paused);
         } else if (filterPaused === 'paused') {
           filteredSubjects = filteredSubjects.filter((s) => !!s.is_paused);
+        }
+        if (filterCategory) {
+          filteredSubjects = filteredSubjects.filter((s) => s.category_id === filterCategory);
         }
 
         // For students: split into approved / pending / rejected
@@ -1310,6 +1486,18 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               )}
                             </div>
                           )}
+
+                          {/* Category badge */}
+                          {subject.category_id && (() => {
+                            const cat = categories.find(c => c.id === subject.category_id);
+                            if (!cat) return null;
+                            return (
+                              <div className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: hexToRgba(cat.color || '#0369A1', 0.1), color: cat.color || '#0369A1', border: `1px solid ${hexToRgba(cat.color || '#0369A1', 0.25)}` }}>
+                                <Tag className="h-3 w-3 shrink-0" />
+                                <span>{getCategoryName(cat)}</span>
+                              </div>
+                            );
+                          })()}
 
                           {/* Co-teacher badge */}
                           {role === 'teacher' && subject.is_co_teacher && (
@@ -1681,6 +1869,38 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   </div>
                 </div>
 
+                {/* Category selector + manage button */}
+                {role === 'teacher' && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-foreground">
+                        {t('subjects.category')}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={openNewCategory}
+                        className="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 font-medium transition-colors"
+                        disabled={creatingSubject}
+                      >
+                        <Plus className="h-3 w-3" />
+                        {t('subjects.addCategory')}
+                      </button>
+                    </div>
+                    <select
+                      value={newSubjectCategory}
+                      onChange={(e) => setNewSubjectCategory(e.target.value)}
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
+                      dir={direction}
+                      disabled={creatingSubject}
+                    >
+                      <option value="">{t('subjects.noCategory')}</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{getCategoryName(cat)}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Color picker — visual swatches */}
                 <div className="space-y-2.5">
                   <label className="text-sm font-semibold text-foreground">
@@ -1744,6 +1964,254 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                     </>
                   )}
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Category Management Modal ─── */}
+      <AnimatePresence>
+        {categoryModalOpen && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            variants={modalOverlayVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <motion.div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => !savingCategory && setCategoryModalOpen(false)}
+            />
+            <motion.div
+              variants={modalContentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="relative w-full max-w-md max-h-[85vh] rounded-2xl border bg-background shadow-2xl overflow-hidden flex flex-col"
+              dir={direction}
+            >
+              {/* Header */}
+              <div className="shrink-0 px-6 pt-6 pb-4 border-b">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400">
+                      <Tag className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">
+                        {editingCategory ? t('subjects.editCategory') : t('subjects.addCategory')}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {editingCategory ? t('course.editSubjectDesc') : t('subjects.manageCategories')}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setCategoryModalOpen(false); setEditingCategory(null); }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-y-auto custom-scrollbar px-6 pb-6 pt-5 space-y-5">
+                {/* Category name AR */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-foreground">
+                    {t('subjects.categoryNameAr')} <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newCategoryNameAr}
+                    onChange={(e) => setNewCategoryNameAr(e.target.value)}
+                    placeholder={t('subjects.categoryNameArPlaceholder')}
+                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
+                    dir="rtl"
+                    disabled={savingCategory}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !savingCategory) handleSaveCategory();
+                    }}
+                  />
+                </div>
+
+                {/* Category name EN */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-foreground">
+                    {t('subjects.categoryNameEn')}
+                  </label>
+                  <input
+                    type="text"
+                    value={newCategoryNameEn}
+                    onChange={(e) => setNewCategoryNameEn(e.target.value)}
+                    placeholder={t('subjects.categoryNameEnPlaceholder')}
+                    className="w-full rounded-xl border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all"
+                    dir="ltr"
+                    disabled={savingCategory}
+                  />
+                </div>
+
+                {/* Category color picker */}
+                <div className="space-y-2.5">
+                  <label className="text-sm font-semibold text-foreground">
+                    {t('subjects.categoryColor')}
+                  </label>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {SUBJECT_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setNewCategoryColor(color)}
+                        disabled={savingCategory}
+                        className="relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 hover:scale-110 active:scale-95"
+                        style={{
+                          backgroundColor: color,
+                          boxShadow:
+                            newCategoryColor === color
+                              ? `0 0 0 3px ${hexToRgba(color, 0.3)}, 0 2px 8px ${hexToRgba(color, 0.3)}`
+                              : 'none',
+                        }}
+                      >
+                        {newCategoryColor === color && (
+                          <Check className="h-4 w-4 text-white" strokeWidth={3} />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Save button */}
+                <button
+                  onClick={handleSaveCategory}
+                  disabled={savingCategory || !newCategoryNameAr.trim()}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98]"
+                  style={{
+                    backgroundColor: newCategoryColor,
+                    boxShadow: `0 2px 12px ${hexToRgba(newCategoryColor, 0.35)}`,
+                  }}
+                >
+                  {savingCategory ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t('common.saving')}
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" />
+                      {editingCategory ? t('common.saveChanges') : t('subjects.addCategory')}
+                    </>
+                  )}
+                </button>
+
+                {/* Existing categories list */}
+                {categories.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs font-medium text-muted-foreground">{t('subjects.manageCategories')}</span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                      {categories.map((cat) => (
+                        <div
+                          key={cat.id}
+                          className="flex items-center gap-3 rounded-xl border bg-muted/30 px-3 py-2.5 transition-colors hover:bg-muted/50"
+                        >
+                          <div
+                            className="h-4 w-4 shrink-0 rounded-full"
+                            style={{ backgroundColor: cat.color || '#0369A1' }}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground truncate">{getCategoryName(cat)}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => openEditCategory(cat)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:text-sky-700 hover:bg-sky-50 dark:hover:text-sky-400 dark:hover:bg-sky-900/20 transition-colors"
+                              title={t('subjects.editCategory')}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteCategoryConfirm(cat)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                              title={t('subjects.deleteCategory')}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── Delete Category Confirm ─── */}
+      <AnimatePresence>
+        {deleteCategoryConfirm && (
+          <motion.div
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            variants={modalOverlayVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <motion.div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => !deletingCategory && setDeleteCategoryConfirm(null)}
+            />
+            <motion.div
+              variants={modalContentVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="relative w-full max-w-sm rounded-2xl border bg-background shadow-2xl p-6"
+              dir={direction}
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-800/40 mb-4">
+                  <Trash2 className="h-7 w-7 text-rose-600 dark:text-rose-500" />
+                </div>
+                <h3 className="text-lg font-bold text-foreground mb-2">{t('subjects.deleteCategory')}</h3>
+                <p className="text-sm text-muted-foreground mb-1">
+                  {t('subjects.categoryDeleteConfirm')}
+                </p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mb-6">
+                  {t('subjects.categoryDeleteWarning')}
+                </p>
+                <div className="flex items-center gap-3 w-full">
+                  <button
+                    onClick={handleDeleteCategory}
+                    disabled={deletingCategory}
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-700 disabled:opacity-60"
+                  >
+                    {deletingCategory ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {t('common.deleting')}
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4" />
+                        {t('common.delete')}
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setDeleteCategoryConfirm(null)}
+                    disabled={deletingCategory}
+                    className="flex-1 rounded-xl border py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

@@ -31,12 +31,14 @@ import {
   BarChart3,
   Pause,
   Play,
+  Tag,
+  Plus,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
 import { toast } from 'sonner';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
-import type { UserProfile, Subject, SubjectTeacher, CourseTab } from '@/lib/types';
+import type { UserProfile, Subject, SubjectTeacher, CourseTab, Category } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
 
 // -------------------------------------------------------
@@ -226,9 +228,18 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const [editColor, setEditColor] = useState(SUBJECT_COLORS[0]);
   const [editLevel, setEditLevel] = useState('');
   const [editSubLevel, setEditSubLevel] = useState('');
+  const [editCategory, setEditCategory] = useState('');
   const [editThumb, setEditThumb] = useState<File | null>(null);
   const editThumbRef = useRef<HTMLInputElement>(null);
   const [savingSubject, setSavingSubject] = useState(false);
+
+  // ─── Categories state ───
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  // ─── Helper: get category display name based on locale ───
+  const getCategoryName = useCallback((cat: Category): string => {
+    return locale === 'ar' ? cat.name_ar : cat.name_en || cat.name_ar;
+  }, [locale]);
 
   // ─── Delete subject state ───
   const [deletingSubject, setDeletingSubject] = useState(false);
@@ -329,6 +340,21 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   }, [fetchSubject]);
 
   // -------------------------------------------------------
+  // Fetch categories (teacher only, for edit modal dropdown)
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (role !== 'teacher' || !subject?.teacher_id) return;
+    supabase
+      .from('categories')
+      .select('*')
+      .eq('teacher_id', subject.teacher_id)
+      .order('name_ar', { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) setCategories(data as Category[]);
+      });
+  }, [role, subject?.teacher_id]);
+
+  // -------------------------------------------------------
   // Supabase Realtime: subscribe to subject metadata changes
   // -------------------------------------------------------
   useEffect(() => {
@@ -379,6 +405,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
     setEditColor(subject.color || SUBJECT_COLORS[0]);
     setEditLevel(subject.level || '');
     setEditSubLevel(subject.sub_level || '');
+    setEditCategory(subject.category_id || '');
     setEditThumb(null);
     if (editThumbRef.current) editThumbRef.current.value = '';
     setEditModalOpen(true);
@@ -419,6 +446,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         color: editColor,
         level: editLevel || null,
         sub_level: editSubLevel || null,
+        category_id: editCategory || null,
       };
       if (newThumbnailUrl !== undefined) {
         updateData.thumbnail_url = newThumbnailUrl;
@@ -441,6 +469,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
           color: editColor,
           level: editLevel || undefined,
           sub_level: editSubLevel || undefined,
+          category_id: editCategory || null,
           ...(newThumbnailUrl !== undefined ? { thumbnail_url: newThumbnailUrl } : {}),
         } : prev);
         setEditModalOpen(false);
@@ -802,8 +831,19 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 </p>
               )}
               {/* Level & Sub-level badges */}
-              {(subject.level || subject.sub_level) && (
+              {(subject.level || subject.sub_level || subject.category_id) && (
                 <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  {subject.category_id && (() => {
+                    const cat = categories.find(c => c.id === subject.category_id);
+                    if (!cat) return null;
+                    const catColor = cat.color || '#0369A1';
+                    return (
+                      <span className="inline-flex items-center gap-1 rounded-full backdrop-blur-sm border border-white/25 px-2.5 py-0.5 text-xs text-white font-medium" style={{ backgroundColor: `${catColor}40` }}>
+                        <Tag className="h-3 w-3" />
+                        {getCategoryName(cat)}
+                      </span>
+                    );
+                  })()}
                   {subject.level && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/25 px-2.5 py-0.5 text-xs text-white font-medium">
                       <GraduationCap className="h-3 w-3" />
@@ -1032,6 +1072,27 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                     </select>
                   </div>
                 </div>
+
+                {/* Category selector */}
+                {role === 'teacher' && categories.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-foreground">
+                      {t('subjects.category')}
+                    </label>
+                    <select
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      className="w-full rounded-xl border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer"
+                      dir={direction}
+                      disabled={savingSubject}
+                    >
+                      <option value="">{t('subjects.noCategory')}</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>{getCategoryName(cat)}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Color picker */}
                 <div className="space-y-2.5">

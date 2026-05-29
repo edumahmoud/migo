@@ -92,6 +92,15 @@ export interface Score {
 // Subjects & Lectures
 // =====================================================
 
+export interface Category {
+  id: string;
+  teacher_id: string;
+  name_ar: string;
+  name_en: string;
+  color?: string;
+  created_at: string;
+}
+
 export interface Subject {
   id: string;
   teacher_id: string;
@@ -101,6 +110,7 @@ export interface Subject {
   join_code?: string;
   level?: string;      // الفرقة / السنة الدراسية (الفرقة الأولى، الفرقة الثانية...)
   sub_level?: string;  // المستوى الدراسي (المستوى الأول، المستوى الثاني)
+  category_id?: string | null;
   thumbnail_url?: string | null;
   is_paused?: boolean;
   created_at: string;
@@ -108,6 +118,7 @@ export interface Subject {
   // Joined data
   co_teachers?: SubjectTeacher[];
   is_co_teacher?: boolean;
+  category?: Category | null;
 }
 
 export interface SubjectTeacher {

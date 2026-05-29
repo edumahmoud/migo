@@ -299,3 +299,39 @@ Stage Summary:
 - Backward compatible — existing uploads continue to work without changes
 - Lint passes with 0 errors
 - Files modified: src/stores/file-upload-store.ts, src/components/shared/personal-files-section.tsx, src/i18n/messages/en.json, src/i18n/messages/ar.json
+
+---
+Task ID: 1
+Agent: main
+Task: Implement course categories feature for the LMS platform
+
+Work Log:
+- Added `Category` interface and `category_id` field to `Subject` type in `src/lib/types.ts`
+- Added 20+ translation keys for categories in both `ar.ts` and `en.ts` translation files
+- Modified `subjects-section.tsx`:
+  - Added category state management (categories list, modal state, CRUD operations)
+  - Added `fetchCategories()` function with Supabase direct client
+  - Added category CRUD handlers (create, update, delete)
+  - Added category dropdown in create subject modal with "+" button to add new category
+  - Added category filter in the filter bar (teacher only)
+  - Added category badge on subject cards with color from category
+  - Added category management modal with name AR/EN fields, color picker, and existing categories list
+  - Added delete category confirmation dialog
+  - Added "Manage Categories" button in header next to "Create Subject"
+  - Added `category_id` to subject insert operations
+  - Added category filter logic in filtered subjects computation
+- Modified `course-page.tsx`:
+  - Added category state and `getCategoryName` helper
+  - Added categories fetch on mount (for edit modal)
+  - Added `editCategory` state and included in edit modal
+  - Added category dropdown in edit subject modal
+  - Added category badge in gradient banner header
+  - Included `category_id` in subject update operations
+- Provided complete SQL migration code for user to execute in Supabase
+
+Stage Summary:
+- Categories feature fully implemented: create, edit, delete categories with bilingual names and colors
+- Category assignment in both create and edit subject modals
+- Category filtering and badge display in subject list and course page
+- SQL code provided for Supabase execution (categories table + category_id column + RLS policies)
+- All changes pass lint check, dev server running successfully
