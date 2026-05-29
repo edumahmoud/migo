@@ -2062,60 +2062,62 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       {/* Header with sub-tab switcher */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h3 className="text-xl font-bold text-foreground">{t('exams.title')}</h3>
-          <p className="text-muted-foreground text-sm mt-1">{t('exams.quizCount', { count: quizzes.length })}</p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Sub-tab switcher */}
-          <div className="flex items-center rounded-lg border bg-muted/50 p-0.5">
-            <button
-              onClick={() => setSubTab('active')}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                subTab === 'active'
-                  ? 'bg-sky-700 text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Play className="h-3 w-3" />
-              {t('exams.active')}
-            </button>
-            <button
-              onClick={() => setSubTab('scheduled')}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                subTab === 'scheduled'
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Clock className="h-3 w-3" />
-              {t('exams.scheduled')}
-            </button>
-            <button
-              onClick={() => setSubTab('finished')}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                subTab === 'finished'
-                  ? 'bg-sky-700 text-white shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <ClipboardList className="h-3 w-3" />
-              {t('exams.finished')}
-            </button>
+      <motion.div variants={itemVariants} className="flex flex-col gap-3">
+        {/* Title row */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-foreground">{t('exams.title')}</h3>
+            <p className="text-muted-foreground text-sm mt-1">{t('exams.quizCount', { count: quizzes.length })}</p>
           </div>
 
-          {/* Create quiz button (teacher only) */}
+          {/* Create quiz button (teacher only) - icon only on mobile, full on desktop */}
           {role === 'teacher' && (
             <button
               onClick={handleOpenCreateModal}
-              className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
+              className="flex items-center gap-2 rounded-lg bg-sky-700 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 shrink-0"
             >
               <Plus className="h-4 w-4" />
-              {t('exams.createQuiz')}
+              <span className="hidden sm:inline">{t('exams.createQuiz')}</span>
+              <span className="sm:hidden text-xs">{t('exams.createQuiz')}</span>
             </button>
           )}
+        </div>
+
+        {/* Sub-tab switcher - full width on mobile */}
+        <div className="flex items-center rounded-lg border bg-muted/50 p-0.5 w-full sm:w-auto">
+          <button
+            onClick={() => setSubTab('active')}
+            className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+              subTab === 'active'
+                ? 'bg-sky-700 text-white shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Play className="h-3 w-3" />
+            {t('exams.active')}
+          </button>
+          <button
+            onClick={() => setSubTab('scheduled')}
+            className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+              subTab === 'scheduled'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Clock className="h-3 w-3" />
+            {t('exams.scheduled')}
+          </button>
+          <button
+            onClick={() => setSubTab('finished')}
+            className={`flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+              subTab === 'finished'
+                  ? 'bg-sky-700 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <ClipboardList className="h-3 w-3" />
+            {t('exams.finished')}
+          </button>
         </div>
       </motion.div>
 
