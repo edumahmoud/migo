@@ -76,3 +76,25 @@ Stage Summary:
 - Enforced rules: Student→course teacher+classmates, Teacher→other teachers+own students, Admin→all teachers+students
 - Server-side authorization on both search AND conversation creation
 - Lint passes with 0 errors
+---
+Task ID: 1
+Agent: Main
+Task: Fix file upload issues (page reload, duplicate brackets, multi-upload prevention, responsive progress bars)
+
+Work Log:
+- Added debounce mechanism (lastFetchTimeRef) to prevent double fetchFiles(false) calls from both Realtime INSERT and uploadTasks useEffect
+- Removed parentheses from needRename translations in admin namespace (ar.ts and en.ts)
+- Changed toastDuplicateNames/toastDuplicateName translations to use colon separator instead of parentheses around variables
+- Modified handleFileSelect to filter out duplicate files BEFORE adding to pending list
+- Changed duplicate toast from toast.error to toast.warning for better UX
+- Simplified PendingUpload interface by removing error and errorCode fields
+- Simplified updatePendingName function (no longer needs duplicate checking)
+- Cleaned up upload modal UI (removed duplicate_name error styling)
+- Made upload progress indicator responsive to sidebar state using sidebarOpen from app-store
+- Added smooth CSS transition for progress bar position changes
+- Removed unused AlertTriangle import
+
+Stage Summary:
+- All 4 issues fixed and pushed to GitHub (commit 22ccff4)
+- No lint errors
+- Files modified: personal-files-section.tsx, ar.ts, en.ts
