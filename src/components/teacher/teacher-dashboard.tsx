@@ -2234,7 +2234,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                   ? <CoursePage profile={profile} role="teacher" />
                   : <SubjectsSection profile={profile} role="teacher" />)}
                 {activeSection === 'summaries' && <TeacherSummariesSection profile={profile} />}
-                {activeSection === 'questionBank' && <QuestionBankSection profile={profile} onNavigateToCourse={() => setActiveSection('subjects')} />}
+                {activeSection === 'questionBank' && <QuestionBankSection profile={profile} onNavigateToCourse={() => handleSectionChange('subjects')} />}
                 {activeSection === 'students' && renderStudents()}
                 {activeSection === 'files' && <PersonalFilesSection profile={profile} role="teacher" />}
                 {activeSection === 'videos' && <AllVideosSection profile={profile} role="teacher" />}

@@ -23,6 +23,7 @@ import {
   ListChecks,
   Filter,
   Check,
+  MoreVertical,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -31,6 +32,7 @@ import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { extractTextFromFile } from '@/lib/pdf-client';
 import type { UserProfile, Subject, QuestionBank, BankQuestion, QuizQuestion, SubjectFile } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 // -------------------------------------------------------
 // fetchWithRetry — resilient fetch with automatic retry on network errors
@@ -1267,41 +1269,26 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
     return (
       <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-5">
         {/* Header */}
-        <motion.div variants={itemVariants} className="flex items-center gap-3">
-          <button
-            onClick={() => { setView('list'); setSelectedBank(null); }}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-bold text-foreground truncate">{selectedBank.name}</h2>
-            <p className="text-sm text-muted-foreground">
-              {t('questionBank.subjectQuestions', { subject: selectedBank.subject_name || '', count: questions.length })}
-            </p>
+        <motion.div variants={itemVariants} className="space-y-3">
+          {/* Row 1: Back + Title */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => { setView('list'); setSelectedBank(null); }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold text-foreground truncate">{selectedBank.name}</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                {t('questionBank.subjectQuestions', { subject: selectedBank.subject_name || '', count: questions.length })}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleOpenEditBank}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-              title={t('common.edit')}
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => handleExportBank(selectedBank as QuestionBank & { questions: BankQuestion[] })}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
-              title={t('common.export')}
-            >
-              <Download className="h-4 w-4" />
-            </button>
-            <label
-              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-              title={t('questionBank.importJsonTitle')}
-            >
-              <Upload className="h-4 w-4" />
-              <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
-            </label>
+
+          {/* Row 2: Action buttons — responsive */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Primary actions (always visible) */}
             <button
               onClick={() => { setAiModalOpen(true); loadCourseFiles(selectedBank.subject_id); }}
               className="flex h-8 items-center justify-center gap-1.5 rounded-md bg-violet-100 dark:bg-violet-900/15 text-violet-700 dark:text-violet-500 px-2.5 text-xs font-medium hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-colors"
@@ -1317,6 +1304,57 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               <Plus className="h-3.5 w-3.5" />
               {t('questionBank.addQuestion')}
             </button>
+
+            {/* Secondary actions — visible on desktop, dropdown on mobile */}
+            <div className="hidden sm:flex items-center gap-1.5">
+              <button
+                onClick={handleOpenEditBank}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                title={t('common.edit')}
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => handleExportBank(selectedBank as QuestionBank & { questions: BankQuestion[] })}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                title={t('common.export')}
+              >
+                <Download className="h-4 w-4" />
+              </button>
+              <label
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+                title={t('questionBank.importJsonTitle')}
+              >
+                <Upload className="h-4 w-4" />
+                <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
+              </label>
+            </div>
+
+            {/* Mobile: secondary actions in dropdown */}
+            <DropdownMenu dir={direction}>
+              <DropdownMenuTrigger asChild>
+                <button className="sm:hidden flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleOpenEditBank}>
+                  <Pencil className="h-4 w-4 me-2" />
+                  {t('common.edit')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportBank(selectedBank as QuestionBank & { questions: BankQuestion[] })}>
+                  <Download className="h-4 w-4 me-2" />
+                  {t('common.export')}
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <label className="flex cursor-pointer items-center">
+                    <Upload className="h-4 w-4 me-2" />
+                    {t('questionBank.importJsonTitle')}
+                    <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
+                  </label>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </motion.div>
 
