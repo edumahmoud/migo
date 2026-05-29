@@ -367,6 +367,55 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   }, [fetchData]);
 
   // -------------------------------------------------------
+  // Realtime subscriptions for quizzes and scores
+  // -------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel(`exams-${subjectId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quizzes', filter: `subject_id=eq.${subjectId}` }, (payload) => {
+        const newQuiz = payload.new as Quiz;
+        if (newQuiz) {
+          setQuizzes(prev => [{ ...newQuiz, questions: Array.isArray(newQuiz.questions) ? newQuiz.questions : [] }, ...prev]);
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quizzes', filter: `subject_id=eq.${subjectId}` }, (payload) => {
+        const updated = payload.new as Quiz;
+        if (updated) {
+          setQuizzes(prev => prev.map(q => q.id === updated.id ? { ...q, ...updated, questions: Array.isArray(updated.questions) ? updated.questions : q.questions } : q));
+        }
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'quizzes', filter: `subject_id=eq.${subjectId}` }, (payload) => {
+        const deletedId = payload.old?.id;
+        if (deletedId) {
+          setQuizzes(prev => prev.filter(q => q.id !== deletedId));
+        }
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scores', filter: role === 'student' ? `student_id=eq.${profile.id}` : `teacher_id=eq.${profile.id}` }, (payload) => {
+        const newScore = payload.new as Score;
+        if (newScore) {
+          setScores(prev => [{ ...newScore, user_answers: Array.isArray(newScore.user_answers) ? newScore.user_answers : [] }, ...prev]);
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'scores', filter: role === 'student' ? `student_id=eq.${profile.id}` : `teacher_id=eq.${profile.id}` }, (payload) => {
+        const updated = payload.new as Score;
+        if (updated) {
+          setScores(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated, user_answers: Array.isArray(updated.user_answers) ? updated.user_answers : s.user_answers } : s));
+        }
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'scores', filter: role === 'student' ? `student_id=eq.${profile.id}` : `teacher_id=eq.${profile.id}` }, (payload) => {
+        const deletedId = payload.old?.id;
+        if (deletedId) {
+          setScores(prev => prev.filter(s => s.id !== deletedId));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [subjectId, profile.id, role]);
+
+  // -------------------------------------------------------
   // Question builder helpers
   // -------------------------------------------------------
   const resetQuestionForm = () => {

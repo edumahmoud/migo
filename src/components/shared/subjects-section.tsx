@@ -21,6 +21,8 @@ import {
   Shield,
   Filter,
   GraduationCap,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -217,6 +219,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   // ─── Filter state ───
   const [filterLevel, setFilterLevel] = useState<string>('');
   const [filterSubLevel, setFilterSubLevel] = useState<string>('');
+  const [filterPaused, setFilterPaused] = useState<'all' | 'active' | 'paused'>('all');
 
   // ─── Refs for stable real-time callbacks ───
   const fetchSubjectsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | undefined>(undefined);
@@ -1024,10 +1027,31 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               </select>
             </div>
 
+            {/* Status filter (active/paused) */}
+            <div className="flex items-center gap-2">
+              {filterPaused === 'paused' ? (
+                <Pause className="h-4 w-4 text-amber-500 shrink-0" />
+              ) : filterPaused === 'active' ? (
+                <Play className="h-4 w-4 text-emerald-500 shrink-0" />
+              ) : (
+                <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+              <select
+                value={filterPaused}
+                onChange={(e) => setFilterPaused(e.target.value as 'all' | 'active' | 'paused')}
+                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
+                dir={direction}
+              >
+                <option value="all">{t('course.filterAll')}</option>
+                <option value="active">{t('course.filterActive')}</option>
+                <option value="paused">{t('course.filterPaused')}</option>
+              </select>
+            </div>
+
             {/* Clear filters button */}
-            {(filterLevel || filterSubLevel) && (
+            {(filterLevel || filterSubLevel || filterPaused !== 'all') && (
               <button
-                onClick={() => { setFilterLevel(''); setFilterSubLevel(''); }}
+                onClick={() => { setFilterLevel(''); setFilterSubLevel(''); setFilterPaused('all'); }}
                 className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted transition-colors"
               >
                 <X className="h-3 w-3" />
@@ -1103,6 +1127,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         if (filterSubLevel) {
           filteredSubjects = filteredSubjects.filter((s) => s.sub_level === filterSubLevel);
         }
+        if (filterPaused === 'active') {
+          filteredSubjects = filteredSubjects.filter((s) => !s.is_paused);
+        } else if (filterPaused === 'paused') {
+          filteredSubjects = filteredSubjects.filter((s) => !!s.is_paused);
+        }
 
         // For students: split into approved / pending / rejected
         const approvedSubjects = role === 'student'
@@ -1126,10 +1155,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 {approvedSubjects.map((subject) => {
                   const color = subject.color || '#0D9488';
                   const hasCover = !!subject.thumbnail_url;
+                  const isPaused = !!subject.is_paused;
                   return (
                     <motion.div key={subject.id} variants={cardVariants}>
                       <div
-                        className="group relative rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-0.5"
+                        className={`group relative rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-0.5 ${isPaused ? 'opacity-90' : ''}`}
                         onClick={() => {
                           setStoreSelectedSubjectId(subject.id);
                         }}
@@ -1239,6 +1269,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
                         {/* ── Card Body ── */}
                         <div className="relative p-4">
+                          {/* Paused badge */}
+                          {isPaused && (
+                            <div className="mb-2 inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 px-2.5 py-1 text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                              <Pause className="h-3 w-3 shrink-0" />
+                              {t('course.paused')}
+                            </div>
+                          )}
                           {/* Description (only when no cover, since cover already shows it) */}
                           {!hasCover && subject.description && (
                             <p className="text-sm text-muted-foreground mb-3 line-clamp-2 leading-relaxed">

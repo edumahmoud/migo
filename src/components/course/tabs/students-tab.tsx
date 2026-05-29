@@ -202,8 +202,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
   // -------------------------------------------------------
   // Fetch pending enrollment requests
   // -------------------------------------------------------
-  const fetchPendingRequests = useCallback(async () => {
-    setLoadingPending(true);
+  const fetchPendingRequests = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoadingPending(true);
     try {
       const { data, error } = await supabase
         .from('subject_students')
@@ -238,8 +238,8 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
   // -------------------------------------------------------
   // Fetch enrolled (approved) students
   // -------------------------------------------------------
-  const fetchStudents = useCallback(async () => {
-    setLoading(true);
+  const fetchStudents = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       let query = supabase
         .from('subject_students')
@@ -274,6 +274,40 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
     fetchPendingRequests();
     fetchStudents();
   }, [fetchPendingRequests, fetchStudents]);
+
+  // -------------------------------------------------------
+  // Realtime subscriptions for enrollment and score changes
+  // -------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel(`students-tab-${subjectId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subject_students', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchStudents(false);
+        fetchPendingRequests(false);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subject_students', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchStudents(false);
+        fetchPendingRequests(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subject_students', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchStudents(false);
+        fetchPendingRequests(false);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scores', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchStudents(false);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'scores', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchStudents(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'scores', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchStudents(false);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [subjectId, fetchStudents, fetchPendingRequests]);
 
   // -------------------------------------------------------
   // Search for students to add

@@ -249,15 +249,37 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
     }
   }, [profile.id]);
 
-  const fetchAllData = useCallback(async () => {
-    setLoading(true);
+  const fetchAllData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     await Promise.allSettled([fetchBanks(), fetchSubjects()]);
-    setLoading(false);
+    if (showLoading) setLoading(false);
   }, [fetchBanks, fetchSubjects]);
 
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // -------------------------------------------------------
+  // Supabase Realtime subscriptions
+  // -------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel(`question-bank-files-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subject_files' }, () => {
+        fetchAllData(false);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subject_files' }, () => {
+        fetchAllData(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subject_files' }, () => {
+        fetchAllData(false);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile.id, fetchAllData]);
 
   // -------------------------------------------------------
   // Fetch single bank detail

@@ -98,3 +98,154 @@ Stage Summary:
 - All 4 issues fixed and pushed to GitHub (commit 22ccff4)
 - No lint errors
 - Files modified: personal-files-section.tsx, ar.ts, en.ts
+
+---
+Task ID: 6
+Agent: Subagent
+Task: Add Supabase Realtime subscriptions to quiz-view.tsx and summary-view.tsx
+
+Work Log:
+- Read quiz-view.tsx: confirmed it already imports `supabase` and types `Quiz`, `Score`, `UserAnswer`
+- Read summary-view.tsx: confirmed it already imports `supabase` and types `Score`, `Quiz`
+- Read types.ts and supabase.ts to understand the data model and client setup
+
+- **quiz-view.tsx** — Added two realtime useEffect subscriptions:
+  1. `quizzes` UPDATE subscription filtered by `id=eq.${quiz.id}` → merges updated quiz fields into `setQuiz` state, preserving `questions` array when the update payload omits it
+  2. `scores` INSERT+UPDATE subscription filtered by `student_id=eq.${profile.id}&quiz_id=eq.${quiz.id}` (student role only) → updates `userAnswers` from the score's `user_answers` field, enabling live re-grade visibility
+
+- **summary-view.tsx** — Added one realtime useEffect subscription:
+  1. `scores` INSERT+UPDATE subscription filtered by `quiz_id=eq.${relatedQuiz.id}` → updates `studentScore` state:
+     - On INSERT: sets score if no previous score exists or if the new score's `student_id` matches the current one
+     - On UPDATE: replaces the tracked score only if the updated score's `id` matches, preventing cross-student overwrites
+
+- Both subscriptions use dedicated channel names (prefixed with component context) and properly clean up via `supabase.removeChannel` on unmount
+- No existing code was modified — only new useEffect blocks were added
+- Lint passes with 0 errors
+
+Stage Summary:
+- quiz-view.tsx: added `quizzes` UPDATE + `scores` INSERT/UPDATE realtime subscriptions
+- summary-view.tsx: added `scores` INSERT/UPDATE realtime subscription for the related quiz
+- Both components now reflect live DB changes without manual refresh
+- Files modified: quiz-view.tsx, summary-view.tsx
+
+---
+Task ID: 2
+Agent: Subagent
+Task: Add Supabase Realtime subscriptions to exams-tab.tsx
+
+Work Log:
+- Read worklog.md and exams-tab.tsx to understand current state
+- Component had fetchData useEffect but no realtime subscriptions — data was stale after mutations by other users
+- Added a new useEffect right after `useEffect(() => { fetchData(); }, [fetchData]);` (line 372)
+- Subscribed to 6 postgres_changes events on a single channel `exams-${subjectId}`:
+  - quizzes INSERT: adds new quiz to state with safe questions array fallback
+  - quizzes UPDATE: merges updated quiz into state, preserving questions if update lacks them
+  - quizzes DELETE: removes quiz by id from state
+  - scores INSERT: adds new score to state with safe user_answers array fallback
+  - scores UPDATE: merges updated score into state, preserving user_answers if update lacks them
+  - scores DELETE: removes score by id from state
+- Scores filter uses `student_id=eq.${profile.id}` for students, `teacher_id=eq.${profile.id}` for teachers
+- Channel is cleaned up on unmount via `supabase.removeChannel(channel)`
+- No existing code was modified — only the new useEffect was added
+- Lint passes with 0 errors
+
+Stage Summary:
+- Added Supabase Realtime subscriptions for quizzes and scores tables
+- Live updates now work for: quiz create/edit/delete, score submit/update/delete
+- File modified: src/components/course/tabs/exams-tab.tsx
+
+---
+Task ID: 5
+Agent: Main
+Task: Add Supabase Realtime subscription to course-page.tsx for subjects table metadata updates
+
+Work Log:
+- Read course-page.tsx to understand component structure
+- Confirmed `subject` state is managed via `useState<Subject | null>(null)` with `setSubject` setter
+- Confirmed `supabase` is already imported from `@/lib/supabase`
+- Confirmed `Subject` type is already imported from `@/lib/types`
+- Added `useEffect` hook after the fetchSubject useEffect that subscribes to Supabase Realtime UPDATE events on the `subjects` table filtered by the current subject ID
+- The subscription merges incoming `payload.new` into existing subject state using spread operator
+- Cleanup function removes the channel on unmount or when subject ID changes
+- Lint passes with 0 errors
+
+Stage Summary:
+- Added Supabase Realtime subscription to `course-page.tsx` for instant subject metadata updates
+- When subject name, description, color, thumbnail, level, sub_level, etc. are edited (by any client), the change is reflected instantly without page refresh
+- No existing code was modified — only the new useEffect was added
+- Files modified: src/components/course/course-page.tsx
+
+---
+Task ID: 7
+Agent: Subagent
+Task: Add Supabase Realtime subscriptions to all-videos-section.tsx and question-bank-section.tsx
+
+Work Log:
+- Read both components to understand data fetching patterns and state management
+- **all-videos-section.tsx**: Modified `fetchVideos` to accept `showLoading` parameter (default `true`), so realtime refreshes skip the loading spinner. Added `useEffect` subscribing to 6 postgres_changes events on channel `all-videos-section-${profile.id}`:
+  - `subject_videos` INSERT/UPDATE/DELETE → `fetchVideos(false)`
+  - `video_comments` INSERT/UPDATE/DELETE → `fetchVideos(false)`
+- **question-bank-section.tsx**: Modified `fetchAllData` to accept `showLoading` parameter (default `true`), so realtime refreshes skip the loading spinner. Also guarded `setLoading(false)` behind the same flag. Added `useEffect` subscribing to 3 postgres_changes events on channel `question-bank-files-${profile.id}`:
+  - `subject_files` INSERT/UPDATE/DELETE → `fetchAllData(false)`
+- Both components already had `supabase` imported from `@/lib/supabase` — no import changes needed
+- Channels are cleaned up on unmount via `supabase.removeChannel(channel)`
+- No existing fetch logic was modified — only the `showLoading` parameter was added to control the loading state
+- Lint passes with 0 errors
+
+Stage Summary:
+- Added Supabase Realtime subscriptions for live data updates in both components
+- all-videos-section.tsx: live updates for video and comment changes across all subjects
+- question-bank-section.tsx: live updates for subject file changes (relevant for AI question generation)
+- Files modified: src/components/shared/all-videos-section.tsx, src/components/teacher/question-bank-section.tsx
+
+---
+Task ID: 3
+Agent: Subagent
+Task: Add Supabase Realtime subscriptions to overview-tab.tsx
+
+Work Log:
+- Read worklog.md and overview-tab.tsx to understand current state
+- Component fetches lectures, subject_students, subject_files, and assignments but had NO realtime subscriptions — data was stale after mutations
+- Modified `fetchOverviewData` to accept `showLoading = true` parameter:
+  - When `showLoading` is false (realtime refetch), skips setting loading state so UI doesn't flash spinner
+  - When `showLoading` is false, also skips `setLoading(false)` in finally block
+- Added new useEffect after existing fetch useEffect that subscribes to Supabase Realtime on channel `overview-${subjectId}`:
+  - lectures INSERT/UPDATE/DELETE → refetch without loading indicator
+  - subject_students INSERT/DELETE → refetch without loading indicator
+  - subject_files INSERT/DELETE → refetch without loading indicator
+  - assignments INSERT/DELETE → refetch without loading indicator
+- Channel is cleaned up on unmount via `supabase.removeChannel(channel)`
+- No existing fetch logic was modified — only the `showLoading` parameter was added and the new useEffect was appended
+- Lint passes with 0 errors
+
+Stage Summary:
+- Added Supabase Realtime subscriptions for lectures, subject_students, subject_files, and assignments tables
+- Live updates now work for: lecture create/edit/delete, student enroll/unenroll, file upload/delete, assignment create/delete
+- Refetch on realtime events uses `showLoading=false` to avoid UI spinner flash
+- Files modified: src/components/course/tabs/overview-tab.tsx
+
+---
+Task ID: 4
+Agent: Subagent
+Task: Add Supabase Realtime subscriptions to students-tab.tsx
+
+Work Log:
+- Read worklog.md and students-tab.tsx to understand current state
+- Component fetches subject_students (enrolled + pending), users, quiz_scores, attendance_records, attendance_sessions but had NO realtime subscriptions — data was stale after enrollment changes or score updates by other users
+- Modified `fetchStudents` to accept `showLoading = true` parameter — when false (realtime refetch), skips `setLoading(true)` so UI doesn't flash spinner
+- Modified `fetchPendingRequests` to accept `showLoading = true` parameter — when false, skips `setLoadingPending(true)` similarly
+- Added new useEffect after the initial fetch useEffect that subscribes to Supabase Realtime on channel `students-tab-${subjectId}`:
+  - subject_students INSERT → `fetchStudents(false)` + `fetchPendingRequests(false)` (new enrollment)
+  - subject_students UPDATE → `fetchStudents(false)` + `fetchPendingRequests(false)` (status change, e.g. pending→approved)
+  - subject_students DELETE → `fetchStudents(false)` + `fetchPendingRequests(false)` (unenrollment)
+  - scores INSERT/UPDATE/DELETE → `fetchStudents(false)` (quiz score changes, filtered by `subject_id=eq.${subjectId}`)
+- Added UPDATE event for subject_students in addition to INSERT/DELETE, since enrollment status changes (pending→approved) are UPDATE operations that affect both the enrolled students list and pending requests list
+- Channel is cleaned up on unmount via `supabase.removeChannel(channel)`
+- `supabase` was already imported — no import changes needed
+- Lint passes with 0 errors
+
+Stage Summary:
+- Added Supabase Realtime subscriptions for subject_students and scores tables
+- Live updates now work for: student enroll/unenroll, enrollment status changes, quiz score changes
+- Refetch on realtime events uses `showLoading=false` to avoid UI spinner flash
+- Files modified: src/components/course/tabs/students-tab.tsx

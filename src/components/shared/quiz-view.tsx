@@ -362,6 +362,64 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     };
   }, [fetchQuiz]);
 
+  // ─── Supabase Realtime: quiz updates ───
+  // When a teacher modifies the quiz (e.g., toggles is_finished), the student sees changes instantly.
+  useEffect(() => {
+    if (!quiz?.id) return;
+
+    const channel = supabase
+      .channel(`quiz-view-${quiz.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'quizzes', filter: `id=eq.${quiz.id}` },
+        (payload) => {
+          const updated = payload.new as Quiz;
+          if (updated) {
+            setQuiz(prev => prev ? { ...prev, ...updated, questions: Array.isArray(updated.questions) ? updated.questions : prev.questions } : prev);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [quiz?.id]);
+
+  // ─── Supabase Realtime: score changes for the current student ───
+  // When a score is inserted or updated (e.g., teacher re-grades), update userAnswers live.
+  useEffect(() => {
+    if (!quiz?.id || profile.role !== 'student') return;
+
+    const channel = supabase
+      .channel(`quiz-scores-${quiz.id}-${profile.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'scores', filter: `student_id=eq.${profile.id}&quiz_id=eq.${quiz.id}` },
+        (payload) => {
+          const newScore = payload.new as Score;
+          if (newScore?.user_answers && Array.isArray(newScore.user_answers)) {
+            setUserAnswers(newScore.user_answers as UserAnswer[]);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'scores', filter: `student_id=eq.${profile.id}&quiz_id=eq.${quiz.id}` },
+        (payload) => {
+          const updatedScore = payload.new as Score;
+          if (updatedScore?.user_answers && Array.isArray(updatedScore.user_answers)) {
+            setUserAnswers(updatedScore.user_answers as UserAnswer[]);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [quiz?.id, profile.id, profile.role]);
+
   // ─── Loading timeout for mobile ───
   // IMPORTANT: Removed aggressive 30s timeout. The server handles its own timeouts.
   // We use a 5-minute safety net only to prevent truly stuck states.

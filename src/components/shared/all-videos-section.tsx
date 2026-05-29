@@ -104,8 +104,8 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
   // -------------------------------------------------------
   // Fetch all videos
   // -------------------------------------------------------
-  const fetchVideos = useCallback(async () => {
-    setLoading(true);
+  const fetchVideos = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       // Get user's enrolled/owned subjects
       let subjectIds: string[] = [];
@@ -240,6 +240,37 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
   useEffect(() => {
     fetchVideos();
   }, [fetchVideos]);
+
+  // -------------------------------------------------------
+  // Supabase Realtime subscriptions
+  // -------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel(`all-videos-section-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subject_videos' }, () => {
+        fetchVideos(false);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subject_videos' }, () => {
+        fetchVideos(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subject_videos' }, () => {
+        fetchVideos(false);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'video_comments' }, () => {
+        fetchVideos(false);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'video_comments' }, () => {
+        fetchVideos(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'video_comments' }, () => {
+        fetchVideos(false);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile.id, fetchVideos]);
 
   // -------------------------------------------------------
   // Fetch comments for a video

@@ -29,6 +29,8 @@ import {
   Calendar,
   ClipboardList,
   BarChart3,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/stores/app-store';
@@ -232,6 +234,9 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const [deletingSubject, setDeletingSubject] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
+  // ─── Pause/Activate subject state ───
+  const [togglingPause, setTogglingPause] = useState(false);
+
   // ─── Leave course state (student only) ───
   const [leavingCourse, setLeavingCourse] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
@@ -322,6 +327,23 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   useEffect(() => {
     fetchSubject();
   }, [fetchSubject]);
+
+  // -------------------------------------------------------
+  // Supabase Realtime: subscribe to subject metadata changes
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (!subject?.id) return;
+    const channel = supabase
+      .channel(`subject-meta-${subject.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'subjects', filter: `id=eq.${subject.id}` }, (payload) => {
+        const updated = payload.new as Subject;
+        if (updated) {
+          setSubject(prev => prev ? { ...prev, ...updated } : prev);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [subject?.id]);
 
   // -------------------------------------------------------
   // Handle back navigation
@@ -458,6 +480,32 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
     } finally {
       setDeletingSubject(false);
       setDeleteConfirmOpen(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Toggle subject pause/activate (teacher only)
+  // -------------------------------------------------------
+  const handleTogglePause = async () => {
+    if (!subject) return;
+    setTogglingPause(true);
+    try {
+      const newPaused = !subject.is_paused;
+      const { error } = await supabase
+        .from('subjects')
+        .update({ is_paused: newPaused, updated_at: new Date().toISOString() })
+        .eq('id', subject.id);
+      if (error) {
+        console.error('Toggle pause error:', error);
+        toast.error(newPaused ? t('course.toastSubjectPauseFailed') : t('course.toastSubjectActivateFailed'));
+      } else {
+        setSubject(prev => prev ? { ...prev, is_paused: newPaused } : prev);
+        toast.success(newPaused ? t('course.toastSubjectPaused') : t('course.toastSubjectActivated'));
+      }
+    } catch {
+      toast.error(t('common.toastError'));
+    } finally {
+      setTogglingPause(false);
     }
   };
 
@@ -638,6 +686,26 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       <Trash2 className="h-3.5 w-3.5" />
                     )}
                   </button>
+                  {/* Pause/Activate button */}
+                  <button
+                    onClick={handleTogglePause}
+                    disabled={togglingPause}
+                    className={`flex h-8 items-center justify-center gap-1.5 rounded-full backdrop-blur-sm text-white text-xs font-medium transition-all active:scale-95 ${
+                      subject?.is_paused
+                        ? 'bg-emerald-500/30 hover:bg-emerald-500/50'
+                        : 'bg-amber-500/30 hover:bg-amber-500/50'
+                    }`}
+                    title={subject?.is_paused ? t('course.activateSubject') : t('course.pauseSubject')}
+                  >
+                    {togglingPause ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : subject?.is_paused ? (
+                      <Play className="h-3.5 w-3.5" />
+                    ) : (
+                      <Pause className="h-3.5 w-3.5" />
+                    )}
+                    <span className="hidden sm:inline">{subject?.is_paused ? t('course.activateSubject') : t('course.pauseSubject')}</span>
+                  </button>
                 </div>
               )}
 
@@ -738,6 +806,12 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       {translateSubLevel(subject.sub_level)}
                     </span>
                   )}
+                  {subject.is_paused && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/40 backdrop-blur-sm border border-amber-300/40 px-2.5 py-0.5 text-xs text-amber-100 font-semibold">
+                      <Pause className="h-3 w-3" />
+                      {t('course.paused')}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -798,7 +872,23 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       {/* ============================================ */}
       {/* TAB CONTENT (no AnimatePresence for performance) */}
       {/* ============================================ */}
-      <div className="mt-4">
+      <div className="mt-4 relative">
+        {/* Paused overlay for students */}
+        {role === 'student' && subject.is_paused && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-2xl">
+            <div className="text-center px-6 py-8 max-w-sm">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/30">
+                <Pause className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h3 className="text-lg font-bold text-foreground mb-2">
+                {t('course.pausedOverlay')}
+              </h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {t('course.pausedOverlayDesc')}
+              </p>
+            </div>
+          </div>
+        )}
         {renderTabContent()}
       </div>
 

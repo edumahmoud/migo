@@ -116,8 +116,8 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
   // -------------------------------------------------------
   // Fetch overview data
   // -------------------------------------------------------
-  const fetchOverviewData = useCallback(async () => {
-    setLoading(true);
+  const fetchOverviewData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       // Fetch all data in parallel for better performance
       const [lecturesResult, studentsResult, filesResult, assignmentsResult] = await Promise.all([
@@ -142,7 +142,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
     } catch (err) {
       console.error('Fetch overview data error:', err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [subjectId]);
 
@@ -150,6 +150,44 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
     fetchOverviewData();
     fetchCoTeachers();
   }, [fetchOverviewData, fetchCoTeachers]);
+
+  // ─── Realtime subscriptions ───
+  useEffect(() => {
+    const channel = supabase
+      .channel(`overview-${subjectId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lectures', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchOverviewData(false);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'lectures', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchOverviewData(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'lectures', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchOverviewData(false);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subject_students', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchOverviewData(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subject_students', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchOverviewData(false);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchOverviewData(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'subject_files', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchOverviewData(false);
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assignments', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchOverviewData(false);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'assignments', filter: `subject_id=eq.${subjectId}` }, () => {
+        fetchOverviewData(false);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [subjectId, fetchOverviewData]);
 
   // -------------------------------------------------------
   // Add co-teacher

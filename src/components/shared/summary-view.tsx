@@ -739,6 +739,52 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
     };
   }, [fetchSummary, fetchRelatedQuiz]);
 
+  // ─── Supabase Realtime: score updates for the related quiz ───
+  // When a teacher grades or updates a score, the summary view reflects it live.
+  useEffect(() => {
+    if (!relatedQuiz?.id) return;
+
+    const channel = supabase
+      .channel(`summary-scores-${relatedQuiz.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'scores', filter: `quiz_id=eq.${relatedQuiz.id}` },
+        (payload) => {
+          const newScore = payload.new as Score;
+          if (newScore) {
+            // Only update if this score belongs to the current student
+            setStudentScore(prev => {
+              if (!prev || prev.student_id === newScore.student_id) {
+                return newScore;
+              }
+              return prev;
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'scores', filter: `quiz_id=eq.${relatedQuiz.id}` },
+        (payload) => {
+          const updatedScore = payload.new as Score;
+          if (updatedScore) {
+            // Only update if this is the score we're currently tracking
+            setStudentScore(prev => {
+              if (prev?.id === updatedScore.id) {
+                return updatedScore;
+              }
+              return prev;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [relatedQuiz?.id]);
+
   // ─── Keep auth cache fresh ───
   useEffect(() => {
     initAuthCacheListener();
