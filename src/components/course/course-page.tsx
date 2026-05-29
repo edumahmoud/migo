@@ -706,7 +706,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       {/* STICKY PILL TAB NAVIGATION                   */}
       {/* ============================================ */}
       <div className="sticky top-0 z-10 -mt-3 bg-background/95 backdrop-blur-md border-b border-border/60 shadow-sm">
-        <div className="relative flex items-center gap-1 md:gap-1.5 px-2 md:px-4 py-2 md:py-3 overflow-x-auto scrollbar-none">
+        <div className="relative flex items-center gap-1 md:gap-1.5 px-2 md:px-4 py-2 md:py-3 overflow-x-auto scrollbar-none lg:flex-wrap lg:overflow-x-visible">
           {availableTabs.map((tab) => {
             const isActive = courseTab === tab.id;
             return (

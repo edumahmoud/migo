@@ -1851,7 +1851,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       <motion.div key={quiz.id} variants={itemVariants}>
         <div className="group relative rounded-xl border bg-card p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
           {/* Teacher action buttons — prominent on mobile, hover-reveal on desktop */}
-          <div className="flex items-center gap-2 mb-3 md:absolute md:top-3 md:start-3 md:mb-0 md:gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-2 mb-3 md:absolute md:top-3 md:end-3 md:mb-0 md:gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
             {/* Settings */}
             <button
               onClick={() => setSettingsQuiz(quiz)}
