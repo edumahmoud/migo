@@ -826,12 +826,12 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
               initial="hidden"
               animate="visible"
               exit="exit"
-              className="relative w-full max-w-md rounded-2xl border bg-background shadow-2xl overflow-hidden"
+              className="relative w-full max-w-md max-h-[90vh] rounded-2xl border bg-background shadow-2xl overflow-hidden flex flex-col"
               dir={direction}
             >
-              {/* Modal gradient header */}
+              {/* Modal gradient header — sticky */}
               <div
-                className="px-6 pt-6 pb-4"
+                className="shrink-0 px-6 pt-6 pb-4 border-b"
                 style={{
                   background: `linear-gradient(135deg, ${hexToRgba(editColor, 0.12)} 0%, transparent 100%)`,
                 }}
@@ -858,7 +858,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 </div>
               </div>
 
-              <div className="px-6 pb-6 space-y-5">
+              {/* Scrollable body */}
+              <div className="overflow-y-auto custom-scrollbar px-6 pb-6 pt-5 space-y-5">
                 {/* Subject name */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground">
