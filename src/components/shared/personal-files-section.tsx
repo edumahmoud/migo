@@ -33,7 +33,6 @@ import {
   Maximize2,
   EyeOff,
   Users,
-  AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
@@ -235,8 +234,6 @@ interface PendingUpload {
   progress: number; // -1 = failed, 0-100 = progress
   uploading: boolean;
   done: boolean;
-  error?: string; // Error message for failed/blocked uploads
-  errorCode?: 'duplicate_name' | 'size' | 'other'; // Categorized error code
 }
 
 // -------------------------------------------------------
@@ -279,6 +276,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // ─── Global file upload store (background uploads) ───
   const { tasks: uploadTasks, addTask: addUploadTask, removeTask: removeUploadTask, clearCompleted: clearCompletedUploads } = useFileUploadStore();
   const hasActiveUploads = uploadTasks.some(t => t.status === 'uploading');
+
+  // ─── Sidebar state for responsive upload indicator ───
+  const { sidebarOpen } = useAppStore();
 
   // ─── PWA Lifecycle protection ───
   // Prevents page reload while files are being uploaded (modal or background)
@@ -391,13 +391,20 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
   // -------------------------------------------------------
   // Auto-refresh files when background uploads complete
+  // Uses a debounce ref to prevent double-fetching when both
+  // the Realtime subscription and this effect fire at the same time.
   // -------------------------------------------------------
   const prevCompletedCountRef = useRef(0);
+  const lastFetchTimeRef = useRef(0);
   useEffect(() => {
     const completedCount = uploadTasks.filter(t => t.status === 'success').length;
     // When completed count increases (a new upload finished), refresh file list
     if (completedCount > prevCompletedCountRef.current) {
-      fetchFiles(false);
+      const now = Date.now();
+      if (now - lastFetchTimeRef.current > 1500) {
+        lastFetchTimeRef.current = now;
+        fetchFiles(false);
+      }
     }
     prevCompletedCountRef.current = completedCount;
   }, [uploadTasks, fetchFiles]);
@@ -546,7 +553,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_files', filter: `user_id=eq.${profile.id}` }, () => {
         // New file uploaded (possibly from another tab/device) — full refetch to get complete data
-        fetchFiles(false);
+        // Debounce: skip if we just fetched (e.g., from uploadTasks effect in same tab)
+        const now = Date.now();
+        if (now - lastFetchTimeRef.current > 1500) {
+          lastFetchTimeRef.current = now;
+          fetchFiles(false);
+        }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -698,7 +710,25 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       }
     }
     if (duplicateNames.length > 0) {
-      toast.error(t('files.toastDuplicateNames', { files: duplicateNames.join(t('common.listSeparator')) }));
+      toast.warning(t('files.toastDuplicateNames', { files: duplicateNames.join(t('common.listSeparator')) }));
+    }
+
+    // Filter out duplicate files — they should NOT be added to the pending list
+    const nonDuplicateFiles = validFiles.filter((file) => {
+      const originalExt = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
+      const customName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
+      const displayName = customName.trim() + originalExt;
+      const isDuplicate = files.some(f => f.file_name.toLowerCase() === displayName.toLowerCase());
+      const isDuplicateInPending = pendingUploads.some(p => {
+        const pfDisplayName = p.customName.trim() + (p.extension ? '.' + p.extension : '');
+        return pfDisplayName.toLowerCase() === displayName.toLowerCase();
+      });
+      return !isDuplicate && !isDuplicateInPending;
+    });
+
+    if (nonDuplicateFiles.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
     }
 
     // ─── CRITICAL MOBILE FIX: Pre-read file data into ArrayBuffers ───
@@ -707,7 +737,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     // the file data is captured in memory regardless of what happens to the File ref.
     // This is the SAME fix used in the summary/transcription flow.
     const newUploads: PendingUpload[] = await Promise.all(
-      validFiles.map(async (file) => {
+      nonDuplicateFiles.map(async (file) => {
         let fileData: ArrayBuffer | null = null;
         try {
           fileData = await file.arrayBuffer();
@@ -715,16 +745,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         } catch (readErr) {
           console.error(`[Upload] Failed to pre-read file "${file.name}":`, readErr);
         }
-        // Check if this file has a duplicate name+extension
-        const originalExt = file.name.includes('.') ? '.' + file.name.split('.').pop() : '';
         const customName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
-        const displayName = customName.trim() + originalExt;
-        const isDuplicate = files.some(f => f.file_name.toLowerCase() === displayName.toLowerCase());
-        const isDuplicateInPending = pendingUploads.some(p => {
-          const pfDisplayName = p.customName.trim() + (p.extension ? '.' + p.extension : '');
-          return pfDisplayName.toLowerCase() === displayName.toLowerCase();
-        });
-        const hasDuplicateName = isDuplicate || isDuplicateInPending;
         return {
           id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           file,
@@ -737,9 +758,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           progress: 0,
           uploading: false,
           done: false,
-          // Mark duplicate name+extension files as error — user must rename before upload
-          error: hasDuplicateName ? t('files.toastDuplicateName', { name: displayName }) : undefined,
-          errorCode: hasDuplicateName ? 'duplicate_name' as const : undefined,
         };
       })
     );
@@ -761,15 +779,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     setPendingUploads((prev) =>
       prev.map((p) => {
         if (p.id !== id) return p;
-        // When user renames, check if the new name resolves the duplicate
-        const newDisplayName = name.trim() + (p.extension ? '.' + p.extension : '');
-        const stillDuplicate = files.some(f => f.file_name.toLowerCase() === newDisplayName.toLowerCase()) ||
-          prev.some(other => other.id !== id && (other.customName.trim() + (other.extension ? '.' + other.extension : '')).toLowerCase() === newDisplayName.toLowerCase());
-        if (stillDuplicate) {
-          return { ...p, customName: name, error: t('files.toastDuplicateName', { name: newDisplayName }), errorCode: 'duplicate_name' as const };
-        }
-        // Name is now unique — clear the duplicate error
-        return { ...p, customName: name, error: p.errorCode === 'duplicate_name' ? undefined : p.error, errorCode: p.errorCode === 'duplicate_name' ? undefined : p.errorCode };
+        return { ...p, customName: name };
       })
     );
   };
@@ -796,9 +806,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   // Modal closes immediately; uploads continue in the background.
   // -------------------------------------------------------
   const handleUploadAll = () => {
-    // Skip files with duplicate_name error — they must be renamed first
     const toUpload = pendingUploadsRef.current.filter(
-      (p) => !p.done && !p.uploading && p.errorCode !== 'duplicate_name' && !p.error
+      (p) => !p.done && !p.uploading
     );
     if (toUpload.length === 0) {
       toast.info(t('files.toastNoFilesToUpload'));
@@ -2399,7 +2408,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     <div
                       key={item.id}
                       className={`rounded-xl border p-3 space-y-2 ${
-                        item.errorCode === 'duplicate_name' ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-900/20' :
                         item.progress === -1 ? 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/15' :
                         item.done ? 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15' :
                         'bg-card'
@@ -2417,18 +2425,12 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                             value={item.customName}
                             onChange={(e) => updatePendingName(item.id, e.target.value)}
                             disabled={item.uploading || item.done}
-                            className={`flex-1 rounded-md border px-2 py-1 text-sm focus:outline-none focus:ring-1 disabled:opacity-60 min-w-0 ${
-                              item.errorCode === 'duplicate_name'
-                                ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-100 focus:ring-amber-500 dark:focus:ring-amber-400 focus:border-amber-500 dark:focus:border-amber-400'
-                                : 'border-border bg-background text-foreground focus:ring-sky-600'
-                            }`}
+                            className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-sky-600 disabled:opacity-60 min-w-0"
                             placeholder={t('files.fileNamePlaceholder')}
                             dir={direction}
                           />
                           {item.extension && (
-                            <span className={`text-xs shrink-0 ${
-                              item.errorCode === 'duplicate_name' ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'
-                            }`}>.{item.extension}</span>
+                            <span className="text-xs shrink-0 text-muted-foreground">.{item.extension}</span>
                           )}
                         </div>
                         {/* Remove button */}
@@ -2444,23 +2446,13 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         {item.done && (
                           <CheckCircle2 className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0" />
                         )}
-                        {item.errorCode === 'duplicate_name' && (
-                          <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-                        )}
-                        {item.progress === -1 && item.errorCode !== 'duplicate_name' && (
+                        {item.progress === -1 && (
                           <X className="h-4 w-4 text-rose-500 dark:text-rose-500 shrink-0" />
                         )}
                         {item.uploading && (
                           <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-400 shrink-0" />
                         )}
                       </div>
-                      {/* Duplicate name error message */}
-                      {item.error && item.errorCode === 'duplicate_name' && (
-                        <div className="flex items-start gap-1.5 px-1">
-                          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5 text-amber-500 dark:text-amber-500" />
-                          <span className="text-[11px] text-amber-700 dark:text-amber-500 leading-relaxed">{item.error}</span>
-                        </div>
-                      )}
                       {/* Progress bar */}
                       {(item.uploading || item.done || item.progress === -1) && (
                         <div className="space-y-1">
@@ -2469,7 +2461,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                               {formatFileSize(item.fileSize)}
                             </span>
                             <span className={`text-[10px] font-medium ${
-                              item.progress === -1 ? 'text-rose-500' : item.done ? 'text-sky-700 dark:text-sky-400' : 'text-sky-700 dark:text-sky-400'
+                              item.progress === -1 ? 'text-rose-500' : 'text-sky-700 dark:text-sky-400'
                             }`}>
                               {item.progress === -1 ? t('files.failed') : `${Math.round(item.progress)}%`}
                             </span>
@@ -2497,30 +2489,25 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               <div className="border-t p-4 flex items-center justify-between shrink-0 sticky bottom-0 z-10 bg-background">
                 <span className="text-sm text-muted-foreground">
                   {t('files.completed', { done: pendingUploads.filter((p) => p.done).length, total: pendingUploads.length })}
-                  {pendingUploads.some((p) => p.errorCode === 'duplicate_name') && (
-                    <span className="text-amber-600 dark:text-amber-500 text-xs ms-1">({t('files.needRename', { count: pendingUploads.filter((p) => p.errorCode === 'duplicate_name').length })})</span>
-                  )}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
                       setUploadModalOpen(false);
                       setPendingUploads([]);
-                      fetchFiles();
                     }}
                     className="rounded-lg border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
                   >
                     {t('files.close')}
                   </button>
-                  {/* Upload All / Retry button — visible whenever there are uploadable files (no duplicate_name errors) and nothing is currently uploading */}
-                  {pendingUploads.some((p) => !p.done && !p.uploading && p.errorCode !== 'duplicate_name' && !p.error) && (
+                  {pendingUploads.some((p) => !p.done && !p.uploading && !p.error) && (
                     <button
                       type="button"
                       onClick={handleUploadAll}
                       className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-sky-800 active:bg-sky-900 transition-colors touch-manipulation min-h-[44px]"
                     >
                       <Upload className="h-4 w-4" />
-                      {pendingUploads.some((p) => p.progress === -1 && p.errorCode !== 'duplicate_name') ? t('files.retryAll') : t('files.uploadAll')}
+                      {pendingUploads.some((p) => p.progress === -1) ? t('files.retryAll') : t('files.uploadAll')}
                     </button>
                   )}
                 </div>
@@ -3523,7 +3510,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
-        className="fixed bottom-4 start-4 z-[60] w-80 max-w-[calc(100vw-2rem)] rounded-xl border bg-background shadow-lg overflow-hidden"
+        className={`fixed bottom-4 z-[60] w-80 max-w-[calc(100vw-2rem)] rounded-xl border bg-background shadow-lg overflow-hidden transition-[left,right] duration-300 ease-in-out ${
+          sidebarOpen
+            ? 'md:start-64 start-4'
+            : 'md:start-[76px] start-4'
+        }`}
         dir={direction}
       >
         {/* Header */}
