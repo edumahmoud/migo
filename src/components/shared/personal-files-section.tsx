@@ -869,6 +869,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       const file = files.find((f) => f.id === fileId);
       if (!file) return;
       const ext = getFileExtension(file.file_name);
+      const oldName = file.file_name;
       const newName = renameValue.trim() + (ext ? '.' + ext : '');
 
       // Use server-side API for reliable auth (avoids RLS issues with expired sessions)
@@ -1666,45 +1667,57 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
     return (
       <motion.div variants={itemVariants}>
-        <div className="group relative rounded-xl border bg-card p-4 shadow-sm hover:shadow-md transition-all">
+        <div className="group relative rounded-xl border bg-card p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
           {/* Rename input */}
           {isRenaming ? (
-            <div className="flex items-center gap-2 mb-2">
-              <input
-                type="text"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleRenameFile(file.id);
-                  if (e.key === 'Escape') setRenamingFileId(null);
-                }}
-                className="flex-1 rounded-md border border-sky-600 bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30"
-                autoFocus
-                dir={direction}
-              />
-              <span className="text-xs text-muted-foreground">.{getFileExtension(file.file_name)}</span>
-              <button
-                onClick={() => handleRenameFile(file.id)}
-                disabled={renaming}
-                className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-700 text-white hover:bg-sky-800 disabled:opacity-60"
-              >
-                {renaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-              </button>
-              <button
-                onClick={() => setRenamingFileId(null)}
-                className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-muted-foreground hover:bg-muted/80"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+            <div className="space-y-2 mb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+                  {getFileIcon(file.file_type)}
+                </div>
+                <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameFile(file.id);
+                      if (e.key === 'Escape') setRenamingFileId(null);
+                    }}
+                    className="flex-1 min-w-0 rounded-md border border-sky-600 bg-background px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30"
+                    autoFocus
+                    dir={direction}
+                  />
+                  <span className="shrink-0 text-xs text-muted-foreground">.{getFileExtension(file.file_name)}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 me-11">
+                <button
+                  onClick={() => handleRenameFile(file.id)}
+                  disabled={renaming}
+                  className="flex items-center gap-1.5 rounded-md bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-800 disabled:opacity-60"
+                >
+                  {renaming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                  {t('common.confirm')}
+                </button>
+                <button
+                  onClick={() => setRenamingFileId(null)}
+                  className="flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted/80"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  {t('common.cancel')}
+                </button>
+              </div>
             </div>
           ) : null}
 
           {/* Row 1: File icon + file name + DropdownMenu */}
+          {!isRenaming && (
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted/50">
               {getFileIcon(file.file_type)}
             </div>
-            <h3 className="min-w-0 flex-1 text-sm font-bold text-foreground truncate" title={file.file_name}>
+            <h3 className="min-w-0 flex-1 text-sm font-bold text-foreground break-words line-clamp-2" title={file.file_name}>
               {file.file_name}
             </h3>
 
@@ -1791,6 +1804,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+          )}
 
           {/* Row 2: Details - size • date • type badge • category badge */}
           <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
@@ -2000,7 +2014,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       ) : (
         <motion.div
           variants={containerVariants}
-          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
         >
           {filteredFiles.map((file) => (
             <div key={file.id}>{renderFileCard(file)}</div>
@@ -2152,7 +2166,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       ) : (
         <motion.div
           variants={containerVariants}
-          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
         >
           {sharedWithMe.map((file) => (
             <motion.div key={`${file.id}-shared`} variants={itemVariants}>
