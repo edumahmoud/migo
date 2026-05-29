@@ -38,6 +38,7 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
+  RotateCcw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { waitForSession, getAuthHeaders } from '@/lib/client-auth';
@@ -279,9 +280,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Global file upload store (background uploads) ───
-  const { tasks: uploadTasks, addTask: addUploadTask, removeTask: removeUploadTask, clearCompleted: clearCompletedUploads, pauseTask: pauseUploadTask, resumeTask: resumeUploadTask, cancelTask: cancelUploadTask, pauseAll: pauseAllUploads, resumeAll: resumeAllUploads, cancelAll: cancelAllUploads } = useFileUploadStore();
+  const { tasks: uploadTasks, addTask: addUploadTask, removeTask: removeUploadTask, clearCompleted: clearCompletedUploads, pauseTask: pauseUploadTask, resumeTask: resumeUploadTask, cancelTask: cancelUploadTask, retryTask: retryUploadTask, pauseAll: pauseAllUploads, resumeAll: resumeAllUploads, cancelAll: cancelAllUploads, hydrateFromPersistence } = useFileUploadStore();
   const hasActiveUploads = uploadTasks.some(t => t.status === 'uploading');
   const [uploadListCollapsed, setUploadListCollapsed] = useState(false);
+
+  // ─── Hydrate upload tasks from IndexedDB on mount ───
+  useEffect(() => {
+    hydrateFromPersistence();
+  }, [hydrateFromPersistence]);
 
   // ─── Sidebar state for responsive upload indicator ───
   const { sidebarOpen } = useAppStore();
@@ -3508,10 +3514,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
     const completed = uploadTasks.filter(t => t.status === 'success');
     const failed = uploadTasks.filter(t => t.status === 'error');
     const cancelled = uploadTasks.filter(t => t.status === 'cancelled');
+    const interrupted = uploadTasks.filter(t => t.status === 'interrupted');
     const overallProgress = uploadTasks.length > 0
       ? Math.round(uploadTasks.reduce((sum, t) => sum + t.progress, 0) / uploadTasks.length)
       : 0;
-    const allDone = active.length === 0 && paused.length === 0;
+    const allDone = active.length === 0 && paused.length === 0 && interrupted.length === 0;
     const hasActiveOrPaused = active.length > 0 || paused.length > 0;
 
     return (
@@ -3531,6 +3538,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <div className="flex items-center gap-2 min-w-0">
             {allDone ? (
               <CheckCircle2 className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0" />
+            ) : interrupted.length > 0 ? (
+              <RotateCcw className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
             ) : paused.length > 0 && active.length === 0 ? (
               <Pause className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
             ) : (
@@ -3539,9 +3548,11 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             <span className="text-sm font-medium text-foreground truncate">
               {allDone
                 ? t('files.uploadComplete') || `تم الرفع — ${completed.length} ملف(ات)`
-                : paused.length > 0 && active.length === 0
-                  ? t('files.uploadPaused') || `متوقف مؤقتاً — ${paused.length} ملف(ات)`
-                  : t('files.uploadingFiles') || `جارٍ الرفع... ${active.length} ملف(ات)`
+                : interrupted.length > 0
+                  ? t('files.uploadInterrupted') || `متقطع — ${interrupted.length} ملف(ات)`
+                  : paused.length > 0 && active.length === 0
+                    ? t('files.uploadPaused') || `متوقف مؤقتاً — ${paused.length} ملف(ات)`
+                    : t('files.uploadingFiles') || `جارٍ الرفع... ${active.length} ملف(ات)`
               }
             </span>
           </div>
@@ -3575,6 +3586,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 </button>
               </>
             )}
+            {/* Retry All interrupted */}
+            {interrupted.length > 0 && (
+              <button
+                onClick={() => { for (const task of interrupted) retryUploadTask(task.id); }}
+                className="touch-target flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 transition-colors"
+                title={t('files.retryAll') || 'Retry All'}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </button>
+            )}
             {/* Collapse/Expand toggle */}
             <button
               onClick={() => setUploadListCollapsed(prev => !prev)}
@@ -3603,7 +3624,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           <div className="px-4 py-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs text-muted-foreground">
-                {completed.length + failed.length + cancelled.length} / {uploadTasks.length}
+                {completed.length + failed.length + cancelled.length + interrupted.length} / {uploadTasks.length}
               </span>
               <span className="text-xs font-medium text-sky-700 dark:text-sky-400">
                 {overallProgress}%
@@ -3625,13 +3646,15 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 className={`rounded-lg border p-2 space-y-1 ${
                   task.status === 'error'
                     ? 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/15'
-                    : task.status === 'success'
-                      ? 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15'
-                      : task.status === 'paused'
-                        ? 'border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/15'
-                        : task.status === 'cancelled'
-                          ? 'border-muted bg-muted/20'
-                          : 'bg-card'
+                    : task.status === 'interrupted'
+                      ? 'border-orange-200 dark:border-orange-900/60 bg-orange-50/30 dark:bg-orange-900/15'
+                      : task.status === 'success'
+                        ? 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15'
+                        : task.status === 'paused'
+                          ? 'border-amber-200 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/15'
+                          : task.status === 'cancelled'
+                            ? 'border-muted bg-muted/20'
+                            : 'bg-card'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -3679,6 +3702,24 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       </button>
                     </>
                   )}
+                  {task.status === 'interrupted' && (
+                    <>
+                      <button
+                        onClick={() => retryUploadTask(task.id)}
+                        className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600"
+                        title={t('files.retryUpload') || 'Retry'}
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => cancelUploadTask(task.id)}
+                        className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500"
+                        title={t('files.cancelUpload') || 'Cancel'}
+                      >
+                        <XCircle className="h-3 w-3" />
+                      </button>
+                    </>
+                  )}
                   {task.status === 'success' && (
                     <CheckCircle2 className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
                   )}
@@ -3705,6 +3746,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       {task.status === 'paused' ? (t('files.uploadPaused') || 'Paused') : `${task.progress}%`}
                     </span>
                   </div>
+                )}
+                {task.status === 'interrupted' && (
+                  <span className="text-[10px] text-orange-600 dark:text-orange-400">{t('files.uploadInterruptedDesc') || 'تمت مقاطعة الرفع — اضغط إعادة المحاولة'}</span>
                 )}
                 {task.status === 'cancelled' && (
                   <span className="text-[10px] text-muted-foreground">{t('files.uploadCancelled') || 'Cancelled'}</span>

@@ -5,15 +5,29 @@
 // navigate freely while uploads run. Follows the same
 // pattern as video-upload-store but simplified (no TUS
 // or chunking — files are typically <50MB).
+//
+// Persistence: Upload task metadata + file ArrayBuffer
+// data are stored in IndexedDB so uploads survive page
+// reloads. On reload, interrupted uploads can be retried
+// using the stored data.
 
 import { create } from 'zustand';
 import { supabase, supabaseUrl } from '@/lib/supabase';
 import { waitForSession, getCachedAuthHeaders } from '@/lib/client-auth';
 import { toast } from 'sonner';
+import {
+  saveTaskMeta,
+  saveFileData,
+  getAllTaskMetas,
+  getFileData,
+  cleanupTask,
+  cleanupOldTasks,
+  type PersistedUploadTask,
+} from '@/lib/upload-persistence';
 
 // ─── Types ───
 
-export type FileUploadStatus = 'uploading' | 'paused' | 'cancelled' | 'success' | 'error';
+export type FileUploadStatus = 'uploading' | 'paused' | 'cancelled' | 'success' | 'error' | 'interrupted';
 
 export interface FileUploadTask {
   id: string;
@@ -33,16 +47,19 @@ export interface FileUploadTask {
 
 interface FileUploadState {
   tasks: FileUploadTask[];
+  hydrated: boolean;
   addTask: (task: Omit<FileUploadTask, 'status' | 'progress'>) => string;
   updateTask: (id: string, updates: Partial<FileUploadTask>) => void;
   removeTask: (id: string) => void;
   pauseTask: (id: string) => void;
   resumeTask: (id: string) => void;
   cancelTask: (id: string) => void;
+  retryTask: (id: string) => void;
   pauseAll: () => void;
   resumeAll: () => void;
   cancelAll: () => void;
   clearCompleted: () => void;
+  hydrateFromPersistence: () => Promise<void>;
 }
 
 // ─── Constants ───
@@ -87,14 +104,53 @@ const pauseSignals = new Map<string, { resolve: () => void }>();
 // ─── In-flight XHR references per task (for abort) ───
 const activeXHRs = new Map<string, XMLHttpRequest>();
 
+// ─── Helper: persist task metadata to IndexedDB ───
+async function persistTaskMeta(task: FileUploadTask): Promise<void> {
+  const meta: PersistedUploadTask = {
+    id: task.id,
+    fileName: task.fileName,
+    fileType: task.fileType,
+    fileSize: task.fileSize,
+    customName: task.customName,
+    extension: task.extension,
+    progress: task.progress,
+    status: task.status,
+    error: task.error,
+    profileId: task.profileId,
+    subjectIds: task.subjectIds,
+    createdAt: Date.now(),
+  };
+  await saveTaskMeta(meta);
+}
+
+// ─── Helper: persist file data to IndexedDB ───
+async function persistFileData(task: FileUploadTask): Promise<void> {
+  if (task.fileData && task.fileData.byteLength > 0) {
+    await saveFileData(task.id, task.fileData);
+  } else if (task.file) {
+    try {
+      const data = await task.file.arrayBuffer();
+      await saveFileData(task.id, data);
+    } catch {
+      console.warn(`[File Upload] Could not persist file data for ${task.fileName}`);
+    }
+  }
+}
+
 // ─── Store ───
 export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
   tasks: [],
+  hydrated: false,
 
   addTask: (task) => {
     const id = task.id || uid();
     const newTask: FileUploadTask = { ...task, id, status: 'uploading', progress: 0 };
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
+
+    // Persist metadata + file data to IndexedDB (non-blocking)
+    persistTaskMeta(newTask);
+    persistFileData(newTask);
+
     // Auto-start upload
     startUpload(id);
     return id;
@@ -104,6 +160,12 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
     }));
+
+    // Persist updated metadata (non-blocking)
+    const updatedTask = get().tasks.find((t) => t.id === id);
+    if (updatedTask) {
+      persistTaskMeta(updatedTask);
+    }
   },
 
   pauseTask: (id) => {
@@ -156,6 +218,33 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
       pauseSignals.delete(id);
     }
     get().updateTask(id, { status: 'cancelled', progress: 0 });
+    // Clean up persisted data for cancelled task
+    cleanupTask(id);
+  },
+
+  retryTask: (id) => {
+    // For interrupted/error tasks: re-read file data from IndexedDB and restart upload
+    const task = get().tasks.find((t) => t.id === id);
+    if (!task || (task.status !== 'interrupted' && task.status !== 'error')) return;
+
+    // Attempt to get file data from IndexedDB
+    getFileData(id).then((data) => {
+      if (data) {
+        get().updateTask(id, {
+          status: 'uploading',
+          progress: 0,
+          error: undefined,
+          fileData: data,
+        });
+        startUpload(id);
+      } else {
+        // No file data available — mark as error
+        get().updateTask(id, {
+          status: 'error',
+          error: 'لا يمكن إعادة المحاولة — بيانات الملف غير متوفرة. يرجى رفع الملف مرة أخرى.',
+        });
+      }
+    });
   },
 
   pauseAll: () => {
@@ -198,12 +287,75 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
       pauseSignals.delete(id);
     }
     set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
+    // Clean up persisted data
+    cleanupTask(id);
   },
 
   clearCompleted: () => {
+    const toRemove = get().tasks.filter((t) =>
+      t.status === 'success' || t.status === 'cancelled' || t.status === 'interrupted'
+    );
     set((state) => ({
-      tasks: state.tasks.filter((t) => t.status !== 'success' && t.status !== 'cancelled'),
+      tasks: state.tasks.filter((t) =>
+        t.status !== 'success' && t.status !== 'cancelled' && t.status !== 'interrupted'
+      ),
     }));
+    // Clean up persisted data for removed tasks
+    for (const task of toRemove) {
+      cleanupTask(task.id);
+    }
+  },
+
+  hydrateFromPersistence: async () => {
+    if (get().hydrated) return;
+
+    try {
+      // Clean up old tasks first
+      await cleanupOldTasks();
+
+      const metas = await getAllTaskMetas();
+      if (metas.length === 0) {
+        set({ hydrated: true });
+        return;
+      }
+
+      const restoredTasks: FileUploadTask[] = [];
+
+      for (const meta of metas) {
+        const wasActive = meta.status === 'uploading' || meta.status === 'paused';
+
+        const restoredTask: FileUploadTask = {
+          id: meta.id,
+          file: new File([], meta.fileName, { type: meta.fileType }), // placeholder File object
+          fileData: null, // will be loaded lazily on retry
+          fileName: meta.fileName,
+          fileType: meta.fileType,
+          fileSize: meta.fileSize,
+          customName: meta.customName,
+          extension: meta.extension,
+          progress: meta.progress,
+          status: wasActive ? 'interrupted' : (meta.status as FileUploadStatus),
+          error: wasActive ? 'تمت مقاطعة الرفع بسبب إعادة تحميل الصفحة' : meta.error,
+          profileId: meta.profileId,
+          subjectIds: meta.subjectIds,
+        };
+
+        restoredTasks.push(restoredTask);
+      }
+
+      set({ tasks: restoredTasks, hydrated: true });
+
+      // If there are interrupted uploads, notify the user
+      const interruptedCount = restoredTasks.filter((t) => t.status === 'interrupted').length;
+      if (interruptedCount > 0) {
+        toast.info(`تم العثور على ${interruptedCount} رفع(ات) متقطع(ة). يمكنك إعادة المحاولة.`, {
+          duration: 6000,
+        });
+      }
+    } catch (err) {
+      console.error('[File Upload] Hydration failed:', err);
+      set({ hydrated: true });
+    }
   },
 }));
 
@@ -214,7 +366,7 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
 // ─── Helper: check if task is paused/cancelled and wait if paused ───
 async function checkPauseState(taskId: string): Promise<boolean> {
   const task = useFileUploadStore.getState().tasks.find((t) => t.id === taskId);
-  if (!task || task.status === 'cancelled') return false; // cancelled → abort upload
+  if (!task || task.status === 'cancelled' || task.status === 'interrupted') return false; // cancelled/interrupted → abort upload
   if (task.status === 'paused' || pauseSignals.has(taskId)) {
     // Wait for resume signal
     await new Promise<void>((resolve) => {
@@ -236,8 +388,8 @@ async function startUpload(taskId: string) {
   const task = useFileUploadStore.getState().tasks.find((t) => t.id === taskId);
   if (!task) return;
 
-  // If task is paused, don't start — resumeTask will call startUpload again
-  if (task.status === 'paused' || task.status === 'cancelled') return;
+  // If task is paused/interrupted/cancelled, don't start — resumeTask/retryTask will call startUpload again
+  if (task.status === 'paused' || task.status === 'cancelled' || task.status === 'interrupted') return;
 
   const store = useFileUploadStore.getState();
 
@@ -246,7 +398,7 @@ async function startUpload(taskId: string) {
     const token = await waitForSession(15000);
     if (!token) {
       const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
-      if (t?.status === 'cancelled' || t?.status === 'paused') return;
+      if (t?.status === 'cancelled' || t?.status === 'paused' || t?.status === 'interrupted') return;
       store.updateTask(taskId, { status: 'error', error: 'يرجى تسجيل الدخول أولاً' });
       return;
     }
@@ -266,13 +418,37 @@ async function startUpload(taskId: string) {
     const fileSize = task.fileSize || 0;
 
     let arrayBuffer: ArrayBuffer;
+
+    // Try multiple sources for file data: task.fileData → task.file → IndexedDB
     if (task.fileData && task.fileData.byteLength > 0) {
       arrayBuffer = task.fileData;
-    } else {
+    } else if (task.file && task.file.size > 0) {
       try {
         arrayBuffer = await task.file.arrayBuffer();
       } catch {
-        store.updateTask(taskId, { status: 'error', error: `فشل قراءة الملف "${fileName}"` });
+        // File object might be invalid (e.g., after page reload)
+        // Try to get data from IndexedDB
+        const persistedData = await getFileData(taskId);
+        if (persistedData) {
+          arrayBuffer = persistedData;
+          // Also update the task's fileData for future use
+          store.updateTask(taskId, { fileData: persistedData });
+        } else {
+          store.updateTask(taskId, { status: 'error', error: `فشل قراءة الملف "${fileName}"` });
+          return;
+        }
+      }
+    } else {
+      // Both fileData and file are empty — try IndexedDB
+      const persistedData = await getFileData(taskId);
+      if (persistedData) {
+        arrayBuffer = persistedData;
+        store.updateTask(taskId, { fileData: persistedData });
+      } else {
+        store.updateTask(taskId, {
+          status: 'error',
+          error: 'بيانات الملف غير متوفرة. يرجى رفع الملف مرة أخرى.',
+        });
         return;
       }
     }
@@ -352,7 +528,7 @@ async function startUpload(taskId: string) {
       } catch (serverErr) {
         // If aborted due to pause/cancel, return silently
         const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
-        if (t?.status === 'paused' || t?.status === 'cancelled') return;
+        if (t?.status === 'paused' || t?.status === 'cancelled' || t?.status === 'interrupted') return;
         console.warn(`[File Upload] Server-side upload error for ${displayName}:`, serverErr instanceof Error ? serverErr.message : serverErr, '— falling back to direct storage');
       }
     } else {
@@ -420,7 +596,7 @@ async function startUpload(taskId: string) {
       } catch (xhrErr) {
         // If aborted due to pause/cancel, return silently
         const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
-        if (t?.status === 'paused' || t?.status === 'cancelled') return;
+        if (t?.status === 'paused' || t?.status === 'cancelled' || t?.status === 'interrupted') return;
         console.warn(`[File Upload] XHR failed for ${task.customName}, trying SDK:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
       }
 
@@ -463,14 +639,14 @@ async function startUpload(taskId: string) {
         } catch (sdkErr) {
           // If aborted due to pause/cancel, return silently
           const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
-          if (t?.status === 'paused' || t?.status === 'cancelled') return;
+          if (t?.status === 'paused' || t?.status === 'cancelled' || t?.status === 'interrupted') return;
           console.error(`[File Upload] SDK also failed for ${task.customName}:`, sdkErr);
         }
       }
 
       if (!storageUploadSuccess) {
         const t = useFileUploadStore.getState().tasks.find((x) => x.id === taskId);
-        if (t?.status === 'paused' || t?.status === 'cancelled') return;
+        if (t?.status === 'paused' || t?.status === 'cancelled' || t?.status === 'interrupted') return;
         store.updateTask(taskId, { status: 'error', error: 'فشل رفع الملف' });
         return;
       }
@@ -579,12 +755,14 @@ async function startUpload(taskId: string) {
       // Clean up pause signals
       pauseSignals.delete(taskId);
       store.updateTask(taskId, { status: 'success', progress: 100 });
+      // Clean up persisted data for completed upload (no need to keep it)
+      cleanupTask(taskId);
       toast.success(`تم رفع "${displayName}" بنجاح`);
     }
   } catch (err: unknown) {
     const taskNow = useFileUploadStore.getState().tasks.find((t) => t.id === taskId);
-    // Don't show error for cancelled/paused tasks
-    if (!taskNow || taskNow.status === 'cancelled' || taskNow.status === 'paused') return;
+    // Don't show error for cancelled/paused/interrupted tasks
+    if (!taskNow || taskNow.status === 'cancelled' || taskNow.status === 'paused' || taskNow.status === 'interrupted') return;
 
     const message = err instanceof Error ? err.message : 'حدث خطأ أثناء رفع الملف';
     useFileUploadStore.getState().updateTask(taskId, { status: 'error', error: message });
