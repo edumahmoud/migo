@@ -80,17 +80,17 @@ interface TabConfig {
 }
 
 const TABS: TabConfig[] = [
-  { id: 'overview', labelKey: 'course.overview', icon: <LayoutDashboard className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'lectures', labelKey: 'course.lectures', icon: <BookOpen className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'notes', labelKey: 'course.notes', icon: <PenLine className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'files', labelKey: 'course.files', icon: <Folder className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'videos', labelKey: 'course.videos', icon: <Video className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'exams', labelKey: 'course.exams', icon: <FileCheck className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'assignments', labelKey: 'course.assignments', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'chat', labelKey: 'course.chat', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
-  { id: 'students', labelKey: 'course.students', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
-  { id: 'teams', labelKey: 'course.teams', icon: <ClipboardList className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
-  { id: 'polls', labelKey: 'course.polls', icon: <BarChart3 className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'overview', labelKey: 'course.tabOverview', icon: <LayoutDashboard className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'lectures', labelKey: 'course.tabLectures', icon: <BookOpen className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'notes', labelKey: 'course.tabNotes', icon: <PenLine className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'files', labelKey: 'course.tabFiles', icon: <Folder className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'videos', labelKey: 'course.tabVideos', icon: <Video className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'exams', labelKey: 'course.tabExams', icon: <FileCheck className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'assignments', labelKey: 'course.tabAssignments', icon: <ListChecks className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'chat', labelKey: 'course.tabChat', icon: <MessageCircle className="h-4 w-4 sm:h-4 sm:w-4" /> },
+  { id: 'students', labelKey: 'course.tabStudents', icon: <Users className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
+  { id: 'teams', labelKey: 'course.tabTeams', icon: <ClipboardList className="h-4 w-4 sm:h-4 sm:w-4" />, teacherOnly: true },
+  { id: 'polls', labelKey: 'course.tabPolls', icon: <BarChart3 className="h-4 w-4 sm:h-4 sm:w-4" /> },
 ];
 
 // -------------------------------------------------------
