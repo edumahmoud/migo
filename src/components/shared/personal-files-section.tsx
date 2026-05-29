@@ -1243,8 +1243,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 setFiles(prev => prev.map(f => f.id === fileId ? { ...f, file_name: verified.file_name } : f));
                 toast.error(t('files.toastRenameFailed'));
               }
-            })
-            .catch(() => {/* verification failed silently */});
+            }, () => {/* verification failed silently */});
         }, 1500);
       } else {
         console.error('Rename failed:', data.error);
