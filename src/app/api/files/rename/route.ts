@@ -10,8 +10,13 @@ import { authenticateRequest, authErrorResponse } from '@/lib/auth-helpers';
  * the server-side Supabase client, bypassing potential RLS issues from
  * expired/silent browser sessions.
  *
- * Also syncs the new name to subject_files records that reference this file
- * via user_file_id, so course-linked copies stay consistent.
+ * Sync propagation:
+ *   1. user_files.file_name        ← primary update
+ *   2. subject_files.file_name     ← via user_file_id FK
+ *   3. lecture_notes.content       ← embedded as [FILE|||url|||name] or [FILE:url:name]
+ *
+ * Tables that DON'T need sync (they read via FK JOIN at query time):
+ *   - file_shares, file_requests, submissions
  *
  * Body (JSON):
  *   - fileId: string (UUID of the file in user_files)
@@ -37,7 +42,7 @@ export async function PUT(request: NextRequest) {
     // Verify the file belongs to the authenticated user
     const { data: file, error: fetchError } = await supabaseServer
       .from('user_files')
-      .select('id, user_id, file_name')
+      .select('id, user_id, file_name, file_url')
       .eq('id', fileId)
       .single();
 
@@ -65,7 +70,10 @@ export async function PUT(request: NextRequest) {
       });
     }
 
-    // Update the file name in user_files
+    const oldName = file.file_name;
+    const fileUrl = file.file_url;
+
+    // ─── STEP 1: Update user_files (source of truth) ───
     const { data: updated, error: updateError } = await supabaseServer
       .from('user_files')
       .update({ file_name: trimmedName, updated_at: new Date().toISOString() })
@@ -105,9 +113,12 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    console.log('[rename] Verified: file', fileId, 'renamed to', trimmedName);
+    console.log('[rename] Verified: file', fileId, 'renamed from', oldName, 'to', trimmedName);
 
-    // ─── Sync: Update subject_files records that reference this file ───
+    // Track sync results for logging
+    const syncResults: string[] = [];
+
+    // ─── STEP 2: Sync subject_files ───
     // When a personal file is linked to courses via subject_files.user_file_id,
     // the course copy should also reflect the new name.
     try {
@@ -118,7 +129,7 @@ export async function PUT(request: NextRequest) {
 
       if (!linkedError && linkedSubjectFiles && linkedSubjectFiles.length > 0) {
         // Only update subject_files that still have the OLD name (avoid overwriting customized names)
-        const toUpdate = linkedSubjectFiles.filter(sf => sf.file_name === file.file_name);
+        const toUpdate = linkedSubjectFiles.filter(sf => sf.file_name === oldName);
 
         if (toUpdate.length > 0) {
           const { error: syncError } = await supabaseServer
@@ -129,18 +140,84 @@ export async function PUT(request: NextRequest) {
           if (syncError) {
             console.warn('[rename] Failed to sync subject_files:', syncError.message);
           } else {
-            console.log('[rename] Synced', toUpdate.length, 'subject_files records');
+            syncResults.push(`subject_files: ${toUpdate.length} records`);
           }
         }
       }
     } catch (syncErr) {
-      // Non-critical: subject_files sync failure shouldn't block the rename
       console.warn('[rename] subject_files sync error:', syncErr);
+    }
+
+    // ─── STEP 3: Sync lecture_notes.content ───
+    // Lecture notes embed file references as:
+    //   New format:    [FILE|||url|||name]
+    //   Legacy format: [FILE:url:name]
+    // We need to find all notes containing the old file reference and update the name.
+    if (fileUrl) {
+      try {
+        // Search for notes containing the file URL (both formats embed it)
+        // Use ilike with the URL as a substring match
+        const encodedUrl = fileUrl.replace(/%/g, '\\%').replace(/_/g, '\\_');
+
+        const { data: lectureNotes, error: notesError } = await supabaseServer
+          .from('lecture_notes')
+          .select('id, content')
+          .ilike('content', `%${encodedUrl}%`);
+
+        if (!notesError && lectureNotes && lectureNotes.length > 0) {
+          let updatedCount = 0;
+
+          for (const note of lectureNotes) {
+            if (!note.content) continue;
+
+            let newContent = note.content;
+
+            // Replace new format: [FILE|||url|||oldName] → [FILE|||url|||newName]
+            const newFormatRegex = new RegExp(
+              `\\[FILE\\|\\|\\|${escapeRegex(fileUrl)}\\|\\|\\|${escapeRegex(oldName)}\\]`,
+              'g'
+            );
+            newContent = newContent.replace(newFormatRegex, `[FILE|||${fileUrl}|||${trimmedName}]`);
+
+            // Replace legacy format: [FILE:url:oldName] → [FILE:url:newName]
+            const legacyFormatRegex = new RegExp(
+              `\\[FILE:${escapeRegex(fileUrl)}:${escapeRegex(oldName)}\\]`,
+              'g'
+            );
+            newContent = newContent.replace(legacyFormatRegex, `[FILE:${fileUrl}:${trimmedName}]`);
+
+            // Only update if content actually changed
+            if (newContent !== note.content) {
+              const { error: noteUpdateError } = await supabaseServer
+                .from('lecture_notes')
+                .update({ content: newContent })
+                .eq('id', note.id);
+
+              if (noteUpdateError) {
+                console.warn('[rename] Failed to sync lecture_note', note.id, ':', noteUpdateError.message);
+              } else {
+                updatedCount++;
+              }
+            }
+          }
+
+          if (updatedCount > 0) {
+            syncResults.push(`lecture_notes: ${updatedCount} records`);
+          }
+        }
+      } catch (notesSyncErr) {
+        console.warn('[rename] lecture_notes sync error:', notesSyncErr);
+      }
+    }
+
+    if (syncResults.length > 0) {
+      console.log('[rename] Sync completed:', syncResults.join(', '));
     }
 
     return NextResponse.json({
       success: true,
       data: updated,
+      synced: syncResults,
     });
   } catch (error) {
     console.error('[rename] Unexpected error:', error);
@@ -149,4 +226,11 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Escape special regex characters in a string for use in RegExp constructor.
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
