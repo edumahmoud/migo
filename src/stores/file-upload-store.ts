@@ -40,6 +40,7 @@ interface FileUploadState {
   resumeTask: (id: string) => void;
   cancelTask: (id: string) => void;
   pauseAll: () => void;
+  resumeAll: () => void;
   cancelAll: () => void;
   clearCompleted: () => void;
 }
@@ -161,6 +162,13 @@ export const useFileUploadStore = create<FileUploadState>()((set, get) => ({
     const activeTasks = get().tasks.filter((t) => t.status === 'uploading');
     for (const task of activeTasks) {
       get().pauseTask(task.id);
+    }
+  },
+
+  resumeAll: () => {
+    const pausedTasks = get().tasks.filter((t) => t.status === 'paused');
+    for (const task of pausedTasks) {
+      get().resumeTask(task.id);
     }
   },
 

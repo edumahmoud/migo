@@ -1874,30 +1874,98 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       <AnimatePresence>
         {aiBackgroundTask && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="sticky top-0 z-40 mb-2"
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="sticky top-0 z-40 mb-4"
           >
-            <div className="flex items-center gap-3 rounded-xl border border-violet-200 dark:border-violet-800/40 bg-violet-50 dark:bg-violet-900/20 px-4 py-3 shadow-sm" dir={direction}>
-              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-violet-600 dark:text-violet-400" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-violet-800 dark:text-violet-300 truncate">
-                  {t('questionBank.backgroundGenerating', { bankName: aiBackgroundTask.bankName })}
-                </p>
-                <p className="text-xs text-violet-600 dark:text-violet-400">
-                  {aiBackgroundTask.status === 'extracting' && t('questionBank.backgroundExtracting')}
-                  {aiBackgroundTask.status === 'generating' && t('questionBank.backgroundGeneratingStatus')}
-                  {aiBackgroundTask.status === 'saving' && t('questionBank.backgroundSaving')}
-                </p>
+            <div className="relative overflow-hidden rounded-xl border border-violet-200 dark:border-violet-800/40 bg-gradient-to-bl from-violet-50 via-white to-violet-50 dark:from-violet-950/30 dark:via-background dark:to-violet-950/30 px-4 py-3.5 shadow-sm" dir={direction}>
+              {/* Animated shimmer background */}
+              <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-violet-200/20 dark:via-violet-500/10 to-transparent" />
+
+              <div className="relative flex items-center gap-3">
+                {/* Animated AI icon */}
+                <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/40">
+                  <Sparkles className="h-4.5 w-4.5 text-violet-600 dark:text-violet-400 animate-pulse" />
+                </div>
+
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-violet-800 dark:text-violet-300 truncate">
+                      {t('questionBank.backgroundGenerating', { bankName: aiBackgroundTask.bankName })}
+                    </p>
+                    <button
+                      onClick={handleCancelAiGeneration}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-violet-200/60 dark:bg-violet-800/40 text-violet-700 dark:text-violet-300 hover:bg-rose-200 dark:hover:bg-rose-800/40 hover:text-rose-700 dark:hover:text-rose-300 transition-colors"
+                      title={t('questionBank.cancelGeneration')}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {/* Step progress indicators */}
+                  <div className="flex items-center gap-1.5">
+                    {[
+                      { key: 'extracting', label: t('questionBank.backgroundExtracting') },
+                      { key: 'generating', label: t('questionBank.backgroundGeneratingStatus') },
+                      { key: 'saving', label: t('questionBank.backgroundSaving') },
+                    ].map((step, idx) => {
+                      const stepOrder = ['extracting', 'generating', 'saving'];
+                      const currentIndex = stepOrder.indexOf(aiBackgroundTask.status);
+                      const stepIndex = idx;
+                      const isActive = step.key === aiBackgroundTask.status;
+                      const isDone = stepIndex < currentIndex;
+
+                      return (
+                        <div key={step.key} className="flex items-center gap-1.5">
+                          {idx > 0 && (
+                            <div className={`h-px w-3 transition-colors duration-300 ${isDone ? 'bg-violet-400 dark:bg-violet-500' : 'bg-violet-200 dark:bg-violet-800'}`} />
+                          )}
+                          <div className="flex items-center gap-1">
+                            <div className={`flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold transition-all duration-300 ${
+                              isDone
+                                ? 'bg-violet-500 text-white'
+                                : isActive
+                                  ? 'bg-violet-500 text-white ring-2 ring-violet-300 dark:ring-violet-600 ring-offset-1 ring-offset-white dark:ring-offset-background scale-110'
+                                  : 'bg-violet-200 dark:bg-violet-800 text-violet-500 dark:text-violet-400'
+                            }`}>
+                              {isDone ? '✓' : idx + 1}
+                            </div>
+                            <span className={`text-[10px] font-medium transition-colors duration-300 hidden sm:inline ${
+                              isActive ? 'text-violet-700 dark:text-violet-300' : 'text-violet-400 dark:text-violet-500'
+                            }`}>
+                              {step.label}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Animated progress bar */}
+                  {aiBackgroundTask.status && (
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-violet-200 dark:bg-violet-900/50">
+                      <motion.div
+                        className="h-full rounded-full bg-gradient-to-l from-violet-500 to-violet-400"
+                        initial={{ width: aiBackgroundTask.status === 'extracting' ? '5%' : aiBackgroundTask.status === 'generating' ? '40%' : '80%' }}
+                        animate={{
+                          width: aiBackgroundTask.status === 'extracting'
+                            ? ['5%', '30%', '15%']
+                            : aiBackgroundTask.status === 'generating'
+                              ? ['40%', '65%', '50%']
+                              : ['80%', '95%', '90%'],
+                        }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
-              <button
-                onClick={handleCancelAiGeneration}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-200/60 dark:bg-violet-800/40 text-violet-700 dark:text-violet-300 hover:bg-rose-200 dark:hover:bg-rose-800/40 hover:text-rose-700 dark:hover:text-rose-300 transition-colors"
-                title={t('questionBank.cancelGeneration')}
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
             </div>
           </motion.div>
         )}
