@@ -1352,7 +1352,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               </div>
 
               {/* Duration & date/time */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium text-foreground mb-1.5 block">{t('exams.duration')}</label>
                   <input
@@ -1393,7 +1393,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                   <Settings className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   <span className="text-sm font-semibold text-foreground">{t('exams.quizSettings')}</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                   {/* Show Results */}
                   <button
                     type="button"
@@ -1816,38 +1816,38 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
       <motion.div key={quiz.id} variants={itemVariants}>
         <div className="group relative rounded-xl border bg-card p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
           {/* Teacher action buttons — prominent on mobile, hover-reveal on desktop */}
-          <div className="flex items-center gap-2 mb-3 sm:absolute sm:top-3 sm:start-3 sm:mb-0 sm:gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-2 mb-3 md:absolute md:top-3 md:start-3 md:mb-0 md:gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
             {/* Settings */}
             <button
               onClick={() => setSettingsQuiz(quiz)}
-              className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-900/60 bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/25 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-teal-50 sm:dark:hover:bg-teal-50 sm:hover:text-teal-600 sm:text-sm sm:font-normal"
+              className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-900/60 bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 text-xs font-medium text-teal-700 dark:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/25 transition-colors md:border-0 md:bg-transparent md:dark:bg-transparent md:px-0 md:py-0 md:h-7 md:w-7 md:justify-center md:rounded-md md:text-muted-foreground md:hover:bg-teal-50 md:dark:hover:bg-teal-50 md:hover:text-teal-600 md:text-sm md:font-normal"
               title={t('exams.settings')}
             >
-              <Settings className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-              <span className="sm:hidden">{t('exams.settings')}</span>
+              <Settings className="h-4 w-4 md:h-3.5 md:w-3.5" />
+              <span className="md:hidden">{t('exams.settings')}</span>
             </button>
             {/* Edit */}
             <button
               onClick={() => handleEditQuiz(quiz)}
-              className="flex items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/25 transition-colors sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-sky-50 sm:dark:hover:bg-sky-50 sm:hover:text-sky-700 sm:text-sm sm:font-normal"
+              className="flex items-center gap-1.5 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-3 py-1.5 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/25 transition-colors md:border-0 md:bg-transparent md:dark:bg-transparent md:px-0 md:py-0 md:h-7 md:w-7 md:justify-center md:rounded-md md:text-muted-foreground md:hover:bg-sky-50 md:dark:hover:bg-sky-50 md:hover:text-sky-700 md:text-sm md:font-normal"
               title={t('exams.edit')}
             >
-              <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-              <span className="sm:hidden">{t('exams.edit')}</span>
+              <Pencil className="h-4 w-4 md:h-3.5 md:w-3.5" />
+              <span className="md:hidden">{t('exams.edit')}</span>
             </button>
             {/* Delete */}
             <button
               onClick={() => setDeleteQuizConfirmId(quiz.id)}
               disabled={deletingId === quiz.id}
-              className="flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/25 transition-colors disabled:opacity-50 sm:border-0 sm:bg-transparent sm:dark:bg-transparent sm:px-0 sm:py-0 sm:h-7 sm:w-7 sm:justify-center sm:rounded-md sm:text-muted-foreground sm:hover:bg-rose-50 sm:dark:hover:bg-rose-50 sm:hover:text-rose-600 sm:text-sm sm:font-normal"
+              className="flex items-center gap-1.5 rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-900/20 px-3 py-1.5 text-xs font-medium text-rose-700 dark:text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/25 transition-colors disabled:opacity-50 md:border-0 md:bg-transparent md:dark:bg-transparent md:px-0 md:py-0 md:h-7 md:w-7 md:justify-center md:rounded-md md:text-muted-foreground md:hover:bg-rose-50 md:dark:hover:bg-rose-50 md:hover:text-rose-600 md:text-sm md:font-normal"
               title={t('exams.delete')}
             >
               {deletingId === quiz.id ? (
-                <Loader2 className="h-4 w-4 animate-spin sm:h-3.5 sm:w-3.5" />
+                <Loader2 className="h-4 w-4 animate-spin md:h-3.5 md:w-3.5" />
               ) : (
-                <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <Trash2 className="h-4 w-4 md:h-3.5 md:w-3.5" />
               )}
-              <span className="sm:hidden">{t('exams.delete')}</span>
+              <span className="md:hidden">{t('exams.delete')}</span>
             </button>
           </div>
 
@@ -2077,8 +2077,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               className="flex items-center gap-2 rounded-lg bg-sky-700 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800 shrink-0"
             >
               <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('exams.createQuiz')}</span>
-              <span className="sm:hidden text-xs">{t('exams.createQuiz')}</span>
+              <span className="hidden md:inline">{t('exams.createQuiz')}</span>
+              <span className="md:hidden text-xs">{t('exams.createQuiz')}</span>
             </button>
           )}
         </div>

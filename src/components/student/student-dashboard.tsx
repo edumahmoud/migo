@@ -2847,7 +2847,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       </motion.div>
 
       {/* Stats row */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard
           icon={<FileText className="h-5 w-5" />}
           label={t('student.statSummaries')}
@@ -2869,7 +2869,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       </motion.div>
 
       {/* Two columns: recent summaries & recent scores */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Latest Summaries */}
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -4832,12 +4832,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
       {/* Main Content - dynamic offset for collapsible sidebar */}
       <main
-        className={`min-h-screen min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${
+        className={`min-h-screen min-w-0 overflow-x-hidden pt-14 md:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${
           sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
         }`}
         style={{ marginTop: bannerHeight ? `${bannerHeight}px` : 0 }}
       >
-        <div className="p-3 sm:p-6 lg:p-8 space-y-4 min-w-0">
+        <div className="p-3 md:p-6 lg:p-8 space-y-4 min-w-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={viewingSummaryId ? `summary-${viewingSummaryId}` : activeSection}

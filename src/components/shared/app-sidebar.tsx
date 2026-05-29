@@ -34,7 +34,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 
@@ -194,11 +194,13 @@ export default function AppSidebar({
   customNavItems,
 }: AppSidebarProps) {
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
   const { sidebarOpen, setSidebarOpen } = useAppStore();
   const { t, isRTL, direction } = useTranslations();
   const navItems = customNavItems || (role === 'student' ? studentNavItems : (role === 'admin' || role === 'superadmin') ? [] : teacherNavItems);
 
-  const collapsed = !sidebarOpen;
+  // On tablet, treat sidebar as collapsed (compact icon-only mode) unless explicitly opened
+  const collapsed = isTablet ? !sidebarOpen : !sidebarOpen;
 
   const handleToggle = useCallback(() => {
     setSidebarOpen(!sidebarOpen);
@@ -234,7 +236,7 @@ export default function AppSidebar({
   // Desktop: Fixed sidebar, collapsible - position based on direction
   return (
     <aside
-      className={`fixed start-0 top-14 sm:top-16 z-50 h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
+      className={`fixed start-0 top-14 md:top-16 z-50 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
     >

@@ -1012,7 +1012,7 @@ export default function LectureModal({
 
                 {/* ─── Attendance Stats Cards ─── */}
                 {hasSession && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="rounded-xl border bg-sky-50/50 dark:bg-sky-900/15 p-3 text-center">
                       <UserCheck className="h-5 w-5 text-sky-700 dark:text-sky-400 mx-auto mb-1" />
                       <p className="text-xl font-bold text-sky-800 dark:text-sky-400">{presentCount}</p>

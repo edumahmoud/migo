@@ -158,10 +158,10 @@ export default function AppHeader({
   }, [dropdownOpen]);
 
   return (
-    <header className="fixed top-0 inset-x-0 z-40 h-14 sm:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border" dir={direction}>
-      <div className="flex h-full items-center justify-between px-2 sm:px-5">
+    <header className="fixed top-0 inset-x-0 z-40 h-14 md:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border" dir={direction}>
+      <div className="flex h-full items-center justify-between px-2 md:px-5">
         {/* ── Start side: Logo + App name ── */}
-        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 md:gap-3 min-w-0 flex-1">
           {/* Sidebar toggle */}
           <button
             onClick={onToggleSidebar}
@@ -206,7 +206,7 @@ export default function AppHeader({
               className="flex items-center gap-1.5 sm:gap-2.5 rounded-lg px-1.5 sm:px-3 py-1.5 sm:py-2 hover:bg-muted/50 active:bg-muted/80 transition-colors min-w-0 touch-manipulation"
             >
               {/* Avatar + Name — whole area opens dropdown */}
-              <div className="hidden sm:flex items-center gap-2 sm:gap-2.5 min-w-0">
+              <div className="hidden md:flex items-center gap-2 md:gap-2.5 min-w-0">
                 <div className="flex flex-col min-w-0 items-start">
                   <span className="text-sm font-semibold text-foreground truncate max-w-[140px]">
                     {userName}
@@ -222,11 +222,11 @@ export default function AppHeader({
                 </div>
               </div>
               {/* Mobile: Just avatar with status dot */}
-              <div className="sm:hidden relative">
+              <div className="md:hidden relative">
                 <UserAvatar name={userName} avatarUrl={avatarUrl} size="sm" />
                 <span className={`absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(myStatus)} ${myStatus === 'online' ? 'animate-pulse' : ''}`} />
               </div>
-              <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 hidden sm:block ${dropdownOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform duration-200 hidden md:block ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Dropdown menu */}
@@ -356,8 +356,8 @@ function ActiveSectionLabel({ role }: { role: 'student' | 'teacher' | 'admin' | 
 
   return (
     <>
-      <span className="hidden sm:inline text-muted-foreground/40 mx-1">·</span>
-      <span className="hidden sm:inline text-xs sm:text-sm font-medium text-muted-foreground truncate">
+      <span className="hidden md:inline text-muted-foreground/40 mx-1">·</span>
+      <span className="hidden md:inline text-xs md:text-sm font-medium text-muted-foreground truncate">
         {label}
       </span>
     </>

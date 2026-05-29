@@ -253,7 +253,7 @@ export default function OverviewTab({ profile, role, subjectId, subject }: Overv
   return (
     <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
       {/* Quick Stats */}
-      <motion.div variants={itemVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           icon={<BookOpen className="h-5 w-5" />}
           label={t('courseLectures')}

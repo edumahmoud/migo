@@ -1159,7 +1159,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       {renderHeader()}
 
       {/* Stats row */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div variants={itemVariants} className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="relative">
           <StatCard
             icon={<Users className="h-5 w-5" />}
@@ -1198,7 +1198,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       </motion.div>
 
       {/* Performance Overview & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Performance Overview Charts (2/3) */}
         <motion.div variants={itemVariants} className="lg:col-span-2">
           <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -2021,7 +2021,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       </motion.div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Bar chart */}
         <motion.div variants={itemVariants}>
           <div className="rounded-xl border bg-card p-4 sm:p-5 shadow-sm">
@@ -2209,12 +2209,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
       {/* Main content - dynamic offset for collapsible sidebar */}
       <main
-        className={`min-h-screen min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${
+        className={`min-h-screen min-w-0 overflow-x-hidden pt-14 md:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${
           sidebarOpen ? 'md:ms-64' : 'md:ms-[68px]'
         }`}
         style={{ marginTop: bannerHeight ? `${bannerHeight}px` : 0 }}
       >
-        <div className="mx-auto max-w-6xl p-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 min-w-0">
+        <div className="mx-auto max-w-6xl p-3 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 min-w-0">
           {loadingData ? (
             <div className="flex flex-col items-center justify-center py-32">
               <Loader2 className="h-10 w-10 animate-spin text-sky-700 dark:text-sky-400 mb-4" />

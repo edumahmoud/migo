@@ -3887,7 +3887,7 @@ export default function AdminDashboard({ profile, onSignOut }: AdminDashboardPro
 
       {/* Main content - dynamic offset for collapsible sidebar */}
       <main
-        className={`flex-1 min-w-0 overflow-x-hidden pt-14 sm:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${
+        className={`flex-1 min-w-0 overflow-x-hidden pt-14 md:pt-16 pb-20 md:pb-0 transition-[margin,padding] duration-300 ease-in-out ${
           sidebarOpen ? 'md:ps-64' : 'md:ps-[68px]'
         }`}
         style={{ marginTop: bannerHeight ? `${bannerHeight}px` : 0 }}

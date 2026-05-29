@@ -557,7 +557,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         />
 
         {/* Banner content */}
-        <div className="relative z-10 flex flex-col justify-between p-5 sm:p-6" style={{ minHeight: '150px' }}>
+        <div className="relative z-10 flex flex-col justify-between p-5 md:p-6" style={{ minHeight: '150px' }}>
           {/* Top row: back button + actions */}
           <div className="flex items-start justify-between gap-3">
             {/* Back button - white circle */}
@@ -672,11 +672,11 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
           {/* Bottom row: subject info */}
           <div className="mt-auto">
             <div className="min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-bold text-white truncate leading-tight">
+              <h1 className="text-2xl md:text-3xl font-bold text-white truncate leading-tight">
                 {subject.name}
               </h1>
               {subject.description && (
-                <p className="mt-1 text-white/75 text-sm sm:text-base truncate max-w-lg">
+                <p className="mt-1 text-white/75 text-sm md:text-base truncate max-w-lg md:max-w-xl">
                   {subject.description}
                 </p>
               )}
@@ -706,7 +706,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       {/* STICKY PILL TAB NAVIGATION                   */}
       {/* ============================================ */}
       <div className="sticky top-0 z-10 -mt-3 bg-background/95 backdrop-blur-md border-b border-border/60 shadow-sm">
-        <div className="relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2 sm:py-3 overflow-x-auto scrollbar-none">
+        <div className="relative flex items-center gap-1 md:gap-1.5 px-2 md:px-4 py-2 md:py-3 overflow-x-auto scrollbar-none">
           {availableTabs.map((tab) => {
             const isActive = courseTab === tab.id;
             return (
@@ -716,9 +716,9 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 title={t(tab.labelKey)}
                 className={`
                   relative flex items-center justify-center gap-1.5
-                  rounded-full px-2.5 py-2 sm:px-4 sm:py-2
+                  rounded-full px-2.5 py-2 md:px-4 md:py-2
                   text-sm font-medium whitespace-nowrap transition-all duration-200
-                  active:scale-95 min-w-[40px] sm:min-w-0
+                  active:scale-95 min-w-[40px] md:min-w-0
                   ${
                     isActive
                       ? 'text-white shadow-md'
@@ -732,7 +732,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 }
               >
                 <span className={isActive ? 'text-white' : ''}>{tab.icon}</span>
-                <span className="hidden sm:inline">{t(tab.labelKey)}</span>
+                <span className="hidden md:inline">{t(tab.labelKey)}</span>
               </button>
             );
           })}
@@ -742,7 +742,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       {/* ============================================ */}
       {/* MOBILE ACTIVE TAB INDICATOR                  */}
       {/* ============================================ */}
-      <div className="sm:hidden mt-3">
+      <div className="md:hidden mt-3">
         <div
           className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white"
           style={{ backgroundColor: subjectColor }}

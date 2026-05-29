@@ -784,7 +784,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
       ) : (
         <motion.div variants={containerVariants} className="rounded-xl border bg-card shadow-sm overflow-hidden">
           {/* Table header */}
-          <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground items-center">
+          <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground items-center">
             <div className="col-span-1 flex items-center justify-center">
               <button
                 onClick={toggleSelectAll}
@@ -806,7 +806,7 @@ export default function StudentsTab({ profile, subjectId }: StudentsTabProps) {
               <motion.div
                 key={student.id}
                 variants={itemVariants}
-                className={`px-4 py-3 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center space-y-2 sm:space-y-0 transition-colors ${
+                className={`px-4 py-3 md:grid md:grid-cols-12 md:gap-2 md:items-center space-y-2 md:space-y-0 transition-colors ${
                   selectedStudentIds.has(student.id) ? 'bg-sky-50/30 dark:bg-sky-900/15' : 'hover:bg-muted/30'
                 }`}
               >

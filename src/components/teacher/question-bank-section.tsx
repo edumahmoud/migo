@@ -1152,7 +1152,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
       </motion.div>
 
       {/* Stats */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <motion.div variants={itemVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30">
@@ -1295,7 +1295,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               title={t('questionBank.generateFromFileTitle')}
             >
               <Sparkles className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t('questionBank.generateWithAiShort')}</span>
+              <span className="hidden md:inline">{t('questionBank.generateWithAiShort')}</span>
             </button>
             <button
               onClick={() => setAddQuestionModalOpen(true)}
@@ -1305,8 +1305,8 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
               {t('questionBank.addQuestion')}
             </button>
 
-            {/* Secondary actions — visible on desktop, dropdown on mobile */}
-            <div className="hidden sm:flex items-center gap-1.5">
+            {/* Secondary actions — visible on desktop, dropdown on tablet/mobile */}
+            <div className="hidden md:flex items-center gap-1.5">
               <button
                 onClick={handleOpenEditBank}
                 className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
@@ -1333,7 +1333,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             {/* Mobile: secondary actions in dropdown */}
             <DropdownMenu dir={direction}>
               <DropdownMenuTrigger asChild>
-                <button className="sm:hidden flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
+                <button className="md:hidden flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors">
                   <MoreVertical className="h-4 w-4" />
                 </button>
               </DropdownMenuTrigger>

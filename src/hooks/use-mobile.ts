@@ -1,6 +1,7 @@
 import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768
+const TABLET_BREAKPOINT = 1024
 
 /**
  * SSR-safe mobile detection hook.
@@ -28,4 +29,26 @@ export function useIsMobile() {
   }, [])
 
   return isMobile
+}
+
+/**
+ * SSR-safe tablet detection hook.
+ * Returns true when screen is between 768px and 1023px (tablet range).
+ * On tablets, the sidebar should default to collapsed for more content space.
+ */
+export function useIsTablet() {
+  const [isTablet, setIsTablet] = React.useState<boolean>(false)
+
+  React.useEffect(() => {
+    const onChange = () => {
+      const w = window.innerWidth
+      setIsTablet(w >= MOBILE_BREAKPOINT && w < TABLET_BREAKPOINT)
+    }
+    const mql = window.matchMedia(`(min-width: ${MOBILE_BREAKPOINT}px) and (max-width: ${TABLET_BREAKPOINT - 1}px)`)
+    mql.addEventListener("change", onChange)
+    onChange()
+    return () => mql.removeEventListener("change", onChange)
+  }, [])
+
+  return isTablet
 }
