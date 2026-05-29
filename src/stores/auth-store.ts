@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { UserProfile } from '@/lib/types';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { registerSession, validateSession, endSession, startSessionValidation } from '@/lib/session-tracker';
+import { useLocaleStore } from '@/i18n/locale-store';
 
 // --- Input Sanitization Helpers ---
 
@@ -227,6 +228,16 @@ let sessionCheckCleanup: (() => void) | null = null;
 // Auth state change subscription (must be unsubscribed to prevent memory leaks)
 let authSubscription: { data: { subscription: { unsubscribe: () => void } } } | null = null;
 
+/** Apply the user's saved locale preference from their profile to the app */
+function applyProfileLocale(profile: UserProfile) {
+  if (profile.locale && (profile.locale === 'ar' || profile.locale === 'en')) {
+    const { locale: currentLocale, setLocale } = useLocaleStore.getState();
+    if (currentLocale !== profile.locale) {
+      setLocale(profile.locale);
+    }
+  }
+}
+
 // Flag to indicate that signInWithEmail is in progress.
 // This prevents the onAuthStateChange handler from overwriting the user
 // profile during login (race condition) and protects against SIGNED_OUT
@@ -326,6 +337,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     initialized: true,
                     banInfo
                   });
+                  applyProfileLocale(profile);
 
                   if (sessionCheckCleanup) sessionCheckCleanup();
                   sessionCheckCleanup = startSessionValidation(profile.id, async () => {
@@ -343,6 +355,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 });
 
                 set({ user: profile, loading: false, initialized: true, banInfo: null });
+                applyProfileLocale(profile);
               } else {
                 // Profile couldn't be created — use fallback from auth metadata
                 const fallbackProfile = createFallbackProfile(session.user);
@@ -499,6 +512,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 set({ user: null, loading: false, sessionKickedMessage: 'تم تسجيل دخولك من جهاز آخر', banInfo: null });
               });
               set({ user: profile, loading: false, banInfo: banInfo || null });
+              applyProfileLocale(profile);
             } else {
               // Fallback from auth metadata
               const fallbackProfile = createFallbackProfile(session.user);
@@ -639,6 +653,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
             signInRateLimit.attempts = 0;
             set({ user: profile, loading: false, banInfo: banInfo || null });
+            applyProfileLocale(profile);
             return { error: null };
           }
         }
@@ -948,6 +963,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const data = await res.json();
           if (data.profile) {
             set({ user: data.profile as UserProfile });
+            applyProfileLocale(data.profile as UserProfile);
             return;
           }
         }
@@ -962,6 +978,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       if (profile) {
         set({ user: profile as UserProfile });
+        applyProfileLocale(profile as UserProfile);
         return;
       }
 
@@ -973,6 +990,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const data = await res2.json();
         if (data.profile) {
           set({ user: { ...user, ...data.profile } as UserProfile });
+          applyProfileLocale({ ...user, ...data.profile } as UserProfile);
         }
       }
     } catch {

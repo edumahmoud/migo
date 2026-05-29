@@ -18,6 +18,7 @@ export interface UserProfile {
   is_admin?: boolean;
   fcm_token?: string | null;
   gender?: string | null;
+  locale?: string | null;
   status?: UserStatus;
   created_at: string;
   updated_at: string;

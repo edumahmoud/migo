@@ -169,7 +169,7 @@ export default function SettingsSection({
 }: SettingsSectionProps) {
   const { t, isRTL, direction } = useTranslations();
   const { locale, setLocale } = useLocaleStore();
-  const { refreshProfile } = useAuthStore();
+  const { refreshProfile, user: authUser, updateProfile } = useAuthStore();
 
   // ─── Shared socket ───
   const { isConnected, status: socketStatus, emitStatusChange } = useSharedSocket();
@@ -1271,7 +1271,10 @@ export default function SettingsSection({
                 </div>
                 <div className="flex gap-1.5">
                   <button
-                    onClick={() => setLocale('ar')}
+                    onClick={() => {
+                      setLocale('ar');
+                      if (authUser) updateProfile({ locale: 'ar' });
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       locale === 'ar'
                         ? 'bg-sky-600 text-white shadow-sm'
@@ -1281,7 +1284,10 @@ export default function SettingsSection({
                     العربية
                   </button>
                   <button
-                    onClick={() => setLocale('en')}
+                    onClick={() => {
+                      setLocale('en');
+                      if (authUser) updateProfile({ locale: 'en' });
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       locale === 'en'
                         ? 'bg-sky-600 text-white shadow-sm'
