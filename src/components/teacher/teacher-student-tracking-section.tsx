@@ -65,7 +65,7 @@ const itemVariants = {
 // -------------------------------------------------------
 // Performance Level Types
 // -------------------------------------------------------
-type PerformanceLevel = 'excellent' | 'good' | 'average' | 'weak';
+type PerformanceLevel = 'excellent' | 'veryGood' | 'good' | 'acceptable' | 'weak';
 
 interface PerformanceLevelConfig {
   key: PerformanceLevel;
@@ -88,8 +88,8 @@ const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
     icon: '★',
   },
   {
-    key: 'good',
-    label: 'teacher.trackingLevelGood',
+    key: 'veryGood',
+    label: 'teacher.trackingLevelVeryGood',
     color: 'bg-sky-500',
     bgColor: 'bg-sky-50 dark:bg-sky-900/15',
     ringColor: 'ring-sky-100',
@@ -97,13 +97,22 @@ const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
     icon: '◆',
   },
   {
-    key: 'average',
-    label: 'teacher.trackingLevelAverage',
+    key: 'good',
+    label: 'teacher.trackingLevelGood',
+    color: 'bg-teal-500',
+    bgColor: 'bg-teal-50 dark:bg-teal-900/20',
+    ringColor: 'ring-teal-100',
+    textColor: 'text-teal-700 dark:text-teal-500',
+    icon: '●',
+  },
+  {
+    key: 'acceptable',
+    label: 'teacher.trackingLevelAcceptable',
     color: 'bg-amber-500',
     bgColor: 'bg-amber-50 dark:bg-amber-900/20',
     ringColor: 'ring-amber-100',
     textColor: 'text-amber-700 dark:text-amber-500',
-    icon: '●',
+    icon: '▲',
   },
   {
     key: 'weak',
@@ -224,14 +233,15 @@ const EFFICIENCY_LEVELS: EfficiencyLevelConfig[] = [
 // Helpers
 // -------------------------------------------------------
 function getPerformanceLevel(overallPct: number): PerformanceLevel {
-  if (overallPct >= 85) return 'excellent';
-  if (overallPct >= 70) return 'good';
-  if (overallPct >= 50) return 'average';
-  return 'weak';
+  if (overallPct >= 90) return 'excellent';    // ممتاز (A)
+  if (overallPct >= 80) return 'veryGood';    // جيد جداً (B)
+  if (overallPct >= 70) return 'good';        // جيد (C)
+  if (overallPct >= 60) return 'acceptable';  // مقبول (D)
+  return 'weak';                               // ضعيف (F)
 }
 
 function getPerformanceLevelConfig(level: PerformanceLevel): PerformanceLevelConfig {
-  return PERFORMANCE_LEVELS.find(l => l.key === level) || PERFORMANCE_LEVELS[3];
+  return PERFORMANCE_LEVELS.find(l => l.key === level) || PERFORMANCE_LEVELS[4];
 }
 
 function getPercentageRange(overallPct: number): PercentageRange {
@@ -390,20 +400,38 @@ export default function TeacherStudentTrackingSection({
         ? (completedAssignments / teacherAssignments.length) * 100
         : 0;
 
-      // Overall performance (weighted: quiz 40%, attendance 30%, assignments 30%)
-      const overallPerformance = quizAvg * 0.4 + attendanceRate * 0.3 + assignmentCompletion * 0.3;
+      // Overall performance (adaptive weighted: quiz 40%, attendance 30%, assignments 30%)
+      // Weights are renormalized when a component has no data, following LMS standards
+      const overallPerformance = (() => {
+        const components: { value: number; weight: number }[] = [];
+        if (studentScores.length > 0) {
+          components.push({ value: quizAvg, weight: 40 });
+        }
+        if (teacherAttendanceSessions.length > 0) {
+          components.push({ value: attendanceRate, weight: 30 });
+        }
+        if (teacherAssignments.length > 0) {
+          components.push({ value: assignmentCompletion, weight: 30 });
+        }
+        if (components.length === 0) return 0;
+        const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
+        return components.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight;
+      })();
 
       const level = getPerformanceLevel(overallPerformance);
       const percentageRange = getPercentageRange(overallPerformance);
 
       // ─── Efficiency calculation ───
-      // Effort = weighted average of (attendance rate, assignment submission rate)
+      // Measures how effectively a student converts effort into results.
+      // Effort = weighted average of (attendance rate 50%, assignment submission 50%)
+      // Results = quiz score average
+      // Efficiency = (Results / Effort) × 100, clamped 0-100%
+      // A student with high quiz scores but low effort has high efficiency (productive per unit effort)
+      // A student with high effort but low quiz scores has low efficiency (needs support)
       const effortScore = (attendanceRate * 0.5 + assignmentCompletion * 0.5);
-      // Results = weighted average of quiz scores
       const resultScore = quizAvg;
-      // Efficiency = (Results / Effort) * 100, clamped 0-150
       const efficiency = effortScore > 0
-        ? Math.min(Math.max((resultScore / effortScore) * 100, 0), 150)
+        ? Math.min((resultScore / effortScore) * 100, 100)
         : 0;
       const efficiencyLevel = getEfficiencyLevel(efficiency);
 
@@ -575,7 +603,7 @@ export default function TeacherStudentTrackingSection({
 
   // ─── Classification counts ───
   const classificationCounts = useMemo(() => {
-    const counts: Record<PerformanceLevel, number> = { excellent: 0, good: 0, average: 0, weak: 0 };
+    const counts: Record<PerformanceLevel, number> = { excellent: 0, veryGood: 0, good: 0, acceptable: 0, weak: 0 };
     studentPerformanceData.forEach(d => { counts[d.level]++; });
     return counts;
   }, [studentPerformanceData]);
@@ -838,7 +866,7 @@ export default function TeacherStudentTrackingSection({
                   exit={{ opacity: 0, x: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                     {PERFORMANCE_LEVELS.map(level => {
                       const count = classificationCounts[level.key];
                       const isActive = filterLevel === level.key;
@@ -861,7 +889,7 @@ export default function TeacherStudentTrackingSection({
                             {t(level.label)}
                           </span>
                           <span className={`text-xs ${isActive ? level.textColor : 'text-gray-400 dark:text-muted-foreground'}`}>
-                            {level.key === 'excellent' ? '85%+' : level.key === 'good' ? '70-84%' : level.key === 'average' ? '50-69%' : '<50%'}
+                            {level.key === 'excellent' ? '90-100%' : level.key === 'veryGood' ? '80-89%' : level.key === 'good' ? '70-79%' : level.key === 'acceptable' ? '60-69%' : '<60%'}
                           </span>
                           {isActive && (
                             <motion.div

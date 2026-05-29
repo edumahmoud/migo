@@ -446,12 +446,24 @@ export default function StudentTrackingSection({
                     <div className="flex items-center gap-2 mt-1">
                       <Progress
                         value={(() => {
-                          const attendanceWeight = attendanceStats.rate * 0.4;
-                          const performanceWeight = performanceStats.avgScore * 0.4;
-                          const assignmentWeight = performanceStats.totalAssignments > 0
-                            ? (performanceStats.completedAssignments / performanceStats.totalAssignments) * 100 * 0.2
-                            : 0;
-                          return attendanceWeight + performanceWeight + assignmentWeight;
+                          // Adaptive weighted: quiz 40%, attendance 30%, assignments 30%
+                          // Weights renormalized when a component has no data (same as teacher view)
+                          const components: { value: number; weight: number }[] = [];
+                          if (performanceStats.avgScore > 0 || performanceStats.totalScores > 0) {
+                            components.push({ value: performanceStats.avgScore, weight: 40 });
+                          }
+                          if (attendanceStats.rate > 0 || attendanceStats.total > 0) {
+                            components.push({ value: attendanceStats.rate, weight: 30 });
+                          }
+                          if (performanceStats.totalAssignments > 0) {
+                            components.push({
+                              value: (performanceStats.completedAssignments / performanceStats.totalAssignments) * 100,
+                              weight: 30,
+                            });
+                          }
+                          if (components.length === 0) return 0;
+                          const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
+                          return components.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight;
                         })()}
                         className="h-2.5 flex-1"
                       />

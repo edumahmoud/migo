@@ -1093,8 +1093,9 @@ export const en: TranslationDict = {
     saveChanges: 'Save Changes',
     // Student Tracking section
     trackingLevelExcellent: 'Excellent',
+    trackingLevelVeryGood: 'Very Good',
     trackingLevelGood: 'Good',
-    trackingLevelAverage: 'Average',
+    trackingLevelAcceptable: 'Acceptable',
     trackingLevelWeak: 'Weak',
     trackingRangeExcellent: 'Excellent',
     trackingRangeVeryGood: 'Very Good',

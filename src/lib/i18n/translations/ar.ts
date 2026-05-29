@@ -1103,8 +1103,9 @@ export const ar: TranslationDict = {
     saveChanges: 'حفظ التعديلات',
     // Student Tracking section
     trackingLevelExcellent: 'ممتاز',
+    trackingLevelVeryGood: 'جيد جداً',
     trackingLevelGood: 'جيد',
-    trackingLevelAverage: 'متوسط',
+    trackingLevelAcceptable: 'مقبول',
     trackingLevelWeak: 'ضعيف',
     trackingRangeExcellent: 'ممتاز',
     trackingRangeVeryGood: 'جيد جداً',
