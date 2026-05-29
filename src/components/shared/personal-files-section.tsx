@@ -390,6 +390,19 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   }, [profile.id]);
 
   // -------------------------------------------------------
+  // Auto-refresh files when background uploads complete
+  // -------------------------------------------------------
+  const prevCompletedCountRef = useRef(0);
+  useEffect(() => {
+    const completedCount = uploadTasks.filter(t => t.status === 'success').length;
+    // When completed count increases (a new upload finished), refresh file list
+    if (completedCount > prevCompletedCountRef.current) {
+      fetchFiles(false);
+    }
+    prevCompletedCountRef.current = completedCount;
+  }, [uploadTasks, fetchFiles]);
+
+  // -------------------------------------------------------
   // Fetch shared with me files
   // -------------------------------------------------------
   const fetchSharedFiles = useCallback(async () => {
@@ -1696,7 +1709,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                     autoFocus
                     dir={direction}
                   />
-                  <span className="shrink-0 text-xs text-muted-foreground">.{getFileExtension(file.file_name)}</span>
                 </div>
               </div>
               <div className="flex items-center justify-end gap-2 me-11">
@@ -1727,9 +1739,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             </div>
             <h3 className="min-w-0 flex-1 text-sm font-bold text-foreground break-words line-clamp-2" title={file.file_name}>
               {getFileNameWithoutExt(file.file_name)}
-              {getFileExtension(file.file_name) && (
-                <span className="text-muted-foreground font-normal">.{getFileExtension(file.file_name)}</span>
-              )}
             </h3>
 
             {/* Checkbox for multi-select — only visible in selection mode */}
@@ -2213,7 +2222,6 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-semibold text-foreground truncate" title={file.file_name}>
                       {getFileNameWithoutExt(file.file_name)}
-                      {getFileExtension(file.file_name) && <span className="text-muted-foreground font-normal">.{getFileExtension(file.file_name)}</span>}
                     </h3>
                     <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                       <span>{formatFileSize(file.file_size)}</span>
@@ -2565,7 +2573,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   {getFileIcon(detailsFile.file_type)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground truncate">{getFileNameWithoutExt(detailsFile.file_name)}<span className="text-muted-foreground font-normal">{getFileExtension(detailsFile.file_name) ? '.' + getFileExtension(detailsFile.file_name) : ''}</span></p>
+                  <p className="text-sm font-semibold text-foreground truncate">{getFileNameWithoutExt(detailsFile.file_name)}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{detailsFile.file_type}</p>
                 </div>
               </div>
@@ -2720,7 +2728,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                       {getFileIcon(file.file_type)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate">{getFileNameWithoutExt(file.file_name)}<span className="text-muted-foreground font-normal">{getFileExtension(file.file_name) ? '.' + getFileExtension(file.file_name) : ''}</span></p>
+                      <p className="text-sm font-medium text-foreground truncate">{getFileNameWithoutExt(file.file_name)}</p>
                       <p className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</p>
                     </div>
                   </div>
@@ -2992,7 +3000,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                         {getFileIcon(file.file_type)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">{getFileNameWithoutExt(file.file_name)}<span className="text-muted-foreground font-normal">{getFileExtension(file.file_name) ? '.' + getFileExtension(file.file_name) : ''}</span></p>
+                        <p className="text-sm font-medium text-foreground truncate">{getFileNameWithoutExt(file.file_name)}</p>
                         <p className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</p>
                       </div>
                     </div>
@@ -3078,7 +3086,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
             {/* Header */}
             <div className="flex items-center justify-between border-b p-4 shrink-0 sticky top-0 z-10 bg-background">
               <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-bold text-foreground truncate">{getFileNameWithoutExt(previewFile.file_name)}<span className="text-muted-foreground font-normal">{getFileExtension(previewFile.file_name) ? '.' + getFileExtension(previewFile.file_name) : ''}</span></h3>
+                <h3 className="text-sm font-bold text-foreground truncate">{getFileNameWithoutExt(previewFile.file_name)}</h3>
                 <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                   <span>{formatFileSize(previewFile.file_size)}</span>
                   <span>•</span>
@@ -3140,7 +3148,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                 <div className="flex items-center justify-center p-8 min-h-[200px]">
                   <div className="w-full max-w-md text-center space-y-4">
                     <FileAudio className="h-16 w-16 mx-auto text-sky-600 dark:text-sky-400 dark:text-sky-400" />
-                    <p className="text-sm font-medium text-foreground truncate">{getFileNameWithoutExt(previewFile.file_name)}<span className="text-muted-foreground font-normal">{getFileExtension(previewFile.file_name) ? '.' + getFileExtension(previewFile.file_name) : ''}</span></p>
+                    <p className="text-sm font-medium text-foreground truncate">{getFileNameWithoutExt(previewFile.file_name)}</p>
                     <audio
                       src={previewFile.file_url}
                       controls
@@ -3438,7 +3446,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
                   {getFileIcon(showRecipientsFile.file_type)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground truncate">{getFileNameWithoutExt(showRecipientsFile.file_name)}<span className="text-muted-foreground font-normal">{getFileExtension(showRecipientsFile.file_name) ? '.' + getFileExtension(showRecipientsFile.file_name) : ''}</span></p>
+                  <p className="text-sm font-medium text-foreground truncate">{getFileNameWithoutExt(showRecipientsFile.file_name)}</p>
                   <p className="text-xs text-muted-foreground">{formatFileSize(showRecipientsFile.file_size)}</p>
                 </div>
               </div>
@@ -3515,7 +3523,7 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
-        className="fixed bottom-4 start-4 z-40 w-80 max-w-[calc(100vw-2rem)] rounded-xl border bg-background shadow-lg overflow-hidden"
+        className="fixed bottom-4 start-4 z-[60] w-80 max-w-[calc(100vw-2rem)] rounded-xl border bg-background shadow-lg overflow-hidden"
         dir={direction}
       >
         {/* Header */}
