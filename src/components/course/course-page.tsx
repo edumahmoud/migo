@@ -690,25 +690,31 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   <button
                     onClick={handleTogglePause}
                     disabled={togglingPause}
-                    className={`flex items-center justify-center gap-2 rounded-full px-3.5 py-2 backdrop-blur-md text-white text-xs font-bold transition-all active:scale-95 border ${
+                    className={`group relative flex items-center gap-2.5 rounded-full px-4 py-2 backdrop-blur-md text-white text-xs font-semibold transition-all duration-300 active:scale-95 overflow-hidden border ${
                       subject?.is_paused
-                        ? 'bg-emerald-500/25 border-emerald-400/40 hover:bg-emerald-500/45 hover:border-emerald-400/60 shadow-sm shadow-emerald-500/10'
-                        : 'bg-amber-500/25 border-amber-400/40 hover:bg-amber-500/45 hover:border-amber-400/60 shadow-sm shadow-amber-500/10'
+                        ? 'bg-emerald-500/20 border-emerald-400/30 hover:bg-emerald-500/30 hover:border-emerald-400/50 shadow-[0_0_24px_rgba(16,185,129,0.12)]'
+                        : 'bg-amber-500/20 border-amber-400/30 hover:bg-amber-500/30 hover:border-amber-400/50 shadow-[0_0_24px_rgba(245,158,11,0.12)]'
                     }`}
                     title={subject?.is_paused ? t('course.activateSubject') : t('course.pauseSubject')}
                   >
+                    {/* Shimmer effect on hover */}
+                    <span className={`absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ${
+                      subject?.is_paused
+                        ? 'bg-gradient-to-r from-transparent via-emerald-400/10 to-transparent'
+                        : 'bg-gradient-to-r from-transparent via-amber-400/10 to-transparent'
+                    }`} />
                     {togglingPause ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-5 w-5 animate-spin shrink-0" />
                     ) : subject?.is_paused ? (
-                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/40">
-                        <Play className="h-3 w-3 fill-current" />
+                      <div className="relative flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 shadow-md shadow-emerald-500/40 transition-transform duration-300 group-hover:scale-110 shrink-0">
+                        <Play className="h-3 w-3 fill-white text-white ml-0.5" />
                       </div>
                     ) : (
-                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/40">
-                        <Pause className="h-3 w-3" />
+                      <div className="relative flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 shadow-md shadow-amber-500/40 transition-transform duration-300 group-hover:scale-110 shrink-0">
+                        <Pause className="h-3 w-3 fill-white text-white" />
                       </div>
                     )}
-                    <span>{subject?.is_paused ? t('course.activateSubject') : t('course.pauseSubject')}</span>
+                    <span className="relative tracking-wide">{subject?.is_paused ? t('course.activateSubject') : t('course.pauseSubject')}</span>
                   </button>
                 </div>
               )}
