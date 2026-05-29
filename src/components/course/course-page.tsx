@@ -384,7 +384,10 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         if (uploadError) {
           console.warn('Thumbnail upload failed (non-fatal):', uploadError);
         } else {
-          newThumbnailUrl = urlData.publicUrl;
+          const { data: pubData } = supabase.storage
+            .from('video-files')
+            .getPublicUrl(urlData.path);
+          newThumbnailUrl = pubData.publicUrl;
         }
       }
 
