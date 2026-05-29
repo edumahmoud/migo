@@ -36,6 +36,7 @@ export const notifTypeToTab: Record<string, CourseTab> = {
   public_note_created: 'notes',
   report: 'overview',
   poll: 'polls',
+  quiz: 'exams',
   team_message: 'teams',
 };
 

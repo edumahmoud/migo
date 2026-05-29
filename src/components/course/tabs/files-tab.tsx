@@ -312,6 +312,19 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
     fetchFiles();
   }, [fetchFiles]);
 
+  // Listen for file rename events from personal-files-section
+  useEffect(() => {
+    const handleFileRenamed = (e: Event) => {
+      const { fileId, newName } = (e as CustomEvent).detail;
+      // Update local file list immediately for any file linked via user_file_id
+      setFiles(prev => prev.map(f =>
+        f.user_file_id === fileId ? { ...f, file_name: newName } : f
+      ));
+    };
+    window.addEventListener('file-renamed', handleFileRenamed);
+    return () => window.removeEventListener('file-renamed', handleFileRenamed);
+  }, []);
+
   // -------------------------------------------------------
   // Real-time subscription for files — instant updates
   // -------------------------------------------------------

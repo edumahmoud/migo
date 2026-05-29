@@ -2542,6 +2542,10 @@ export const ar: TranslationDict = {
     generateQuestions: 'إنشاء الأسئلة',
     subjectQuestions: '{subject} · {count} سؤال',
     exportFileName: '{name}_أسئلة',
+    backgroundGenerating: 'جارٍ توليد الأسئلة لبنك: {bankName}...',
+    backgroundExtracting: 'جاري استخراج النص من الملف...',
+    backgroundGeneratingStatus: 'جاري إنشاء الأسئلة بالذكاء الاصطناعي...',
+    backgroundSaving: 'جاري حفظ الأسئلة في البنك...',
   },
 
   // ─── Reports ───

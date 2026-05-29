@@ -300,6 +300,11 @@ self.addEventListener('push', (event) => {
         { action: 'open', title: 'عرض المحاضرة' },
         { action: 'dismiss', title: 'لاحقاً' },
       ];
+    } else if (data.type === 'quiz') {
+      options.actions = [
+        { action: 'open', title: 'عرض الاختبار' },
+        { action: 'dismiss', title: 'لاحقاً' },
+      ];
     } else if (data.type === 'link_request') {
       options.actions = [
         { action: 'open', title: 'عرض الطلب' },

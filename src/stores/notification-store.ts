@@ -54,11 +54,8 @@ function dbToNotification(db: DBNotification): Notification {
 }
 
 // Polling intervals for notification fallback (milliseconds)
-const NOTIFICATION_REFETCH_INTERVAL_INITIAL = 8000; // 8 seconds for the first minute — reduced from 5s to minimize overlap with Realtime
-const NOTIFICATION_REFETCH_INTERVAL = 15000; // 15 seconds after the first minute — frequent enough to catch missed realtime events
-
-// Deduplication window — how long to suppress duplicate notifications with same title+message+type
-const DEDUP_WINDOW_MS = 60000; // 60 seconds — extended from 30s to cover more race conditions
+const NOTIFICATION_REFETCH_INTERVAL_INITIAL = 8000; // 8 seconds for the first minute
+const NOTIFICATION_REFETCH_INTERVAL = 15000; // 15 seconds after the first minute
 
 // ─── Global dedup structures (module-level, outside Zustand) ───
 // These provide O(1) lookup and survive across Zustand set() calls,
@@ -67,19 +64,13 @@ const DEDUP_WINDOW_MS = 60000; // 60 seconds — extended from 30s to cover more
 
 /**
  * Set of all notification IDs we've ever seen (both DB UUIDs and local notif-* IDs).
+ * This is the PRIMARY dedup mechanism — simple and reliable.
  * Checked before adding any notification to prevent duplicates from:
  *   - Supabase Realtime delivering the same INSERT event twice (reconnection)
  *   - Realtime + polling race condition
  *   - Multiple components initializing notifications simultaneously
  */
 const seenNotificationIds = new Set<string>();
-
-/**
- * Map of content hashes to timestamps. A content hash is derived from
- * title+message+type. Used for fast content-based dedup without O(n) array scan.
- * Entries older than DEDUP_WINDOW_MS are pruned on each check.
- */
-const contentHashTimestamps = new Map<string, number>();
 
 /**
  * Set of notification IDs currently pending deletion from the DB.
@@ -114,48 +105,9 @@ function prunePendingDeletions(): void {
   }
 }
 
-/** Generate a content hash from title+message+type */
-function contentHash(title: string, message: string, type: string): string {
-  return `${title}::${message}::${type}`;
-}
-
-/** Check if a content hash was seen recently (within DEDUP_WINDOW_MS) */
-function isContentHashRecent(hash: string): boolean {
-  const ts = contentHashTimestamps.get(hash);
-  if (!ts) return false;
-  if (Date.now() - ts > DEDUP_WINDOW_MS) {
-    contentHashTimestamps.delete(hash);
-    return false;
-  }
-  return true;
-}
-
-/** Record a content hash as seen now */
-function markContentHashSeen(hash: string): void {
-  contentHashTimestamps.set(hash, Date.now());
-}
-
-/** Prune expired content hash entries (call periodically) */
-function pruneContentHashes(): void {
-  const now = Date.now();
-  for (const [hash, ts] of contentHashTimestamps) {
-    if (now - ts > DEDUP_WINDOW_MS) {
-      contentHashTimestamps.delete(hash);
-    }
-  }
-}
-
-/** Check if a notification ID was already seen and mark it if not */
-function isSeenAndMark(notifId: string): boolean {
-  if (seenNotificationIds.has(notifId)) return true;
-  seenNotificationIds.add(notifId);
-  return false;
-}
-
 /** Reset all global dedup structures (called on cleanup / sign-out) */
 function resetDedupStructures(): void {
   seenNotificationIds.clear();
-  contentHashTimestamps.clear();
 }
 
 // ─── localStorage-backed deletion tracking ───
@@ -217,6 +169,62 @@ function isRLSRecursionError(error: { code?: string; message?: string } | null |
   return error.code === '42P17' || /infinite recursion/i.test(error.message ?? '');
 }
 
+// ─── Notification sound / haptic feedback ───
+/**
+ * Play a short notification sound and vibrate the device when a new
+ * notification arrives. Uses the Web Audio API to generate a subtle
+ * chime without requiring an external audio file.
+ */
+let audioContext: AudioContext | null = null;
+
+function playNotificationFeedback(): void {
+  // Vibrate on supported devices (mobile)
+  try {
+    if (navigator.vibrate) {
+      navigator.vibrate([100, 50, 100]);
+    }
+  } catch { /* vibration not supported */ }
+
+  // Play a short chime using Web Audio API
+  try {
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+    const ctx = audioContext;
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+
+    // Create a pleasant two-tone chime
+    const now = ctx.currentTime;
+
+    // First tone
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(880, now);
+    gain1.gain.setValueAtTime(0.15, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.15);
+
+    // Second tone (higher pitch, delayed)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1100, now + 0.1);
+    gain2.gain.setValueAtTime(0.001, now);
+    gain2.gain.setValueAtTime(0.12, now + 0.1);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.1);
+    osc2.stop(now + 0.3);
+  } catch { /* audio not available, non-critical */ }
+}
+
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],
   unreadCount: 0,
@@ -251,8 +259,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
       const dbNotifications = (data || []).map(dbToNotification);
 
-      // Prune expired content hashes and pending deletions periodically
-      pruneContentHashes();
+      // Prune expired pending deletions periodically
       prunePendingDeletions();
 
       // Load localStorage deleted IDs early — needed for both new-from-poll detection and filtering
@@ -262,8 +269,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       // These are notifications whose IDs are NOT in seenNotificationIds yet.
       // We need to detect them BEFORE marking all DB IDs as seen, so we can
       // show toasts for notifications that arrived via polling (not Realtime).
-      // This fixes the bug where notifications only appear when the user
-      // clicks the bell icon — now polling also triggers toasts.
       const newFromPoll: Notification[] = [];
       for (const n of dbNotifications) {
         if (!seenNotificationIds.has(n.id) && !isPendingDeletion(n.id) && !localStorageDeletedIds.has(n.id)) {
@@ -274,13 +279,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       // Mark all DB notification IDs as seen (so Realtime duplicates are caught)
       for (const n of dbNotifications) {
         seenNotificationIds.add(n.id);
-        markContentHashSeen(contentHash(n.title, n.message, n.type));
       }
 
       // Filter out notifications that are pending deletion
       // (optimistically removed from store but DB DELETE not yet completed)
       // Also filter out notifications whose IDs are in the localStorage deleted set
-      // (deleted in a previous session but DB DELETE failed silently)
       const filteredDbNotifications = dbNotifications.filter(
         (n) => !isPendingDeletion(n.id) && !localStorageDeletedIds.has(n.id)
       );
@@ -290,23 +293,19 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         const dbIdSet = new Set(filteredDbNotifications.map((n) => n.id));
 
         // Keep local-only notifications that don't have a DB counterpart yet
-        // (These were added optimistically before the DB insert propagated)
         const localOnly = state.notifications.filter(
           (n) => n.id.startsWith('notif-') && !dbIdSet.has(n.id)
         );
 
-        // Suppress local-only notifications that match a DB notification by content
+        // Suppress local-only notifications that match a DB notification by title+type
         // (The DB version supersedes the local optimistic version)
         const survivingLocal = localOnly.filter((n) => {
-          const hash = contentHash(n.title, n.message, n.type);
-          // Check if any DB notification has the same content hash
           return !filteredDbNotifications.some(
-            (dbN) => contentHash(dbN.title, dbN.message, dbN.type) === hash
+            (dbN) => dbN.title === n.title && dbN.type === n.type && dbN.message === n.message
           );
         });
 
-        // Also check for duplicate DB IDs within the new results
-        // (shouldn't happen normally, but defensive)
+        // Deduplicate DB IDs within the new results (defensive)
         const uniqueDbNotifications: Notification[] = [];
         const seenInBatch = new Set<string>();
         for (const n of filteredDbNotifications) {
@@ -325,14 +324,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         return { notifications: merged, unreadCount };
       });
 
-      // ─── Show toasts for notifications detected via polling (not Realtime) ───
-      // This ensures users see new notifications even if the Realtime subscription
-      // failed (e.g., due to RLS recursion, network issues, or slow connection).
-      // Only show toasts for unread, non-chat notifications that were truly new
-      // (detected in the newFromPoll list above).
+      // ─── Show toasts + feedback for notifications detected via polling ───
       if (newFromPoll.length > 0) {
-        // Limit to 3 toasts max to avoid flooding
-        const toShow = newFromPoll.filter(n => !n.read && n.type !== 'chat').slice(0, 3);
+        // Play notification sound/haptic
+        playNotificationFeedback();
+
+        // Show toasts for unread notifications (limit to 3 to avoid flooding)
+        const toShow = newFromPoll.filter(n => !n.read).slice(0, 3);
         for (const n of toShow) {
           try {
             toast(n.title, {
@@ -379,15 +377,24 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // to prevent race conditions where Realtime re-delivers events after cleanup)
     get().cleanup(false);
 
-    // Also remove any lingering channel with the same name from Supabase's internal map
-    // This handles the case where cleanup() didn't fully remove it
-    // Note: Supabase internally prefixes channel topics with "realtime:"
-    const channelName = `notifications:${userId}:${Date.now()}`;
-    const existingChannel = supabase.getChannels().find((ch) =>
-      ch.topic === channelName || ch.topic === `realtime:${channelName}`
-    );
-    if (existingChannel) {
-      supabase.removeChannel(existingChannel);
+    // ─── Use a STABLE channel name per user (no timestamp) ───
+    // This ensures we always have exactly one channel per user, and cleanup
+    // can reliably find and remove it. Previously, timestamped channel names
+    // could leave orphaned channels that consumed resources without delivering events.
+    const channelName = `notifications:${userId}`;
+
+    // Remove any lingering channels for this user (including old timestamped ones)
+    const allChannels = supabase.getChannels();
+    for (const ch of allChannels) {
+      // Match both stable name and old timestamped format
+      if (
+        ch.topic === channelName ||
+        ch.topic === `realtime:${channelName}` ||
+        ch.topic.startsWith(`realtime:notifications:${userId}:`) ||
+        ch.topic.startsWith(`notifications:${userId}:`)
+      ) {
+        supabase.removeChannel(ch);
+      }
     }
 
     try {
@@ -421,7 +428,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       // Populate global dedup structures with initial data
       for (const n of notifications) {
         seenNotificationIds.add(n.id);
-        markContentHashSeen(contentHash(n.title, n.message, n.type));
       }
 
       // 3. Set up real-time subscription for INSERT events
@@ -439,7 +445,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           (payload) => {
             const newNotif = dbToNotification(payload.new as DBNotification);
 
-            // ─── Fast dedup: check seen IDs set FIRST ───
+            // ─── Primary dedup: check seen IDs set ───
             // This prevents Supabase Realtime duplicate events (e.g., during reconnection)
             // and also catches race conditions with polling.
             if (seenNotificationIds.has(newNotif.id)) {
@@ -449,31 +455,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             // Mark as seen immediately to prevent any concurrent handler from adding it
             seenNotificationIds.add(newNotif.id);
 
-            // ─── Content hash dedup ───
-            const hash = contentHash(newNotif.title, newNotif.message, newNotif.type);
-            if (isContentHashRecent(hash)) {
-              // Content duplicate within window — but might be a local-only notification
-              // that should be replaced with the DB version
-              set((state) => {
-                const localMatch = state.notifications.find(
-                  (n) => n.id.startsWith('notif-') && contentHash(n.title, n.message, n.type) === hash
-                );
-                if (localMatch) {
-                  // Replace the local-only with the DB version
-                  const filtered = state.notifications.filter((n) => n.id !== localMatch.id);
-                  return {
-                    notifications: [newNotif, ...filtered].slice(0, 100),
-                    unreadCount: state.unreadCount, // Local was already counted
-                  };
-                }
-                // No local match — this is a true duplicate, skip it
-                return state;
-              });
-              return;
-            }
-
-            markContentHashSeen(hash);
-
             set((state) => {
               // Double-check by ID (in case another set() added it between our seenIds check and here)
               if (state.notifications.some((n) => n.id === newNotif.id)) {
@@ -482,12 +463,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
               // Check if a local-only notification with matching content already exists
               // (added by addNotification before the Realtime event arrived)
-              const now = Date.now();
+              // Replace it with the DB version (which is authoritative)
               const localOnlyMatch = state.notifications.find(
                 (n) =>
                   n.id.startsWith('notif-') &&
-                  contentHash(n.title, n.message, n.type) === hash &&
-                  now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
+                  n.title === newNotif.title &&
+                  n.type === newNotif.type &&
+                  n.message === newNotif.message
               );
 
               if (localOnlyMatch) {
@@ -499,26 +481,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
                 };
               }
 
-              // Also check by link field (more specific than content)
-              if (newNotif.link && state.notifications.some(
-                (n) => n.link === newNotif.link && n.type === newNotif.type &&
-                now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
-              )) {
-                return state;
-              }
-
               return {
                 notifications: [newNotif, ...state.notifications].slice(0, 100),
                 unreadCount: state.unreadCount + (newNotif.read ? 0 : 1),
               };
             });
 
-            // ─── Show toast notification when a new notification arrives ───
-            // Previously, notifications only appeared in the bell dropdown.
-            // Now we also show a sonner toast so the user sees it immediately.
-            // EXCEPT: Chat notifications are shown only in the chat section icon,
-            // not as toasts or in the bell dropdown.
-            if (!newNotif.read && newNotif.type !== 'chat') {
+            // ─── Show toast + audio/haptic feedback for new notifications ───
+            if (!newNotif.read) {
+              playNotificationFeedback();
               try {
                 toast(newNotif.title, {
                   description: newNotif.message,
@@ -542,7 +513,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             seenNotificationIds.add(updated.id);
             set((state) => {
               const existed = state.notifications.find((n) => n.id === updated.id);
-              if (!existed) return state;
+              if (!existed) {
+                // Notification not in store yet — add it (might have been missed)
+                return {
+                  notifications: [updated, ...state.notifications].slice(0, 100),
+                  unreadCount: state.unreadCount + (updated.read ? 0 : 1),
+                };
+              }
               const prevUnread = existed.read ? 0 : 1;
               const newUnread = updated.read ? 0 : 1;
               return {
@@ -565,8 +542,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
           (payload) => {
             const deletedId = (payload.old as { id: string })?.id;
             if (!deletedId) return;
-            // Remove from seen IDs set
-            seenNotificationIds.delete(deletedId);
+            // Keep in seenNotificationIds to prevent re-adding
             set((state) => {
               const notif = state.notifications.find((n) => n.id === deletedId);
               return {
@@ -576,7 +552,32 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             });
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          // ─── Reconnection logic ───
+          // If the subscription drops or errors, the polling fallback will keep
+          // notifications flowing. But we log the status for debugging.
+          if (status === 'SUBSCRIBED') {
+            console.log(`[notifications] Realtime subscription active for user ${userId}`);
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn(`[notifications] Realtime subscription issue (${status}) for user ${userId} — polling fallback active`);
+            // Attempt to re-subscribe after a delay if the channel errored
+            if (status === 'CHANNEL_ERROR') {
+              setTimeout(() => {
+                const currentSub = get().subscription;
+                if (currentSub) {
+                  console.log(`[notifications] Attempting to re-subscribe for user ${userId}`);
+                  try {
+                    currentSub.subscribe();
+                  } catch {
+                    console.warn(`[notifications] Re-subscribe failed for user ${userId}`);
+                  }
+                }
+              }, 5000);
+            }
+          } else if (status === 'CLOSED') {
+            console.log(`[notifications] Realtime channel closed for user ${userId}`);
+          }
+        });
 
       // 4. Set up polling fallback for when real-time subscription doesn't deliver
       // Use a faster interval (8s) for the first minute, then switch to 15s
@@ -612,7 +613,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
     // Safety net: ensure `initializing` is always reset, even if an unexpected
     // error occurs between the two try blocks or in any early return path.
-    // Without this, the flag stays `true` forever, blocking all future init attempts.
   } finally {
     if (get().initializing) {
       set({ initializing: false });
@@ -621,10 +621,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   createNotification: async (notification) => {
-    // Pre-mark content hash so Realtime dedup catches the echo
-    const hash = contentHash(notification.title, notification.message, notification.type);
-    markContentHashSeen(hash);
-
     try {
       // Insert into DB - real-time subscription will add it to the store
       const { data, error } = await supabase.from('notifications').insert({
@@ -664,45 +660,27 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       createdAt: new Date().toISOString(),
     };
 
-    // ─── Fast dedup: check global structures ───
-    const hash = contentHash(notification.title, notification.message, notification.type);
-
-    // Check content hash first (O(1))
-    if (isContentHashRecent(hash)) {
+    // ─── Dedup: check seenNotificationIds (primary mechanism) ───
+    // Check if an identical notification (same title+type+message) already exists in the store
+    // This catches the case where addNotification is called as a fallback but the
+    // notification was already added via Realtime or polling.
+    const currentNotifications = get().notifications;
+    const isDuplicate = currentNotifications.some(
+      (n) => n.title === notification.title && n.type === notification.type && n.message === notification.message
+    );
+    if (isDuplicate) {
       return;
-    }
-
-    // Also check by link field (more specific than content)
-    if (notification.link) {
-      // We need to check existing notifications for link match
-      // But the global content hash doesn't include link, so we check state
-      // This is still O(n) but only for the link check, not content
-      const currentNotifications = get().notifications;
-      const now = Date.now();
-      const linkDuplicate = currentNotifications.some(
-        (n) => n.link === notification.link && n.type === notification.type &&
-        now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
-      );
-      if (linkDuplicate) {
-        return;
-      }
     }
 
     // Mark as seen
     seenNotificationIds.add(newNotification.id);
-    markContentHashSeen(hash);
 
     set((state) => {
-      // Additional check within the set callback for full content dedup
-      // (catches race condition where addNotification was called twice
-      // before the first set() completed)
-      const now = Date.now();
-      const isDuplicate = state.notifications.some(
-        (n) =>
-          contentHash(n.title, n.message, n.type) === hash &&
-          now - new Date(n.createdAt).getTime() < DEDUP_WINDOW_MS
+      // Double-check by content within the set callback (catches race conditions)
+      const exists = state.notifications.some(
+        (n) => n.title === notification.title && n.type === notification.type && n.message === notification.message
       );
-      if (isDuplicate) return state;
+      if (exists) return state;
 
       return {
         notifications: [newNotification, ...state.notifications].slice(0, 100),
@@ -777,9 +755,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // IMPORTANT: Do NOT remove from seenNotificationIds!
     // Keeping the ID in seenNotificationIds prevents refetchNotifications()
     // from re-adding this notification if the DB DELETE is still pending or failed.
-    // Previously, deleting from seenNotificationIds caused notifications to
-    // reappear after deletion because the next poll would find them in the DB.
-    // seenNotificationIds.delete(id); // ← REMOVED: this was the cause of reappearing notifications
 
     // Remove from store immediately
     set((s) => ({
@@ -822,12 +797,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
 
     // IMPORTANT: Do NOT call resetDedupStructures() here!
-    // Previously, clearAll would reset seenNotificationIds and contentHashTimestamps,
-    // which meant the very next refetchNotifications() call (every 8-15s) would
-    // re-add ALL notifications from the DB because there was nothing to dedupe against.
-    // The DB DELETE is async and might not complete before the next poll.
-    // By keeping the dedup structures populated, refetch won't re-add deleted notifications.
-    // resetDedupStructures(); // ← REMOVED: this was the cause of notifications reappearing after clearAll
+    // Keeping the dedup structures populated prevents refetch from re-adding
+    // deleted notifications before the DB DELETE completes.
 
     // Clear store immediately
     set({ notifications: [], unreadCount: 0 });
@@ -846,7 +817,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             else console.error('Failed to clear all notifications from DB:', error);
           } else {
             // DB DELETE succeeded — now safe to clear dedup structures
-            // (no more data in DB to accidentally re-add)
             resetDedupStructures();
           }
         });
@@ -856,7 +826,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   cleanup: (fullReset = true) => {
-    const { subscription, refetchTimer } = get();
+    const { subscription, refetchTimer, currentUserId } = get();
     if (subscription) {
       subscription.unsubscribe();
       supabase.removeChannel(subscription);
@@ -866,9 +836,16 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       clearInterval(refetchTimer);
     }
     // Also remove any notification channels that might be lingering
-    const notificationChannels = supabase.getChannels().filter((ch) =>
-      ch.topic.includes('notifications:')
-    );
+    // (including old timestamped channels)
+    const notificationChannels = supabase.getChannels().filter((ch) => {
+      if (!currentUserId) return ch.topic.includes('notifications:');
+      // Match stable name, old timestamped names, and Supabase's internal "realtime:" prefix
+      return (
+        ch.topic === `notifications:${currentUserId}` ||
+        ch.topic === `realtime:notifications:${currentUserId}` ||
+        ch.topic.includes(`notifications:${currentUserId}:`)
+      );
+    });
     notificationChannels.forEach((ch) => supabase.removeChannel(ch));
 
     // Full reset (sign-out): clear everything including dedup structures and notifications.

@@ -81,7 +81,7 @@ function getNotifIcon(type: string, title?: string, t?: (key: string) => string)
     case 'file': return <FileText className="h-4 w-4 text-blue-600" />;
     case 'attendance': return <UserCheck className="h-4 w-4 text-violet-600" />;
     case 'lecture': return <BookOpen className="h-4 w-4 text-teal-600" />;
-    case 'chat': return <Bell className="h-4 w-4 text-sky-600" />;
+    case 'chat': return <MessageCircle className="h-4 w-4 text-sky-600" />;
     case 'report': return <ShieldAlert className="h-4 w-4 text-orange-600" />;
     case 'poll': return <Vote className="h-4 w-4 text-violet-600" />;
     case 'quiz': return <ClipboardList className="h-4 w-4 text-rose-600" />;
@@ -111,11 +111,11 @@ export default function NotificationBell() {
   const { user } = useAuthStore();
   const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore();
 
-  // ─── Filter out chat notifications from the bell ───
-  // Chat notifications should only appear in the chat section icon,
-  // not in the notification bell dropdown or unread count badge.
-  const bellNotifications = notifications.filter(n => n.type !== 'chat');
-  const bellUnreadCount = bellNotifications.filter(n => !n.read).length;
+  // ─── All notifications shown in bell (including chat) ───
+  // Chat notifications appear in the bell with a MessageCircle icon and
+  // deep link to the conversation. They are also shown in the chat section.
+  const bellNotifications = notifications;
+  const bellUnreadCount = notifications.filter(n => !n.read).length;
 
   // Initialize notifications from DB when component mounts
   // ─── Keep auth cache fresh ───

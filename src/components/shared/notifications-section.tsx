@@ -56,7 +56,7 @@ function getNotifIcon(type: string, title: string | undefined, t: (key: string) 
     case 'file': return <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
     case 'attendance': return <UserCheck className="h-5 w-5 text-violet-600 dark:text-violet-500" />;
     case 'lecture': return <BookOpen className="h-5 w-5 text-teal-600 dark:text-teal-500" />;
-    case 'chat': return <Bell className="h-5 w-5 text-sky-600 dark:text-sky-400" />;
+    case 'chat': return <MessageCircle className="h-5 w-5 text-sky-600 dark:text-sky-400" />;
     case 'report': return <ShieldAlert className="h-5 w-5 text-orange-600 dark:text-orange-400" />;
     case 'poll': return <Vote className="h-5 w-5 text-violet-600 dark:text-violet-500" />;
     case 'quiz': return <ClipboardList className="h-5 w-5 text-rose-600 dark:text-rose-500" />;
@@ -80,10 +80,10 @@ export default function NotificationsSection() {
     clearAll,
   } = useNotificationStore();
 
-  // ─── Filter out chat notifications from the notifications section ───
-  // Chat notifications should only appear in the chat section icon.
-  const bellNotifications = notifications.filter(n => n.type !== 'chat');
-  const bellUnreadCount = bellNotifications.filter(n => !n.read).length;
+  // ─── All notifications shown (including chat) ───
+  // Chat notifications appear here with deep link to the conversation.
+  const bellNotifications = notifications;
+  const bellUnreadCount = notifications.filter(n => !n.read).length;
 
   const [linkRequestModal, setLinkRequestModal] = useState<{
     teacherId: string;

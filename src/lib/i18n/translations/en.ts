@@ -2530,6 +2530,10 @@ export const en: TranslationDict = {
     generateQuestions: 'Generate Questions',
     subjectQuestions: '{subject} · {count} questions',
     exportFileName: '{name}_questions',
+    backgroundGenerating: 'Generating questions for bank: {bankName}...',
+    backgroundExtracting: 'Extracting text from file...',
+    backgroundGeneratingStatus: 'Generating questions with AI...',
+    backgroundSaving: 'Saving questions to bank...',
   },
 
   // ─── Error ───

@@ -228,7 +228,9 @@ export async function notifyUser(
     pushToUser(userId, title, message, link, type).then(() => {
       console.log(`[notify] Push delivery completed for user ${userId}, type=${type}`);
     }).catch((err) => {
-      console.warn(`[notify] Push delivery failed for user ${userId}:`, err);
+      // Push delivery failure is non-critical — in-app notification is already in DB
+      // and will be delivered via Supabase Realtime. Log at warn level for monitoring.
+      console.warn(`[notify] Push delivery failed for user ${userId}, type=${type}:`, err?.message || err);
     });
   } catch (err) {
     console.error('[notify] notifyUser exception:', err);

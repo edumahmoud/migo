@@ -52,6 +52,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useTranslations } from '@/i18n/use-translations';
 import UserAvatar, { getRoleLabel, getTitleLabel, formatNameWithTitle } from '@/components/shared/user-avatar';
 import { useAppStore } from '@/stores/app-store';
+import { useFileUploadStore } from '@/stores/file-upload-store';
 
 // -------------------------------------------------------
 // Props
@@ -266,13 +267,16 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const pendingUploadsRef = useRef<PendingUpload[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const uploadAbortRef = useRef<AbortController | null>(null);
+
+  // ─── Global file upload store (background uploads) ───
+  const { tasks: uploadTasks, addTask: addUploadTask, removeTask: removeUploadTask, clearCompleted: clearCompletedUploads } = useFileUploadStore();
+  const hasActiveUploads = uploadTasks.some(t => t.status === 'uploading');
 
   // ─── PWA Lifecycle protection ───
-  // Prevents page reload while upload modal is open and files are being uploaded
+  // Prevents page reload while files are being uploaded (modal or background)
   usePWALifecycle({
     stateKey: `personal-files-${profile.id}`,
-    isBusy: uploadModalOpen || pendingUploads.some(p => p.uploading),
+    isBusy: uploadModalOpen || hasActiveUploads,
     onSave: undefined,
     onRestore: undefined,
   });
@@ -767,388 +771,43 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   };
 
   // -------------------------------------------------------
-  // Upload all pending files
-  // FIX: Pre-read file data into ArrayBuffers to avoid File object
-  // invalidation on mobile PWA. Use Blobs created from ArrayBuffers
-  // for all upload methods instead of raw File objects.
+  // Upload all pending files — delegates to global background store
+  // Modal closes immediately; uploads continue in the background.
   // -------------------------------------------------------
-  const handleUploadAll = async () => {
-    // Reset failed uploads first so they can be retried (but NOT duplicate_name errors — those need rename)
-    setPendingUploads((prev) =>
-      prev.map((p) => (p.progress === -1 && p.errorCode !== 'duplicate_name' ? { ...p, progress: 0, uploading: false, error: undefined, errorCode: undefined } : p))
-    );
-
-    // Wait a tick for the state update to be processed (important on mobile)
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    // Read the LATEST state from the ref (avoids stale closure on mobile)
+  const handleUploadAll = () => {
     // Skip files with duplicate_name error — they must be renamed first
-    const toUpload = pendingUploadsRef.current.filter((p) => !p.done && !p.uploading && p.errorCode !== 'duplicate_name' && !p.error);
+    const toUpload = pendingUploadsRef.current.filter(
+      (p) => !p.done && !p.uploading && p.errorCode !== 'duplicate_name' && !p.error
+    );
     if (toUpload.length === 0) {
       toast.info(t('files.toastNoFilesToUpload'));
       return;
     }
 
-    // Get auth token — use waitForSession for mobile PWA where session hydration can be slow
-    const token = await waitForSession(15000);
-    if (!token) {
-      toast.error(t('files.toastLoginRequired'));
-      return;
+    const subjectIds = Array.from(selectedSubjectForUploadIds);
+
+    // Add each file to the global upload store — auto-starts in background
+    for (const item of toUpload) {
+      addUploadTask({
+        id: '', // assigned by addTask
+        file: item.file,
+        fileData: item.fileData,
+        fileName: item.fileName,
+        fileType: item.fileType,
+        fileSize: item.fileSize,
+        customName: item.customName,
+        extension: item.extension,
+        profileId: profile.id,
+        subjectIds,
+      });
     }
 
-    // Supabase Storage direct-upload configuration
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    if (!supabaseUrl || !supabaseAnonKey) {
-      toast.error(t('files.toastStorageConfigIncomplete'));
-      return;
-    }
+    // Close modal immediately — uploads continue in background
+    setUploadModalOpen(false);
+    setPendingUploads([]);
+    setSelectedSubjectForUploadIds(new Set());
 
-    // Throttled progress updater
-    const progressTimers = new Map<string, { lastPct: number; lastTime: number }>();
-    const PROGRESS_THROTTLE_MS = 200;
-    const PROGRESS_THROTTLE_PCT = 5;
-
-    const throttledProgressUpdate = (id: string, pct: number) => {
-      const now = Date.now();
-      const prev = progressTimers.get(id);
-      if (!prev || (now - prev.lastTime >= PROGRESS_THROTTLE_MS) || (Math.abs(pct - prev.lastPct) >= PROGRESS_THROTTLE_PCT) || pct === 100 || pct === 0) {
-        progressTimers.set(id, { lastPct: pct, lastTime: now });
-        setPendingUploads((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, progress: pct } : p))
-        );
-      }
-    };
-
-    // Simulated progress tracker for SDK uploads (no native progress)
-    const startSimulatedProgress = (id: string, fileSize: number) => {
-      const startTime = Date.now();
-      const estimatedMs = Math.max(3000, (fileSize / (2 * 1024 * 1024)) * 1000);
-      const interval = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const ratio = Math.min(elapsed / estimatedMs, 0.85);
-        const pct = Math.round(10 + ratio * 75);
-        throttledProgressUpdate(id, pct);
-      }, 500);
-      return interval;
-    };
-
-    // Phase 1: Upload all personal files + create DB records
-    const uploadedFileIds: string[] = [];
-
-    for (let i = 0; i < toUpload.length; i++) {
-      const item = toUpload[i];
-
-      // Mark as uploading
-      setPendingUploads((prev) =>
-        prev.map((p) => (p.id === item.id ? { ...p, uploading: true, progress: 0 } : p))
-      );
-      throttledProgressUpdate(item.id, 5);
-
-      // Yield to the event loop between uploads so the UI can update (critical on mobile)
-      if (i > 0) {
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        await new Promise((resolve) => setTimeout(resolve, isMobile ? 150 : 50));
-      }
-
-      try {
-        // ─── CRITICAL FIX: Use pre-read ArrayBuffer data instead of File object ───
-        // On mobile PWA, File objects can become invalid after the <input> is cleared.
-        // We use the pre-read ArrayBuffer (item.fileData) to create a fresh Blob
-        // for each upload attempt. This ensures the data is always available.
-        // SAFETY: Only use pre-read properties (item.fileName, item.fileType, item.fileSize).
-        // Never access item.file.name / item.file.type / item.file.size — on mobile PWA,
-        // the File object can become invalidated after the native file picker closes,
-        // and accessing its properties throws TypeError during render/execution.
-        const fileName = item.fileName || 'unknown';
-        const fileType = item.fileType || 'application/octet-stream';
-        const fileSize = item.fileSize || 0;
-
-        // Try to get ArrayBuffer: prefer pre-read data, fallback to reading File
-        let arrayBuffer: ArrayBuffer;
-        if (item.fileData && item.fileData.byteLength > 0) {
-          arrayBuffer = item.fileData;
-          console.log(`[Upload] Using pre-read data for "${fileName}", size: ${arrayBuffer.byteLength}`);
-        } else {
-          // Fallback: try to read from File object (might fail on mobile PWA)
-          console.warn(`[Upload] No pre-read data for "${fileName}", reading from File object...`);
-          try {
-            arrayBuffer = await item.file.arrayBuffer();
-          } catch (readErr) {
-            console.error(`[Upload] File object is invalid for "${fileName}":`, readErr);
-            throw new Error(t('files.toastFileReadFailed', { name: fileName }));
-          }
-        }
-
-        // Create a fresh Blob from the ArrayBuffer — this is independent of the File object
-        const uploadBlob = new Blob([arrayBuffer], { type: fileType });
-
-        // Build the storage path
-        const originalExt = fileName.includes('.') ? '.' + fileName.split('.').pop() : '';
-        const displayName = item.customName.trim() ? item.customName.trim() + originalExt : fileName;
-        const safeStorageName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const storagePath = `${profile.id}/${safeStorageName}`;
-        const fileTypeCategory = getFileTypeCategory(fileType);
-
-        let uploadSucceeded = false;
-
-        // ── STEP 1 (PRIMARY): Server-side upload via same-origin fetch() ──
-        const FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4MB
-        if (fileSize <= FILE_SIZE_LIMIT) {
-          try {
-            throttledProgressUpdate(item.id, 15);
-            const simInterval = startSimulatedProgress(item.id, fileSize);
-
-            // Use Blob (from ArrayBuffer) instead of File object
-            const uploadFormData = new FormData();
-            uploadFormData.append('file', uploadBlob, fileName);
-            uploadFormData.append('userId', profile.id);
-            uploadFormData.append('customName', item.customName.trim());
-
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-            const res = await fetch('/api/files/upload', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-              },
-              body: uploadFormData,
-              signal: controller.signal,
-            });
-
-            clearTimeout(timeoutId);
-            clearInterval(simInterval);
-
-            // FIX: Safely parse JSON — server may return HTML on error
-            let result: { success: boolean; data?: Record<string, unknown>; error?: string };
-            if (res.ok) {
-              try { result = await res.json(); }
-              catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
-            } else {
-              const errorText = await res.text();
-              try { result = JSON.parse(errorText); }
-              catch { result = { success: false, error: t('files.toastHttpError', { status: res.status }) }; }
-            }
-
-            if (result.success && result.data?.id) {
-              uploadedFileIds.push(String(result.data.id));
-              uploadSucceeded = true;
-              console.log(`[Upload] Server-side upload succeeded for ${displayName}`);
-            } else {
-              console.warn(`[Upload] Server-side upload failed for ${displayName}:`, result.error, '— falling back to direct storage');
-            }
-          } catch (serverErr) {
-            console.warn(`[Upload] Server-side upload error for ${displayName}:`, serverErr instanceof Error ? serverErr.message : serverErr, '— falling back to direct storage');
-          }
-        } else {
-          console.log(`[Upload] File ${displayName} is ${Math.round(fileSize / 1024 / 1024)}MB, too large for server route, using direct storage`);
-        }
-
-        // ── STEP 2 (FALLBACK): Direct upload to Supabase Storage from client ──
-        if (!uploadSucceeded) {
-          let storageUploadSuccess = false;
-
-          // Try XHR direct upload to Supabase Storage (real progress)
-          try {
-            await new Promise<void>((resolve, reject) => {
-              const xhr = new XMLHttpRequest();
-              xhr.timeout = 5 * 60 * 1000; // 5 min for large files on mobile
-
-              xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                  const pct = Math.round((e.loaded / e.total) * 90);
-                  throttledProgressUpdate(item.id, pct);
-                }
-              });
-
-              xhr.addEventListener('load', () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  resolve();
-                } else {
-                  reject(new Error(`HTTP ${xhr.status}`));
-                }
-              });
-
-              xhr.addEventListener('error', () => reject(new Error('Network error')));
-              xhr.addEventListener('abort', () => reject(new Error('Aborted')));
-              xhr.addEventListener('timeout', () => reject(new Error(t('files.toastUploadTimeout'))));
-
-              const storageUrl = `${supabaseUrl}/storage/v1/object/user-files/${storagePath}`;
-              xhr.open('POST', storageUrl);
-              xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-              xhr.setRequestHeader('apikey', supabaseAnonKey);
-              xhr.setRequestHeader('x-upsert', 'false');
-
-              // Use Blob (from ArrayBuffer) instead of File object
-              const formData = new FormData();
-              formData.append('cacheControl', '3600');
-              formData.append('file', uploadBlob, fileName);
-              xhr.send(formData);
-            });
-
-            storageUploadSuccess = true;
-          } catch (xhrErr) {
-            console.warn(`[Upload] XHR failed for ${item.customName}, trying SDK:`, xhrErr instanceof Error ? xhrErr.message : xhrErr);
-          }
-
-          // SDK fallback for storage upload
-          if (!storageUploadSuccess) {
-            const progressInterval = startSimulatedProgress(item.id, fileSize);
-            throttledProgressUpdate(item.id, 10);
-
-            try {
-              // Use Blob (from ArrayBuffer) instead of File object for SDK upload
-              const { error: uploadError } = await supabase.storage
-                .from('user-files')
-                .upload(storagePath, uploadBlob, {
-                  cacheControl: '3600',
-                  contentType: fileType,
-                  upsert: false,
-                });
-
-              clearInterval(progressInterval);
-
-              if (uploadError) {
-                throw uploadError;
-              }
-              storageUploadSuccess = true;
-            } catch (sdkErr) {
-              clearInterval(progressInterval);
-              console.error(`[Upload] SDK also failed for ${item.customName}:`, sdkErr);
-            }
-          }
-
-          if (!storageUploadSuccess) {
-            throw new Error(t('files.toastUploadFailed'));
-          }
-
-          throttledProgressUpdate(item.id, 92);
-
-          // Create DB record via lightweight API (metadata only, no file body)
-          const fileUrl = `${supabaseUrl}/storage/v1/object/public/user-files/${storagePath}`;
-
-          const controller2 = new AbortController();
-          const timeoutId2 = setTimeout(() => controller2.abort(), 30000);
-
-          try {
-            const res = await fetch('/api/files/create-record', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                userId: profile.id,
-                fileName: displayName,
-                fileType: fileTypeCategory,
-                fileSize: fileSize,
-                fileUrl,
-                storagePath,
-              }),
-              signal: controller2.signal,
-            });
-
-            // FIX: Safely parse JSON — server may return HTML on error
-            let result: { success: boolean; data?: Record<string, unknown>; error?: string };
-            if (res.ok) {
-              try { result = await res.json(); }
-              catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
-            } else {
-              const errorText = await res.text();
-              try { result = JSON.parse(errorText); }
-              catch { result = { success: false, error: t('files.toastHttpError', { status: res.status }) }; }
-            }
-            clearTimeout(timeoutId2);
-
-            if (result.success && result.data?.id) {
-              uploadedFileIds.push(String(result.data.id));
-              uploadSucceeded = true;
-            } else {
-              console.error('[Upload] Create record error:', result.error);
-              await supabase.storage.from('user-files').remove([storagePath]);
-              throw new Error(result.error || t('files.toastFileSaveFailed'));
-            }
-          } finally {
-            clearTimeout(timeoutId2);
-          }
-        }
-
-        // Mark as done
-        if (uploadSucceeded) {
-          setPendingUploads((prev) =>
-            prev.map((p) => (p.id === item.id ? { ...p, progress: 100, done: true, uploading: false } : p))
-          );
-        }
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Upload failed';
-        console.error(`Upload error for ${item.customName}:`, errorMsg);
-        setPendingUploads((prev) =>
-          prev.map((p) => (p.id === item.id ? { ...p, progress: -1, uploading: false } : p))
-        );
-      }
-    }
-
-    // Phase 2: Bulk assign all uploaded files to courses (if subjects were selected)
-    if (uploadedFileIds.length > 0 && selectedSubjectForUploadIds.size > 0) {
-      try {
-        await supabase
-          .from('user_files')
-          .update({ visibility: 'public', updated_at: new Date().toISOString() })
-          .in('id', uploadedFileIds);
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000);
-
-        try {
-          const res = await fetch('/api/files/bulk-assign', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              fileIds: uploadedFileIds,
-              subjectIds: Array.from(selectedSubjectForUploadIds),
-              userId: profile.id,
-            }),
-            signal: controller.signal,
-          });
-          let result: { success: boolean; data?: { created: number; skipped: number }; error?: string };
-          try { result = await res.json(); } catch { result = { success: false, error: t('files.toastUnexpectedServerResponse') }; }
-          if (result.success && result.data) {
-            if (result.data.skipped > 0) {
-              toast.info(t('files.toastFilesAssigned', { created: result.data.created, skipped: result.data.skipped }));
-            }
-          } else {
-            console.error('Bulk assign error:', result.error);
-          }
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      } catch (assignErr) {
-        console.error('Bulk assign failed:', assignErr);
-      }
-    }
-
-    // Check actual upload results
-    setPendingUploads((current) => {
-      const successful = current.filter((p) => p.done);
-      const failed = current.filter((p) => p.progress === -1);
-      const blocked = current.filter((p) => p.errorCode === 'duplicate_name');
-      if (successful.length > 0 && failed.length === 0 && blocked.length === 0) {
-        toast.success(t('files.toastUploadSuccess'));
-      } else if (successful.length > 0 && failed.length > 0) {
-        toast.error(t('files.toastUploadPartial', { success: successful.length, failed: failed.length }));
-      } else if (failed.length > 0) {
-        toast.error(t('files.toastUploadAllFailed'));
-      }
-      if (blocked.length > 0) {
-        toast.error(t('files.toastBlockedFiles', { count: blocked.length }));
-      }
-      return current;
-    });
-    fetchFiles();
+    toast.info(t('files.toastUploadStarted') || `جارٍ رفع ${toUpload.length} ملف(ات) في الخلفية...`);
   };
 
   // -------------------------------------------------------
@@ -1226,6 +885,14 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
         // Apply to local state immediately for responsive UI
         setFiles(prev => prev.map(f => f.id === fileId ? { ...f, file_name: newName, updated_at: new Date().toISOString() } : f));
         toast.success(t('files.toastRenameSuccess'));
+
+        // Notify other components (course files, question bank, summaries) about the rename
+        // so they can refresh their file lists immediately
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('file-renamed', {
+            detail: { fileId, oldName, newName, userFileId: fileId },
+          }));
+        }
 
         // Background verification: re-fetch from DB after a short delay to confirm persistence
         // If the DB reverted (shouldn't happen with the new verification step), the Realtime
@@ -2600,10 +2267,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
           exit={{ opacity: 0, pointerEvents: 'none' as const }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => {
-            if (!pendingUploads.some((p) => p.uploading)) {
-              setUploadModalOpen(false);
-              setPendingUploads([]);
-            }
+            setUploadModalOpen(false);
+            setPendingUploads([]);
           }}
         >
           <motion.div
@@ -2623,10 +2288,8 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
               </h3>
               <button
                 onClick={() => {
-                  if (!pendingUploads.some((p) => p.uploading)) {
-                    setUploadModalOpen(false);
-                    setPendingUploads([]);
-                  }
+                  setUploadModalOpen(false);
+                  setPendingUploads([]);
                 }}
                 className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-colors"
               >
@@ -3810,6 +3473,123 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
   );
 
   // -------------------------------------------------------
+  // Render: Background Upload Progress Indicator
+  // -------------------------------------------------------
+  const renderUploadProgressIndicator = () => {
+    const active = uploadTasks.filter(t => t.status === 'uploading');
+    const completed = uploadTasks.filter(t => t.status === 'success');
+    const failed = uploadTasks.filter(t => t.status === 'error');
+    const overallProgress = uploadTasks.length > 0
+      ? Math.round(uploadTasks.reduce((sum, t) => sum + t.progress, 0) / uploadTasks.length)
+      : 0;
+    const allDone = active.length === 0;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
+        className="fixed bottom-4 start-4 z-40 w-80 max-w-[calc(100vw-2rem)] rounded-xl border bg-background shadow-lg overflow-hidden"
+        dir={direction}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b">
+          <div className="flex items-center gap-2 min-w-0">
+            {allDone ? (
+              <CheckCircle2 className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0" />
+            ) : (
+              <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-400 shrink-0" />
+            )}
+            <span className="text-sm font-medium text-foreground truncate">
+              {allDone
+                ? t('files.uploadComplete') || `تم الرفع — ${completed.length} ملف(ات)`
+                : t('files.uploadingFiles') || `جارٍ الرفع... ${active.length} ملف(ات)`
+              }
+            </span>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {allDone && (
+              <button
+                onClick={clearCompletedUploads}
+                className="touch-target flex items-center justify-center rounded-md p-1 text-muted-foreground hover:bg-muted transition-colors"
+                title={t('files.close') || 'Close'}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Overall progress */}
+        <div className="px-4 py-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-muted-foreground">
+              {completed.length + failed.length} / {uploadTasks.length}
+            </span>
+            <span className="text-xs font-medium text-sky-700 dark:text-sky-400">
+              {overallProgress}%
+            </span>
+          </div>
+          <Progress
+            value={overallProgress}
+            className="h-1.5"
+          />
+        </div>
+
+        {/* Individual file list */}
+        <div className="max-h-48 overflow-y-auto custom-scrollbar px-4 pb-3 space-y-2">
+          {uploadTasks.map((task) => (
+            <div
+              key={task.id}
+              className={`rounded-lg border p-2 space-y-1 ${
+                task.status === 'error'
+                  ? 'border-rose-200 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-900/15'
+                  : task.status === 'success'
+                    ? 'border-sky-200 dark:border-sky-900/60 bg-sky-50/30 dark:bg-sky-900/15'
+                    : 'bg-card'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className="shrink-0">
+                  {getFileIcon(task.fileType || 'other')}
+                </div>
+                <span className="text-xs font-medium text-foreground truncate flex-1 min-w-0">
+                  {task.customName}{task.extension ? `.${task.extension}` : ''}
+                </span>
+                {task.status === 'uploading' && (
+                  <Loader2 className="h-3 w-3 animate-spin text-sky-700 dark:text-sky-400 shrink-0" />
+                )}
+                {task.status === 'success' && (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                )}
+                {task.status === 'error' && (
+                  <button
+                    onClick={() => removeUploadTask(task.id)}
+                    className="touch-target shrink-0 flex items-center justify-center rounded text-muted-foreground hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-500"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              {task.status === 'uploading' && (
+                <div className="flex items-center gap-2">
+                  <Progress value={task.progress} className="h-1 flex-1" />
+                  <span className="text-[10px] font-medium text-sky-700 dark:text-sky-400 shrink-0">
+                    {task.progress}%
+                  </span>
+                </div>
+              )}
+              {task.status === 'error' && task.error && (
+                <span className="text-[10px] text-rose-600 dark:text-rose-400 line-clamp-1">{task.error}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    );
+  };
+
+  // -------------------------------------------------------
   // Main Render
   // -------------------------------------------------------
   return (
@@ -3868,6 +3648,9 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
       {renderPreviewModal()}
       {renderBulkShareModal()}
       {renderRecipientsModal()}
+
+      {/* Background upload progress indicator */}
+      {uploadTasks.length > 0 && renderUploadProgressIndicator()}
     </div>
   );
 }
