@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle, ShieldAlert, Vote } from 'lucide-react';
+import { Bell, Check, Trash2, ClipboardList, Award, BookOpen, FileText, Info, CheckCheck, UserCheck, BellOff, UserPlus, Loader2, CheckCircle2, XCircle, ShieldAlert, Vote, MessageCircle } from 'lucide-react';
 import { useNotificationStore } from '@/stores/notification-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
@@ -84,6 +84,8 @@ function getNotifIcon(type: string, title?: string, t?: (key: string) => string)
     case 'chat': return <Bell className="h-4 w-4 text-sky-600" />;
     case 'report': return <ShieldAlert className="h-4 w-4 text-orange-600" />;
     case 'poll': return <Vote className="h-4 w-4 text-violet-600" />;
+    case 'quiz': return <ClipboardList className="h-4 w-4 text-rose-600" />;
+    case 'team_message': return <MessageCircle className="h-4 w-4 text-sky-600" />;
     default: return <Info className="h-4 w-4 text-sky-700 dark:text-sky-400" />;
   }
 }

@@ -158,6 +158,16 @@ function toDateString(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Parse a date-only string (YYYY-MM-DD) safely as local time.
+ * Avoids the UTC midnight bug where `new Date("2025-03-15")` is parsed as UTC
+ * and can shift to the previous day in negative-UTC-offset timezones.
+ */
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function formatEventTime(time: string | null | undefined, locale: string): string | null {
   if (!time) return null;
   try {
@@ -251,7 +261,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
             const subjectName = (todo.subjects as { name: string } | null)?.name || null;
             allEvents.push({
               id: `todo-${todo.id}`, type: 'todo', title: todo.title || '',
-              description: todo.description || null, date: toDateString(new Date(todo.due_date)),
+              description: todo.description || null, date: toDateString(parseLocalDate(todo.due_date.split('T')[0])),
               time: todo.due_date || null, subject_id: todo.subject_id || null,
               subject_name: subjectName, color: 'emerald', icon: 'ListTodo',
               completed: todo.completed || false, meta: { priority: todo.priority, category: todo.category, todoId: todo.id },
@@ -292,7 +302,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
             if (lec.lecture_date) {
               allEvents.push({
                 id: `lecture-${lec.id}`, type: 'lecture', title: lec.title || '',
-                description: lec.description || null, date: toDateString(new Date(lec.lecture_date)),
+                description: lec.description || null, date: toDateString(parseLocalDate(lec.lecture_date)),
                 time: null, subject_id: lec.subject_id || null,
                 subject_name: lec.subject_id ? subjectNameMap[lec.subject_id] || null : null,
                 color: 'sky', icon: 'BookOpen', completed: false, meta: { lecture_id: lec.id },
@@ -308,7 +318,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
             if (asg.due_date) {
               allEvents.push({
                 id: `assignment-${asg.id}`, type: 'assignment', title: asg.title || '',
-                description: asg.description || null, date: toDateString(new Date(asg.due_date)),
+                description: asg.description || null, date: toDateString(parseLocalDate(asg.due_date.split('T')[0])),
                 time: asg.due_date || null, subject_id: asg.subject_id || null,
                 subject_name: asg.subject_id ? subjectNameMap[asg.subject_id] || null : null,
                 color: 'amber', icon: 'FileText', completed: false, meta: { assignment_id: asg.id },
@@ -324,7 +334,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
             if (q.scheduled_date) {
               allEvents.push({
                 id: `quiz-${q.id}`, type: 'quiz', title: q.title || '',
-                description: null, date: toDateString(new Date(q.scheduled_date)),
+                description: null, date: toDateString(parseLocalDate(q.scheduled_date)),
                 time: q.scheduled_time || null, subject_id: q.subject_id || null,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
                 color: 'rose', icon: 'Star', completed: q.is_finished || false, meta: { quiz_id: q.id },
@@ -647,7 +657,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       {/* Mobile: dots only */}
                       <div className="flex sm:hidden items-center gap-0.5 mt-0.5">
                         {dayEvents.slice(0, 3).map((ev) => {
-                          const isOverdue = isPast && !isToday && !ev.completed;
+                          const isOverdue = isPast && !isToday && !ev.completed && ev.type !== 'quiz';
                           const isDone = ev.completed;
                           return (
                             <span key={ev.id} className={`h-1.5 w-1.5 rounded-full ${isOverdue ? 'bg-rose-500' : isDone ? 'bg-emerald-500' : eventTypeConfig[ev.type].dotClass}`} />
@@ -659,7 +669,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       <div className="hidden sm:flex flex-col gap-0.5 mt-0.5 w-full px-0.5 overflow-hidden">
                         {dayEvents.slice(0, 2).map((ev) => {
                           const cfg = eventTypeConfig[ev.type];
-                          const isOverdue = isPast && !isToday && !ev.completed;
+                          const isOverdue = isPast && !isToday && !ev.completed && ev.type !== 'quiz';
                           const isDone = ev.completed;
                           return (
                             <div key={ev.id} className={`flex items-center gap-1 rounded px-1 py-px ${
@@ -731,7 +741,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
 
                   return (
                     <div key={event.id} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${
-                      isPast && !isToday && !event.completed ? 'bg-rose-100 dark:bg-rose-800/30' : event.completed ? 'bg-emerald-100 dark:bg-emerald-800/30' : config.bgClass
+                      isPast && !isToday && !event.completed && event.type !== 'quiz' ? 'bg-rose-100 dark:bg-rose-800/30' : isPast && !isToday && !event.completed && event.type === 'quiz' ? config.bgClass : event.completed ? 'bg-emerald-100 dark:bg-emerald-800/30' : config.bgClass
                     } ${event.completed ? 'opacity-60' : ''}`}>
                       {isTodo && todoId ? (
                         <button
@@ -741,7 +751,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                         >
                           {event.completed ? (
                             <CheckCircle2 className={`h-3.5 w-3.5 text-emerald-500`} />
-                          ) : isPast && !isToday ? (
+                          ) : isPast && !isToday && event.type !== 'quiz' ? (
                             <AlertCircle className={`h-3.5 w-3.5 text-rose-500`} />
                           ) : (
                             <Circle className={`h-3.5 w-3.5 ${config.textClass}`} />
@@ -750,22 +760,25 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       ) : (
                         event.completed ? (
                           <CheckCircle2 className={`h-3.5 w-3.5 text-emerald-500`} />
-                        ) : isPast && !isToday ? (
+                        ) : isPast && !isToday && event.type !== 'quiz' ? (
                           <AlertCircle className={`h-3.5 w-3.5 text-rose-500`} />
                         ) : (
                           <EventIcon type={event.type} className={`h-3.5 w-3.5 ${config.textClass}`} />
                         )
                       )}
                       <span className={`text-xs font-medium truncate flex-1 ${
-                        isPast && !isToday && !event.completed ? 'text-rose-700 dark:text-rose-400' : event.completed ? 'text-emerald-700 dark:text-emerald-400 line-through' : config.textClass
+                        isPast && !isToday && !event.completed && event.type !== 'quiz' ? 'text-rose-700 dark:text-rose-400' : event.completed ? 'text-emerald-700 dark:text-emerald-400 line-through' : config.textClass
                       } ${event.completed && isTodo ? 'line-through' : ''}`}>
                         {priorityLabel && <span className="me-0.5">{priorityLabel}</span>}
                         {event.title}
                       </span>
                       {event.time && <span className="text-[10px] text-muted-foreground shrink-0">{formatEventTime(event.time, locale)}</span>}
                       {/* Status badge */}
-                      {isPast && !isToday && !event.completed && (
+                      {isPast && !isToday && !event.completed && event.type !== 'quiz' && (
                         <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.overdue')}</span>
+                      )}
+                      {isPast && !isToday && !event.completed && event.type === 'quiz' && (
+                        <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-muted-foreground/60 text-white">{t('exams.finished')}</span>
                       )}
                       {event.completed && (
                         <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white">{t('calendar.completed')}</span>
@@ -821,7 +834,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
               const categoryInfo = todoMeta?.category ? categoryConfig[todoMeta.category] : null;
               const todoId = todoMeta?.todoId || (isTodo ? event.id.replace('todo-', '') : null);
               const isToggling = todoId ? togglingTodoId === todoId : false;
-              const isOverdue = isPast && !event.completed;
+              const isOverdue = isPast && !event.completed && event.type !== 'quiz';
 
               return (
                 <motion.div
@@ -875,7 +888,10 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                         <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white">{t('calendar.completed')}</span>
                       )}
                       {!isOverdue && !event.completed && !isPast && (
-                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-sky-500 text-white">{t('calendar.upcoming')}</span>
+                        <span className={`shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 text-white ${event.type === 'quiz' ? 'bg-rose-500' : 'bg-sky-500'}`}>{event.type === 'quiz' ? t('exams.quiz') : t('calendar.upcoming')}</span>
+                      )}
+                      {!isOverdue && !event.completed && isPast && event.type === 'quiz' && (
+                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-muted-foreground/60 text-white">{t('exams.finished')}</span>
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 mt-1">

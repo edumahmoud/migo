@@ -472,6 +472,30 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
   };
 
   // -------------------------------------------------------
+  // Send quiz notification to students
+  // -------------------------------------------------------
+  const sendQuizNotification = useCallback(async (quiz: Quiz) => {
+    try {
+      if (role !== 'teacher' || !subjectId || !quiz.id) return;
+      await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'quiz_created',
+          subjectId,
+          quizId: quiz.id,
+          quizTitle: quiz.title,
+          quizDate: quiz.scheduled_date || undefined,
+          quizTime: quiz.scheduled_time || undefined,
+          teacherName: profile.name,
+        }),
+      });
+    } catch (err) {
+      console.error('[notify] Failed to send quiz notification:', err);
+    }
+  }, [role, subjectId, profile.name]);
+
+  // -------------------------------------------------------
   // Create / Update quiz
   // -------------------------------------------------------
   const handleSaveQuiz = async () => {
@@ -574,19 +598,24 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
 
         // Save to server in background
         try {
-          const { error } = await supabase.from('quizzes').insert(quizData).select();
+          const { data: insertedData, error } = await supabase.from('quizzes').insert(quizData).select();
           if (error) {
             // Check if is_finished column is missing
             if (error.message?.includes('is_finished') || error.code === '42703') {
               const { is_finished, ...dataWithoutFinished } = quizData as Record<string, unknown> & { is_finished?: unknown };
-              const { error: retryError } = await supabase.from('quizzes').insert(dataWithoutFinished).select();
+              const { data: retryData, error: retryError } = await supabase.from('quizzes').insert(dataWithoutFinished).select();
               if (retryError) {
                 toast.error(t('exams.toastQuizCreateFailed') + ': ' + retryError.message);
                 // Revert: remove the optimistic entry and refetch
                 setQuizzes(prev => prev.filter(q => q.id !== tempId));
                 fetchData();
+              } else if (retryData && retryData.length > 0) {
+                // Replace optimistic entry with real data from server
+                const realQuiz = { ...retryData[0], questions: Array.isArray(retryData[0].questions) ? retryData[0].questions : [] } as Quiz;
+                setQuizzes(prev => prev.map(q => q.id === tempId ? realQuiz : q));
+                // Send notification to students
+                sendQuizNotification(realQuiz);
               } else {
-                // Replace temp with real data
                 fetchData();
               }
             } else {
@@ -594,8 +623,14 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               setQuizzes(prev => prev.filter(q => q.id !== tempId));
               fetchData();
             }
+          } else if (insertedData && insertedData.length > 0) {
+            // Replace optimistic entry with real data from server (no full refetch needed)
+            const realQuiz = { ...insertedData[0], questions: Array.isArray(insertedData[0].questions) ? insertedData[0].questions : [] } as Quiz;
+            setQuizzes(prev => prev.map(q => q.id === tempId ? realQuiz : q));
+            // Send notification to students
+            sendQuizNotification(realQuiz);
           } else {
-            // Replace temp with real data from server
+            // Fallback: full refetch if no data returned
             fetchData();
           }
         } catch {

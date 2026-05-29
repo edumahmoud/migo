@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const { action } = body;
 
     // Determine which actions require teacher role
-    const teacherOnlyActions = ['assignment_created', 'attendance_started', 'public_note_created', 'lecture_created', 'assignment_graded', 'poll_created'];
+    const teacherOnlyActions = ['assignment_created', 'attendance_started', 'public_note_created', 'lecture_created', 'assignment_graded', 'poll_created', 'quiz_created'];
 
     // Authenticate based on action type
     let authResult;
@@ -229,6 +229,50 @@ export async function POST(request: NextRequest) {
 
         console.log(`[notify] poll_created: notified ${pollStudentIds.length} students for subject ${pollSubjectId}`);
         return NextResponse.json({ success: true, notified: pollStudentIds.length });
+      }
+
+      // ─── 10) Teacher creates a new quiz → notify all students ───
+      case 'quiz_created': {
+        const { subjectId: quizSubjectId, quizTitle, quizId, teacherName: quizTeacherName, quizDate, quizTime } = body;
+        if (!quizSubjectId || !quizTitle) {
+          return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        const quizStudentIds = await getStudentIds(quizSubjectId);
+        const titleText = quizTitle ? ` "${quizTitle}"` : '';
+
+        // Format date and time together
+        let dateTimeText = '';
+        if (quizDate && quizTime) {
+          try {
+            const [y, m, d] = quizDate.split('-').map(Number);
+            const formattedDate = new Date(y, m - 1, d).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
+            const [h, min] = quizTime.split(':').map(Number);
+            const period = h >= 12 ? 'م' : 'ص';
+            const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+            const timeStr = `${hour12}:${min.toString().padStart(2, '0')} ${period}`;
+            dateTimeText = ` (${formattedDate} - ${timeStr})`;
+          } catch {
+            dateTimeText = ` (${quizDate} - ${quizTime})`;
+          }
+        } else if (quizDate) {
+          try {
+            const [y, m, d] = quizDate.split('-').map(Number);
+            const formattedDate = new Date(y, m - 1, d).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
+            dateTimeText = ` (${formattedDate})`;
+          } catch {
+            dateTimeText = ` (${quizDate})`;
+          }
+        }
+
+        const quizNotifTitle = 'اختبار جديد';
+        const quizNotifMessage = `أنشأ المعلم ${quizTeacherName || 'المعلم'} اختبار${titleText}${dateTimeText}`;
+        const quizNotifLink = `subject:${quizSubjectId}:exams`;
+
+        await notifyUsers(quizStudentIds, 'quiz', quizNotifTitle, quizNotifMessage, quizNotifLink);
+
+        console.log(`[notify] quiz_created: notified ${quizStudentIds.length} students for subject ${quizSubjectId}`);
+        return NextResponse.json({ success: true, notified: quizStudentIds.length });
       }
 
       default:

@@ -55,6 +55,7 @@ export const linkToTab: Record<string, CourseTab> = {
   notes: 'notes',
   exam: 'exams',
   exams: 'exams',
+  quiz: 'exams',
   file: 'files',
   files: 'files',
   students: 'students',
