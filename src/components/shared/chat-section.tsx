@@ -1278,9 +1278,9 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
 
   // =====================================================
   // Search users for new DM
-  // - Teacher/Admin: search globally by name + email (no restrictions)
-  // - Student: search by name within enrolled courses (coursemates)
-  //            + search globally by email (any user on the platform)
+  // - Student:  ONLY course teacher(s) and classmates (no global search)
+  // - Teacher:  other teachers + students in their courses
+  // - Admin:    all teachers and students (excluding other admins)
   // =====================================================
   const handleSearchUsers = useCallback(async (query: string) => {
     setSearchQuery(query);
@@ -1293,21 +1293,8 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
     try {
       const allResults: UserProfile[] = [];
 
-      if (role === 'teacher' || role === 'admin') {
-        // ─── Teacher / Admin: global search by name + email ───
-        try {
-          const res = await fetch(`/api/chat?action=search-users-global&query=${encodeURIComponent(query)}&userId=${profile.id}&mode=all`);
-          const data = await res.json();
-          if (data.users) {
-            (data.users as UserProfile[]).forEach((u: UserProfile) => allResults.push(u));
-          }
-        } catch (err) {
-          console.error('Global search error:', err);
-        }
-      } else {
-        // ─── Student: search by name within courses + global email search ───
-
-        // 1. Search by name within enrolled courses (coursemates)
+      if (role === 'student') {
+        // ─── Student: search ONLY within enrolled courses (teacher + classmates) ───
         let subjectIds: string[] = [];
         const { data: enrollmentData } = await supabase
           .from('subject_students')
@@ -1326,16 +1313,28 @@ export default function ChatSection({ profile, role }: ChatSectionProps) {
           const courseResults = await Promise.all(searchPromises);
           courseResults.flat().forEach((u: UserProfile) => allResults.push(u));
         }
-
-        // 2. Always search globally by email (students can find anyone by email)
+        // No global search for students — they can only find course teacher + classmates
+      } else if (role === 'teacher') {
+        // ─── Teacher: other teachers + students in their courses ───
         try {
-          const res = await fetch(`/api/chat?action=search-users-global&query=${encodeURIComponent(query)}&userId=${profile.id}&mode=email`);
+          const res = await fetch(`/api/chat?action=search-users-global&query=${encodeURIComponent(query)}&userId=${profile.id}&mode=all`);
           const data = await res.json();
           if (data.users) {
             (data.users as UserProfile[]).forEach((u: UserProfile) => allResults.push(u));
           }
         } catch (err) {
-          console.error('Global email search error:', err);
+          console.error('Global search error:', err);
+        }
+      } else {
+        // ─── Admin/Supervisor: all teachers + students (no admins) ───
+        try {
+          const res = await fetch(`/api/chat?action=search-users-global&query=${encodeURIComponent(query)}&userId=${profile.id}&mode=all`);
+          const data = await res.json();
+          if (data.users) {
+            (data.users as UserProfile[]).forEach((u: UserProfile) => allResults.push(u));
+          }
+        } catch (err) {
+          console.error('Global search error:', err);
         }
       }
 

@@ -43,3 +43,36 @@ Stage Summary:
 - Fixed: `/api/files/rename/route.ts` — added post-update verification + subject_files sync + null check
 - Fixed: `personal-files-section.tsx` — added background verification + auto-revert on mismatch
 - Lint passes with 0 errors
+
+---
+Task ID: 3
+Agent: Main
+Task: Enforce role-based messaging visibility rules in chat system
+
+Work Log:
+- Analyzed current chat system: search, conversation creation, and messaging flow
+- Identified 3 major gaps in role-based visibility:
+  1. Students could search globally by email (find any user on platform)
+  2. Teachers could search all users globally (including admins and students not in their courses)
+  3. No authorization on conversation creation (anyone could start a DM with anyone)
+- Fixed `search-users-global` API endpoint with role-based filtering:
+  - Students: returns empty (they must use course-scoped `search-users` only)
+  - Teachers: only returns other teachers + students enrolled in their courses
+  - Admin/Supervisor: returns all teachers + students (excludes other admins)
+- Added authorization to `create-individual` API endpoint:
+  - Students: verified against enrolled courses (teacher or classmate check)
+  - Teachers: verified target is another teacher or student in their courses
+  - Returns 403 with Arabic error message if unauthorized
+- Added authorization to `search-users` API endpoint:
+  - Students: must be enrolled in the subjectId they're searching
+  - Teachers: must own the subjectId they're searching
+  - Prevents arbitrary subjectId injection
+- Updated frontend `chat-section.tsx` handleSearchUsers:
+  - Students: search ONLY within enrolled courses (no global search)
+  - Teachers: use `search-users-global` (backend filters appropriately)
+  - Admin: use `search-users-global` (backend filters to teachers+students only)
+
+Stage Summary:
+- Enforced rules: Student→course teacher+classmates, Teacher→other teachers+own students, Admin→all teachers+students
+- Server-side authorization on both search AND conversation creation
+- Lint passes with 0 errors

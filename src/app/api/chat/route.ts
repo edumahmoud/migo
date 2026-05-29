@@ -386,6 +386,41 @@ export async function GET(request: NextRequest) {
 
         if (!query) return NextResponse.json({ error: 'query required' }, { status: 400 });
 
+        // ── Role-based access: verify the user is allowed to search within this subject ──
+        if (subjectId && userId) {
+          const { data: authProfile } = await supabaseServer
+            .from('users')
+            .select('role')
+            .eq('id', authResult.user.id)
+            .maybeSingle();
+          const requesterRole = (authProfile?.role as string) || '';
+
+          if (requesterRole === 'student') {
+            // Student must be enrolled in this subject to search it
+            const { data: enrollment } = await supabaseServer
+              .from('subject_students')
+              .select('subject_id')
+              .eq('student_id', userId)
+              .eq('subject_id', subjectId)
+              .eq('status', 'approved')
+              .maybeSingle();
+            if (!enrollment) {
+              return NextResponse.json({ error: 'غير مسموح لك بالبحث في هذا المقرر' }, { status: 403 });
+            }
+          } else if (requesterRole === 'teacher') {
+            // Teacher must own this subject to search it
+            const { data: subject } = await supabaseServer
+              .from('subjects')
+              .select('teacher_id')
+              .eq('id', subjectId)
+              .maybeSingle();
+            if (!subject || subject.teacher_id !== userId) {
+              return NextResponse.json({ error: 'غير مسموح لك بالبحث في هذا المقرر' }, { status: 403 });
+            }
+          }
+          // Admin: no restrictions
+        }
+
         let allUsers: Record<string, unknown>[] = [];
 
         // If subjectId is provided, search within that course (name + email)
@@ -449,39 +484,115 @@ export async function GET(request: NextRequest) {
 
         if (!query) return NextResponse.json({ error: 'query required' }, { status: 400 });
 
-        // ─── Enforce role-based search restrictions ───
-        // Students should only be able to search by email (privacy in educational settings).
-        // Teachers and admins can search by name and email.
-        let effectiveSearchMode = searchMode;
-        if (authResult.success && authResult.user) {
-          // Check the authenticated user's role
-          const { data: authUserProfile } = await supabaseServer
-            .from('users')
-            .select('role')
-            .eq('id', authResult.user.id)
-            .maybeSingle();
+        // ─── Enforce role-based messaging visibility ───
+        // Student:  can ONLY message course teacher(s) and classmates (no global search)
+        // Teacher:  can message other teachers + students in their courses
+        // Admin/Supervisor: can message ALL teachers and students (not other admins)
+        const { data: authUserProfile } = await supabaseServer
+          .from('users')
+          .select('role')
+          .eq('id', authResult.user.id)
+          .maybeSingle();
 
-          const userRole = authUserProfile?.role as string;
-          if (userRole === 'student') {
-            // Students can only search by email — override the mode
-            effectiveSearchMode = 'email';
-          }
+        const userRole = (authUserProfile?.role as string) || '';
+
+        // ── Students: restricted to course-scoped search only ──
+        // They should NOT be able to use global search at all.
+        // Their search is handled by the 'search-users' action (per-subject).
+        if (userRole === 'student') {
+          // Students must use course-scoped search — return empty from global
+          return NextResponse.json({ users: [] });
         }
 
         // Sanitize query for SQL LIKE (escape % and _)
         const sanitizedQuery = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
 
-        // Search all users by name and/or email (partial match)
-        // effectiveSearchMode is enforced based on role (students = email only)
+        // ── Teachers: only other teachers + students in their courses ──
+        if (userRole === 'teacher') {
+          // 1. Search other teachers (by name + email)
+          let teacherResults: Record<string, unknown>[] = [];
+          if (searchMode === 'all' || searchMode === 'name') {
+            const { data, error: tNameError } = await supabaseServer
+              .from('users')
+              .select('id, name, email, avatar_url, title_id, gender, role')
+              .ilike('name', `%${sanitizedQuery}%`)
+              .neq('id', userId || '')
+              .eq('role', 'teacher')
+              .limit(20);
+            if (tNameError) {
+              console.error('[Chat API] Global search (teacher name) error:', tNameError);
+            } else {
+              teacherResults = (data || []) as Record<string, unknown>[];
+            }
+          }
+          if (searchMode === 'all' || searchMode === 'email') {
+            const { data, error: tEmailError } = await supabaseServer
+              .from('users')
+              .select('id, name, email, avatar_url, title_id, gender, role')
+              .ilike('email', `%${sanitizedQuery}%`)
+              .neq('id', userId || '')
+              .eq('role', 'teacher')
+              .limit(20);
+            if (tEmailError) {
+              console.error('[Chat API] Global search (teacher email) error:', tEmailError);
+            } else {
+              teacherResults = [...teacherResults, ...(data || []) as Record<string, unknown>[]];
+            }
+          }
+
+          // 2. Search students in teacher's courses
+          const { data: teacherSubjects } = await supabaseServer
+            .from('subjects')
+            .select('id')
+            .eq('teacher_id', userId || '');
+
+          let studentResults: Record<string, unknown>[] = [];
+          if (teacherSubjects && teacherSubjects.length > 0) {
+            const teacherSubjectIds = teacherSubjects.map((s: { id: string }) => s.id);
+            const { data: enrollments } = await supabaseServer
+              .from('subject_students')
+              .select('student_id')
+              .in('subject_id', teacherSubjectIds);
+
+            const studentIds = (enrollments || []).map((e: { student_id: string }) => e.student_id);
+            if (studentIds.length > 0) {
+              // Deduplicate student IDs
+              const uniqueStudentIds = [...new Set(studentIds)];
+              const { data: students } = await supabaseServer
+                .from('users')
+                .select('id, name, email, avatar_url, title_id, gender, role')
+                .in('id', uniqueStudentIds)
+                .neq('id', userId || '')
+                .limit(50);
+
+              if (students) {
+                // Filter by query (name or email)
+                const q = sanitizedQuery.toLowerCase();
+                studentResults = (students as Record<string, unknown>[]).filter(
+                  (u) => (u.name as string || '').toLowerCase().includes(q) ||
+                         (u.email as string || '').toLowerCase().includes(q)
+                );
+              }
+            }
+          }
+
+          // Merge, deduplicate, and return
+          const merged = [...teacherResults, ...studentResults];
+          const unique = Array.from(new Map(merged.map((u: Record<string, unknown>) => [u.id, u])).values());
+          return NextResponse.json({ users: unique });
+        }
+
+        // ── Admin/Supervisor: all teachers + students (exclude other admins/supervisors) ──
         let emailResults: Record<string, unknown>[] = [];
         let nameResults: Record<string, unknown>[] = [];
 
-        if (effectiveSearchMode === 'all' || effectiveSearchMode === 'email') {
+        if (searchMode === 'all' || searchMode === 'email') {
           const { data, error: emailError } = await supabaseServer
             .from('users')
             .select('id, name, email, avatar_url, title_id, gender, role')
             .ilike('email', `%${sanitizedQuery}%`)
             .neq('id', userId || '')
+            .in('role', ['teacher', 'student'])
             .limit(20);
           if (emailError) {
             console.error('[Chat API] Global search (email) error:', emailError);
@@ -490,12 +601,13 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        if (effectiveSearchMode === 'all' || effectiveSearchMode === 'name') {
+        if (searchMode === 'all' || searchMode === 'name') {
           const { data, error: nameError } = await supabaseServer
             .from('users')
             .select('id, name, email, avatar_url, title_id, gender, role')
             .ilike('name', `%${sanitizedQuery}%`)
             .neq('id', userId || '')
+            .in('role', ['teacher', 'student'])
             .limit(20);
           if (nameError) {
             console.error('[Chat API] Global search (name) error:', nameError);
@@ -700,6 +812,94 @@ export async function POST(request: NextRequest) {
         if (createOwnershipError) {
           return authErrorResponse(createOwnershipError);
         }
+
+        // ── Role-based messaging authorization ──
+        // Student:  can only message course teacher(s) and classmates
+        // Teacher:  can only message other teachers + students in their courses
+        // Admin/Supervisor: can message any teacher or student
+        const { data: initiatorProfile } = await supabaseServer
+          .from('users')
+          .select('role')
+          .eq('id', userId1)
+          .maybeSingle();
+        const initiatorRole = (initiatorProfile?.role as string) || '';
+
+        if (initiatorRole === 'student') {
+          // Student can only message: course teacher(s) or classmates
+          const { data: studentEnrollments } = await supabaseServer
+            .from('subject_students')
+            .select('subject_id')
+            .eq('student_id', userId1)
+            .eq('status', 'approved');
+          const enrolledSubjectIds = (studentEnrollments || []).map((e: { subject_id: string }) => e.subject_id);
+
+          let isAuthorized = false;
+          if (enrolledSubjectIds.length > 0) {
+            // Check if userId2 is the teacher of any of the student's courses
+            const { data: teacherSubjects } = await supabaseServer
+              .from('subjects')
+              .select('id')
+              .eq('teacher_id', userId2)
+              .in('id', enrolledSubjectIds);
+            if (teacherSubjects && teacherSubjects.length > 0) {
+              isAuthorized = true;
+            }
+
+            // Check if userId2 is a classmate (enrolled in same course)
+            if (!isAuthorized) {
+              const { data: classmateEnrollments } = await supabaseServer
+                .from('subject_students')
+                .select('subject_id')
+                .eq('student_id', userId2)
+                .eq('status', 'approved')
+                .in('subject_id', enrolledSubjectIds);
+              if (classmateEnrollments && classmateEnrollments.length > 0) {
+                isAuthorized = true;
+              }
+            }
+          }
+
+          if (!isAuthorized) {
+            return NextResponse.json({ error: 'غير مسموح لك بمراسلة هذا المستخدم' }, { status: 403 });
+          }
+        } else if (initiatorRole === 'teacher') {
+          // Teacher can message: other teachers OR students in their courses
+          const { data: targetProfile } = await supabaseServer
+            .from('users')
+            .select('role')
+            .eq('id', userId2)
+            .maybeSingle();
+          const targetRole = (targetProfile?.role as string) || '';
+
+          if (targetRole === 'teacher') {
+            // Teachers can always message other teachers — authorized
+          } else if (targetRole === 'student') {
+            // Check if this student is enrolled in any of the teacher's courses
+            const { data: teacherSubjects } = await supabaseServer
+              .from('subjects')
+              .select('id')
+              .eq('teacher_id', userId1);
+            if (teacherSubjects && teacherSubjects.length > 0) {
+              const teacherSubjectIds = teacherSubjects.map((s: { id: string }) => s.id);
+              const { data: studentEnrollment } = await supabaseServer
+                .from('subject_students')
+                .select('subject_id')
+                .eq('student_id', userId2)
+                .in('subject_id', teacherSubjectIds)
+                .limit(1);
+              if (!studentEnrollment || studentEnrollment.length === 0) {
+                return NextResponse.json({ error: 'غير مسموح لك بمراسلة هذا المستخدم' }, { status: 403 });
+              }
+            } else {
+              // Teacher has no courses — cannot message any student
+              return NextResponse.json({ error: 'غير مسموح لك بمراسلة هذا المستخدم' }, { status: 403 });
+            }
+          } else {
+            // Cannot message admins/supervisors
+            return NextResponse.json({ error: 'غير مسموح لك بمراسلة هذا المستخدم' }, { status: 403 });
+          }
+        }
+        // Admin/supervisor: no restrictions (can message any teacher or student)
 
         // ── Check 1: Fully established conversation (both participants) ──
         const { data: existingParts } = await supabaseServer
