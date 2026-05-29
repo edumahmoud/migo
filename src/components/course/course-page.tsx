@@ -690,21 +690,25 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                   <button
                     onClick={handleTogglePause}
                     disabled={togglingPause}
-                    className={`flex h-8 items-center justify-center gap-1.5 rounded-full backdrop-blur-sm text-white text-xs font-medium transition-all active:scale-95 ${
+                    className={`flex items-center justify-center gap-2 rounded-full px-3.5 py-2 backdrop-blur-md text-white text-xs font-bold transition-all active:scale-95 border ${
                       subject?.is_paused
-                        ? 'bg-emerald-500/30 hover:bg-emerald-500/50'
-                        : 'bg-amber-500/30 hover:bg-amber-500/50'
+                        ? 'bg-emerald-500/25 border-emerald-400/40 hover:bg-emerald-500/45 hover:border-emerald-400/60 shadow-sm shadow-emerald-500/10'
+                        : 'bg-amber-500/25 border-amber-400/40 hover:bg-amber-500/45 hover:border-amber-400/60 shadow-sm shadow-amber-500/10'
                     }`}
                     title={subject?.is_paused ? t('course.activateSubject') : t('course.pauseSubject')}
                   >
                     {togglingPause ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : subject?.is_paused ? (
-                      <Play className="h-3.5 w-3.5" />
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/40">
+                        <Play className="h-3 w-3 fill-current" />
+                      </div>
                     ) : (
-                      <Pause className="h-3.5 w-3.5" />
+                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/40">
+                        <Pause className="h-3 w-3" />
+                      </div>
                     )}
-                    <span className="hidden sm:inline">{subject?.is_paused ? t('course.activateSubject') : t('course.pauseSubject')}</span>
+                    <span>{subject?.is_paused ? t('course.activateSubject') : t('course.pauseSubject')}</span>
                   </button>
                 </div>
               )}

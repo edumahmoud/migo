@@ -1159,11 +1159,21 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   return (
                     <motion.div key={subject.id} variants={cardVariants}>
                       <div
-                        className={`group relative rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-0.5 ${isPaused ? 'opacity-90' : ''}`}
+                        className={`group relative rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-0.5 ${isPaused && role === 'student' ? 'ring-2 ring-amber-400/60 ring-offset-2 ring-offset-background' : ''}`}
                         onClick={() => {
                           setStoreSelectedSubjectId(subject.id);
                         }}
                       >
+                        {/* ── Paused overlay for students ── */}
+                        {isPaused && role === 'student' && (
+                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/70 backdrop-blur-[3px] transition-opacity">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/30 shadow-sm mb-2">
+                              <Pause className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{t('course.paused')}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 px-4 text-center line-clamp-1">{t('course.pausedOverlayDesc')}</p>
+                          </div>
+                        )}
                         {/* ── Cover Image Section ── */}
                         {hasCover ? (
                           <div className="relative h-36 sm:h-40 overflow-hidden">
