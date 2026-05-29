@@ -24,3 +24,22 @@ Stage Summary:
 - Fixed `subject-teachers/route.ts`: `subject:ID` → `subject:ID:students` (missing tab)
 - Created migration v54 to fix report notification trigger functions: `report:ID` → `/reports/ID` format
 - All TypeScript errors resolved, lint passes with 0 errors (14 pre-existing warnings)
+
+---
+Task ID: 2
+Agent: Main
+Task: Fix file rename persistence in My Files section
+
+Work Log:
+- Investigated entire file rename flow: frontend component → API route → database
+- Found the rename API route at `/api/files/rename/route.ts` uses `supabaseServer` (service role, bypasses RLS)
+- Identified that the API lacked post-update verification — no re-read to confirm DB change persisted
+- Identified that rename didn't sync to `subject_files` records linked via `user_file_id`
+- Rewrote `/api/files/rename/route.ts` with: (1) post-update verification re-read, (2) subject_files name sync, (3) comprehensive logging, (4) null-data check after update
+- Enhanced frontend `handleRenameFile` in `personal-files-section.tsx` with: (1) background DB verification after 1.5s, (2) auto-revert if DB name doesn't match, (3) better error messaging
+
+Stage Summary:
+- Root cause: API returned success without verifying the DB update actually persisted; no subject_files sync
+- Fixed: `/api/files/rename/route.ts` — added post-update verification + subject_files sync + null check
+- Fixed: `personal-files-section.tsx` — added background verification + auto-revert on mismatch
+- Lint passes with 0 errors

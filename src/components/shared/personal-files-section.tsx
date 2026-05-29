@@ -1222,9 +1222,30 @@ export default function PersonalFilesSection({ profile, role }: PersonalFilesSec
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // Update confirmed — apply to local state
+        // Update confirmed by server (includes post-update verification)
+        // Apply to local state immediately for responsive UI
         setFiles(prev => prev.map(f => f.id === fileId ? { ...f, file_name: newName, updated_at: new Date().toISOString() } : f));
         toast.success(t('files.toastRenameSuccess'));
+
+        // Background verification: re-fetch from DB after a short delay to confirm persistence
+        // If the DB reverted (shouldn't happen with the new verification step), the Realtime
+        // subscription will also catch the discrepancy
+        setTimeout(() => {
+          supabase
+            .from('user_files')
+            .select('id, file_name')
+            .eq('id', fileId)
+            .single()
+            .then(({ data: verified }) => {
+              if (verified && verified.file_name !== newName) {
+                console.warn('[rename] DB name mismatch after rename! Expected:', newName, 'Got:', verified.file_name);
+                // Revert local state to match DB reality
+                setFiles(prev => prev.map(f => f.id === fileId ? { ...f, file_name: verified.file_name } : f));
+                toast.error(t('files.toastRenameFailed'));
+              }
+            })
+            .catch(() => {/* verification failed silently */});
+        }, 1500);
       } else {
         console.error('Rename failed:', data.error);
         toast.error(data.error || t('files.toastRenameFailed'));
