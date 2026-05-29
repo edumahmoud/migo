@@ -154,7 +154,7 @@ export function usePWALifecycle({
     }, 150); // Slightly longer delay to ensure React hydration
 
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []); // Intentionally empty — run once on mount
 
   // ─── Auto-save when app goes to background (visibilitychange + pagehide) ───

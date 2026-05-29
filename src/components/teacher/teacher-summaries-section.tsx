@@ -426,7 +426,7 @@ export default function TeacherSummariesSection({ profile }: TeacherSummariesSec
     
     const timer = setTimeout(recoverUnsaved, 5000);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [profile.id]);
 
   // ─── Stale pending summary auto-cleanup (fix: stuck "جاري إنشاء..." on mobile) ───

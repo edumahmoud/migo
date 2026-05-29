@@ -471,7 +471,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       [indices[i], indices[j]] = [indices[j], indices[i]];
     }
     setShuffledOrder(indices);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [quiz]);
 
   // ─── Load saved answer when navigating between questions ───
@@ -506,7 +506,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       resetQuestionState();
     }
   // Only trigger on currentIdx change, not userAnswers changes
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [currentIdx]);
 
   // ─── Timer countdown ───
@@ -599,7 +599,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       saveScore(finalScore, allAnswers);
       setShowResults(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [timeLeft]);
 
   // ─── Timer warning ───
@@ -636,7 +636,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
       startedAt,
       updatedAt: Date.now(),
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [userAnswers, currentIdx, shuffledOrder]);
 
   // -------------------------------------------------------
@@ -1113,7 +1113,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     setUserAnswers(allAnswers);
     saveScore(finalScore, allAnswers);
     setShowResults(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [quiz, userAnswers, currentIdx, currentQuestion, isCorrect, matchedPairs, completionInput, selectedOption, totalQuestions, showResults, shuffledOrder]);
 
   // -------------------------------------------------------

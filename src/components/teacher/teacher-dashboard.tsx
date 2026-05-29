@@ -2051,7 +2051,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
                       tickFormatter={(v) => `${v}%`}
                     />
                     <Tooltip
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                       
                       formatter={(value: any) => [`${value ?? 0}%`, t('teacher.chartPerformanceAvg')]}
                       contentStyle={{ direction: 'rtl', textAlign: 'right' }}
                     />

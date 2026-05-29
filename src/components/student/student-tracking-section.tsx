@@ -452,7 +452,7 @@ export default function StudentTrackingSection({
                           if (performanceStats.avgScore > 0 || performanceStats.totalScores > 0) {
                             components.push({ value: performanceStats.avgScore, weight: 40 });
                           }
-                          if (attendanceStats.rate > 0 || attendanceStats.total > 0) {
+                          if (attendanceStats.rate > 0 || attendanceStats.totalSessions > 0) {
                             components.push({ value: attendanceStats.rate, weight: 30 });
                           }
                           if (performanceStats.totalAssignments > 0) {

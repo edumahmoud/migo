@@ -907,7 +907,7 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
         });
       }
     } catch { /* sessionStorage unavailable */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [summaryId]); // Only run once on mount
 
   // -------------------------------------------------------

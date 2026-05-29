@@ -1188,7 +1188,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     // Delay recovery to avoid conflicting with initial load
     const timer = setTimeout(recoverUnsaved, 5000);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [profile.id]);
 
   // ─── Loading timeout safety net ───

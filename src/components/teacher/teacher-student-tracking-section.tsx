@@ -375,7 +375,7 @@ export default function TeacherStudentTrackingSection({
       }
     });
     return map;
-  }, [subjects, quizzes]);
+  }, [subjects, quizzes, t]);
 
   // ─── Compute performance data for each student ───
   const studentPerformanceData = useMemo<StudentPerformanceData[]>(() => {
@@ -582,7 +582,7 @@ export default function TeacherStudentTrackingSection({
         subjectPerformances,
       };
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [students, scores, teacherSubmissions, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords, quizzes, subjectNameMap, t]);
 
   // ─── Overview stats ───
@@ -709,7 +709,7 @@ export default function TeacherStudentTrackingSection({
     link.download = `student_performance_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [studentPerformanceData, t]);
 
   return (

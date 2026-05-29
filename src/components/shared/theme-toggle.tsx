@@ -42,7 +42,7 @@ export default function ThemeToggle() {
     // Theme initialization is handled by the inline script in layout.tsx
     // so it's already correct before React hydrates.
     const isDark = document.documentElement.classList.contains('dark');
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading from external system (DOM) and syncing to React state
+     
     setDark(isDark);
 
     // Enable toggling after the browser has painted, so any residual
