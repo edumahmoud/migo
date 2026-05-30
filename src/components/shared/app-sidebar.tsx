@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -26,6 +26,7 @@ import {
   Ban,
   Megaphone,
   Building2,
+  StickyNote,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -37,6 +38,8 @@ import {
 import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
+import { useAuthStore } from '@/stores/auth-store';
+import StickyNoteModal from '@/components/shared/sticky-note-modal';
 
 // -------------------------------------------------------
 // Types
@@ -196,7 +199,9 @@ export default function AppSidebar({
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const { sidebarOpen, setSidebarOpen } = useAppStore();
+  const { user } = useAuthStore();
   const { t, isRTL, direction } = useTranslations();
+  const [stickyModalOpen, setStickyModalOpen] = useState(false);
   const navItems = customNavItems || (role === 'student' ? studentNavItems : (role === 'admin' || role === 'superadmin') ? [] : teacherNavItems);
 
   // On tablet, treat sidebar as collapsed (compact icon-only mode) unless explicitly opened
@@ -209,6 +214,7 @@ export default function AppSidebar({
   // On mobile, use Sheet (drawer)
   if (isMobile) {
     return (
+      <>
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <SheetContent side={isRTL ? 'right' : 'left'} className="w-72 p-0 bg-sidebar border-sidebar-border">
           <SheetHeader className="sr-only">
@@ -227,9 +233,24 @@ export default function AppSidebar({
                 />
               </nav>
             </ScrollArea>
+
+            {/* Sticky Notes button - Mobile */}
+            {user && (
+              <div className="shrink-0 border-sidebar-border border-t p-3">
+                <button
+                  onClick={() => { setStickyModalOpen(true); setSidebarOpen(false); }}
+                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all w-full"
+                >
+                  <StickyNote className="h-4 w-4 shrink-0" />
+                  <span>{t('nav.stickyNotes')}</span>
+                </button>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>
+      <StickyNoteModal open={stickyModalOpen} onClose={() => setStickyModalOpen(false)} />
+    </>
     );
   }
 
@@ -254,6 +275,22 @@ export default function AppSidebar({
           </nav>
         </ScrollArea>
 
+        {/* Sticky Notes button */}
+        {user && (
+          <div className={`shrink-0 border-sidebar-border border-t p-2 ${collapsed ? 'flex justify-center' : ''}`}>
+            <button
+              onClick={() => setStickyModalOpen(true)}
+              className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all ${
+                collapsed ? 'justify-center' : ''
+              }`}
+              title={collapsed ? t('nav.stickyNotes') : undefined}
+            >
+              <StickyNote className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>{t('nav.stickyNotes')}</span>}
+            </button>
+          </div>
+        )}
+
         {/* Collapse toggle button at bottom */}
         <div className={`shrink-0 border-sidebar-border border-t p-2 ${collapsed ? 'flex justify-center' : ''}`}>
           <button
@@ -270,6 +307,9 @@ export default function AppSidebar({
             {!collapsed && <span>{t('nav.collapseSidebar')}</span>}
           </button>
         </div>
+
+        {/* Sticky Note Modal */}
+        <StickyNoteModal open={stickyModalOpen} onClose={() => setStickyModalOpen(false)} />
       </div>
     </aside>
   );

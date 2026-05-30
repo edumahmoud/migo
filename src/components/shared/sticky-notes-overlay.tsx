@@ -25,7 +25,116 @@ function storePosition(id: string, x: number, y: number): void {
 }
 
 // -------------------------------------------------------
-// Single Sticky Note Card (draggable)
+// Color map for sticky notes
+// -------------------------------------------------------
+type StickyColor = 'amber' | 'blue' | 'green' | 'rose' | 'purple' | 'orange';
+
+const stickyColorClasses: Record<StickyColor, {
+  bg: string;
+  border: string;
+  text: string;
+  headerBg: string;
+  headerBorder: string;
+  minimizedBg: string;
+  minimizedBorder: string;
+  minimizedText: string;
+  hoverBtn: string;
+  inputBorder: string;
+  inputBg: string;
+  hintText: string;
+}> = {
+  amber: {
+    bg: 'bg-amber-50 dark:bg-amber-900/80',
+    border: 'border-amber-300 dark:border-amber-700',
+    text: 'text-amber-950 dark:text-amber-100',
+    headerBg: 'bg-amber-200/60 dark:bg-amber-800/60',
+    headerBorder: 'border-amber-300/50 dark:border-amber-700/50',
+    minimizedBg: 'bg-amber-300 dark:bg-amber-600',
+    minimizedBorder: 'border-amber-400 dark:border-amber-500',
+    minimizedText: 'text-amber-900 dark:text-amber-100',
+    hoverBtn: 'hover:bg-amber-300/50 dark:hover:bg-amber-700/50',
+    inputBorder: 'border-amber-300 dark:border-amber-700',
+    inputBg: 'bg-white dark:bg-amber-900/50',
+    hintText: 'text-amber-500',
+  },
+  blue: {
+    bg: 'bg-sky-50 dark:bg-sky-900/80',
+    border: 'border-sky-300 dark:border-sky-700',
+    text: 'text-sky-950 dark:text-sky-100',
+    headerBg: 'bg-sky-200/60 dark:bg-sky-800/60',
+    headerBorder: 'border-sky-300/50 dark:border-sky-700/50',
+    minimizedBg: 'bg-sky-300 dark:bg-sky-600',
+    minimizedBorder: 'border-sky-400 dark:border-sky-500',
+    minimizedText: 'text-sky-900 dark:text-sky-100',
+    hoverBtn: 'hover:bg-sky-300/50 dark:hover:bg-sky-700/50',
+    inputBorder: 'border-sky-300 dark:border-sky-700',
+    inputBg: 'bg-white dark:bg-sky-900/50',
+    hintText: 'text-sky-500',
+  },
+  green: {
+    bg: 'bg-emerald-50 dark:bg-emerald-900/80',
+    border: 'border-emerald-300 dark:border-emerald-700',
+    text: 'text-emerald-950 dark:text-emerald-100',
+    headerBg: 'bg-emerald-200/60 dark:bg-emerald-800/60',
+    headerBorder: 'border-emerald-300/50 dark:border-emerald-700/50',
+    minimizedBg: 'bg-emerald-300 dark:bg-emerald-600',
+    minimizedBorder: 'border-emerald-400 dark:border-emerald-500',
+    minimizedText: 'text-emerald-900 dark:text-emerald-100',
+    hoverBtn: 'hover:bg-emerald-300/50 dark:hover:bg-emerald-700/50',
+    inputBorder: 'border-emerald-300 dark:border-emerald-700',
+    inputBg: 'bg-white dark:bg-emerald-900/50',
+    hintText: 'text-emerald-500',
+  },
+  rose: {
+    bg: 'bg-rose-50 dark:bg-rose-900/80',
+    border: 'border-rose-300 dark:border-rose-700',
+    text: 'text-rose-950 dark:text-rose-100',
+    headerBg: 'bg-rose-200/60 dark:bg-rose-800/60',
+    headerBorder: 'border-rose-300/50 dark:border-rose-700/50',
+    minimizedBg: 'bg-rose-300 dark:bg-rose-600',
+    minimizedBorder: 'border-rose-400 dark:border-rose-500',
+    minimizedText: 'text-rose-900 dark:text-rose-100',
+    hoverBtn: 'hover:bg-rose-300/50 dark:hover:bg-rose-700/50',
+    inputBorder: 'border-rose-300 dark:border-rose-700',
+    inputBg: 'bg-white dark:bg-rose-900/50',
+    hintText: 'text-rose-500',
+  },
+  purple: {
+    bg: 'bg-violet-50 dark:bg-violet-900/80',
+    border: 'border-violet-300 dark:border-violet-700',
+    text: 'text-violet-950 dark:text-violet-100',
+    headerBg: 'bg-violet-200/60 dark:bg-violet-800/60',
+    headerBorder: 'border-violet-300/50 dark:border-violet-700/50',
+    minimizedBg: 'bg-violet-300 dark:bg-violet-600',
+    minimizedBorder: 'border-violet-400 dark:border-violet-500',
+    minimizedText: 'text-violet-900 dark:text-violet-100',
+    hoverBtn: 'hover:bg-violet-300/50 dark:hover:bg-violet-700/50',
+    inputBorder: 'border-violet-300 dark:border-violet-700',
+    inputBg: 'bg-white dark:bg-violet-900/50',
+    hintText: 'text-violet-500',
+  },
+  orange: {
+    bg: 'bg-orange-50 dark:bg-orange-900/80',
+    border: 'border-orange-300 dark:border-orange-700',
+    text: 'text-orange-950 dark:text-orange-100',
+    headerBg: 'bg-orange-200/60 dark:bg-orange-800/60',
+    headerBorder: 'border-orange-300/50 dark:border-orange-700/50',
+    minimizedBg: 'bg-orange-300 dark:bg-orange-600',
+    minimizedBorder: 'border-orange-400 dark:border-orange-500',
+    minimizedText: 'text-orange-900 dark:text-orange-100',
+    hoverBtn: 'hover:bg-orange-300/50 dark:hover:bg-orange-700/50',
+    inputBorder: 'border-orange-300 dark:border-orange-700',
+    inputBg: 'bg-white dark:bg-orange-900/50',
+    hintText: 'text-orange-500',
+  },
+};
+
+function getColorClasses(color: string) {
+  return stickyColorClasses[(color as StickyColor) || 'amber'] || stickyColorClasses.amber;
+}
+
+// -------------------------------------------------------
+// Single Sticky Note Card (draggable, color-aware)
 // -------------------------------------------------------
 function StickyNoteCard({
   note,
@@ -38,6 +147,7 @@ function StickyNoteCard({
   onDelete: (id: string) => void;
   direction: 'rtl' | 'ltr';
 }) {
+  const colors = getColorClasses(note.color);
   const [minimized, setMinimized] = useState(note.is_minimized);
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
     const stored = getStoredPosition(note.id);
@@ -122,7 +232,7 @@ function StickyNoteCard({
     return (
       <button
         onClick={() => { setMinimized(false); onUpdate(note.id, { is_minimized: false }); }}
-        className="fixed z-[60] flex items-center gap-1.5 rounded-full bg-amber-300 dark:bg-amber-600 px-3 py-1.5 shadow-lg hover:shadow-xl transition-all text-amber-900 dark:text-amber-100 text-xs font-medium border border-amber-400 dark:border-amber-500"
+        className={`fixed z-[60] flex items-center gap-1.5 rounded-full ${colors.minimizedBg} ${colors.minimizedBorder} border px-3 py-1.5 shadow-lg hover:shadow-xl transition-all ${colors.minimizedText} text-xs font-medium`}
         style={{ left: position.x, top: position.y }}
         dir={direction}
       >
@@ -133,7 +243,7 @@ function StickyNoteCard({
 
   return (
     <div
-      className={`fixed z-[60] w-64 rounded-xl shadow-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/80 text-amber-950 dark:text-amber-100 transition-shadow ${
+      className={`fixed z-[60] w-64 rounded-xl shadow-xl border ${colors.border} ${colors.bg} ${colors.text} transition-shadow ${
         dragging ? 'shadow-2xl cursor-grabbing' : 'shadow-lg cursor-grab'
       }`}
       style={{ left: position.x, top: position.y }}
@@ -141,24 +251,22 @@ function StickyNoteCard({
     >
       {/* Header / drag handle */}
       <div
-        className="flex items-center justify-between px-3 py-2 bg-amber-200/60 dark:bg-amber-800/60 rounded-t-xl border-b border-amber-300/50 dark:border-amber-700/50 select-none"
+        className={`flex items-center justify-between px-3 py-2 ${colors.headerBg} rounded-t-xl border-b ${colors.headerBorder} select-none`}
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
       >
-        <span className="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-          📌
-        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wide">📌</span>
         <div className="flex items-center gap-0.5">
           <button
             onClick={(e) => { e.stopPropagation(); setEditing(!editing); setEditContent(note.content); }}
-            className="flex h-5 w-5 items-center justify-center rounded hover:bg-amber-300/50 dark:hover:bg-amber-700/50 transition-colors text-[10px]"
+            className={`flex h-5 w-5 items-center justify-center rounded ${colors.hoverBtn} transition-colors text-[10px]`}
             aria-label="Edit"
           >
             ✏️
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setMinimized(true); onUpdate(note.id, { is_minimized: true }); }}
-            className="flex h-5 w-5 items-center justify-center rounded hover:bg-amber-300/50 dark:hover:bg-amber-700/50 transition-colors text-[10px]"
+            className={`flex h-5 w-5 items-center justify-center rounded ${colors.hoverBtn} transition-colors text-[10px]`}
             aria-label="Minimize"
           >
             ─
@@ -183,10 +291,10 @@ function StickyNoteCard({
             onKeyDown={(e) => { if (e.key === 'Enter' && e.ctrlKey) handleSaveContent(); }}
             autoFocus
             rows={3}
-            className="w-full rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-amber-900/50 px-2 py-1 text-xs text-amber-950 dark:text-amber-100 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400"
+            className={`w-full rounded border ${colors.inputBorder} ${colors.inputBg} px-2 py-1 text-xs ${colors.text} resize-none focus:outline-none focus:ring-1 focus:ring-current`}
             dir={direction}
           />
-          <p className="text-[8px] text-amber-500 mt-0.5">Ctrl+Enter to save</p>
+          <p className={`text-[8px] ${colors.hintText} mt-0.5`}>Ctrl+Enter to save</p>
         </div>
       ) : (
         <div
