@@ -441,8 +441,8 @@ export type AdminSection = 'dashboard' | 'users' | 'subjects' | 'reports' | 'ann
 // -------------------------------------------------------
 // Todo List
 // -------------------------------------------------------
-export type TodoPriority = 'urgent' | 'medium' | 'low';
-export type TodoCategory = 'study' | 'assignment' | 'review' | 'personal';
+export type TodoPriority = 'task' | 'medium' | 'low';
+export type TodoCategory = 'study' | 'assignment' | 'task' | 'personal';
 export type TodoSource = 'auto' | 'manual';
 
 export interface UserTodo {

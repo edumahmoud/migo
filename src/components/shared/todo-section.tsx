@@ -83,7 +83,7 @@ const itemVariants = {
 // Priority badge color map
 // -------------------------------------------------------
 const priorityBadgeClasses: Record<TodoPriority, string> = {
-  urgent: 'bg-rose-100 dark:bg-rose-800/40 text-rose-700 dark:text-rose-500',
+  task: 'bg-rose-100 dark:bg-rose-800/40 text-rose-700 dark:text-rose-500',
   medium: 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500',
   low: 'bg-emerald-100 dark:bg-emerald-800/40 text-emerald-700 dark:text-emerald-500',
 };
@@ -94,7 +94,7 @@ const priorityBadgeClasses: Record<TodoPriority, string> = {
 const categoryBadgeClasses: Record<TodoCategory, string> = {
   study: 'bg-sky-100 dark:bg-sky-800/40 text-sky-700 dark:text-sky-400',
   assignment: 'bg-violet-100 dark:bg-violet-800/40 text-violet-700 dark:text-violet-500',
-  review: 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500',
+  task: 'bg-amber-100 dark:bg-amber-800/40 text-amber-700 dark:text-amber-500',
   personal: 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-500',
 };
 
@@ -102,7 +102,7 @@ const categoryBadgeClasses: Record<TodoCategory, string> = {
 // Priority sort weight (higher = more urgent)
 // -------------------------------------------------------
 const priorityWeight: Record<TodoPriority, number> = {
-  urgent: 3,
+  task: 3,
   medium: 2,
   low: 1,
 };
@@ -433,7 +433,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 id: `auto-quiz-${q.id}`,
                 title: q.title || '',
                 description: null,
-                category: 'review' as TodoCategory,
+                category: 'task' as TodoCategory,
                 due_date: q.scheduled_date,
                 subject_id: q.subject_id,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
@@ -1327,7 +1327,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
             dir={direction}
           >
-            <option value="urgent">{t('todos.urgent')}</option>
+            <option value="task">{t('todos.task')}</option>
             <option value="medium">{t('todos.medium')}</option>
             <option value="low">{t('todos.low')}</option>
           </select>
@@ -1346,7 +1346,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           >
             <option value="study">{t('todos.study')}</option>
             <option value="assignment">{t('todos.assignment')}</option>
-            <option value="review">{t('todos.review')}</option>
+            <option value="task">{t('todos.taskCat')}</option>
             <option value="personal">{t('todos.personal')}</option>
           </select>
         </div>
@@ -1916,7 +1916,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                   dir={direction}
                 >
                   <option value="all">{t('todos.filter')}: {t('todos.priority')}</option>
-                  <option value="urgent">{t('todos.urgent')}</option>
+                  <option value="task">{t('todos.task')}</option>
                   <option value="medium">{t('todos.medium')}</option>
                   <option value="low">{t('todos.low')}</option>
                 </select>
@@ -1934,7 +1934,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                   <option value="all">{t('todos.filter')}: {t('todos.category')}</option>
                   <option value="study">{t('todos.study')}</option>
                   <option value="assignment">{t('todos.assignment')}</option>
-                  <option value="review">{t('todos.review')}</option>
+                  <option value="task">{t('todos.taskCat')}</option>
                   <option value="personal">{t('todos.personal')}</option>
                 </select>
                 <Filter className="pointer-events-none absolute end-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
