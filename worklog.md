@@ -193,3 +193,33 @@ Stage Summary:
 - **SIMPLIFIED**: API endpoints from 7 to 6 (removed DDL migration endpoint)
 - **CLARIFIED**: TTL expiration is the ONLY fallback if triggers fail
 - **CLARIFIED**: All computation paths must use same computeStudentMetrics() function
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Complete Database Migration Audit for Analytics Architecture
+
+Work Log:
+- Read all existing analytics files: performance-calculator.ts, analytics-config.ts, analytics-types.ts, ANALYTICS_SERVER_ARCHITECTURE.md
+- Read complete Supabase schema (COMPLETE_SCHEMA.sql) — 28 tables, no analytics tables exist yet
+- Read all 65+ existing migrations — found pg_cron conditionally used in v37, pg_net not yet enabled
+- Read existing /api/migrate/analytics-tables route — found outdated SQL with 'weekly'/'manual' snapshot types
+- Read attendance_status migration (v58) — confirmed attendance_status column exists
+- Performed PHASE 1 audit: identified all required DB changes (4 tables, 10 indexes, 4 constraints, 5 functions, 4 triggers, 5 RLS policies, 1 extension, 2 pg_cron jobs)
+- Performed PHASE 2: generated 9 complete SQL migrations (v001-v009)
+- Performed PHASE 3: validation checklist — 5 REQUIRED, 3 OPTIONAL, 1 CONDITIONAL
+- Performed PHASE 4: safety review — no destructive migrations, no data loss, full rollback strategy
+- Key fix: removed 'weekly' and 'manual' snapshot types from old migration SQL — only 'daily' and 'on_change' per refined architecture
+- Added app_config table for trigger URL management (pg_functions cannot access env vars)
+- Added partial unique index to prevent duplicate daily snapshots
+- Wrote all 9 migration files to supabase/migrations/analytics/ directory
+
+Stage Summary:
+- **9 SQL migrations generated**: v001 (analytics_cache), v002 (analytics_snapshots), v003 (cohort_analytics_cache), v004 (RLS policies), v005 (helper functions), v006 (pg_net), v007 (cache invalidation triggers), v008 (on_change snapshot trigger), v009 (realtime + pg_cron)
+- **5 REQUIRED migrations** (001-005): tables, RLS, helper functions
+- **3 OPTIONAL migrations** (006-008): pg_net, triggers, snapshot trigger
+- **1 CONDITIONAL migration** (009): realtime publication (recommended) + pg_cron (future)
+- **0 destructive migrations**: all additive, backward compatible
+- **Rollback SQL provided** for every migration
+- **Old migration route** (/api/migrate/analytics-tables) marked as superseded — should be removed
+- **Action required**: Update app_config.app_base_url after deployment
