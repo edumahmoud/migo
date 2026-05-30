@@ -3622,7 +3622,9 @@
     "categoryColor": "لون التصنيف",
     "categoryNameRequired": "اسم التصنيف العربي مطلوب",
     "noCategories": "لا توجد تصنيفات بعد",
-    "categoryCount": "{count} تصنيف"
+    "categoryCount": "{count} تصنيف",
+    "noCategory": "الكل",
+    "withoutCategory": "بدون تصنيف"
   },
   "videos": {
     "all": "الكل",

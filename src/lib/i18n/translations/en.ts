@@ -1577,6 +1577,7 @@ export const en: TranslationDict = {
     autoJoinCode: 'A join code will be generated automatically',
     category: 'Category',
     noCategory: 'No Category',
+    withoutCategory: 'Without Category',
     manageCategories: 'Manage Categories',
     addCategory: 'Add Category',
     editCategory: 'Edit Category',

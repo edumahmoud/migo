@@ -332,12 +332,27 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
         if (quizzes && quizzes.length > 0) {
           for (const q of quizzes) {
             if (q.scheduled_date) {
+              // Mark completed if: is_finished in DB OR time has passed (scheduled_date + scheduled_time + duration + 1s)
+              let timeCompleted = false;
+              if (q.scheduled_time && q.duration) {
+                const [h, m] = q.scheduled_time.split(':').map(Number);
+                const endDt = new Date(q.scheduled_date);
+                endDt.setHours(h, m, 0, 0);
+                timeCompleted = Date.now() > endDt.getTime() + q.duration * 60 * 1000 + 1000;
+              } else if (q.scheduled_time) {
+                const [h, m] = q.scheduled_time.split(':').map(Number);
+                const endDt = new Date(q.scheduled_date);
+                endDt.setHours(h, m, 0, 0);
+                timeCompleted = Date.now() > endDt.getTime() + 1000;
+              }
               allEvents.push({
                 id: `quiz-${q.id}`, type: 'quiz', title: q.title || '',
                 description: null, date: toDateString(parseLocalDate(q.scheduled_date)),
                 time: q.scheduled_time || null, subject_id: q.subject_id || null,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
-                color: 'rose', icon: 'Star', completed: q.is_finished || false, meta: { quiz_id: q.id },
+                color: 'rose', icon: 'Star',
+                completed: q.is_finished || timeCompleted,
+                meta: { quiz_id: q.id, duration: q.duration, scheduled_date: q.scheduled_date, scheduled_time: q.scheduled_time },
               });
             }
           }
@@ -388,6 +403,40 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   }, [profile.id, profile.role, t]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  // -------------------------------------------------------
+  // Periodic re-check: update quiz completion based on time
+  // Re-evaluates every 30 seconds to catch time-based completions
+  // -------------------------------------------------------
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setEvents((prev) =>
+        prev.map((event) => {
+          if (event.type === 'quiz' && !event.completed) {
+            const meta = event.meta as { duration?: number; scheduled_date?: string; scheduled_time?: string } | null;
+            if (meta?.scheduled_date && meta?.scheduled_time && meta?.duration) {
+              const [h, m] = meta.scheduled_time.split(':').map(Number);
+              const endDt = new Date(meta.scheduled_date);
+              endDt.setHours(h, m, 0, 0);
+              if (Date.now() > endDt.getTime() + meta.duration * 60 * 1000 + 1000) {
+                return { ...event, completed: true };
+              }
+            } else if (meta?.scheduled_date && meta?.scheduled_time) {
+              const [h, m] = meta.scheduled_time.split(':').map(Number);
+              const endDt = new Date(meta.scheduled_date);
+              endDt.setHours(h, m, 0, 0);
+              if (Date.now() > endDt.getTime() + 1000) {
+                return { ...event, completed: true };
+              }
+            }
+          }
+          return event;
+        })
+      );
+    }, 30_000); // every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   // -------------------------------------------------------
   // Realtime: listen for todo changes and refresh calendar

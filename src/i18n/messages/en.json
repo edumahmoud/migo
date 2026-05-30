@@ -3622,7 +3622,9 @@
     "categoryColor": "Category Color",
     "categoryNameRequired": "Arabic category name is required",
     "noCategories": "No categories yet",
-    "categoryCount": "{count} categories"
+    "categoryCount": "{count} categories",
+    "noCategory": "All",
+    "withoutCategory": "Without Category"
   },
   "videos": {
     "all": "All",

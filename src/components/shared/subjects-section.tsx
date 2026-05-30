@@ -1204,7 +1204,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             </div>
 
             {/* Category filter (teacher only) */}
-            {role === 'teacher' && categories.length > 0 && (
+            {role === 'teacher' && (
               <div className="flex items-center gap-2">
                 <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
                 <select
@@ -1213,7 +1213,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
                   dir={direction}
                 >
-                  <option value="">{t('subjects.noCategory')}</option>
+                  <option value="">{t('course.filterAll')}</option>
+                  <option value="__none__">{t('subjects.withoutCategory')}</option>
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>{getCategoryName(cat)}</option>
                   ))}
@@ -1305,7 +1306,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         } else if (filterPaused === 'paused') {
           filteredSubjects = filteredSubjects.filter((s) => !!s.is_paused);
         }
-        if (filterCategory) {
+        if (filterCategory === '__none__') {
+          filteredSubjects = filteredSubjects.filter((s) => !s.category_id);
+        } else if (filterCategory) {
           filteredSubjects = filteredSubjects.filter((s) => s.category_id === filterCategory);
         }
 

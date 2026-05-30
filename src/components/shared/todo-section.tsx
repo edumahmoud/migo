@@ -51,6 +51,10 @@ interface AutoTodoItem {
   source: 'auto';
   completed: boolean;
   autoType: 'quiz' | 'assignment';
+  /** For quizzes: scheduled_time (HH:mm) */
+  scheduled_time?: string | null;
+  /** For quizzes: duration in minutes */
+  duration?: number | null;
 }
 
 // -------------------------------------------------------
@@ -138,6 +142,47 @@ function isDueSoon(dateStr: string): boolean {
 
 function isOverdue(dateStr: string): boolean {
   return new Date(dateStr) < new Date();
+}
+
+// -------------------------------------------------------
+// Helper: check if a quiz is completed based on time
+// A quiz is considered completed if:
+// current time > scheduled_date + scheduled_time + duration + 1 second
+// -------------------------------------------------------
+function isQuizTimeCompleted(
+  scheduledDate: string | null,
+  scheduledTime: string | null,
+  duration: number | null | undefined
+): boolean {
+  if (!scheduledDate) return false;
+  const now = new Date();
+  // Build the end datetime: scheduled_date + scheduled_time + duration + 1s
+  let endMs: number;
+  if (scheduledTime && duration) {
+    // Parse scheduled_date (YYYY-MM-DD) + scheduled_time (HH:mm)
+    const [hours, minutes] = scheduledTime.split(':').map(Number);
+    const endDate = new Date(scheduledDate);
+    endDate.setHours(hours, minutes, 0, 0);
+    // Add duration in minutes + 1 second
+    endMs = endDate.getTime() + duration * 60 * 1000 + 1000;
+  } else if (scheduledTime) {
+    // No duration, just check if start time has passed
+    const [hours, minutes] = scheduledTime.split(':').map(Number);
+    const endDate = new Date(scheduledDate);
+    endDate.setHours(hours, minutes, 0, 0);
+    endMs = endDate.getTime() + 1000; // just start time + 1s
+  } else if (duration) {
+    // No scheduled time, use end of day of scheduled_date + duration
+    const endDate = new Date(scheduledDate);
+    endDate.setHours(23, 59, 0, 0);
+    endMs = endDate.getTime() + duration * 60 * 1000 + 1000;
+  } else {
+    // No time or duration, check if the date has passed
+    const endDate = new Date(scheduledDate);
+    endDate.setHours(23, 59, 59, 0);
+    endMs = endDate.getTime();
+  }
+  return now.getTime() > endMs;
 }
 
 // -------------------------------------------------------
@@ -340,6 +385,8 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             // Only include future or recent quizzes
             const diffDays = (scheduledDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
             if (diffDays > -7) { // Include quizzes up to 7 days old
+              // Mark completed if: is_finished in DB OR time has passed (start_time + duration + 1s)
+              const timeCompleted = isQuizTimeCompleted(q.scheduled_date, q.scheduled_time, q.duration);
               items.push({
                 id: `auto-quiz-${q.id}`,
                 title: q.title || '',
@@ -349,8 +396,10 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 subject_id: q.subject_id,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
                 source: 'auto',
-                completed: q.is_finished || false,
+                completed: q.is_finished || timeCompleted,
                 autoType: 'quiz',
+                scheduled_time: q.scheduled_time || null,
+                duration: q.duration || null,
               });
             }
           }
@@ -402,6 +451,32 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
     fetchSubjects();
     fetchAutoTodos();
   }, [fetchTodos, fetchSubjects, fetchAutoTodos]);
+
+  // -------------------------------------------------------
+  // Periodic re-check: update auto todo completion based on time
+  // Re-evaluates every 30 seconds to catch time-based completions
+  // -------------------------------------------------------
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAutoTodos((prev) =>
+        prev.map((item) => {
+          if (item.autoType === 'quiz' && !item.completed) {
+            const timeCompleted = isQuizTimeCompleted(
+              item.due_date,
+              item.scheduled_time,
+              item.duration
+            );
+            if (timeCompleted) {
+              return { ...item, completed: true };
+            }
+          }
+          return item;
+        })
+      );
+    }, 30_000); // every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   // -------------------------------------------------------
   // Real-time subscription

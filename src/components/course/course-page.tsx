@@ -1070,7 +1070,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 </div>
 
                 {/* Category selector */}
-                {role === 'teacher' && categories.length > 0 && (
+                {role === 'teacher' && (
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-foreground">
                       {t('subjects.category')}
@@ -1082,7 +1082,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                       dir={direction}
                       disabled={savingSubject}
                     >
-                      <option value="">{t('subjects.noCategory')}</option>
+                      <option value="">{t('subjects.withoutCategory')}</option>
                       {categories.map((cat) => (
                         <option key={cat.id} value={cat.id}>{getCategoryName(cat)}</option>
                       ))}

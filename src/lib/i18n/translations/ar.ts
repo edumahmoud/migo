@@ -1589,6 +1589,7 @@ export const ar: TranslationDict = {
     autoJoinCode: 'سيتم إنشاء كود انضمام تلقائياً',
     category: 'التصنيف',
     noCategory: 'بدون تصنيف',
+    withoutCategory: 'بدون تصنيف',
     manageCategories: 'إدارة التصنيفات',
     addCategory: 'إضافة تصنيف',
     editCategory: 'تعديل التصنيف',
