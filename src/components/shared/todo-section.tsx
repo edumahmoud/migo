@@ -17,6 +17,9 @@ import {
   Loader2,
   MoreVertical,
   Pencil,
+  StickyNote,
+  Palette,
+  Minus,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -35,6 +38,7 @@ import type {
   TodoCategory,
   TodoSource,
   Subject,
+  StickyNoteData,
 } from '@/lib/types';
 
 // -------------------------------------------------------
@@ -108,6 +112,8 @@ const priorityWeight: Record<TodoPriority, number> = {
 // -------------------------------------------------------
 type StatusFilter = 'all' | 'active' | 'completed';
 type SortOption = 'dueDate' | 'priority' | 'createdDate';
+type MainTab = 'tasks' | 'sticky';
+type StickyColor = 'amber' | 'blue' | 'green' | 'rose' | 'purple' | 'orange';
 
 // -------------------------------------------------------
 // Helper: format due date
@@ -254,6 +260,22 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
   // ─── Toggling state ───
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // ─── Main tab state ───
+  const [mainTab, setMainTab] = useState<MainTab>('tasks');
+
+  // ─── Sticky notes state ───
+  const [stickyNotes, setStickyNotes] = useState<StickyNoteData[]>([]);
+  const [stickyLoading, setStickyLoading] = useState(false);
+  const [newStickyContent, setNewStickyContent] = useState('');
+  const [newStickyColor, setNewStickyColor] = useState<StickyColor>('amber');
+  const [addingSticky, setAddingSticky] = useState(false);
+  const [editingStickyId, setEditingStickyId] = useState<string | null>(null);
+  const [editStickyContent, setEditStickyContent] = useState('');
+  const [editStickyColor, setEditStickyColor] = useState<StickyColor>('amber');
+  const [savingSticky, setSavingSticky] = useState(false);
+  const [deletingStickyId, setDeletingStickyId] = useState<string | null>(null);
+  const [showAddStickyForm, setShowAddStickyForm] = useState(false);
 
   // -------------------------------------------------------
   // Fetch todos
@@ -827,6 +849,225 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   };
 
   // -------------------------------------------------------
+  // Sticky Notes: Fetch
+  // -------------------------------------------------------
+  const fetchStickyNotes = useCallback(async () => {
+    setStickyLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('sticky_notes')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching sticky notes:', error);
+      } else {
+        setStickyNotes((data as StickyNoteData[]) || []);
+      }
+    } catch (err) {
+      console.error('Fetch sticky notes error:', err);
+    } finally {
+      setStickyLoading(false);
+    }
+  }, [profile.id]);
+
+  // Fetch sticky notes when tab changes
+  useEffect(() => {
+    if (mainTab === 'sticky') {
+      fetchStickyNotes();
+    }
+  }, [mainTab, fetchStickyNotes]);
+
+  // Realtime subscription for sticky notes
+  useEffect(() => {
+    if (!profile.id) return;
+    const channel = supabase
+      .channel('todos-sticky-notes-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sticky_notes', filter: `user_id=eq.${profile.id}` },
+        () => {
+          if (mainTab === 'sticky') fetchStickyNotes();
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile.id, mainTab, fetchStickyNotes]);
+
+  // -------------------------------------------------------
+  // Sticky Notes: Color map
+  // -------------------------------------------------------
+  const stickyColorMap: Record<StickyColor, { bg: string; border: string; text: string; headerBg: string; dot: string }> = {
+    amber: {
+      bg: 'bg-amber-50 dark:bg-amber-900/80',
+      border: 'border-amber-300 dark:border-amber-700',
+      text: 'text-amber-950 dark:text-amber-100',
+      headerBg: 'bg-amber-200/60 dark:bg-amber-800/60',
+      dot: 'bg-amber-400',
+    },
+    blue: {
+      bg: 'bg-sky-50 dark:bg-sky-900/80',
+      border: 'border-sky-300 dark:border-sky-700',
+      text: 'text-sky-950 dark:text-sky-100',
+      headerBg: 'bg-sky-200/60 dark:bg-sky-800/60',
+      dot: 'bg-sky-400',
+    },
+    green: {
+      bg: 'bg-emerald-50 dark:bg-emerald-900/80',
+      border: 'border-emerald-300 dark:border-emerald-700',
+      text: 'text-emerald-950 dark:text-emerald-100',
+      headerBg: 'bg-emerald-200/60 dark:bg-emerald-800/60',
+      dot: 'bg-emerald-400',
+    },
+    rose: {
+      bg: 'bg-rose-50 dark:bg-rose-900/80',
+      border: 'border-rose-300 dark:border-rose-700',
+      text: 'text-rose-950 dark:text-rose-100',
+      headerBg: 'bg-rose-200/60 dark:bg-rose-800/60',
+      dot: 'bg-rose-400',
+    },
+    purple: {
+      bg: 'bg-violet-50 dark:bg-violet-900/80',
+      border: 'border-violet-300 dark:border-violet-700',
+      text: 'text-violet-950 dark:text-violet-100',
+      headerBg: 'bg-violet-200/60 dark:bg-violet-800/60',
+      dot: 'bg-violet-400',
+    },
+    orange: {
+      bg: 'bg-orange-50 dark:bg-orange-900/80',
+      border: 'border-orange-300 dark:border-orange-700',
+      text: 'text-orange-950 dark:text-orange-100',
+      headerBg: 'bg-orange-200/60 dark:bg-orange-800/60',
+      dot: 'bg-orange-400',
+    },
+  };
+
+  const colorOptions: StickyColor[] = ['amber', 'blue', 'green', 'rose', 'purple', 'orange'];
+
+  // -------------------------------------------------------
+  // Sticky Notes: Create
+  // -------------------------------------------------------
+  const handleAddStickyNote = async () => {
+    const content = newStickyContent.trim();
+    if (!content) {
+      toast.error(t('todos.stickyNoteContent'));
+      return;
+    }
+
+    setAddingSticky(true);
+    try {
+      const { data, error } = await supabase
+        .from('sticky_notes')
+        .insert({
+          user_id: profile.id,
+          content,
+          color: newStickyColor,
+          position_x: 20 + Math.random() * 100,
+          position_y: 80 + Math.random() * 80,
+          is_minimized: false,
+        } as Record<string, unknown>)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating sticky note:', error);
+        toast.error(t('todos.stickyNoteCreateFailed'));
+      } else {
+        toast.success(t('todos.stickyNoteCreated'));
+        setNewStickyContent('');
+        setNewStickyColor('amber');
+        setShowAddStickyForm(false);
+        if (data) {
+          setStickyNotes((prev) => [data as StickyNoteData, ...prev]);
+        }
+      }
+    } catch {
+      toast.error(t('todos.stickyNoteCreateFailed'));
+    } finally {
+      setAddingSticky(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Sticky Notes: Update
+  // -------------------------------------------------------
+  const handleUpdateStickyNote = async () => {
+    if (!editingStickyId) return;
+    const content = editStickyContent.trim();
+    if (!content) return;
+
+    setSavingSticky(true);
+    try {
+      const { error } = await supabase
+        .from('sticky_notes')
+        .update({ content, color: editStickyColor, updated_at: new Date().toISOString() } as Record<string, unknown>)
+        .eq('id', editingStickyId);
+
+      if (error) {
+        console.error('Error updating sticky note:', error);
+        toast.error(t('todos.stickyNoteUpdateFailed'));
+      } else {
+        toast.success(t('todos.stickyNoteUpdated'));
+        setStickyNotes((prev) =>
+          prev.map((n) =>
+            n.id === editingStickyId
+              ? { ...n, content, color: editStickyColor }
+              : n
+          )
+        );
+        setEditingStickyId(null);
+      }
+    } catch {
+      toast.error(t('todos.stickyNoteUpdateFailed'));
+    } finally {
+      setSavingSticky(false);
+    }
+  };
+
+  // -------------------------------------------------------
+  // Sticky Notes: Toggle minimize
+  // -------------------------------------------------------
+  const handleToggleMinimize = async (note: StickyNoteData) => {
+    const newMinimized = !note.is_minimized;
+    setStickyNotes((prev) =>
+      prev.map((n) => n.id === note.id ? { ...n, is_minimized: newMinimized } : n)
+    );
+    try {
+      await supabase
+        .from('sticky_notes')
+        .update({ is_minimized: newMinimized, updated_at: new Date().toISOString() } as Record<string, unknown>)
+        .eq('id', note.id);
+    } catch {
+      // revert
+      setStickyNotes((prev) =>
+        prev.map((n) => n.id === note.id ? { ...n, is_minimized: !newMinimized } : n)
+      );
+    }
+  };
+
+  // -------------------------------------------------------
+  // Sticky Notes: Delete
+  // -------------------------------------------------------
+  const handleDeleteStickyNote = async (noteId: string) => {
+    setDeletingStickyId(noteId);
+    try {
+      const { error } = await supabase.from('sticky_notes').delete().eq('id', noteId);
+      if (error) {
+        console.error('Error deleting sticky note:', error);
+        toast.error(t('todos.stickyNoteDeleteFailed'));
+      } else {
+        toast.success(t('todos.stickyNoteDeleted'));
+        setStickyNotes((prev) => prev.filter((n) => n.id !== noteId));
+      }
+    } catch {
+      toast.error(t('todos.stickyNoteDeleteFailed'));
+    } finally {
+      setDeletingStickyId(null);
+    }
+  };
+
+  // -------------------------------------------------------
   // Priority badge renderer
   // -------------------------------------------------------
   const renderPriorityBadge = (priority: TodoPriority) => (
@@ -1323,6 +1564,249 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   );
 
   // -------------------------------------------------------
+  // Render: Sticky Notes Tab
+  // -------------------------------------------------------
+  const renderStickyNotesTab = () => (
+    <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-4">
+      {/* Add form toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <StickyNote className="h-4 w-4" />
+          <span>{t('todos.stickyNotePersonalDesc')}</span>
+        </div>
+        <button
+          onClick={() => setShowAddStickyForm(!showAddStickyForm)}
+          className="flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-amber-700"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {t('todos.addStickyNote')}
+        </button>
+      </div>
+
+      {/* Add form */}
+      <AnimatePresence>
+        {showAddStickyForm && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 p-4 space-y-3" dir={direction}>
+              <textarea
+                value={newStickyContent}
+                onChange={(e) => setNewStickyContent(e.target.value)}
+                placeholder={t('todos.stickyNoteContentPlaceholder')}
+                rows={3}
+                className="w-full rounded-lg border border-amber-200 dark:border-amber-700 bg-white dark:bg-amber-900/50 px-3 py-2.5 text-sm text-amber-950 dark:text-amber-100 placeholder:text-amber-400 dark:placeholder:text-amber-500 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                dir={direction}
+                autoFocus
+              />
+
+              {/* Color picker */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                  <Palette className="h-3.5 w-3.5" />
+                  {t('todos.stickyNoteColor')}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {colorOptions.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setNewStickyColor(c)}
+                      className={`h-6 w-6 rounded-full transition-all ${stickyColorMap[c].dot} ${
+                        newStickyColor === c ? 'ring-2 ring-offset-2 ring-amber-600 dark:ring-offset-amber-900 scale-110' : 'hover:scale-105'
+                      }`}
+                      aria-label={t(`todos.color${c.charAt(0).toUpperCase() + c.slice(1)}` as 'todos.colorAmber')}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAddStickyNote}
+                  disabled={addingSticky || !newStickyContent.trim()}
+                  className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {addingSticky ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  {addingSticky ? t('common.creating') : t('todos.addStickyNote')}
+                </button>
+                <button
+                  onClick={() => { setShowAddStickyForm(false); setNewStickyContent(''); setNewStickyColor('amber'); }}
+                  className="rounded-lg bg-muted px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit form */}
+      <AnimatePresence>
+        {editingStickyId && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 p-4 space-y-3" dir={direction}>
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">{t('todos.editStickyNote')}</p>
+              <textarea
+                value={editStickyContent}
+                onChange={(e) => setEditStickyContent(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg border border-amber-200 dark:border-amber-700 bg-white dark:bg-amber-900/50 px-3 py-2.5 text-sm text-amber-950 dark:text-amber-100 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                dir={direction}
+                autoFocus
+              />
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                  <Palette className="h-3.5 w-3.5" />
+                  {t('todos.stickyNoteColor')}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {colorOptions.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setEditStickyColor(c)}
+                      className={`h-6 w-6 rounded-full transition-all ${stickyColorMap[c].dot} ${
+                        editStickyColor === c ? 'ring-2 ring-offset-2 ring-amber-600 dark:ring-offset-amber-900 scale-110' : 'hover:scale-105'
+                      }`}
+                      aria-label={t(`todos.color${c.charAt(0).toUpperCase() + c.slice(1)}` as 'todos.colorAmber')}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleUpdateStickyNote}
+                  disabled={savingSticky || !editStickyContent.trim()}
+                  className="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {savingSticky ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                  {savingSticky ? t('common.saving') : t('common.saveChanges')}
+                </button>
+                <button
+                  onClick={() => setEditingStickyId(null)}
+                  className="rounded-lg bg-muted px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Sticky Notes List */}
+      {stickyLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-amber-600" />
+        </div>
+      ) : stickyNotes.length === 0 ? (
+        <motion.div
+          variants={itemVariants}
+          className="flex flex-col items-center justify-center rounded-xl border border-dashed border-amber-300 dark:border-amber-900/60 bg-amber-50/30 dark:bg-amber-900/15 py-12"
+        >
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40 mb-3">
+            <StickyNote className="h-7 w-7 text-amber-700 dark:text-amber-400" />
+          </div>
+          <p className="text-sm font-semibold text-foreground mb-1">
+            {t('todos.noStickyNotes')}
+          </p>
+          <p className="text-xs text-muted-foreground max-w-sm text-center">
+            {t('todos.noStickyNotesDesc')}
+          </p>
+        </motion.div>
+      ) : (
+        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[600px] overflow-y-auto custom-scrollbar pe-1">
+          {stickyNotes.map((note) => {
+            const colors = stickyColorMap[(note.color as StickyColor) || 'amber'];
+            const isDeleting = deletingStickyId === note.id;
+            const isEditing = editingStickyId === note.id;
+
+            return (
+              <motion.div
+                key={note.id}
+                variants={itemVariants}
+                layout
+                className={`relative rounded-xl border shadow-sm transition-all hover:shadow-md ${colors.bg} ${colors.border} ${note.is_minimized ? 'opacity-70' : ''}`}
+                dir={direction}
+              >
+                {/* Header */}
+                <div className={`flex items-center justify-between px-3 py-2 ${colors.headerBg} rounded-t-xl border-b ${colors.border}/50`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`h-2.5 w-2.5 rounded-full ${colors.dot}`} />
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                      {t('todos.stickyNotePersonal')}
+                    </span>
+                    {note.is_minimized && (
+                      <span className="text-[9px] bg-muted rounded px-1 py-0.5">{t('todos.stickyNoteFloats')}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      onClick={() => {
+                        setEditingStickyId(note.id);
+                        setEditStickyContent(note.content);
+                        setEditStickyColor((note.color as StickyColor) || 'amber');
+                      }}
+                      className="flex h-6 w-6 items-center justify-center rounded hover:bg-white/30 dark:hover:bg-black/20 transition-colors"
+                      aria-label={t('todos.editStickyNote')}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => handleToggleMinimize(note)}
+                      className="flex h-6 w-6 items-center justify-center rounded hover:bg-white/30 dark:hover:bg-black/20 transition-colors"
+                      aria-label="Minimize"
+                    >
+                      <Minus className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteStickyNote(note.id)}
+                      disabled={isDeleting}
+                      className="flex h-6 w-6 items-center justify-center rounded hover:bg-rose-300/50 dark:hover:bg-rose-700/50 transition-colors"
+                      aria-label={t('todos.deleteStickyNote')}
+                    >
+                      {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content */}
+                {!note.is_minimized && (
+                  <div className="px-3 py-2.5">
+                    <p className={`text-xs leading-relaxed whitespace-pre-wrap ${colors.text}`}>
+                      {note.content}
+                    </p>
+                  </div>
+                )}
+
+                {/* Minimized preview */}
+                {note.is_minimized && (
+                  <div className="px-3 py-2">
+                    <p className={`text-xs leading-relaxed truncate ${colors.text}`}>
+                      {note.content.slice(0, 60)}{note.content.length > 60 ? '...' : ''}
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      )}
+    </motion.div>
+  );
+
+  // -------------------------------------------------------
   // Main render
   // -------------------------------------------------------
   return (
@@ -1336,118 +1820,158 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           <div>
             <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
               {t('todos.title')}
-              <span className="inline-flex items-center justify-center rounded-full bg-sky-700 dark:bg-sky-600 px-2 py-0.5 text-[10px] font-bold text-white">
-                {pendingCount}
-              </span>
+              {mainTab === 'tasks' && (
+                <span className="inline-flex items-center justify-center rounded-full bg-sky-700 dark:bg-sky-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                  {pendingCount}
+                </span>
+              )}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {t('todos.pending')}: {pendingCount} · {t('todos.completed')}: {completedCount}
+              {mainTab === 'tasks'
+                ? `${t('todos.pending')}: ${pendingCount} · ${t('todos.completed')}: ${completedCount}`
+                : t('todos.stickyNotePersonalDesc')
+              }
             </p>
           </div>
         </div>
 
         <button
-          onClick={() => setAddModalOpen(true)}
+          onClick={() => mainTab === 'tasks' ? setAddModalOpen(true) : setShowAddStickyForm(true)}
           className="flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-sky-800"
         >
           <Plus className="h-4 w-4" />
-          {t('todos.addTodo')}
+          {mainTab === 'tasks' ? t('todos.addTodo') : t('todos.addStickyNote')}
         </button>
       </motion.div>
 
-      {/* Filter bar */}
-      <motion.div variants={itemVariants} className="space-y-3">
-        {/* Status filter chips */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Status tabs */}
-          <div className="flex gap-1 rounded-lg bg-muted/50 p-1">
-            {([
-              { key: 'all' as StatusFilter, label: t('todos.all'), count: todos.length },
-              { key: 'active' as StatusFilter, label: t('todos.active'), count: pendingCount },
-              { key: 'completed' as StatusFilter, label: t('todos.completed'), count: completedCount },
-            ]).map((opt) => (
-              <button
-                key={opt.key}
-                onClick={() => setStatusFilter(opt.key)}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                  statusFilter === opt.key
-                    ? 'bg-sky-700 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                }`}
-              >
-                {opt.label}
-                <span
-                  className={`text-[10px] rounded-full px-1.5 py-0.5 ${
-                    statusFilter === opt.key ? 'bg-white/20' : 'bg-muted'
-                  }`}
-                >
-                  {opt.count}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* Priority filter */}
-          <div className="relative">
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value as TodoPriority | 'all')}
-              className="appearance-none rounded-lg border bg-background pe-8 ps-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors cursor-pointer"
-              dir={direction}
-            >
-              <option value="all">{t('todos.filter')}: {t('todos.priority')}</option>
-              <option value="urgent">{t('todos.urgent')}</option>
-              <option value="medium">{t('todos.medium')}</option>
-              <option value="low">{t('todos.low')}</option>
-            </select>
-            <Filter className="pointer-events-none absolute end-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          </div>
-
-          {/* Category filter */}
-          <div className="relative">
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value as TodoCategory | 'all')}
-              className="appearance-none rounded-lg border bg-background pe-8 ps-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors cursor-pointer"
-              dir={direction}
-            >
-              <option value="all">{t('todos.filter')}: {t('todos.category')}</option>
-              <option value="study">{t('todos.study')}</option>
-              <option value="assignment">{t('todos.assignment')}</option>
-              <option value="review">{t('todos.review')}</option>
-              <option value="personal">{t('todos.personal')}</option>
-            </select>
-            <Filter className="pointer-events-none absolute end-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          </div>
-
-          {/* Sort */}
-          <div className="relative">
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as SortOption)}
-              className="appearance-none rounded-lg border bg-background pe-8 ps-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors cursor-pointer"
-              dir={direction}
-            >
-              <option value="createdDate">{t('todos.sort')}: {t('todos.count')}</option>
-              <option value="dueDate">{t('todos.dueDate')}</option>
-              <option value="priority">{t('todos.priority')}</option>
-            </select>
-            <Filter className="pointer-events-none absolute end-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          </div>
+      {/* Main Tab Switcher: Tasks | Sticky Notes */}
+      <motion.div variants={itemVariants}>
+        <div className="flex gap-1 rounded-lg bg-muted/50 p-1">
+          <button
+            onClick={() => setMainTab('tasks')}
+            className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-xs font-medium transition-all ${
+              mainTab === 'tasks'
+                ? 'bg-sky-700 text-white shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <ListTodo className="h-3.5 w-3.5" />
+            {t('todos.tasksTab')}
+          </button>
+          <button
+            onClick={() => setMainTab('sticky')}
+            className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-xs font-medium transition-all ${
+              mainTab === 'sticky'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <StickyNote className="h-3.5 w-3.5" />
+            {t('todos.stickyNotesTab')}
+          </button>
         </div>
       </motion.div>
 
-      {/* Todo list */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
-        </div>
-      ) : filteredTodos.length === 0 ? (
-        renderEmptyState()
+      {/* Tab Content */}
+      {mainTab === 'tasks' ? (
+        <>
+          {/* Filter bar */}
+          <motion.div variants={itemVariants} className="space-y-3">
+            {/* Status filter chips */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Status tabs */}
+              <div className="flex gap-1 rounded-lg bg-muted/50 p-1">
+                {([
+                  { key: 'all' as StatusFilter, label: t('todos.all'), count: todos.length },
+                  { key: 'active' as StatusFilter, label: t('todos.active'), count: pendingCount },
+                  { key: 'completed' as StatusFilter, label: t('todos.completed'), count: completedCount },
+                ]).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setStatusFilter(opt.key)}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                      statusFilter === opt.key
+                        ? 'bg-sky-700 text-white shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {opt.label}
+                    <span
+                      className={`text-[10px] rounded-full px-1.5 py-0.5 ${
+                        statusFilter === opt.key ? 'bg-white/20' : 'bg-muted'
+                      }`}
+                    >
+                      {opt.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Priority filter */}
+              <div className="relative">
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value as TodoPriority | 'all')}
+                  className="appearance-none rounded-lg border bg-background pe-8 ps-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors cursor-pointer"
+                  dir={direction}
+                >
+                  <option value="all">{t('todos.filter')}: {t('todos.priority')}</option>
+                  <option value="urgent">{t('todos.urgent')}</option>
+                  <option value="medium">{t('todos.medium')}</option>
+                  <option value="low">{t('todos.low')}</option>
+                </select>
+                <Filter className="pointer-events-none absolute end-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+
+              {/* Category filter */}
+              <div className="relative">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value as TodoCategory | 'all')}
+                  className="appearance-none rounded-lg border bg-background pe-8 ps-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors cursor-pointer"
+                  dir={direction}
+                >
+                  <option value="all">{t('todos.filter')}: {t('todos.category')}</option>
+                  <option value="study">{t('todos.study')}</option>
+                  <option value="assignment">{t('todos.assignment')}</option>
+                  <option value="review">{t('todos.review')}</option>
+                  <option value="personal">{t('todos.personal')}</option>
+                </select>
+                <Filter className="pointer-events-none absolute end-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+
+              {/* Sort */}
+              <div className="relative">
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as SortOption)}
+                  className="appearance-none rounded-lg border bg-background pe-8 ps-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors cursor-pointer"
+                  dir={direction}
+                >
+                  <option value="createdDate">{t('todos.sort')}: {t('todos.count')}</option>
+                  <option value="dueDate">{t('todos.dueDate')}</option>
+                  <option value="priority">{t('todos.priority')}</option>
+                </select>
+                <Filter className="pointer-events-none absolute end-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Todo list */}
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-sky-700 dark:text-sky-400" />
+            </div>
+          ) : filteredTodos.length === 0 ? (
+            renderEmptyState()
+          ) : (
+            <motion.div variants={containerVariants} className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pe-1">
+              {filteredTodos.map((todo) => renderTodoCard(todo))}
+            </motion.div>
+          )}
+        </>
       ) : (
-        <motion.div variants={containerVariants} className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pe-1">
-          {filteredTodos.map((todo) => renderTodoCard(todo))}
-        </motion.div>
+        renderStickyNotesTab()
       )}
 
       {/* Add modal */}
