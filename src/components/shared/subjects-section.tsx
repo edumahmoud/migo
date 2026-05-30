@@ -649,6 +649,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   // -------------------------------------------------------
   // Listen for subject-pause-changed events from course-page
   // for instant pause/unpause updates without waiting for Realtime
+  // Uses both CustomEvent (same-tab) and BroadcastChannel (cross-tab)
   // -------------------------------------------------------
   useEffect(() => {
     const handlePauseChanged = (e: Event) => {
@@ -660,7 +661,25 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       }
     };
     window.addEventListener('subject-pause-changed', handlePauseChanged);
-    return () => window.removeEventListener('subject-pause-changed', handlePauseChanged);
+
+    // Cross-tab sync via BroadcastChannel
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('subject-pause-sync');
+      bc.addEventListener('message', (e: MessageEvent) => {
+        const { subjectId, isPaused } = e.data || {};
+        if (subjectId && typeof isPaused === 'boolean') {
+          setSubjects(prev => prev.map(s =>
+            s.id === subjectId ? { ...s, is_paused: isPaused } : s
+          ));
+        }
+      });
+    } catch { /* BroadcastChannel not supported */ }
+
+    return () => {
+      window.removeEventListener('subject-pause-changed', handlePauseChanged);
+      bc?.close();
+    };
   }, []);
 
   // -------------------------------------------------------
@@ -810,6 +829,38 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
+
+  // -------------------------------------------------------
+  // Real-time subscription for categories — instant updates
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (role !== 'teacher') return;
+    const channel = supabase
+      .channel(`categories-realtime-${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'categories', filter: `teacher_id=eq.${profile.id}` }, (payload) => {
+        const newCat = payload.new as Category;
+        if (newCat) {
+          setCategories(prev => {
+            if (prev.some(c => c.id === newCat.id)) return prev;
+            return [...prev, newCat];
+          });
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'categories', filter: `teacher_id=eq.${profile.id}` }, (payload) => {
+        const updated = payload.new as Category;
+        if (updated) {
+          setCategories(prev => prev.map(c => c.id === updated.id ? updated : c));
+        }
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'categories' }, (payload) => {
+        const old = payload.old as { id: string };
+        if (old?.id) {
+          setCategories(prev => prev.filter(c => c.id !== old.id));
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [role, profile.id]);
 
   // -------------------------------------------------------
   // Category CRUD handlers

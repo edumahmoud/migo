@@ -287,12 +287,12 @@ export default function AppSidebar({
               </nav>
             </ScrollArea>
 
-            {/* Sticky Notes button - Mobile */}
+            {/* Sticky Notes button - Mobile (centered) */}
             {user && (
-              <div className="shrink-0 border-sidebar-border border-t p-3">
+              <div className="shrink-0 border-sidebar-border border-t p-3 flex justify-center">
                 <button
                   onClick={() => { setStickyModalOpen(true); setSidebarOpen(false); }}
-                  className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all w-full ${isRTL ? 'flex-row-reverse' : ''}`}
+                  className={`flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all ${isRTL ? 'flex-row-reverse' : ''}`}
                 >
                   <StickyNote className="h-4 w-4 shrink-0" />
                   <span>{t('nav.stickyNotes')}</span>
@@ -330,9 +330,9 @@ export default function AppSidebar({
           </nav>
         </ScrollArea>
 
-        {/* Sticky Notes button */}
+        {/* Sticky Notes button (centered) */}
         {user && (
-          <div className={`shrink-0 border-sidebar-border border-t p-2 ${collapsed ? 'flex justify-center' : ''}`}>
+          <div className="shrink-0 border-sidebar-border border-t p-2 flex justify-center">
             <button
               onClick={() => setStickyModalOpen(true)}
               className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all ${

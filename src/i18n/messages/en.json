@@ -3919,7 +3919,9 @@
     "colorGreen": "Green",
     "colorRose": "Rose",
     "colorPurple": "Purple",
-    "colorOrange": "Orange"
+    "colorOrange": "Orange",
+    "cannotDeleteActiveAuto": "Cannot delete active auto-generated tasks. Complete the task first, then delete it.",
+    "autoDeletedSuccess": "Completed auto-task hidden successfully"
   },
   "platformAnnouncements": {
     "title": "Celebrations & Public Announcements",

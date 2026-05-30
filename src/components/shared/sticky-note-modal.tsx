@@ -52,8 +52,8 @@ export default function StickyNoteModal({ open, onClose }: StickyNoteModalProps)
         body: JSON.stringify({
           content: content.trim(),
           color,
-          position_x: Math.floor((window.innerWidth - 256) / 2),
-          position_y: Math.floor((window.innerHeight - 200) / 2),
+          position_x: Math.floor(20 + Math.random() * 100),
+          position_y: Math.floor(80 + Math.random() * 80),
         }),
       });
 

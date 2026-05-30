@@ -553,6 +553,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   // We use a flag to skip the re-fetch if a toggle is in progress.
   // -------------------------------------------------------
   const togglingInProgress = useRef(false);
+  const addingInProgress = useRef(false);
 
   useEffect(() => {
     const channel = supabase
@@ -566,8 +567,8 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           filter: `user_id=eq.${profile.id}`,
         },
         () => {
-          // Skip re-fetch if a toggle is in progress to avoid overwriting optimistic state
-          if (togglingInProgress.current) return;
+          // Skip re-fetch if a toggle or add is in progress to avoid overwriting optimistic state
+          if (togglingInProgress.current || addingInProgress.current) return;
           fetchTodos();
         }
       )
@@ -659,6 +660,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
     }
 
     setAdding(true);
+    addingInProgress.current = true;
 
     // Optimistic: build the new todo locally for instant appearance
     const tempId = `temp-${Date.now()}`;
@@ -738,6 +740,8 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       toast.error(t('common.error'));
     } finally {
       setAdding(false);
+      // Clear adding flag after a short delay to let realtime events settle
+      setTimeout(() => { addingInProgress.current = false; }, 500);
     }
   };
 
@@ -906,7 +910,25 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   // Delete todo
   // -------------------------------------------------------
   const handleDelete = async (todoId: string) => {
-    // Optimistic: remove from UI immediately
+    // Check if this is an auto-generated todo
+    const isAuto = todoId.startsWith('auto-quiz-') || todoId.startsWith('auto-assignment-');
+
+    if (isAuto) {
+      // Find the auto todo to check its completion status
+      const autoTodo = autoTodos.find(at => at.id === todoId);
+      if (autoTodo && !autoTodo.completed) {
+        toast.error(t('todos.cannotDeleteActiveAuto'));
+        setDeleteConfirmId(null);
+        return;
+      }
+      // For completed auto-todos: remove from local state only (they're generated from quizzes/assignments)
+      setAutoTodos((prev) => prev.filter((item) => item.id !== todoId));
+      setDeleteConfirmId(null);
+      toast.success(t('todos.autoDeletedSuccess'));
+      return;
+    }
+
+    // Manual todo: delete via API
     const previousTodos = todos;
     setTodos((prev) => prev.filter((item) => item.id !== todoId));
     setDeleteConfirmId(null);
@@ -1496,7 +1518,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           {/* Status tabs */}
           <div className="flex gap-1 rounded-lg bg-muted/50 p-1">
             {([
-              { key: 'all' as StatusFilter, label: t('todos.all'), count: todos.length },
+              { key: 'all' as StatusFilter, label: t('todos.all'), count: allDisplayTodos.length },
               { key: 'active' as StatusFilter, label: t('todos.active'), count: pendingCount },
               { key: 'completed' as StatusFilter, label: t('todos.completed'), count: completedCount },
             ]).map((opt) => (

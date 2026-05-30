@@ -3919,7 +3919,9 @@
     "colorGreen": "أخضر",
     "colorRose": "وردي",
     "colorPurple": "بنفسجي",
-    "colorOrange": "برتقالي"
+    "colorOrange": "برتقالي",
+    "cannotDeleteActiveAuto": "لا يمكن حذف المهام التلقائية النشطة. أكمل المهمة أولاً ثم احذفها.",
+    "autoDeletedSuccess": "تم إخفاء المهمة التلقائية المكتملة"
   },
   "platformAnnouncements": {
     "title": "المعايدات والإعلانات العامة",

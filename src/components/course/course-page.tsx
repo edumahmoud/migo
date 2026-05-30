@@ -356,6 +356,38 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   }, [role, subject?.teacher_id]);
 
   // -------------------------------------------------------
+  // Real-time subscription for categories — instant updates
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (role !== 'teacher' || !subject?.teacher_id) return;
+    const channel = supabase
+      .channel(`categories-course-${subject.teacher_id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'categories', filter: `teacher_id=eq.${subject.teacher_id}` }, (payload) => {
+        const newCat = payload.new as Category;
+        if (newCat) {
+          setCategories(prev => {
+            if (prev.some(c => c.id === newCat.id)) return prev;
+            return [...prev, newCat];
+          });
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'categories', filter: `teacher_id=eq.${subject.teacher_id}` }, (payload) => {
+        const updated = payload.new as Category;
+        if (updated) {
+          setCategories(prev => prev.map(c => c.id === updated.id ? updated : c));
+        }
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'categories' }, (payload) => {
+        const old = payload.old as { id: string };
+        if (old?.id) {
+          setCategories(prev => prev.filter(c => c.id !== old.id));
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [role, subject?.teacher_id]);
+
+  // -------------------------------------------------------
   // Supabase Realtime: subscribe to subject metadata changes
   // (e.g., teacher pauses/unpauses from another session, or
   //  co-teacher changes the state)
@@ -375,18 +407,20 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   }, [subject?.id]);
 
   // -------------------------------------------------------
-  // Listen for subject-pause-changed custom event from
-  // another browser tab (BroadcastChannel-like behavior)
+  // BroadcastChannel for cross-tab pause/unpause sync
+  // (works on same device/browser across tabs)
   // -------------------------------------------------------
   useEffect(() => {
-    const handlePauseChanged = (e: Event) => {
-      const { subjectId, isPaused } = (e as CustomEvent).detail;
+    if (!subject?.id) return;
+    const bc = new BroadcastChannel('subject-pause-sync');
+    const handleMessage = (e: MessageEvent) => {
+      const { subjectId, isPaused } = e.data || {};
       if (subjectId === subject?.id && typeof isPaused === 'boolean') {
         setSubject(prev => prev ? { ...prev, is_paused: isPaused } : prev);
       }
     };
-    window.addEventListener('subject-pause-changed', handlePauseChanged);
-    return () => window.removeEventListener('subject-pause-changed', handlePauseChanged);
+    bc.addEventListener('message', handleMessage);
+    return () => { bc.removeEventListener('message', handleMessage); bc.close(); };
   }, [subject?.id]);
 
   // -------------------------------------------------------
@@ -555,8 +589,15 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
         toast.error(newPaused ? t('course.toastSubjectPauseFailed') : t('course.toastSubjectActivateFailed'));
       } else {
         setSubject(prev => prev ? { ...prev, is_paused: newPaused } : prev);
-        // Dispatch custom event for immediate cross-component updates (subjects-section, etc.)
+        // Broadcast via BroadcastChannel (cross-tab) + CustomEvent (same-tab)
         if (typeof window !== 'undefined') {
+          // Cross-tab sync
+          try {
+            const bc = new BroadcastChannel('subject-pause-sync');
+            bc.postMessage({ subjectId: subject.id, isPaused: newPaused });
+            bc.close();
+          } catch { /* BroadcastChannel not supported */ }
+          // Same-tab sync (subjects-section, etc.)
           window.dispatchEvent(new CustomEvent('subject-pause-changed', { detail: { subjectId: subject.id, isPaused: newPaused } }));
         }
         toast.success(newPaused ? t('course.toastSubjectPaused') : t('course.toastSubjectActivated'));
