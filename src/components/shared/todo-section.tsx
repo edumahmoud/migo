@@ -651,6 +651,37 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
     }
 
     setAdding(true);
+
+    // Optimistic: build the new todo locally for instant appearance
+    const tempId = `temp-${Date.now()}`;
+    const dueDate = newDueDate ? new Date(newDueDate).toISOString() : null;
+    const subjectName = newSubjectId
+      ? subjects.find((s) => s.id === newSubjectId)?.name || null
+      : null;
+
+    const optimisticTodo: UserTodo = {
+      id: tempId,
+      user_id: profile.id,
+      title,
+      description: newDescription.trim() || null,
+      priority: newPriority,
+      category: newCategory,
+      due_date: dueDate,
+      subject_id: newSubjectId || null,
+      subject_name: subjectName,
+      source: 'manual',
+      completed: false,
+      completed_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Add to local state immediately (no refetch needed)
+    setTodos((prev) => [optimisticTodo, ...prev]);
+    toast.success(t('todos.addedSuccess'));
+    setAddModalOpen(false);
+    resetAddForm();
+
     try {
       const insertData: Record<string, unknown> = {
         user_id: profile.id,
@@ -658,24 +689,44 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
         description: newDescription.trim() || null,
         priority: newPriority,
         category: newCategory,
-        due_date: newDueDate ? new Date(newDueDate).toISOString() : null,
+        due_date: dueDate,
         subject_id: newSubjectId || null,
         source: 'manual',
         completed: false,
       };
 
-      const { error } = await supabase.from('user_todos').insert(insertData);
+      const { data, error } = await supabase.from('user_todos').insert(insertData).select();
 
       if (error) {
         console.error('Error adding todo:', error);
+        // Revert optimistic insert on error
+        setTodos((prev) => prev.filter((t) => t.id !== tempId));
         toast.error(t('common.error'));
-      } else {
-        toast.success(t('todos.addedSuccess'));
-        setAddModalOpen(false);
-        resetAddForm();
-        fetchTodos();
+      } else if (data && data.length > 0) {
+        // Replace optimistic entry with real data from server
+        const row = data[0] as Record<string, unknown>;
+        const realTodo: UserTodo = {
+          id: row.id as string,
+          user_id: row.user_id as string,
+          title: row.title as string,
+          description: (row.description as string) || null,
+          priority: row.priority as TodoPriority,
+          category: row.category as TodoCategory,
+          due_date: (row.due_date as string) || null,
+          subject_id: (row.subject_id as string) || null,
+          subject_name:
+            subjectName, // keep the locally resolved name
+          source: (row.source as TodoSource) || 'manual',
+          completed: row.completed as boolean,
+          completed_at: (row.completed_at as string) || null,
+          created_at: row.created_at as string,
+          updated_at: row.updated_at as string,
+        };
+        setTodos((prev) => prev.map((t) => (t.id === tempId ? realTodo : t)));
       }
     } catch {
+      // Revert optimistic insert on unexpected error
+      setTodos((prev) => prev.filter((t) => t.id !== tempId));
       toast.error(t('common.error'));
     } finally {
       setAdding(false);

@@ -1483,11 +1483,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     type="button"
                     onClick={() => setQuizShowResults(!quizShowResults)}
                     disabled={savingQuiz || generatingFromAi}
-                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-end ${
+                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all ${
                       quizShowResults
                         ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
+                    dir={direction}
                   >
                     <EyeIcon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{t('exams.showResultsLabel')}</span>
@@ -1497,11 +1498,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     type="button"
                     onClick={() => setQuizAllowRetake(!quizAllowRetake)}
                     disabled={savingQuiz || generatingFromAi}
-                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-end ${
+                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all ${
                       quizAllowRetake
                         ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
+                    dir={direction}
                   >
                     <RotateCcw className="h-4 w-4 shrink-0" />
                     <span className="truncate">{t('exams.allowRetakeLabel')}</span>
@@ -1511,11 +1513,12 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
                     type="button"
                     onClick={() => setQuizShuffleQuestions(!quizShuffleQuestions)}
                     disabled={savingQuiz || generatingFromAi}
-                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all text-end ${
+                    className={`flex items-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-all ${
                       quizShuffleQuestions
                         ? 'border-teal-400 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500'
                         : 'border-border text-muted-foreground hover:bg-muted/50'
                     }`}
+                    dir={direction}
                   >
                     <Shuffle className="h-4 w-4 shrink-0" />
                     <span className="truncate">{t('exams.shuffleLabel')}</span>
@@ -1982,7 +1985,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           )}
 
           {/* Quiz settings toggles */}
-          <div className="flex items-center gap-3 text-xs mb-3">
+          <div className="flex items-center gap-3 text-xs mb-3" dir={direction}>
             <button
               onClick={() => handleToggleQuizSetting(quiz.id, 'show_results', quiz.show_results !== false)}
               disabled={togglingQuizId === quiz.id}

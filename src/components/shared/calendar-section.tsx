@@ -223,6 +223,35 @@ function parseTimeToMinutes(time: string): number {
 }
 
 // -------------------------------------------------------
+// Helper: check if a quiz event is currently running
+// A quiz is running if:
+//   scheduled_date + scheduled_time <= now (has started)
+//   AND scheduled_date + scheduled_time + duration > now (not yet ended)
+// -------------------------------------------------------
+function isQuizEventRunning(
+  scheduledDate: string | null | undefined,
+  scheduledTime: string | null | undefined,
+  duration: number | null | undefined
+): boolean {
+  if (!scheduledDate || !scheduledTime) return false;
+  const now = new Date();
+  const [hours, minutes] = scheduledTime.split(':').map(Number);
+  const startDate = new Date(scheduledDate);
+  startDate.setHours(hours, minutes, 0, 0);
+  const startMs = startDate.getTime();
+
+  let endMs: number;
+  if (duration && duration > 0) {
+    endMs = startMs + duration * 60 * 1000;
+  } else {
+    endMs = startMs + 1000;
+  }
+
+  const nowMs = now.getTime();
+  return nowMs >= startMs && nowMs < endMs;
+}
+
+// -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function CalendarSection({ profile }: { profile: UserProfile }) {
@@ -240,6 +269,9 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedBadge, setExpandedBadge] = useState<CalendarEventType | 'all'>('all');
+
+  // Clock tick for running quiz re-evaluation
+  const [tick, setTick] = useState(Date.now());
 
   const weekStartsOn = isRTL ? 6 : 0;
   const weekDayNames = useMemo(() => getWeekDayNames(locale, weekStartsOn), [locale, weekStartsOn]);
@@ -435,6 +467,16 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
       );
     }, 30_000); // every 30 seconds
 
+    return () => clearInterval(interval);
+  }, []);
+
+  // -------------------------------------------------------
+  // Tick for running quiz badge re-evaluation
+  // -------------------------------------------------------
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(Date.now());
+    }, 30_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -770,6 +812,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   // -------------------------------------------------------
   const renderWeekView = () => (
     <div className="space-y-2">
+      {void tick}{/* re-evaluate running quiz badges on tick */}
       {weekDays.map((day) => {
         const dayEvents = eventsByDate[day.date] || [];
         const isPast = isDatePast(day.date);
@@ -846,8 +889,24 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       {isPast && !isToday && !event.completed && event.type === 'quiz' && (
                         <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-muted-foreground/60 text-white">{t('exams.finished')}</span>
                       )}
-                      {!isPast && !event.completed && (
-                        <span className={`shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 text-white ${event.type === 'quiz' ? 'bg-rose-500' : event.type === 'assignment' ? 'bg-amber-500' : event.type === 'lecture' ? 'bg-sky-500' : event.type === 'poll' ? 'bg-violet-500' : event.type === 'attendance' ? 'bg-teal-500' : 'bg-sky-500'}`}>{event.type === 'quiz' ? t('calendar.upcoming') : t('calendar.upcoming')}</span>
+                      {!isPast && !event.completed && event.type === 'quiz' && (() => {
+                        const quizMeta = event.meta as { duration?: number; scheduled_date?: string; scheduled_time?: string } | null;
+                        const running = isQuizEventRunning(quizMeta?.scheduled_date, quizMeta?.scheduled_time, quizMeta?.duration);
+                        if (running) {
+                          return (
+                            <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white animate-pulse">
+                              <span className="relative inline-flex h-1.5 w-1.5 me-0.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+                              </span>
+                              {t('calendar.inProgress')}
+                            </span>
+                          );
+                        }
+                        return <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.upcoming')}</span>;
+                      })()}
+                      {!isPast && !event.completed && event.type !== 'quiz' && (
+                        <span className={`shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 text-white ${event.type === 'assignment' ? 'bg-amber-500' : event.type === 'lecture' ? 'bg-sky-500' : event.type === 'poll' ? 'bg-violet-500' : event.type === 'attendance' ? 'bg-teal-500' : 'bg-sky-500'}`}>{t('calendar.upcoming')}</span>
                       )}
                       {event.completed && (
                         <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white">{t('calendar.completed')}</span>
@@ -869,6 +928,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   // -------------------------------------------------------
   const renderDayDetail = () => {
     if (!selectedDate) return null;
+    void tick; // re-evaluate running quiz badges on tick
     const dateObj = new Date(selectedDate + 'T00:00:00');
     const localeStr = locale === 'en' ? 'en-US' : 'ar-SA';
     const formattedDate = dateObj.toLocaleDateString(localeStr, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -956,9 +1016,22 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       {event.completed && (
                         <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white">{t('calendar.completed')}</span>
                       )}
-                      {!isOverdue && !event.completed && !isPast && event.type === 'quiz' && (
-                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.upcoming')}</span>
-                      )}
+                      {!isOverdue && !event.completed && !isPast && event.type === 'quiz' && (() => {
+                        const quizMeta = event.meta as { duration?: number; scheduled_date?: string; scheduled_time?: string } | null;
+                        const running = isQuizEventRunning(quizMeta?.scheduled_date, quizMeta?.scheduled_time, quizMeta?.duration);
+                        if (running) {
+                          return (
+                            <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white animate-pulse">
+                              <span className="relative inline-flex h-1.5 w-1.5 me-0.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+                              </span>
+                              {t('calendar.inProgress')}
+                            </span>
+                          );
+                        }
+                        return <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.upcoming')}</span>;
+                      })()}
                       {!isOverdue && !event.completed && !isPast && event.type !== 'quiz' && (
                         <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-sky-500 text-white">{t('calendar.upcoming')}</span>
                       )}

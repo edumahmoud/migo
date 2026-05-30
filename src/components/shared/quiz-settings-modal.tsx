@@ -70,9 +70,13 @@ function ToggleSwitch({
   disabled?: boolean;
   dir: 'rtl' | 'ltr';
 }) {
+  const isRTL = dir === 'rtl';
+
+  // RTL: OFF = thumb on right (translate-x-5), ON = thumb on left (translate-x-0)
+  // LTR: OFF = thumb on left (translate-x-0), ON = thumb on right (translate-x-5)
   const thumbTranslate = checked
-    ? dir === 'rtl' ? '-translate-x-5' : 'translate-x-5'
-    : 'translate-x-0';
+    ? isRTL ? 'translate-x-0' : 'translate-x-5'
+    : isRTL ? 'translate-x-5' : 'translate-x-0';
 
   return (
     <div className="flex items-center justify-between rounded-lg border bg-card p-3 gap-3" dir={dir}>
