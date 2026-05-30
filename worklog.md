@@ -581,3 +581,30 @@ Stage Summary:
 - Lint passes with 0 errors
 - Files created: src/stores/ai-generation-store.ts
 - Files modified: src/components/teacher/question-bank-section.tsx, src/i18n/messages/ar.json, src/i18n/messages/en.json
+
+---
+Task ID: 1-7
+Agent: Main
+Task: Multiple UI and functionality improvements across the LMS platform
+
+Work Log:
+- Changed "معلموني" (My Teachers) to "المعلمون" (Teachers) in ar.json and en.json
+- Fixed StudentQuizCountdown in student-dashboard.tsx: replaced raw HH:MM:SS format with human-readable format (e.g., "يبدأ بعد ساعتين و 15 دقيقة"), added "available now" state when countdown reaches zero, added animate-pulse to clock icon
+- Fixed suspended course overlay in subjects-section.tsx: replaced full-card overlay (absolute inset-0) with a top banner (absolute top-0) so course name/details remain fully visible below; added paused description text in card body for students
+- Enhanced notification system:
+  - Enhanced playNotificationFeedback() in notification-store.ts: 3-tone ascending chime (880→1320→1760Hz) with louder gain (0.35/0.30/0.25), added WAV blob fallback for mobile browsers, stronger vibration pattern
+  - Fixed notification-bell.tsx: replaced single store destructuring with individual Zustand selectors for reliable re-renders, added 30-second periodic forced refresh
+  - Added exam/assignment time-arrival notifications in student-dashboard.tsx: 30s interval checks scheduled quizzes and assignments, triggers sound + toast + browser Notification API + store notification entry when time arrives, tracks notified IDs to prevent duplicates
+  - Added translation keys: quizStartingNow, quizStartingNowDesc, assignmentDueNow, assignmentDueNowDesc
+- Removed file extensions from display: created stripFileExtension() in src/lib/utils.ts, applied across files-tab.tsx, lecture-modal.tsx, lectures-tab.tsx, file-upload-indicator.tsx, question-bank-section.tsx; kept file type badges (PDF, DOC, etc.)
+- AI question generation improvements:
+  - Created src/stores/ai-generation-store.ts: Zustand store with localStorage persistence, auto-clears stale tasks after 10 minutes
+  - Modified question-bank-section.tsx: replaced local useState with Zustand store, added prominent stage name display (المرحلة: استخراج النص / إنشاء الأسئلة / حفظ الأسئلة), made progress bar sticky (sticky top-0 z-30 with shadow-md backdrop-blur-sm), added subject name in progress indicator, generation state survives navigation
+  - Added translation keys: stageLabel, stageExtracting, stageGenerating, stageSaving, subjectNameLabel
+- Lint passes with 0 errors
+- Pushed to GitHub (commit 7ff11fe)
+
+Stage Summary:
+- 7 tasks completed, 16 files changed, 692 insertions, 75 deletions
+- New file: src/stores/ai-generation-store.ts
+- Key improvements: notification sound/visibility, exam countdown readability, paused course card clarity, file extension removal, AI generation persistence
