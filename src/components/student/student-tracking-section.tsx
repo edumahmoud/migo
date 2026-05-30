@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabase';
 import { useEffect } from 'react';
 import {
   computeAllMetrics,
+  computeSubjectPerformance,
   type StudentPerformanceMetrics,
   type PerformanceLevel,
   PERFORMANCE_LEVELS,
@@ -50,6 +51,7 @@ import {
   getPercentileLabel,
   DEFAULT_WEIGHTS,
   ATTENDANCE_POINTS,
+  type SubjectPerformanceData,
 } from '@/lib/performance-calculator';
 
 // -------------------------------------------------------
@@ -174,24 +176,8 @@ function CircularProgress({
 }
 
 // -------------------------------------------------------
-// Per-Subject Performance
+// Uses SubjectPerformanceData from centralized engine
 // -------------------------------------------------------
-interface SubjectPerformance {
-  subjectId: string;
-  subjectName: string;
-  examPerformance: number;
-  attendanceScore: number;
-  assignmentCompliance: number;
-  assignmentQuality: number;
-  overallPerformance: number;
-  growthTrend: GrowthTrend;
-  riskLevel: RiskLevel;
-  quizCount: number;
-  totalSessions: number;
-  attendedSessions: number;
-  assignmentCount: number;
-  completedAssignments: number;
-}
 
 // -------------------------------------------------------
 // Activity timeline filter type
@@ -274,178 +260,58 @@ export default function StudentTrackingSection({
     });
   }, [scores, attendanceSessions, attendanceRecords, submissions, assignments, profileId]);
 
-  // ─── Per-subject performance ───
-  const subjectPerformances = useMemo<SubjectPerformance[]>(() => {
-    const subjectMap = new Map<string, SubjectPerformance>();
-
-    // Gather quiz scores per subject
-    scores.forEach(score => {
-      const quiz = quizzes.find(q => q.id === score.quiz_id);
-      const subjectId = quiz?.subject_id || 'unknown';
-      if (!subjectMap.has(subjectId)) {
-        subjectMap.set(subjectId, {
-          subjectId,
-          subjectName: subjectNames[subjectId] || t('student.trackingUnknownSubject'),
-          examPerformance: 0,
-          attendanceScore: 0,
-          assignmentCompliance: 0,
-          assignmentQuality: 0,
-          overallPerformance: 0,
-          growthTrend: 'stable',
-          riskLevel: 'healthy',
-          quizCount: 0,
-          totalSessions: 0,
-          attendedSessions: 0,
-          assignmentCount: 0,
-          completedAssignments: 0,
-        });
-      }
-      const entry = subjectMap.get(subjectId)!;
-      entry.quizCount++;
+  // ─── Per-subject performance using centralized engine ───
+  const subjectPerformances = useMemo<SubjectPerformanceData[]>(() => {
+    // Discover unique subject IDs from all data sources
+    const subjectIds = new Set<string>();
+    scores.forEach(s => {
+      const quiz = quizzes.find(q => q.id === s.quiz_id);
+      if (quiz?.subject_id) subjectIds.add(quiz.subject_id);
+    });
+    attendanceSessions.forEach(s => subjectIds.add(s.subject_id));
+    assignments.forEach(a => {
+      if (a.subject_id) subjectIds.add(a.subject_id);
     });
 
-    // Attendance per subject
-    attendanceSessions.forEach(session => {
-      const subjectId = session.subject_id;
-      if (!subjectMap.has(subjectId)) {
-        subjectMap.set(subjectId, {
-          subjectId,
-          subjectName: subjectNames[subjectId] || t('student.trackingUnknownSubject'),
-          examPerformance: 0,
-          attendanceScore: 0,
-          assignmentCompliance: 0,
-          assignmentQuality: 0,
-          overallPerformance: 0,
-          growthTrend: 'stable',
-          riskLevel: 'healthy',
-          quizCount: 0,
-          totalSessions: 0,
-          attendedSessions: 0,
-          assignmentCount: 0,
-          completedAssignments: 0,
-        });
-      }
-      const entry = subjectMap.get(subjectId)!;
-      entry.totalSessions++;
-      const record = attendanceRecords.find(r => r.session_id === session.id);
-      if (record) {
-        entry.attendedSessions++;
-      }
-    });
+    // Compute per-subject metrics using the centralized engine
+    return Array.from(subjectIds).map(subjectId => {
+      const subjectStudentScores = scores
+        .filter(s => quizzes.find(q => q.id === s.quiz_id)?.subject_id === subjectId)
+        .map(s => ({ score: s.score, total: s.total, completed_at: s.completed_at }));
 
-    // Assignments per subject
-    assignments.forEach(assignment => {
-      const subjectId = assignment.subject_id || 'unknown';
-      if (!subjectMap.has(subjectId)) {
-        subjectMap.set(subjectId, {
-          subjectId,
-          subjectName: subjectNames[subjectId] || t('student.trackingUnknownSubject'),
-          examPerformance: 0,
-          attendanceScore: 0,
-          assignmentCompliance: 0,
-          assignmentQuality: 0,
-          overallPerformance: 0,
-          growthTrend: 'stable',
-          riskLevel: 'healthy',
-          quizCount: 0,
-          totalSessions: 0,
-          attendedSessions: 0,
-          assignmentCount: 0,
-          completedAssignments: 0,
-        });
-      }
-      const entry = subjectMap.get(subjectId)!;
-      entry.assignmentCount++;
-      const submitted = submissions.some(s => s.assignment_id === assignment.id && (s.status === 'graded' || s.status === 'submitted'));
-      if (submitted) {
-        entry.completedAssignments++;
-      }
-    });
+      const subjectSessions = attendanceSessions
+        .filter(s => s.subject_id === subjectId)
+        .map(s => ({ id: s.id }));
 
-    // Calculate subject-level metrics
-    subjectMap.forEach((entry) => {
-      // Exam performance for subject (weighted: total earned / total possible)
-      const subjectScores = scores.filter(s => {
-        const quiz = quizzes.find(q => q.id === s.quiz_id);
-        return quiz?.subject_id === entry.subjectId;
+      const subjectAssignments = assignments
+        .filter(a => (a.subject_id || 'unknown') === subjectId)
+        .map(a => ({ id: a.id, max_score: a.max_score, due_date: a.due_date }));
+
+      const subjectSubmissions = submissions
+        .filter(s => s.student_id === profileId)
+        .map(s => ({
+          assignment_id: s.assignment_id,
+          student_id: s.student_id,
+          score: s.score ?? null,
+          status: s.status,
+          submitted_at: s.submitted_at,
+        }));
+
+      return computeSubjectPerformance({
+        subjectId,
+        subjectName: subjectNames[subjectId] || t('student.trackingUnknownSubject'),
+        studentScores: subjectStudentScores,
+        attendanceSessions: subjectSessions,
+        attendanceRecords: attendanceRecords.map(r => ({
+          session_id: r.session_id,
+          student_id: r.student_id,
+          attendance_status: r.attendance_status,
+        })),
+        studentId: profileId,
+        assignments: subjectAssignments,
+        submissions: subjectSubmissions,
       });
-      if (subjectScores.length > 0) {
-        const totalEarned = subjectScores.reduce((sum, s) => sum + s.score, 0);
-        const totalPossible = subjectScores.reduce((sum, s) => sum + s.total, 0);
-        entry.examPerformance = totalPossible > 0 ? (totalEarned / totalPossible) * 100 : 0;
-      }
-
-      // Attendance score for subject (points-based)
-      const subjectSessions = attendanceSessions.filter(s => s.subject_id === entry.subjectId);
-      let totalPoints = 0;
-      const maxPoints = subjectSessions.length * 100;
-      subjectSessions.forEach(session => {
-        const record = attendanceRecords.find(r => r.session_id === session.id);
-        if (record) {
-          const status = record.attendance_status || 'present';
-          totalPoints += ATTENDANCE_POINTS[status];
-        }
-      });
-      entry.attendanceScore = maxPoints > 0 ? (totalPoints / maxPoints) * 100 : 0;
-
-      // Assignment compliance for subject
-      entry.assignmentCompliance = entry.assignmentCount > 0 ? (entry.completedAssignments / entry.assignmentCount) * 100 : 0;
-
-      // Assignment quality for subject
-      const subjectAssignments = assignments.filter(a => (a.subject_id || 'unknown') === entry.subjectId);
-      const subjectSubmissions = submissions.filter(s => s.student_id === profileId && (s.status === 'graded' || s.status === 'submitted'));
-      let totalEarnedPts = 0;
-      let totalPossiblePts = 0;
-      subjectAssignments.forEach(a => {
-        const sub = subjectSubmissions.find(s => s.assignment_id === a.id);
-        if (sub && sub.score != null) {
-          totalEarnedPts += sub.score;
-        }
-        totalPossiblePts += a.max_score || 0;
-      });
-      entry.assignmentQuality = totalPossiblePts > 0 ? (totalEarnedPts / totalPossiblePts) * 100 : 0;
-
-      // Overall for subject (auto-normalize weights)
-      const parts: { value: number; weight: number }[] = [];
-      if (subjectScores.length > 0) parts.push({ value: entry.examPerformance, weight: DEFAULT_WEIGHTS.examPerformance });
-      if (subjectSessions.length > 0) parts.push({ value: entry.attendanceScore, weight: DEFAULT_WEIGHTS.attendanceScore });
-      if (entry.assignmentCount > 0) {
-        parts.push({ value: entry.assignmentCompliance, weight: DEFAULT_WEIGHTS.assignmentCompliance });
-        parts.push({ value: entry.assignmentQuality, weight: DEFAULT_WEIGHTS.assignmentQuality });
-      }
-      if (parts.length > 0) {
-        const totalWeight = parts.reduce((sum, c) => sum + c.weight, 0);
-        entry.overallPerformance = parts.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight;
-      }
-
-      // Growth trend for subject
-      if (subjectScores.length >= 2) {
-        const sorted = [...subjectScores].sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime());
-        const third = Math.max(1, Math.floor(sorted.length / 3));
-        const earliest = sorted.slice(0, third);
-        const recent = sorted.slice(-third);
-        const earliestAvg = earliest.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / earliest.length;
-        const recentAvg = recent.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / recent.length;
-        const ratio = earliestAvg > 0 ? recentAvg / earliestAvg : 1;
-        if (ratio >= 1.1) entry.growthTrend = 'improving';
-        else if (ratio >= 0.9) entry.growthTrend = 'stable';
-        else entry.growthTrend = 'declining';
-      }
-
-      // Risk level for subject
-      let riskScore = 0;
-      if (entry.attendanceScore < 50) riskScore += 3;
-      else if (entry.attendanceScore < 70) riskScore += 1;
-      if (entry.overallPerformance < 60) riskScore += 3;
-      else if (entry.overallPerformance < 70) riskScore += 1;
-      if (entry.growthTrend === 'declining') riskScore += 2;
-      if (riskScore >= 6) entry.riskLevel = 'atRisk';
-      else if (riskScore >= 4) entry.riskLevel = 'concern';
-      else if (riskScore >= 2) entry.riskLevel = 'monitor';
-      else entry.riskLevel = 'healthy';
     });
-
-    return Array.from(subjectMap.values());
   }, [scores, quizzes, attendanceSessions, attendanceRecords, submissions, assignments, profileId, subjectNames, t]);
 
   // ─── Attendance by subject (with attendance_status support) ───

@@ -166,10 +166,14 @@ export interface StudentPerformanceMetrics {
 export function calculateExamPerformance(
   scores: Array<{ score: number; total: number }>
 ): { value: number; totalEarned: number; totalPossible: number } {
-  const totalEarned = scores.reduce((sum, s) => sum + s.score, 0);
-  const totalPossible = scores.reduce((sum, s) => sum + s.total, 0);
+  if (!scores || scores.length === 0) {
+    return { value: 0, totalEarned: 0, totalPossible: 0 };
+  }
+  const totalEarned = scores.reduce((sum, s) => sum + (s.score || 0), 0);
+  const totalPossible = scores.reduce((sum, s) => sum + (s.total || 0), 0);
   const value = totalPossible > 0 ? (totalEarned / totalPossible) * 100 : 0;
-  return { value, totalEarned, totalPossible };
+  // Clamp to [0, 100] to guard against corrupted data (negative scores, etc.)
+  return { value: Math.max(0, Math.min(100, value)), totalEarned, totalPossible };
 }
 
 // -------------------------------------------------------
@@ -203,8 +207,8 @@ export function calculateAttendanceScore(params: {
 
   const attended = studentRecords.length;
   const value = maxPoints > 0 ? (totalPoints / maxPoints) * 100 : 0;
-
-  return { value, attended, total: sessions.length, lateCount, onTimeCount };
+  // Clamp to [0, 100] to guard against corrupted data
+  return { value: Math.max(0, Math.min(100, value)), attended, total: sessions.length, lateCount, onTimeCount };
 }
 
 // -------------------------------------------------------
@@ -221,7 +225,7 @@ export function calculateAssignmentCompliance(params: {
     s => s.student_id === studentId && (s.status === 'graded' || s.status === 'submitted')
   ).length;
   const value = params.totalAssignments > 0 ? (completed / params.totalAssignments) * 100 : 0;
-  return { value, completed, total: params.totalAssignments };
+  return { value: Math.max(0, Math.min(100, value)), completed, total: params.totalAssignments };
 }
 
 // -------------------------------------------------------
@@ -259,7 +263,7 @@ export function calculateAssignmentQuality(params: {
   });
 
   const value = totalPossible > 0 ? (totalEarned / totalPossible) * 100 : 0;
-  return { value, totalEarned, totalPossible, missedDeadlines };
+  return { value: Math.max(0, Math.min(100, value)), totalEarned, totalPossible, missedDeadlines };
 }
 
 // -------------------------------------------------------
@@ -280,7 +284,10 @@ export function calculateOverallPerformance(components: {
   if (components.assignmentQuality !== undefined) parts.push({ value: components.assignmentQuality, weight: PERFORMANCE_WEIGHTS.assignmentQuality });
   if (parts.length === 0) return 0;
   const totalWeight = parts.reduce((sum, c) => sum + c.weight, 0);
-  return parts.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight;
+  if (totalWeight === 0) return 0;
+  const result = parts.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight;
+  // Clamp to [0, 100] to guard against out-of-range component values
+  return Math.max(0, Math.min(100, result));
 }
 
 // -------------------------------------------------------
@@ -294,8 +301,9 @@ export function calculateEfficiency(params: {
 }): { effortScore: number; resultScore: number; efficiency: number; efficiencyLevel: EfficiencyLevel } {
   const effortScore = (params.attendanceScore * EFFICIENCY_WEIGHTS.attendanceContribution) + (params.assignmentCompliance * EFFICIENCY_WEIGHTS.complianceContribution);
   const resultScore = params.overallPerformance;
+  // Guard: if effort is 0 or negative, efficiency is 0 (insufficient data)
   const efficiency = effortScore >= EFFICIENCY_THRESHOLDS.insufficientEffort
-    ? Math.min((resultScore / effortScore) * 100, 100)
+    ? Math.min(Math.max(0, (resultScore / effortScore) * 100), 100)
     : 0;
   const efficiencyLevel = getEfficiencyLevel(efficiency, effortScore);
   return { effortScore, resultScore, efficiency, efficiencyLevel };
@@ -327,9 +335,11 @@ export function calculateDisciplineScore(params: {
     ? Math.max(0, 100 - (missedDeadlines / totalAssignments) * 100)
     : 100;
 
-  return (attendanceComponent * DISCIPLINE_WEIGHTS.attendanceConsistency)
+  const raw = (attendanceComponent * DISCIPLINE_WEIGHTS.attendanceConsistency)
     + (onTimeRate * DISCIPLINE_WEIGHTS.onTimeSubmissions)
     + (deadlineRespect * DISCIPLINE_WEIGHTS.deadlineRespect);
+  // Clamp to [0, 100] to guard against edge cases
+  return Math.max(0, Math.min(100, raw));
 }
 
 // -------------------------------------------------------
@@ -753,51 +763,53 @@ export function computeCohortAnalytics(
     };
   }
 
-  const avgPerformance = allMetrics.reduce((sum, m) => sum + m.overallPerformance, 0) / totalStudents;
-  const avgAttendance = allMetrics.reduce((sum, m) => sum + m.attendanceScore, 0) / totalStudents;
-  const avgDiscipline = allMetrics.reduce((sum, m) => sum + m.disciplineScore, 0) / totalStudents;
-  const avgEfficiency = allMetrics.reduce((sum, m) => sum + m.efficiency, 0) / totalStudents;
+  // Single-pass computation for O(n) scalability (safe for 1000+ students)
+  let sumPerformance = 0;
+  let sumAttendance = 0;
+  let sumDiscipline = 0;
+  let sumEfficiency = 0;
+  const perfDist: CohortPerformanceDistribution = { excellent: 0, veryGood: 0, good: 0, acceptable: 0, weak: 0 };
+  const riskDist: CohortRiskDistribution = { healthy: 0, monitor: 0, concern: 0, atRisk: 0 };
+  const growthDist: CohortGrowthDistribution = { improving: 0, stable: 0, declining: 0 };
+  const discDist: CohortDisciplineDistribution = { high: 0, medium: 0, low: 0 };
+  let atRiskCount = 0;
+  let topPerformerCount = 0;
 
-  const performanceDistribution: CohortPerformanceDistribution = {
-    excellent: allMetrics.filter(m => m.performanceLevel === 'excellent').length,
-    veryGood: allMetrics.filter(m => m.performanceLevel === 'veryGood').length,
-    good: allMetrics.filter(m => m.performanceLevel === 'good').length,
-    acceptable: allMetrics.filter(m => m.performanceLevel === 'acceptable').length,
-    weak: allMetrics.filter(m => m.performanceLevel === 'weak').length,
-  };
+  for (const m of allMetrics) {
+    sumPerformance += m.overallPerformance;
+    sumAttendance += m.attendanceScore;
+    sumDiscipline += m.disciplineScore;
+    sumEfficiency += m.efficiency;
 
-  const riskDistribution: CohortRiskDistribution = {
-    healthy: allMetrics.filter(m => m.riskLevel === 'healthy').length,
-    monitor: allMetrics.filter(m => m.riskLevel === 'monitor').length,
-    concern: allMetrics.filter(m => m.riskLevel === 'concern').length,
-    atRisk: allMetrics.filter(m => m.riskLevel === 'atRisk').length,
-  };
+    // Performance distribution
+    perfDist[m.performanceLevel]++;
 
-  const growthDistribution: CohortGrowthDistribution = {
-    improving: allMetrics.filter(m => m.growthTrend === 'improving').length,
-    stable: allMetrics.filter(m => m.growthTrend === 'stable').length,
-    declining: allMetrics.filter(m => m.growthTrend === 'declining').length,
-  };
+    // Risk distribution
+    riskDist[m.riskLevel]++;
+    if (m.riskLevel === 'atRisk' || m.riskLevel === 'concern') atRiskCount++;
 
-  const disciplineDistribution: CohortDisciplineDistribution = {
-    high: allMetrics.filter(m => m.disciplineScore >= 80).length,
-    medium: allMetrics.filter(m => m.disciplineScore >= 60 && m.disciplineScore < 80).length,
-    low: allMetrics.filter(m => m.disciplineScore < 60).length,
-  };
+    // Growth distribution
+    growthDist[m.growthTrend]++;
 
-  const atRiskCount = allMetrics.filter(m => m.riskLevel === 'atRisk' || m.riskLevel === 'concern').length;
-  const topPerformerCount = allMetrics.filter(m => m.performanceLevel === 'excellent').length;
+    // Discipline distribution
+    if (m.disciplineScore >= 80) discDist.high++;
+    else if (m.disciplineScore >= 60) discDist.medium++;
+    else discDist.low++;
+
+    // Top performer
+    if (m.performanceLevel === 'excellent') topPerformerCount++;
+  }
 
   return {
     totalStudents,
-    avgPerformance,
-    avgAttendance,
-    avgDiscipline,
-    avgEfficiency,
-    performanceDistribution,
-    riskDistribution,
-    growthDistribution,
-    disciplineDistribution,
+    avgPerformance: sumPerformance / totalStudents,
+    avgAttendance: sumAttendance / totalStudents,
+    avgDiscipline: sumDiscipline / totalStudents,
+    avgEfficiency: sumEfficiency / totalStudents,
+    performanceDistribution: perfDist,
+    riskDistribution: riskDist,
+    growthDistribution: growthDist,
+    disciplineDistribution: discDist,
     atRiskCount,
     topPerformerCount,
   };

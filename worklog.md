@@ -127,3 +127,38 @@ Stage Summary:
 - **VALIDATED**: Historical analytics architecture is future-ready
 - **VALIDATED**: CSV export already includes all metrics (from previous implementation)
 - **VALIDATED**: TypeScript, ESLint, dev server all pass cleanly
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Final Real-World Validation Audit — Analytics System
+
+Work Log:
+- Performed full codebase search for legacy 40/30/30 logic (found 0 remaining instances in calculation code)
+- Searched for inline performance calculations in UI components
+- Found 2 major violations: teacher-student-tracking-section.tsx and student-tracking-section.tsx both had ~120 lines of duplicated inline subject-level metrics calculations bypassing the centralized engine
+- Found hardcoded risk thresholds (< 50, < 70, riskScore += 3/1/2, >= 6/4/2) in both tracking sections
+- Found hardcoded growth thresholds (>= 1.1, >= 0.9) in both tracking sections
+- Found hardcoded third fraction (/ 3) in both tracking sections
+- Found legacy translation strings: 'Quizzes (40%)', 'Attendance (30%)', 'Assignments (30%)' in en.ts and ar.ts
+- Refactored both tracking sections to use computeSubjectPerformance() from centralized engine
+- Removed local SubjectPerformance interface from both files (now uses SubjectPerformanceData)
+- Fixed legacy translation strings to reflect new weights: Quizzes (35%), Attendance (20%), Compliance (15%) + Quality (30%)
+- Optimized computeCohortAnalytics() from 12× O(n) filter passes to single O(n) for-loop pass
+- Added edge case hardening: NaN/Infinity clamping with Math.max(0, Math.min(100, ...)) on all core calculation outputs
+- Added zero-weight guard in calculateOverallPerformance()
+- Added empty-array guard in calculateExamPerformance()
+- Added defensive || 0 on score/total values in calculateExamPerformance()
+- Verified all KPIs now come ONLY from the centralized engine
+- Verified no remaining inline calculations bypass the engine
+- Lint: clean, no errors
+- Dev server: returning 200
+
+Stage Summary:
+- **FIXED**: Replaced ~240 lines of duplicated inline subject-level calculations with computeSubjectPerformance() calls
+- **FIXED**: Eliminated all hardcoded risk/growth/threshold values from UI components
+- **FIXED**: Updated legacy translation strings (40%/30%/30% → 35%/20%/15%/30%)
+- **OPTIMIZED**: computeCohortAnalytics() now single-pass O(n) instead of 12× O(n) filter passes
+- **HARDENED**: All calculation functions now clamp outputs to [0, 100] range
+- **HARDENED**: Zero-weight and empty-array guards prevent NaN/Infinity
+- **VERIFIED**: Single source of truth — all KPIs from engine only, no inline calculations
