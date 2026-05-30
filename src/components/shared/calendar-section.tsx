@@ -846,6 +846,9 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       {isPast && !isToday && !event.completed && event.type === 'quiz' && (
                         <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-muted-foreground/60 text-white">{t('exams.finished')}</span>
                       )}
+                      {!isPast && !event.completed && (
+                        <span className={`shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 text-white ${event.type === 'quiz' ? 'bg-rose-500' : event.type === 'assignment' ? 'bg-amber-500' : event.type === 'lecture' ? 'bg-sky-500' : event.type === 'poll' ? 'bg-violet-500' : event.type === 'attendance' ? 'bg-teal-500' : 'bg-sky-500'}`}>{event.type === 'quiz' ? t('calendar.upcoming') : t('calendar.upcoming')}</span>
+                      )}
                       {event.completed && (
                         <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white">{t('calendar.completed')}</span>
                       )}
@@ -953,8 +956,11 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       {event.completed && (
                         <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white">{t('calendar.completed')}</span>
                       )}
-                      {!isOverdue && !event.completed && !isPast && (
-                        <span className={`shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 text-white ${event.type === 'quiz' ? 'bg-rose-500' : 'bg-sky-500'}`}>{event.type === 'quiz' ? t('exams.quiz') : t('calendar.upcoming')}</span>
+                      {!isOverdue && !event.completed && !isPast && event.type === 'quiz' && (
+                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.upcoming')}</span>
+                      )}
+                      {!isOverdue && !event.completed && !isPast && event.type !== 'quiz' && (
+                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-sky-500 text-white">{t('calendar.upcoming')}</span>
                       )}
                       {!isOverdue && !event.completed && isPast && event.type === 'quiz' && (
                         <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-muted-foreground/60 text-white">{t('exams.finished')}</span>
@@ -971,13 +977,13 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       {/* Todo: priority badge */}
                       {isTodo && priorityInfo && (
                         <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium rounded-full px-1.5 py-0.5 ${priorityInfo.className}`}>
-                          {priorityInfo.label} {todoMeta!.priority}
+                          {priorityInfo.label} {t(`todos.${todoMeta!.priority}`)}
                         </span>
                       )}
                       {/* Todo: category badge */}
                       {isTodo && categoryInfo && todoMeta!.category && (
                         <span className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${categoryInfo.className}`}>
-                          {todoMeta!.category}
+                          {todoMeta!.category === 'task' ? t('todos.taskCat') : t(`todos.${todoMeta!.category}`)}
                         </span>
                       )}
                     </div>

@@ -411,7 +411,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 id: `auto-quiz-${q.id}`,
                 title: q.title || '',
                 description: null,
-                category: 'task' as TodoCategory,
+                category: 'assignment' as TodoCategory,
                 due_date: q.scheduled_date,
                 subject_id: q.subject_id,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
@@ -543,7 +543,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       user_id: profile.id,
       title: at.title,
       description: at.description,
-      priority: 'medium' as TodoPriority,
+      priority: 'task' as TodoPriority,
       category: at.category,
       due_date: at.due_date,
       subject_id: at.subject_id,
@@ -841,11 +841,11 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   // -------------------------------------------------------
   // Category badge renderer
   // -------------------------------------------------------
-  const renderCategoryBadge = (category: TodoCategory) => (
+  const renderCategoryBadge = (category: TodoCategory, isAutoQuiz?: boolean) => (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${categoryBadgeClasses[category]}`}
     >
-      {category === 'task' ? t('todos.taskCat') : t(`todos.${category}`)}
+      {isAutoQuiz ? t('todos.submission') : category === 'task' ? t('todos.taskCat') : t(`todos.${category}`)}
     </span>
   );
 
@@ -964,7 +964,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             {/* Badges & meta row */}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {renderPriorityBadge(todo.priority)}
-              {renderCategoryBadge(todo.category)}
+              {renderCategoryBadge(todo.category, todo.source === 'auto' && todo.id.startsWith('auto-quiz'))}
 
               {/* Due date */}
               {todo.due_date ? (

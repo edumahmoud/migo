@@ -433,7 +433,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
     try {
       const dueDateValue = toUTCISOString(currentDueDatetime);
 
-      const { error } = await supabase.from('assignments').insert({
+      const { data: newAssignment, error } = await supabase.from('assignments').insert({
         subject_id: subjectId,
         teacher_id: profile.id,
         title: currentTitle,
@@ -442,10 +442,14 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         max_score: currentMaxScore,
         allow_file_submission: currentAllowFile,
         show_grade: currentShowGrade,
-      });
+      }).select().single();
       if (error) toast.error(t('errorCreatingAssignment'));
       else {
         toast.success(t('assignmentCreatedSuccess'));
+        // Optimistic: add to local state immediately (no full refetch)
+        if (newAssignment) {
+          setAssignments((prev) => [newAssignment as Assignment, ...prev]);
+        }
         // Send notification to all students in the subject
         try {
           const { getCachedAuthHeaders } = await import('@/lib/client-auth');
@@ -468,7 +472,6 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
         setNewMaxScore(100);
         setNewAllowFile(true);
         setNewShowGrade(true);
-        fetchAssignments();
       }
     } catch {
       toast.error(tc('unexpectedError'));
@@ -526,18 +529,24 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
       else {
         toast.success(t('assignmentEditedSuccess'));
         setEditOpen(false);
+        // Optimistic: update local state immediately (no full refetch)
+        const updatedFields = {
+          title: currentEditTitle,
+          description: currentEditDesc || undefined,
+          due_date: dueDateValue || undefined,
+          max_score: currentEditMaxScore,
+          allow_file_submission: currentEditAllowFile,
+          show_grade: currentEditShowGrade,
+        };
+        setAssignments((prev) =>
+          prev.map((a) => a.id === editId ? { ...a, ...updatedFields } as Assignment : a)
+        );
         setEditId(null);
-        fetchAssignments();
         // Update selected assignment if it's the one being edited
         if (selectedAssignment?.id === editId) {
           setSelectedAssignment({
             ...selectedAssignment,
-            title: currentEditTitle,
-            description: currentEditDesc || undefined,
-            due_date: dueDateValue || undefined,
-            max_score: currentEditMaxScore,
-            allow_file_submission: currentEditAllowFile,
-            show_grade: currentEditShowGrade,
+            ...updatedFields,
           } as Assignment);
         }
       }
@@ -558,11 +567,12 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
       if (error) toast.error(t('errorDeletingAssignment'));
       else {
         toast.success(t('assignmentDeletedToast'));
+        // Optimistic: remove from local state immediately (no full refetch)
+        setAssignments((prev) => prev.filter((a) => a.id !== id));
         if (selectedAssignment?.id === id) {
           setSelectedAssignment(null);
           setSubmissions([]);
         }
-        fetchAssignments();
       }
     } catch {
       toast.error(tc('unexpectedError'));
