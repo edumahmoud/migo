@@ -748,8 +748,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 </div>
               )}
 
-              {/* Student: Leave course button */}
-              {role === 'student' && (
+              {/* Student: Leave course button (hidden for paused courses) */}
+              {role === 'student' && !subject.is_paused && (
                 <button
                   onClick={() => setLeaveConfirmOpen(true)}
                   className="flex items-center gap-1.5 rounded-full bg-black/10 backdrop-blur-sm px-3 py-1.5 text-xs text-white/90 hover:bg-rose-500/40 hover:text-white transition-colors"
@@ -923,16 +923,19 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       {/* TAB CONTENT (no AnimatePresence for performance) */}
       {/* ============================================ */}
       <div className="mt-4 relative">
-        {/* Paused overlay for students */}
+        {/* Paused overlay for students — blocks all content access */}
         {role === 'student' && subject.is_paused && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-2xl">
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/90 backdrop-blur-md rounded-2xl">
             <div className="text-center px-6 py-8 max-w-sm">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/30">
                 <Pause className="h-8 w-8 text-amber-600 dark:text-amber-400" />
               </div>
-              <h3 className="text-lg font-bold text-foreground mb-2">
-                {t('course.pausedOverlay')}
+              <h3 className="text-lg font-bold text-foreground mb-1">
+                {subject.name}
               </h3>
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-2">
+                {t('course.pausedOverlay')}
+              </p>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 {t('course.pausedOverlayDesc')}
               </p>

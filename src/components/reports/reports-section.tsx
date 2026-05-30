@@ -56,11 +56,11 @@ const itemVariants = {
 // Report reason options
 // -------------------------------------------------------
 const REPORT_REASONS: { value: string; labelKey: string }[] = [
-  { value: 'inappropriate', labelKey: 'reports.reasons.inappropriate' },
+  { value: 'inappropriateContent', labelKey: 'reports.reasons.inappropriateContent' },
   { value: 'harassment', labelKey: 'reports.reasons.harassment' },
   { value: 'spam', labelKey: 'reports.reasons.spam' },
-  { value: 'misinformation', labelKey: 'reports.reasons.misinformation' },
   { value: 'cheating', labelKey: 'reports.reasons.cheating' },
+  { value: 'impersonation', labelKey: 'reports.reasons.impersonation' },
   { value: 'other', labelKey: 'reports.reasons.other' },
 ];
 

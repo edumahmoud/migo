@@ -1335,19 +1335,21 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   return (
                     <motion.div key={subject.id} variants={cardVariants}>
                       <div
-                        className={`group relative rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-0.5 ${isPaused && role === 'student' ? 'ring-2 ring-amber-400/60 ring-offset-2 ring-offset-background' : ''}`}
+                        className={`group relative rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden ${isPaused && role === 'student' ? 'cursor-not-allowed ring-2 ring-amber-400/60 ring-offset-2 ring-offset-background' : 'cursor-pointer hover:-translate-y-0.5'}`}
                         onClick={() => {
+                          // Prevent student from entering paused courses
+                          if (isPaused && role === 'student') return;
                           setStoreSelectedSubjectId(subject.id);
                         }}
                       >
                         {/* ── Paused overlay for students ── */}
                         {isPaused && role === 'student' && (
-                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/70 backdrop-blur-[3px] transition-opacity">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/30 shadow-sm mb-2">
-                              <Pause className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-start bg-background/80 backdrop-blur-[4px] transition-opacity pt-5">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30 shadow-sm mb-2">
+                              <Pause className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                             </div>
                             <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{t('course.paused')}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5 px-4 text-center line-clamp-1">{t('course.pausedOverlayDesc')}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 px-4 text-center">{t('course.pausedOverlayDesc')}</p>
                           </div>
                         )}
                         {/* ── Cover Image Section ── */}
@@ -1520,7 +1522,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                   <span className="truncate">{teacherNames[subject.teacher_id]}</span>
                                 </div>
                               )}
-                              {role === 'student' && (
+                              {role === 'student' && !isPaused && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleSubjectAction(subject.id, 'leave'); }}
                                   disabled={leavingSubjectId === subject.id}

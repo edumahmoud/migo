@@ -2594,12 +2594,12 @@ export const en: TranslationDict = {
     dismissed: 'Dismissed',
     noReports: 'No reports',
     reasons: {
-      inappropriate: 'Inappropriate content',
+      inappropriateContent: 'Inappropriate Content',
       cheating: 'Cheating',
       harassment: 'Harassment',
       spam: 'Spam',
+      impersonation: 'Impersonation',
       other: 'Other',
-      misinformation: 'Misinformation',
     },
     status: {
       pending: 'Pending',

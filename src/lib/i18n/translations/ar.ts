@@ -2595,12 +2595,12 @@ export const ar: TranslationDict = {
     dismissed: 'مرفوض',
     noReports: 'لا توجد إبلاغات',
     reasons: {
-      inappropriate: 'محتوى غير مناسب',
+      inappropriateContent: 'محتوى غير لائق',
       cheating: 'غش أكاديمي',
       harassment: 'تحرش أو تنمر',
       spam: 'رسائل مزعجة',
+      impersonation: 'انتحال شخصية',
       other: 'سبب آخر',
-      misinformation: 'معلومات مضللة',
     },
     status: {
       pending: 'قيد الانتظار',
