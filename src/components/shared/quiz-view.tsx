@@ -580,27 +580,42 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   }, [currentIdx]);
 
   // ─── Timer countdown ───
-  // Starts when quiz is loaded and has a duration.
-  // Persists start time in sessionStorage so refresh doesn't reset the timer.
+  // For scheduled quizzes: counts down from the scheduled start time + duration,
+  // so a late student gets less time (end time is fixed).
+  // For unscheduled quizzes: timer starts from when the student opens the quiz.
+  // Persists start time in sessionStorage (unscheduled only) so refresh doesn't reset the timer.
   useEffect(() => {
     if (!quiz?.duration || showResults || alreadyTaken) return;
 
-    const storageKey = `quiz-start-${quizId}`;
     const durationSec = quiz.duration * 60; // convert minutes to seconds
+    let remaining: number;
 
-    // Get or set the start time
-    let startTime: number;
-    const stored = sessionStorage.getItem(storageKey);
-    if (stored) {
-      startTime = parseInt(stored, 10);
+    if (quiz.scheduled_date && quiz.scheduled_time) {
+      // ── Scheduled quiz: calculate from fixed end time ──
+      // End time = scheduled_date + scheduled_time + duration
+      const [y, m, d] = quiz.scheduled_date.split('-').map(Number);
+      const [h, min] = quiz.scheduled_time.split(':').map(Number);
+      const startDateTime = new Date(y, m - 1, d, h, min, 0, 0);
+      const endMs = startDateTime.getTime() + quiz.duration * 60_000;
+      const nowMs = Date.now();
+
+      // Remaining = how much time left until end (capped at full duration)
+      remaining = Math.max(0, Math.min(durationSec, Math.floor((endMs - nowMs) / 1000)));
     } else {
-      startTime = Date.now();
-      sessionStorage.setItem(storageKey, startTime.toString());
+      // ── Unscheduled quiz: timer starts from when student opens it ──
+      const storageKey = `quiz-start-${quizId}`;
+      let startTime: number;
+      const stored = sessionStorage.getItem(storageKey);
+      if (stored) {
+        startTime = parseInt(stored, 10);
+      } else {
+        startTime = Date.now();
+        sessionStorage.setItem(storageKey, startTime.toString());
+      }
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      remaining = Math.max(0, durationSec - elapsed);
     }
 
-    // Calculate remaining time
-    const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    const remaining = Math.max(0, durationSec - elapsed);
     setTimeLeft(remaining);
 
     if (remaining <= 0) {
@@ -620,7 +635,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [quiz?.duration, quizId, showResults, alreadyTaken]);
+  }, [quiz?.duration, quiz?.scheduled_date, quiz?.scheduled_time, quizId, showResults, alreadyTaken]);
 
   // ─── Auto-submit when time runs out ───
   useEffect(() => {

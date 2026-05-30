@@ -745,3 +745,54 @@ Stage Summary:
 - Overdue/missed badges use clearer "Missed" / "فات الأوان" terminology
 - Lint passes with 0 errors
 - Files modified: src/components/shared/calendar-section.tsx, src/i18n/messages/ar.json, src/i18n/messages/en.json
+---
+Task ID: 1
+Agent: Main Agent
+Task: Exam timer counts down from scheduled start time, not student start time
+
+Work Log:
+- Modified `src/components/shared/quiz-view.tsx` timer effect (lines 582-638)
+- Added logic: when quiz has `scheduled_date` and `scheduled_time`, calculate end time from scheduled start + duration, then remaining = end_time - now (capped at full duration)
+- Unscheduled quizzes keep original behavior (timer starts from student's open time, persisted in sessionStorage)
+- Updated dependency array to include `quiz?.scheduled_date` and `quiz?.scheduled_time`
+
+Stage Summary:
+- Scheduled quizzes now have a fixed end time; late students get less remaining time
+- Unscheduled quizzes unchanged in behavior
+- No SQL or database changes needed
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: RTL/LTR support for toggle switches in exam settings
+
+Work Log:
+- Modified `src/components/shared/quiz-settings-modal.tsx` ToggleSwitch component
+- Added `dir` prop (`'rtl' | 'ltr'`) to ToggleSwitch
+- Thumb translate direction now adapts: LTR uses `translate-x-5`, RTL uses `-translate-x-5`
+- Added `dir={direction}` attribute to the toggle container div
+- Passed `dir={direction}` to all three ToggleSwitch instances
+
+Stage Summary:
+- Toggle switches now correctly flip direction in Arabic (RTL) mode
+- Thumb slides left in RTL, right in LTR when toggled on
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: If exam time is running, show 'running' category with flash animation in my-tasks
+
+Work Log:
+- Added `isQuizRunning()` helper function in `todo-section.tsx` to check if quiz is currently in progress
+- Added `scheduled_time`, `duration`, and `autoType` fields to `UserTodo` interface in `types.ts`
+- Updated `allDisplayTodos` mapping to include the new fields
+- Updated `renderCategoryBadge` to accept `UserTodo` instead of separate params, check for running status
+- Running status badge uses emerald color with `animate-pulse` and a ping dot animation
+- Added translation keys: `todos.running` = "جاري" (AR) / "Running" (EN)
+- Added `tick` state to trigger re-evaluation of running status every 30 seconds
+- Updated periodic interval to call `setTick(Date.now())` alongside existing completion checks
+
+Stage Summary:
+- Auto-quiz items show "جاري" (Running) badge with green flash/ping animation when exam time is active
+- Badge re-evaluates every 30 seconds via tick state
+- Translation keys added in both ar.json and en.json

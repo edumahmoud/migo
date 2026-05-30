@@ -60,6 +60,7 @@ function ToggleSwitch({
   checked,
   onChange,
   disabled,
+  dir,
 }: {
   label: string;
   description?: string;
@@ -67,9 +68,14 @@ function ToggleSwitch({
   checked: boolean;
   onChange: (val: boolean) => void;
   disabled?: boolean;
+  dir: 'rtl' | 'ltr';
 }) {
+  const thumbTranslate = checked
+    ? dir === 'rtl' ? '-translate-x-5' : 'translate-x-5'
+    : 'translate-x-0';
+
   return (
-    <div className="flex items-center justify-between rounded-lg border bg-card p-3 gap-3">
+    <div className="flex items-center justify-between rounded-lg border bg-card p-3 gap-3" dir={dir}>
       <div className="flex items-center gap-2.5 min-w-0">
         {icon && (
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-100 dark:bg-teal-800/40">
@@ -95,9 +101,7 @@ function ToggleSwitch({
         }`}
       >
         <span
-          className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${
-            checked ? 'translate-x-5' : 'translate-x-0'
-          }`}
+          className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${thumbTranslate}`}
         />
       </button>
     </div>
@@ -212,6 +216,7 @@ export default function QuizSettingsModal({
               checked={allowRetake}
               onChange={setAllowRetake}
               disabled={saving}
+              dir={direction}
             />
 
             <ToggleSwitch
@@ -221,6 +226,7 @@ export default function QuizSettingsModal({
               checked={showResults}
               onChange={setShowResults}
               disabled={saving}
+              dir={direction}
             />
 
             <ToggleSwitch
@@ -230,6 +236,7 @@ export default function QuizSettingsModal({
               checked={shuffleQuestions}
               onChange={setShuffleQuestions}
               disabled={saving}
+              dir={direction}
             />
           </motion.div>
 

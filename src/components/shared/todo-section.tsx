@@ -188,6 +188,38 @@ function isQuizTimeCompleted(
 }
 
 // -------------------------------------------------------
+// Helper: check if a quiz is currently running
+// A quiz is running if:
+// scheduled_date + scheduled_time <= now (has started)
+// AND scheduled_date + scheduled_time + duration > now (not yet ended)
+// AND not completed
+// -------------------------------------------------------
+function isQuizRunning(
+  scheduledDate: string | null,
+  scheduledTime: string | null,
+  duration: number | null | undefined
+): boolean {
+  if (!scheduledDate || !scheduledTime) return false;
+  const now = new Date();
+  // Parse start time
+  const [hours, minutes] = scheduledTime.split(':').map(Number);
+  const startDate = new Date(scheduledDate);
+  startDate.setHours(hours, minutes, 0, 0);
+  const startMs = startDate.getTime();
+
+  // Parse end time: start + duration (or start + 1s if no duration)
+  let endMs: number;
+  if (duration && duration > 0) {
+    endMs = startMs + duration * 60 * 1000;
+  } else {
+    endMs = startMs + 1000; // no duration = ends instantly
+  }
+
+  const nowMs = now.getTime();
+  return nowMs >= startMs && nowMs < endMs;
+}
+
+// -------------------------------------------------------
 // Helper: convert ISO date to datetime-local value
 // -------------------------------------------------------
 function toDatetimeLocalValue(isoStr: string | null): string {
@@ -254,6 +286,9 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
   // ─── Toggling state ───
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // ─── Clock tick for running-state re-evaluation ───
+  const [tick, setTick] = useState(Date.now());
 
   // -------------------------------------------------------
   // Fetch todos
@@ -495,6 +530,8 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           return item;
         })
       );
+      // Tick the clock to re-evaluate running status badges
+      setTick(Date.now());
     }, 30_000); // every 30 seconds
 
     return () => clearInterval(interval);
@@ -554,6 +591,9 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       created_at: at.due_date || new Date().toISOString(),
       updated_at: at.due_date || new Date().toISOString(),
       teacher_name: at.teacher_name,
+      scheduled_time: at.scheduled_time ?? null,
+      duration: at.duration ?? null,
+      autoType: at.autoType,
     }));
     return [...todos, ...autoAsUserTodos];
   }, [todos, autoTodos, profile.id]);
@@ -839,15 +879,33 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   );
 
   // -------------------------------------------------------
-  // Category badge renderer
+  // Category badge renderer (with running status for quizzes)
   // -------------------------------------------------------
-  const renderCategoryBadge = (category: TodoCategory, isAutoQuiz?: boolean) => (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${categoryBadgeClasses[category]}`}
-    >
-      {isAutoQuiz ? t('todos.submission') : category === 'task' ? t('todos.taskCat') : t(`todos.${category}`)}
-    </span>
-  );
+  const renderCategoryBadge = (todo: UserTodo) => {
+    const isAutoQuiz = todo.source === 'auto' && todo.autoType === 'quiz';
+    const running = isAutoQuiz && !todo.completed && isQuizRunning(todo.due_date ?? null, todo.scheduled_time ?? null, todo.duration ?? null);
+
+    if (running) {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-800/40 text-emerald-700 dark:text-emerald-400 animate-pulse">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          {t('todos.running')}
+        </span>
+      );
+    }
+
+    const category = todo.category;
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${categoryBadgeClasses[category]}`}
+      >
+        {isAutoQuiz ? t('todos.submission') : category === 'task' ? t('todos.taskCat') : t(`todos.${category}`)}
+      </span>
+    );
+  };
 
   // -------------------------------------------------------
   // Render: Todo card
@@ -964,7 +1022,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             {/* Badges & meta row */}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {renderPriorityBadge(todo.priority)}
-              {renderCategoryBadge(todo.category, todo.source === 'auto' && todo.id.startsWith('auto-quiz'))}
+              {renderCategoryBadge(todo)}
 
               {/* Due date */}
               {todo.due_date ? (

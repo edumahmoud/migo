@@ -462,6 +462,12 @@ export interface UserTodo {
   updated_at: string;
   /** For auto-todos: name of the teacher who created the quiz/assignment */
   teacher_name?: string | null;
+  /** For auto-quiz todos: scheduled_time (HH:mm) */
+  scheduled_time?: string | null;
+  /** For auto-quiz todos: duration in minutes */
+  duration?: number | null;
+  /** For auto-todos: type of auto-generated item */
+  autoType?: 'quiz' | 'assignment';
 }
 
 // -------------------------------------------------------
