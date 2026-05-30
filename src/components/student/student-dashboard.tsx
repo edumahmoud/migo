@@ -69,6 +69,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import SubjectsSection from '@/components/shared/subjects-section';
 import PersonalFilesSection from '@/components/shared/personal-files-section';
 import AssignmentsSection from '@/components/shared/assignments-section';
@@ -244,14 +245,15 @@ function StudentQuizCountdown({ targetDate }: { targetDate: Date }) {
 
   if (!remaining) return null;
 
-  // Build human-readable parts like: "يومين و 3 ساعات و 15 دقيقة"
+  // Build human-readable parts like: "يومان و 3 ساعات و 15 دقيقة"
+  // ICU plural format includes the number, so we pass {n: value}
   const parts: string[] = [];
-  if (remaining.d > 0) parts.push(`${remaining.d} ${t('exams.dayUnit')}`);
-  if (remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.h} ${t('exams.hourUnit')}`);
-  if (remaining.m > 0 || remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.m} ${t('exams.minuteUnit')}`);
+  if (remaining.d > 0) parts.push(t('exams.dayUnit', { n: remaining.d }));
+  if (remaining.h > 0 || remaining.d > 0) parts.push(t('exams.hourUnit', { n: remaining.h }));
+  if (remaining.m > 0 || remaining.h > 0 || remaining.d > 0) parts.push(t('exams.minuteUnit', { n: remaining.m }));
   // Only show seconds when countdown is short (less than 1 hour)
   if (remaining.d === 0 && remaining.h === 0) {
-    parts.push(`${remaining.s} ${t('exams.secondUnit')}`);
+    parts.push(t('exams.secondUnit', { n: remaining.s }));
   }
 
   return (
@@ -288,11 +290,17 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   }, [storedStudentSection, activeSection]);
 
   // When navigating away from subjects, clear selectedSubjectId
+  // IMPORTANT: Also check storedStudentSection to avoid a race condition.
+  // When a notification click sets both selectedSubjectId AND studentSection='subjects'
+  // in the same batch, the local activeSection hasn't updated yet (still old value),
+  // so the cleanup effect would incorrectly clear selectedSubjectId before the
+  // section switch completes. By also checking storedStudentSection (Zustand, sync),
+  // we ensure we don't clear the ID when we're transitioning TO subjects.
   useEffect(() => {
-    if (activeSection !== 'subjects' && selectedSubjectId) {
+    if (activeSection !== 'subjects' && storedStudentSection !== 'subjects' && selectedSubjectId) {
       setSelectedSubjectId(null);
     }
-  }, [activeSection, selectedSubjectId, setSelectedSubjectId]);
+  }, [activeSection, storedStudentSection, selectedSubjectId, setSelectedSubjectId]);
 
   // ─── Auth store ───
   const { updateProfile: authUpdateProfile, signOut: authSignOut } = useAuthStore();
@@ -3435,39 +3443,19 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                   <label className="text-sm font-medium text-foreground">{t('summary.additionalSettings')}</label>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-3">
                     <span className="text-sm font-medium text-foreground">{t('summary.allowRetake')}</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={quizAllowRetake}
-                      onClick={() => setQuizAllowRetake(!quizAllowRetake)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
-                        quizAllowRetake ? 'bg-teal-600' : 'bg-muted'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
-                          quizAllowRetake ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
+                    <Switch
+                      checked={quizAllowRetake}
+                      onCheckedChange={setQuizAllowRetake}
+                      className="data-[state=checked]:bg-teal-600"
+                    />
                   </div>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-3">
                     <span className="text-sm font-medium text-foreground">{t('summary.shuffleQuestions')}</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={quizShuffleQuestions}
-                      onClick={() => setQuizShuffleQuestions(!quizShuffleQuestions)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
-                        quizShuffleQuestions ? 'bg-teal-600' : 'bg-muted'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
-                          quizShuffleQuestions ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
+                    <Switch
+                      checked={quizShuffleQuestions}
+                      onCheckedChange={setQuizShuffleQuestions}
+                      className="data-[state=checked]:bg-teal-600"
+                    />
                   </div>
                 </div>
 

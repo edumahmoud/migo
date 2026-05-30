@@ -159,10 +159,10 @@ function QuizNotStartedScreen({ quiz, startTime, onBack, direction }: {
 
   const parts: string[] = [];
   if (remaining) {
-    if (remaining.d > 0) parts.push(`${remaining.d} ${t('exams.dayUnit')}`);
-    if (remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.h} ${t('exams.hourUnit')}`);
-    if (remaining.m > 0 || remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.m} ${t('exams.minuteUnit')}`);
-    if (remaining.d === 0 && remaining.h === 0) parts.push(`${remaining.s} ${t('exams.secondUnit')}`);
+    if (remaining.d > 0) parts.push(t('exams.dayUnit', { n: remaining.d }));
+    if (remaining.h > 0 || remaining.d > 0) parts.push(t('exams.hourUnit', { n: remaining.h }));
+    if (remaining.m > 0 || remaining.h > 0 || remaining.d > 0) parts.push(t('exams.minuteUnit', { n: remaining.m }));
+    if (remaining.d === 0 && remaining.h === 0) parts.push(t('exams.secondUnit', { n: remaining.s }));
   }
 
   return (

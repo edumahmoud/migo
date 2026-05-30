@@ -170,11 +170,12 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   }, [storedTeacherSection, activeSection]);
 
   // When navigating away from subjects, clear selectedSubjectId
+  // Also check storedTeacherSection to avoid race condition (see student-dashboard.tsx for details)
   useEffect(() => {
-    if (activeSection !== 'subjects' && selectedSubjectId) {
+    if (activeSection !== 'subjects' && storedTeacherSection !== 'subjects' && selectedSubjectId) {
       setSelectedSubjectId(null);
     }
-  }, [activeSection, selectedSubjectId, setSelectedSubjectId]);
+  }, [activeSection, storedTeacherSection, selectedSubjectId, setSelectedSubjectId]);
 
   // ─── Data state ───
   const [students, setStudents] = useState<UserProfile[]>([]);

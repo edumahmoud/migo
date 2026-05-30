@@ -28,6 +28,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   AlertDialog,
@@ -1701,39 +1702,19 @@ export default function SummaryView({ summaryId, onBack, onViewQuiz, teacherMode
                   <label className="text-sm font-medium text-foreground">{t('quiz.quizSettings')}</label>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-2.5">
                     <span className="text-sm font-medium text-foreground">{t('quiz.allowRetake')}</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={quizAllowRetake}
-                      onClick={() => setQuizAllowRetake(!quizAllowRetake)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
-                        quizAllowRetake ? 'bg-teal-600' : 'bg-muted'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
-                          quizAllowRetake ? 'rtl:-translate-x-4 translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
+                    <Switch
+                      checked={quizAllowRetake}
+                      onCheckedChange={setQuizAllowRetake}
+                      className="data-[state=checked]:bg-teal-600"
+                    />
                   </div>
                   <div className="flex items-center justify-between rounded-lg border bg-card p-2.5">
                     <span className="text-sm font-medium text-foreground">{t('quiz.shuffleQuestions')}</span>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={quizShuffleQuestions}
-                      onClick={() => setQuizShuffleQuestions(!quizShuffleQuestions)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
-                        quizShuffleQuestions ? 'bg-teal-600' : 'bg-muted'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
-                          quizShuffleQuestions ? 'rtl:-translate-x-4 translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
+                    <Switch
+                      checked={quizShuffleQuestions}
+                      onCheckedChange={setQuizShuffleQuestions}
+                      className="data-[state=checked]:bg-teal-600"
+                    />
                   </div>
                 </div>
 

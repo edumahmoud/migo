@@ -166,10 +166,12 @@ async function subscribeToPush(
       return true;
     }
 
-    // Request notification permission
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      console.log('[Push] Notification permission denied');
+    // Only request permission if not already granted
+    // CRITICAL: Never auto-request permission on page load — this causes system errors
+    // in some browsers/contexts (iframe, PWA). Only proceed if user already granted.
+    if (typeof Notification === 'undefined') return false;
+    if (Notification.permission !== 'granted') {
+      // Don't request — the user must explicitly enable notifications via the UI
       return false;
     }
 

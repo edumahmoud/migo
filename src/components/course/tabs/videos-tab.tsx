@@ -29,6 +29,7 @@ import { useVideoUploadStore } from '@/stores/video-upload-store';
 import { useAppStore } from '@/stores/app-store';
 import ReportButton from '@/components/reports/report-button';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   AlertDialog,
@@ -1663,19 +1664,12 @@ export default function VideosTab({ profile, role, subjectId }: VideosTabProps) 
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setEditCommentsEnabled(!editCommentsEnabled)}
+                  <Switch
+                    checked={editCommentsEnabled}
+                    onCheckedChange={setEditCommentsEnabled}
                     disabled={saving}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 ${
-                      editCommentsEnabled ? 'bg-sky-700' : 'bg-muted'
-                    } disabled:opacity-60`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
-                        editCommentsEnabled ? '-translate-x-5' : '-translate-x-0.5'
-                      }`}
-                    />
-                  </button>
+                    className="data-[state=checked]:bg-sky-700"
+                  />
                 </div>
 
                 {/* Save */}

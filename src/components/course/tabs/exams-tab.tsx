@@ -1877,7 +1877,7 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
               <button
                 onClick={() => { if (!savingQuiz && !generatingFromAi) { setQuizModalOpen(false); resetQuizForm(); } }}
                 disabled={savingQuiz || generatingFromAi}
-                className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-60"
+                className="rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:hover:text-foreground disabled:opacity-60"
               >
                 {t('common.cancel')}
               </button>

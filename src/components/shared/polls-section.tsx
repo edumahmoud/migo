@@ -39,6 +39,7 @@ import {
   DialogScrollArea,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 
 // -------------------------------------------------------
 // Props
@@ -778,22 +779,12 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={newIsAnonymous}
-              onClick={() => setNewIsAnonymous(!newIsAnonymous)}
+            <Switch
+              checked={newIsAnonymous}
+              onCheckedChange={setNewIsAnonymous}
               disabled={creating}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600/30 ${
-                newIsAnonymous ? 'bg-sky-700' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
-                  newIsAnonymous ? 'translate-x-5' : 'translate-x-0.5'
-                } mt-0.5`}
-              />
-            </button>
+              className="data-[state=checked]:bg-sky-700"
+            />
           </div>
 
           {/* Hide results toggle */}
@@ -815,22 +806,12 @@ export default function PollsSection({ profile, role, subjectId, subject }: Poll
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={newHideResults}
-              onClick={() => setNewHideResults(!newHideResults)}
+            <Switch
+              checked={newHideResults}
+              onCheckedChange={setNewHideResults}
               disabled={creating}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600/30 ${
-                newHideResults ? 'bg-violet-700' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform ${
-                  newHideResults ? 'translate-x-5' : 'translate-x-0.5'
-                } mt-0.5`}
-              />
-            </button>
+              className="data-[state=checked]:bg-violet-700"
+            />
           </div>
 
           {/* Close date */}
