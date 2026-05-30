@@ -243,7 +243,6 @@ export default function NotificationBell() {
       setCurrentPage: appState.setCurrentPage,
       setPendingReportId: appState.setPendingReportId,
       openProfile: appState.openProfile,
-      setViewingQuizId: appState.setViewingQuizId,
       t,
     });
 

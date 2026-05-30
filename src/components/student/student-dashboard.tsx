@@ -1264,10 +1264,12 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
 
     const notifiedIds = new Set<string>();
 
-    // Request browser notification permission on first run
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().catch(() => {});
-    }
+    // NOTE: Do NOT auto-request Notification.permission here.
+    // On Android, auto-requesting can trigger a system error dialog
+    // "This site can't ask for your permission" when overlays/bubbles
+    // from other apps are present. Instead, permission is requested
+    // only when the user explicitly clicks the notification bell button
+    // (notification-permission.tsx) or the settings toggle.
 
     const checkTimes = () => {
       const now = new Date();

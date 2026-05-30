@@ -124,6 +124,99 @@ const staggerContainer = {
 };
 
 // -------------------------------------------------------
+// Quiz Not Started Screen \u2014 shown when a scheduled quiz
+// hasn't reached its start time yet. Shows countdown and info.
+// -------------------------------------------------------
+function QuizNotStartedScreen({ quiz, startTime, onBack, direction }: {
+  quiz: Quiz;
+  startTime: Date;
+  onBack: () => void;
+  direction: 'rtl' | 'ltr';
+}) {
+  const { t } = useTranslations();
+  const [remaining, setRemaining] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+
+  useEffect(() => {
+    const tick = () => {
+      const diff = startTime.getTime() - Date.now();
+      if (diff <= 0) {
+        setRemaining(null);
+        // Auto-reload when time arrives so quiz becomes available
+        window.location.reload();
+        return;
+      }
+      setRemaining({
+        d: Math.floor(diff / 86_400_000),
+        h: Math.floor((diff % 86_400_000) / 3_600_000),
+        m: Math.floor((diff % 3_600_000) / 60_000),
+        s: Math.floor((diff % 60_000) / 1_000),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startTime]);
+
+  const parts: string[] = [];
+  if (remaining) {
+    if (remaining.d > 0) parts.push(`${remaining.d} ${t('exams.dayUnit')}`);
+    if (remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.h} ${t('exams.hourUnit')}`);
+    if (remaining.m > 0 || remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.m} ${t('exams.minuteUnit')}`);
+    if (remaining.d === 0 && remaining.h === 0) parts.push(`${remaining.s} ${t('exams.secondUnit')}`);
+  }
+
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={direction}>
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40"
+      >
+        <Clock className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+      </motion.div>
+      <p className="text-xl font-bold text-foreground">{t('exams.scheduled')}</p>
+      <p className="text-sm text-muted-foreground text-center max-w-sm">{quiz.title}</p>
+
+      {/* Date & Time info */}
+      <div className="flex flex-col items-center gap-1.5 mt-2 text-sm text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <Clock className="h-4 w-4" />
+          {startTime.toLocaleDateString(direction === 'rtl' ? 'ar-SA' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+          {' - '}
+          {startTime.toLocaleTimeString(direction === 'rtl' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+        </span>
+        {quiz.duration && (
+          <span className="text-xs">{quiz.duration} {t('common.minutes')}</span>
+        )}
+      </div>
+
+      {/* Countdown */}
+      {remaining && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/60 px-4 py-3 mt-2"
+        >
+          <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 animate-pulse" />
+          <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+            {t('exams.startsIn')} {parts.join(` ${t('exams.and')} `)}
+          </span>
+        </motion.div>
+      )}
+
+      <Button
+        onClick={onBack}
+        variant="outline"
+        className="gap-2 mt-4 border-sky-300 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:text-sky-800 dark:hover:text-sky-400"
+      >
+        <ChevronRight className="h-4 w-4" />
+        {t('common.back')}
+      </Button>
+    </div>
+  );
+}
+
+// -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
 export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizViewProps) {
@@ -217,6 +310,26 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           setError(t('quiz.noQuizzes'));
         }
         return;
+      }
+
+      // ─── Check if scheduled quiz hasn't started yet ───
+      // If the quiz has a scheduled date/time that is in the future,
+      // block access — student must wait until the scheduled time.
+      if (!reviewMode && quizData.scheduled_date && quizData.scheduled_time) {
+        try {
+          const [y, m, d] = quizData.scheduled_date.split('-').map(Number);
+          const [h, min] = quizData.scheduled_time.split(':').map(Number);
+          const startDateTime = new Date(y, m - 1, d, h, min, 0, 0);
+          if (!isNaN(startDateTime.getTime()) && startDateTime.getTime() > Date.now()) {
+            // Quiz hasn't started yet — show "not started" screen
+            setQuiz(quizData);
+            hasValidDataRef.current = true;
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // If parsing fails, allow access (don't block on parse error)
+        }
       }
 
       setQuiz(quizData);
@@ -1310,6 +1423,23 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
         </Button>
       </div>
     );
+  }
+
+  // -------------------------------------------------------
+  // Quiz not started yet (scheduled in the future)
+  // Show countdown + info instead of allowing quiz-taking
+  // -------------------------------------------------------
+  if (quiz && quiz.scheduled_date && quiz.scheduled_time && !reviewMode) {
+    try {
+      const [y, m, d] = quiz.scheduled_date.split('-').map(Number);
+      const [h, min] = quiz.scheduled_time.split(':').map(Number);
+      const startDateTime = new Date(y, m - 1, d, h, min, 0, 0);
+      if (!isNaN(startDateTime.getTime()) && startDateTime.getTime() > Date.now()) {
+        return <QuizNotStartedScreen quiz={quiz} startTime={startDateTime} onBack={onBack} direction={direction} />;
+      }
+    } catch {
+      // If parsing fails, allow normal flow
+    }
   }
 
   // -------------------------------------------------------

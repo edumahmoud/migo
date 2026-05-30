@@ -96,7 +96,6 @@ export function navigateNotification(
     setCurrentPage: (page: AppPage) => void;
     setPendingReportId: (id: string | null) => void;
     openProfile: (userId: string) => void;
-    setViewingQuizId?: (id: string | null, reviewMode?: boolean) => void;
     // Translation helper for detecting link_request by title
     t?: (key: string) => string;
   }
@@ -112,7 +111,6 @@ export function navigateNotification(
     setCurrentPage,
     setPendingReportId,
     openProfile,
-    setViewingQuizId,
     t,
   } = options;
 
@@ -175,24 +173,25 @@ export function navigateNotification(
     return 'handled';
   }
 
-  // ─── 4b. Quiz deep links — navigate directly to a specific quiz ───
-  // Format: quiz:SUBJECT_ID:QUIZ_ID — opens the quiz directly for the student
+  // ─── 4b. Quiz deep links — navigate to the quiz's subject/exams tab ───
+  // Format: quiz:SUBJECT_ID:QUIZ_ID
+  // IMPORTANT: We do NOT open the quiz directly via setViewingQuizId because
+  // the quiz may not have started yet (scheduled for a future time). Instead,
+  // we navigate to the subject's exams tab where the student can see the quiz
+  // card with its proper status (scheduled countdown, active start button, etc.)
+  // and the StudentQuizCountdown will handle the time-based availability.
   if (notif.link?.startsWith('quiz:') && userRole === 'student') {
     const parts = notif.link.split(':');
     const subjectId = parts[1] || null;
-    const quizId = parts[2] || null;
 
     if (subjectId) {
       setSelectedSubjectId(subjectId);
       setCourseTab('exams');
       setStudentSection('subjects');
-    }
-
-    // If we have a quiz ID and the setter, open the quiz directly
-    if (quizId && setViewingQuizId) {
-      setViewingQuizId(quizId);
+      setCurrentPage('student-dashboard');
     } else {
-      // Fallback: just navigate to the exams tab
+      // No subject ID — navigate to the quizzes section
+      setStudentSection('quizzes');
       setCurrentPage('student-dashboard');
     }
     return 'handled';
