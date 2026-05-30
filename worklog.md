@@ -52,3 +52,34 @@ Stage Summary:
 - **Auto-todo fix**: localStorage persistence for hidden/dismissed auto-tasks
 - Lint: clean, no errors
 - Dev server: running normally
+---
+Task ID: 2
+Agent: main
+Task: Comprehensive Student Performance Analytics System Redesign
+
+Work Log:
+- Created shared performance calculation engine (src/lib/performance-calculator.ts)
+- Added attendance_status column to DB (v58 migration: present/late/partial/absent)
+- Updated TypeScript AttendanceRecord type with attendance_status field
+- Rewrote teacher-student-tracking-section.tsx with new KPIs, risk system, growth index, discipline score, ranking, enhanced timeline
+- Rewrote student-tracking-section.tsx with KPI dashboard, course analytics, timeline filtering
+- Rewrote student-profile-modal.tsx with new metrics engine
+- Updated teacher-dashboard.tsx to fetch submitted_at, due_date, attendance_status
+- Updated student-dashboard.tsx attendance queries (already done by subagent)
+- Added 100+ i18n translation keys in both Arabic and English
+- Lint: clean, no errors
+- Pushed as commit 832584b
+
+Stage Summary:
+- **New calculation engine**: All formulas centralized in performance-calculator.ts
+- **Weighted exam performance**: total earned / total possible (not average of percentages)
+- **Points-based attendance**: present=100, late=75, partial=50, absent=0
+- **Split assignment metrics**: compliance (commitment) + quality (academic)
+- **New overall weights**: Exam=35%, Attendance=20%, Compliance=15%, Quality=30%
+- **Efficiency redesign**: "Insufficient Data" when effort < 40%
+- **Discipline score**: behavioral commitment (0-100)
+- **Growth index**: recent vs earliest with trend arrows
+- **Early risk detection**: 4 levels with specific reasons
+- **Student ranking**: percentile-based (Top 5%/10%/25%/50%)
+- **Enhanced timeline**: filter buttons, new event types (grading, risk, achievement)
+- **CSV export**: 16 columns with all new metrics
