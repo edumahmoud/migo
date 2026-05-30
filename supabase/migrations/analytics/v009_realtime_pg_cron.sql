@@ -13,14 +13,28 @@
 -- ============================================
 -- Part A: Realtime Publication
 -- ============================================
+-- NOTE: ALTER PUBLICATION ... ADD TABLE IF NOT EXISTS is not valid
+-- PostgreSQL syntax. We use DO blocks with exception handling instead.
 
 -- Add analytics_cache to realtime publication
 -- When cache entries are DELETEd (invalidation), the client
 -- receives a Realtime event and triggers a React Query refetch
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.analytics_cache;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.analytics_cache;
+EXCEPTION WHEN duplicate_object THEN
+  RAISE NOTICE 'analytics_cache already in supabase_realtime publication';
+END;
+$$;
 
 -- Add cohort_analytics_cache to realtime publication
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.cohort_analytics_cache;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.cohort_analytics_cache;
+EXCEPTION WHEN duplicate_object THEN
+  RAISE NOTICE 'cohort_analytics_cache already in supabase_realtime publication';
+END;
+$$;
 
 -- NOTE: analytics_snapshots is NOT added to realtime.
 -- Snapshots are immutable historical records -- no client

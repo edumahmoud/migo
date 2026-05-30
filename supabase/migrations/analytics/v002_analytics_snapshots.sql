@@ -28,8 +28,13 @@ CREATE INDEX IF NOT EXISTS idx_analytics_snapshots_student_date
 
 -- Prevent duplicate daily snapshots for the same student/subject/day
 -- Only applies to 'daily' type -- on_change can happen multiple times per day
+--
+-- NOTE: date_trunc('day', timestamptz) is STABLE not IMMUTABLE, which
+-- PostgreSQL forbids in index expressions. We use AT TIME ZONE 'UTC' to
+-- convert timestamptz → timestamp first, then date_trunc on timestamp
+-- IS immutable. This pins the "day" boundary to UTC consistently.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_analytics_snapshots_daily_unique
-  ON public.analytics_snapshots(student_id, subject_id, snapshot_type, date_trunc('day', created_at))
+  ON public.analytics_snapshots(student_id, subject_id, snapshot_type, date_trunc('day', created_at AT TIME ZONE 'UTC'))
   WHERE snapshot_type = 'daily';
 
 -- Add table comments
