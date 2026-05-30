@@ -8,6 +8,7 @@ import ServiceWorkerRegistration from "@/components/shared/sw-registration";
 import InstallPrompt from "@/components/shared/install-prompt";
 import SocketErrorBoundary from "@/components/shared/socket-error-boundary";
 import VideoUploadIndicator from "@/components/shared/video-upload-indicator";
+import FileUploadIndicator from "@/components/shared/file-upload-indicator";
 import LandscapeOverlay from "@/components/shared/landscape-overlay";
 import { I18nProvider } from "@/i18n/provider";
 import { DirectionProvider } from "@/i18n/direction-provider";
@@ -194,6 +195,7 @@ export default function RootLayout({
             <ServiceWorkerRegistration />
             <InstallPrompt />
             <VideoUploadIndicator />
+            <FileUploadIndicator />
             <LandscapeOverlay />
             </ClientProviders>
           </DirectionProvider>

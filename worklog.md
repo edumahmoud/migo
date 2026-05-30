@@ -335,3 +335,42 @@ Stage Summary:
 - Category filtering and badge display in subject list and course page
 - SQL code provided for Supabase execution (categories table + category_id column + RLS policies)
 - All changes pass lint check, dev server running successfully
+
+---
+Task ID: 8
+Agent: Main
+Task: Fix file upload progress bar - make it global, visible in correct position, with persistence on reload
+
+Work Log:
+- Analyzed the existing implementation: upload progress was rendered inline in `PersonalFilesSection` component only (not visible on other pages)
+- Identified that the VideoUploadIndicator was already global (in layout.tsx) but FileUploadIndicator was NOT
+- Identified that IndexedDB hydration only happened in PersonalFilesSection (not on other pages)
+- Created new `src/components/shared/file-upload-indicator.tsx` — a global floating indicator that:
+  - Renders as fixed bottom-right floating card (same style as VideoUploadIndicator)
+  - Handles IndexedDB hydration on mount (global — works regardless of which page user is on)
+  - Supports pause/resume/cancel/retry per task and bulk actions
+  - Shows SVG circular progress ring for active uploads
+  - Automatically offsets itself upward when VideoUploadIndicator is also visible (avoids overlap)
+  - Uses `useVideoUploadStore` to detect video indicator presence and adjust bottom position
+  - Displays file size, file icon by type, and progress percentage per task
+  - Fully bilingual (Arabic/English) using inline locale checks
+- Added `FileUploadIndicator` to `layout.tsx` alongside `VideoUploadIndicator`
+- Removed the inline `renderUploadProgressIndicator()` function from `personal-files-section.tsx`
+- Cleaned up `personal-files-section.tsx`:
+  - Removed unused store destructuring (pauseTask, resumeTask, cancelTask, etc.)
+  - Removed `uploadListCollapsed` state
+  - Removed sidebar state usage (only used by inline indicator)
+  - Removed unused Lucide icon imports (Pause, Play, XCircle, RotateCcw, ChevronDown, ChevronUp)
+  - Removed hydrateFromPersistence call (now global)
+  - Kept auto-refresh effect for when uploads complete (page-specific behavior)
+
+Stage Summary:
+- File upload progress indicator is now GLOBAL — visible on ALL pages, not just the files page
+- Position: fixed bottom-right, same visual style as VideoUploadIndicator
+- Stacks properly above VideoUploadIndicator when both are visible
+- IndexedDB hydration happens globally on mount — interrupted uploads are restored on any page
+- Uploads continue in the background regardless of which page the user navigates to
+- Progress is persisted via IndexedDB (already existed) — survives page reloads
+- Lint passes with 0 errors
+- Files created: src/components/shared/file-upload-indicator.tsx
+- Files modified: src/app/layout.tsx, src/components/shared/personal-files-section.tsx
