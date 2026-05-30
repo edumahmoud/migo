@@ -220,6 +220,28 @@ function isQuizRunning(
 }
 
 // -------------------------------------------------------
+// Helper: localStorage for hidden auto-todo IDs
+// Persists across page refreshes so dismissed auto-tasks
+// don't reappear.
+// -------------------------------------------------------
+const HIDDEN_AUTOS_STORAGE_KEY = (userId: string) => `hidden-auto-todos-${userId}`;
+
+function getHiddenAutoTodoIds(userId: string): Set<string> {
+  try {
+    const stored = localStorage.getItem(HIDDEN_AUTOS_STORAGE_KEY(userId));
+    return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function persistHiddenAutoTodo(userId: string, autoTodoId: string) {
+  const hidden = getHiddenAutoTodoIds(userId);
+  hidden.add(autoTodoId);
+  localStorage.setItem(HIDDEN_AUTOS_STORAGE_KEY(userId), JSON.stringify([...hidden]));
+}
+
+// -------------------------------------------------------
 // Helper: convert ISO date to datetime-local value
 // -------------------------------------------------------
 function toDatetimeLocalValue(isoStr: string | null): string {
@@ -289,6 +311,10 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
   // ─── Clock tick for running-state re-evaluation ───
   const [tick, setTick] = useState(Date.now());
+
+  // ─── Ref for subjects (used in realtime handler without stale closure) ───
+  const subjectsRef = useRef<Subject[]>(subjects);
+  subjectsRef.current = subjects;
 
   // -------------------------------------------------------
   // Fetch todos
@@ -500,7 +526,11 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
         }
       }
 
-      setAutoTodos(items);
+      // Filter out auto-todos that the user has previously hidden
+      const hiddenIds = getHiddenAutoTodoIds(profile.id);
+      const visibleItems = items.filter(item => !hiddenIds.has(item.id));
+
+      setAutoTodos(visibleItems);
     } catch (err) {
       console.error('Fetch auto todos error:', err);
     } finally {
@@ -546,15 +576,13 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   }, []);
 
   // -------------------------------------------------------
-  // Real-time subscription
-  // NOTE: We debounce the re-fetch to avoid overwriting optimistic
-  // toggles. When a realtime event fires right after a toggle,
-  // the fetchTodos would overwrite the optimistic state.
-  // We use a flag to skip the re-fetch if a toggle is in progress.
+  // Real-time subscription — FUNDAMENTAL FIX
+  // Instead of calling fetchTodos() on every event (which causes
+  // race conditions where stale DB data overwrites optimistic
+  // state), we use the event payload to directly mutate state.
+  // This eliminates the flickering bug where deleted tasks
+  // reappear and created tasks disappear.
   // -------------------------------------------------------
-  const togglingInProgress = useRef(false);
-  const addingInProgress = useRef(false);
-
   useEffect(() => {
     const channel = supabase
       .channel('user-todos-realtime')
@@ -566,10 +594,73 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           table: 'user_todos',
           filter: `user_id=eq.${profile.id}`,
         },
-        () => {
-          // Skip re-fetch if a toggle or add is in progress to avoid overwriting optimistic state
-          if (togglingInProgress.current || addingInProgress.current) return;
-          fetchTodos();
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const row = payload.new as Record<string, unknown>;
+            // Resolve subject_name from local subjects cache
+            const subjectName = row.subject_id
+              ? subjectsRef.current.find(s => s.id === row.subject_id)?.name || null
+              : null;
+            const newTodo: UserTodo = {
+              id: row.id as string,
+              user_id: row.user_id as string,
+              title: row.title as string,
+              description: (row.description as string) || null,
+              priority: row.priority as TodoPriority,
+              category: row.category as TodoCategory,
+              due_date: (row.due_date as string) || null,
+              subject_id: (row.subject_id as string) || null,
+              subject_name: subjectName,
+              source: (row.source as TodoSource) || 'manual',
+              completed: row.completed as boolean,
+              completed_at: (row.completed_at as string) || null,
+              created_at: row.created_at as string,
+              updated_at: row.updated_at as string,
+            };
+            setTodos((prev) => {
+              // Already exists with real ID (insert response arrived first)
+              if (prev.some(t => t.id === newTodo.id)) return prev;
+              // Check if there's an optimistic temp entry for this same insert
+              const tempIndex = prev.findIndex(t =>
+                t.id.startsWith('temp-') &&
+                t.title === newTodo.title &&
+                t.user_id === newTodo.user_id &&
+                Math.abs(new Date(t.created_at).getTime() - new Date(newTodo.created_at).getTime()) < 10000
+              );
+              if (tempIndex >= 0) {
+                // Replace optimistic temp entry with real data
+                return prev.map((t, i) => i === tempIndex ? newTodo : t);
+              }
+              // New item from another source (e.g., another tab) — add it
+              return [newTodo, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const row = payload.new as Record<string, unknown>;
+            const subjectName = row.subject_id
+              ? subjectsRef.current.find(s => s.id === row.subject_id)?.name || null
+              : null;
+            setTodos((prev) => prev.map(item => {
+              if (item.id === row.id) {
+                return {
+                  ...item,
+                  title: row.title as string,
+                  description: (row.description as string) || null,
+                  priority: row.priority as TodoPriority,
+                  category: row.category as TodoCategory,
+                  due_date: (row.due_date as string) || null,
+                  subject_id: (row.subject_id as string) || null,
+                  subject_name: subjectName ?? item.subject_name,
+                  completed: row.completed as boolean,
+                  completed_at: (row.completed_at as string) || null,
+                  updated_at: row.updated_at as string,
+                };
+              }
+              return item;
+            }));
+          } else if (payload.eventType === 'DELETE') {
+            const { id } = payload.old as { id: string };
+            setTodos((prev) => prev.filter(item => item.id !== id));
+          }
         }
       )
       .subscribe();
@@ -577,7 +668,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile.id, fetchTodos]);
+  }, [profile.id]);
 
   // -------------------------------------------------------
   // Computed: combined todos (manual + auto) for display
@@ -660,7 +751,6 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
     }
 
     setAdding(true);
-    addingInProgress.current = true;
 
     // Optimistic: build the new todo locally for instant appearance
     const tempId = `temp-${Date.now()}`;
@@ -686,7 +776,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       updated_at: new Date().toISOString(),
     };
 
-    // Add to local state immediately (no refetch needed)
+    // Add to local state immediately (realtime handler will replace tempId with real ID)
     setTodos((prev) => [optimisticTodo, ...prev]);
     toast.success(t('todos.addedSuccess'));
     setAddModalOpen(false);
@@ -724,8 +814,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           category: row.category as TodoCategory,
           due_date: (row.due_date as string) || null,
           subject_id: (row.subject_id as string) || null,
-          subject_name:
-            subjectName, // keep the locally resolved name
+          subject_name: subjectName,
           source: (row.source as TodoSource) || 'manual',
           completed: row.completed as boolean,
           completed_at: (row.completed_at as string) || null,
@@ -740,8 +829,6 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       toast.error(t('common.error'));
     } finally {
       setAdding(false);
-      // Clear adding flag after a short delay to let realtime events settle
-      setTimeout(() => { addingInProgress.current = false; }, 500);
     }
   };
 
@@ -829,8 +916,8 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
   // -------------------------------------------------------
   // Toggle complete/incomplete
-  // FIX: Do optimistic update IMMEDIATELY before API call,
-  // and skip realtime re-fetch during toggle to prevent overwrite.
+  // No flag needed — realtime handler uses direct state mutation
+  // so it won't overwrite our optimistic update.
   // -------------------------------------------------------
   const handleToggle = async (todo: UserTodo) => {
     const newCompleted = !todo.completed;
@@ -849,8 +936,6 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       return;
     }
 
-    // Set flag to prevent realtime from overwriting
-    togglingInProgress.current = true;
     setTogglingId(todo.id);
 
     // Optimistic update for DB todos
@@ -899,15 +984,14 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       );
     } finally {
       setTogglingId(null);
-      // Delay clearing the flag to allow the realtime event to pass
-      setTimeout(() => {
-        togglingInProgress.current = false;
-      }, 500);
     }
   };
 
   // -------------------------------------------------------
   // Delete todo
+  // Auto-todos: persist the dismissal to localStorage so they
+  // don't reappear on refresh. Manual todos: optimistic delete
+  // + API call. Realtime handler will confirm the delete.
   // -------------------------------------------------------
   const handleDelete = async (todoId: string) => {
     // Check if this is an auto-generated todo
@@ -921,15 +1005,15 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
         setDeleteConfirmId(null);
         return;
       }
-      // For completed auto-todos: remove from local state only (they're generated from quizzes/assignments)
+      // For completed auto-todos: persist dismissal to localStorage + remove from local state
+      persistHiddenAutoTodo(profile.id, todoId);
       setAutoTodos((prev) => prev.filter((item) => item.id !== todoId));
       setDeleteConfirmId(null);
       toast.success(t('todos.autoDeletedSuccess'));
       return;
     }
 
-    // Manual todo: delete via API
-    const previousTodos = todos;
+    // Manual todo: optimistic delete + API call
     setTodos((prev) => prev.filter((item) => item.id !== todoId));
     setDeleteConfirmId(null);
     setDeletingId(todoId);
@@ -948,15 +1032,15 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
       if (!res.ok || data.error) {
         console.error('Error deleting todo:', data.error);
-        // Rollback on error
-        setTodos(previousTodos);
+        // Re-fetch to restore the deleted item (since we optimistically removed it)
+        fetchTodos();
         toast.error(t('common.unexpectedError'));
       } else {
         toast.success(t('todos.deletedSuccess'));
       }
     } catch {
-      // Rollback on error
-      setTodos(previousTodos);
+      // Re-fetch to restore on error
+      fetchTodos();
       toast.error(t('common.unexpectedError'));
     } finally {
       setDeletingId(null);

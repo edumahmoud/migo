@@ -26,3 +26,29 @@ Stage Summary:
 - Quiz tabs auto-update every 15 seconds for scheduled→active transitions
 - Question options now use correct alphabetical ordering per language
 - Course description is clickable to expand/collapse
+---
+Task ID: 1
+Agent: main
+Task: Fix todo-section.tsx flickering bug (tasks reappear after delete, disappear after create) and auto-todo persistence
+
+Work Log:
+- Identified root cause: Realtime subscription called `fetchTodos()` on every DB change event, which replaced the entire `todos` state with a fresh DB query. This created a race condition where the DB query could return stale data (before the INSERT/DELETE committed), overwriting the optimistic local state.
+- Removed `togglingInProgress` and `addingInProgress` refs (no longer needed)
+- Replaced realtime subscription from `fetchTodos()`-based to direct state mutations using event payloads:
+  - INSERT event → add to state (with smart dedup for optimistic temp entries)
+  - UPDATE event → update matching item in state
+  - DELETE event → remove matching item from state
+- This eliminates the race condition entirely because we never do a full re-fetch from the realtime handler
+- Added `subjectsRef` to avoid stale closure in realtime handler
+- Fixed auto-todo persistence: added localStorage-based hidden auto-todo tracking (`hidden-auto-todos-{userId}`), so dismissed auto-tasks don't reappear after page refresh
+- Updated `fetchAutoTodos` to filter out hidden auto-todos from localStorage
+- Updated `handleDelete` for auto-todos to call `persistHiddenAutoTodo()` before removing from state
+- Updated `handleDelete` for manual todos: on error, call `fetchTodos()` to restore (instead of stale closure rollback)
+- Simplified `handleAdd` and `handleToggle` by removing flag-based guards
+
+Stage Summary:
+- **Root cause**: `fetchTodos()` in realtime handler caused race conditions
+- **Fix**: Direct state mutation from event payloads instead of full re-fetch
+- **Auto-todo fix**: localStorage persistence for hidden/dismissed auto-tasks
+- Lint: clean, no errors
+- Dev server: running normally
