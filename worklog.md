@@ -817,3 +817,23 @@ Stage Summary:
 - Toggle switches now use Radix UI Switch with CSS logical properties for RTL
 - Cancel button hover text stays visible on white background
 - Quiz notifications navigate directly to the exam when clicked
+
+---
+Task ID: 2
+Agent: Main
+Task: Fix quiz notification navigation, scheduled quiz access, auto permission dialog, toggle RTL, and cancel button
+
+Work Log:
+- Fixed quiz notification deep link: changed from opening quiz directly (setViewingQuizId) to navigating to exams tab only
+- Added QuizNotStartedScreen component in quiz-view.tsx with live countdown timer
+- Added time check in QuizView.fetchQuiz() to block access to scheduled quizzes before start time
+- Removed auto Notification.requestPermission() from student-dashboard.tsx that caused Android system error
+- Cleaned up setViewingQuizId from notification navigation options in bell and section components
+- Previous fixes still in place: Switch component for RTL toggle, cancel button hover text
+
+Stage Summary:
+- 5 files modified, build successful, pushed commit cb93f15
+- Quiz notifications now navigate to exams tab instead of opening quiz directly
+- Scheduled quizzes are blocked in QuizView until their start time
+- Auto permission dialog removed (user must explicitly request)
+- QuizNotStartedScreen shows countdown and auto-reloads when time arrives
