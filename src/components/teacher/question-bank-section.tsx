@@ -141,7 +141,14 @@ function difficultyColor(d?: string | null): string {
 // Main Component
 // -------------------------------------------------------
 export default function QuestionBankSection({ profile, onNavigateToCourse }: QuestionBankSectionProps) {
-  const { t, direction } = useTranslations();
+  const { t, direction, locale } = useTranslations();
+
+  // Option letter labels: أ, ب, ج, د... (Arabic) or A, B, C, D... (English)
+  const arabicLetters = ['أ','ب','ج','د','هـ','و','ز','ح','ط','ي','ك','ل','م','ن','س','ع','ف','ص','ق','ر','ش','ت','ث','خ','ذ','ض','ظ','غ'];
+  const getOptionLabel = (idx: number) => {
+    if (locale === 'ar') return arabicLetters[idx] || String(idx + 1);
+    return String.fromCharCode(65 + idx);
+  };
   const { setSelectedSubjectId, setCourseTab } = useAppStore();
 
   // ─── Data ───
@@ -1066,7 +1073,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                 type="text"
                 value={opt}
                 onChange={e => { const n = [...mcqOptions]; n[idx] = e.target.value; setMcqOptions(n); }}
-                placeholder={t('questionBank.optionLabel') + ' ' + (idx + 1)}
+                placeholder={`${t('questionBank.optionLabel')} ${getOptionLabel(idx)}`}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 dir={direction}
               />

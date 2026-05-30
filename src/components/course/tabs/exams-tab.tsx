@@ -235,6 +235,13 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   const { setViewingQuizId, justCompletedQuizIds, addJustCompletedQuiz } = useAppStore();
   const { t, direction, locale } = useTranslations();
 
+  // Option letter labels: أ, ب, ج, د... (Arabic) or A, B, C, D... (English)
+  const arabicLetters = ['أ','ب','ج','د','هـ','و','ز','ح','ط','ي','ك','ل','م','ن','س','ع','ف','ص','ق','ر','ش','ت','ث','خ','ذ','ض','ظ','غ'];
+  const getOptionLabel = (idx: number) => {
+    if (locale === 'ar') return arabicLetters[idx] || String(idx + 1);
+    return String.fromCharCode(65 + idx); // A, B, C, D...
+  };
+
   // ─── Sub-tab ───
   const [subTab, setSubTab] = useState<ExamSubTab>('active');
 
@@ -414,6 +421,20 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       supabase.removeChannel(channel);
     };
   }, [subjectId, profile.id, role]);
+
+  // -------------------------------------------------------
+  // Timer: force re-render when scheduled quizzes should become active
+  // Checks every 15 seconds so tabs update automatically when time arrives
+  // -------------------------------------------------------
+  const [quizTick, setQuizTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setQuizTick(prev => prev + 1);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
+  // quizTick triggers recalculation of scheduledQuizzes/activeQuizzes via re-render
+  void quizTick;
 
   // -------------------------------------------------------
   // Question builder helpers
@@ -1292,7 +1313,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
                   newOpts[idx] = e.target.value;
                   setMcqOptions(newOpts);
                 }}
-                placeholder={t('exams.optionLabel', { n: idx + 1 })}
+                placeholder={`${t('exams.optionLabel', { index: getOptionLabel(idx) })}`}
                 className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors"
                 disabled={savingQuiz}
                 dir={direction}
@@ -1974,7 +1995,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
       : 0;
 
     return (
-      <motion.div key={quiz.id} variants={itemVariants}>
+      <motion.div key={quiz.id} variants={itemVariants} exit={{ opacity: 0, scale: 0.95, y: 10 }} layout>
         <div className="group relative rounded-xl border bg-card p-4 sm:p-5 shadow-sm hover:shadow-md transition-all">
           {/* Teacher action buttons — prominent on mobile, hover-reveal on desktop */}
           <div className="flex items-center gap-2 mb-3 md:absolute md:top-3 md:end-3 md:mb-0 md:gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -2097,7 +2118,7 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
     const scorePct = myScore ? scorePercentage(myScore.score, myScore.total) : null;
 
     return (
-      <motion.div key={quiz.id} variants={itemVariants}>
+      <motion.div key={quiz.id} variants={itemVariants} exit={{ opacity: 0, scale: 0.95, y: 10 }} layout>
         <div className="group relative rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-all">
           <div className="flex items-center gap-3 mb-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
@@ -2278,13 +2299,15 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
             )}
           </motion.div>
         ) : (
-          <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {activeQuizzes.map((quiz) =>
-              role === 'teacher'
-                ? renderTeacherQuizCard(quiz, false)
-                : renderStudentQuizCard(quiz, false)
-            )}
-          </motion.div>
+          <AnimatePresence>
+            <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {activeQuizzes.map((quiz) =>
+                role === 'teacher'
+                  ? renderTeacherQuizCard(quiz, false)
+                  : renderStudentQuizCard(quiz, false)
+              )}
+            </motion.div>
+          </AnimatePresence>
         )
       ) : subTab === 'scheduled' ? (
         // ─── Scheduled tab ───
@@ -2311,13 +2334,15 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
             )}
           </motion.div>
         ) : (
-          <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {scheduledQuizzes.map((quiz) =>
-              role === 'teacher'
-                ? renderTeacherQuizCard(quiz, false)
-                : renderStudentQuizCard(quiz, false)
-            )}
-          </motion.div>
+          <AnimatePresence>
+            <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {scheduledQuizzes.map((quiz) =>
+                role === 'teacher'
+                  ? renderTeacherQuizCard(quiz, false)
+                  : renderStudentQuizCard(quiz, false)
+              )}
+            </motion.div>
+          </AnimatePresence>
         )
       ) : (
         // ─── Finished tab ───
@@ -2335,13 +2360,15 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
             </p>
           </motion.div>
         ) : (
-          <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {finishedQuizzes.map((quiz) =>
-              role === 'teacher'
-                ? renderTeacherQuizCard(quiz, true)
-                : renderStudentQuizCard(quiz, true)
-            )}
-          </motion.div>
+          <AnimatePresence>
+            <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {finishedQuizzes.map((quiz) =>
+                role === 'teacher'
+                  ? renderTeacherQuizCard(quiz, true)
+                  : renderStudentQuizCard(quiz, true)
+              )}
+            </motion.div>
+          </AnimatePresence>
         )
       )}
 

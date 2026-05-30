@@ -906,22 +906,27 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   // Delete todo
   // -------------------------------------------------------
   const handleDelete = async (todoId: string) => {
-    setDeletingId(todoId);
+    // Optimistic: remove from UI immediately
+    const previousTodos = todos;
+    setTodos((prev) => prev.filter((item) => item.id !== todoId));
+    setDeleteConfirmId(null);
     try {
       const { error } = await supabase.from('user_todos').delete().eq('id', todoId);
 
       if (error) {
         console.error('Error deleting todo:', error);
+        // Rollback on error
+        setTodos(previousTodos);
+        toast.error(t('common.unexpectedError'));
       } else {
         toast.success(t('todos.deletedSuccess'));
-        // Optimistic removal
-        setTodos((prev) => prev.filter((item) => item.id !== todoId));
       }
     } catch {
-      console.error('Delete todo error');
+      // Rollback on error
+      setTodos(previousTodos);
+      toast.error(t('common.unexpectedError'));
     } finally {
       setDeletingId(null);
-      setDeleteConfirmId(null);
     }
   };
 
@@ -980,6 +985,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       <motion.div
         key={todo.id}
         variants={itemVariants}
+        exit={{ opacity: 0, scale: 0.95, x: -20 }}
         layout
         className={`group relative rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md ${
           todo.completed ? 'opacity-60' : ''
@@ -1562,9 +1568,11 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       ) : filteredTodos.length === 0 ? (
         renderEmptyState()
       ) : (
-        <motion.div variants={containerVariants} className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pe-1">
-          {filteredTodos.map((todo) => renderTodoCard(todo))}
-        </motion.div>
+        <AnimatePresence>
+          <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar pe-1">
+            {filteredTodos.map((todo) => renderTodoCard(todo))}
+          </motion.div>
+        </AnimatePresence>
       )}
 
       {/* Add modal */}

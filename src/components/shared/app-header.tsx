@@ -158,7 +158,9 @@ export default function AppHeader({
   }, [dropdownOpen]);
 
   return (
-    <header className="fixed top-0 inset-x-0 z-40 h-14 md:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border" dir={direction}>
+    <header className={`fixed top-0 end-0 z-40 h-14 md:h-16 border-b bg-background/95 backdrop-blur-md shadow-sm dark:bg-card/95 dark:border-border transition-[inset-inline-start] duration-300 ease-in-out ${
+      sidebarCollapsed ? 'md:start-[68px]' : 'md:start-64'
+    }`} dir={direction}>
       <div className="flex h-full items-center justify-between px-2 md:px-5">
         {/* ── Start side: Logo + App name ── */}
         <div className="flex items-center gap-1.5 md:gap-3 min-w-0 flex-1">
@@ -183,11 +185,15 @@ export default function AppHeader({
             </svg>
           </button>
 
-          {/* Logo */}
-          <HeaderLogo />
+          {/* Logo — hidden on desktop since sidebar shows it */}
+          <div className="md:hidden">
+            <HeaderLogo />
+          </div>
 
-          {/* App name */}
-          <HeaderTitle />
+          {/* App name — hidden on desktop since sidebar shows it */}
+          <div className="md:hidden">
+            <HeaderTitle />
+          </div>
 
           {/* Section label - hidden on very small screens */}
           <ActiveSectionLabel role={userRole} />

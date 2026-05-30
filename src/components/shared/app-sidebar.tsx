@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -11,8 +11,6 @@ import {
   FolderOpen,
   FileSpreadsheet,
   Settings,
-  ChevronRight,
-  ChevronLeft,
   MessageCircle,
   Bell,
   Activity,
@@ -27,6 +25,7 @@ import {
   Megaphone,
   Building2,
   StickyNote,
+  GraduationCap,
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -39,6 +38,7 @@ import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { useAppStore } from '@/stores/app-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
+import { useInstitutionStore } from '@/stores/institution-store';
 import StickyNoteModal from '@/components/shared/sticky-note-modal';
 
 // -------------------------------------------------------
@@ -188,6 +188,58 @@ function NavItems({
 }
 
 // -------------------------------------------------------
+// Sidebar Logo — shows institution logo or default icon
+// -------------------------------------------------------
+function SidebarLogo() {
+  const { institution, fetchInstitution, loaded } = useInstitutionStore();
+
+  useEffect(() => {
+    if (!loaded) fetchInstitution();
+  }, [loaded, fetchInstitution]);
+
+  if (institution?.logo_url) {
+    return (
+      <img
+        src={institution.logo_url}
+        alt={institution.name}
+        className="h-8 w-8 shrink-0 rounded-xl object-cover border border-sidebar-primary/20 shadow-sm"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary shadow-sm">
+      <GraduationCap className="h-4 w-4 text-sidebar-primary-foreground" />
+    </div>
+  );
+}
+
+// -------------------------------------------------------
+// Sidebar Title — shows institution name or default app name
+// -------------------------------------------------------
+function SidebarTitle() {
+  const { institution, fetchInstitution, loaded } = useInstitutionStore();
+  const { t } = useTranslations();
+
+  useEffect(() => {
+    if (!loaded) fetchInstitution();
+  }, [loaded, fetchInstitution]);
+
+  return (
+    <div className="flex flex-col min-w-0">
+      <h1 className="text-sm font-bold text-sidebar-primary whitespace-nowrap truncate max-w-[140px]">
+        {loaded ? (institution?.name || t('common.appName')) : '\u00A0'}
+      </h1>
+      {loaded && institution?.tagline && (
+        <span className="text-[9px] text-sidebar-foreground/50 whitespace-nowrap truncate max-w-[140px] -mt-0.5">
+          {institution.tagline}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------
 // Main exported component
 // -------------------------------------------------------
 export default function AppSidebar({
@@ -207,10 +259,6 @@ export default function AppSidebar({
   // On tablet, treat sidebar as collapsed (compact icon-only mode) unless explicitly opened
   const collapsed = isTablet ? !sidebarOpen : !sidebarOpen;
 
-  const handleToggle = useCallback(() => {
-    setSidebarOpen(!sidebarOpen);
-  }, [sidebarOpen, setSidebarOpen]);
-
   // On mobile, use Sheet (drawer)
   if (isMobile) {
     return (
@@ -220,7 +268,12 @@ export default function AppSidebar({
           <SheetHeader className="sr-only">
             <SheetTitle>{t('nav.mainMenu')}</SheetTitle>
           </SheetHeader>
-          <div className="flex h-full flex-col overflow-hidden pt-2" dir={direction}>
+          <div className="flex h-full flex-col overflow-hidden" dir={direction}>
+            {/* App branding inside mobile sidebar */}
+            <div className="shrink-0 flex items-center gap-2.5 border-b border-sidebar-border px-3 h-14 md:h-16">
+              <SidebarLogo />
+              <SidebarTitle />
+            </div>
             <ScrollArea className="flex-1 min-h-0">
               <nav className="px-3 py-4 text-sidebar-foreground">
                 <NavItems
@@ -254,14 +307,21 @@ export default function AppSidebar({
     );
   }
 
-  // Desktop: Fixed sidebar, collapsible - position based on direction
+  // Desktop: Fixed sidebar, full screen height, collapsible
   return (
     <aside
-      className={`fixed start-0 top-14 md:top-16 z-50 h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)] border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
+      className={`fixed start-0 top-0 z-50 h-screen border-e border-sidebar-border bg-sidebar shadow-sm transition-all duration-300 ease-in-out ${
         collapsed ? 'w-[68px]' : 'w-64'
       }`}
     >
       <div className="flex h-full flex-col overflow-hidden" dir={direction}>
+        {/* App branding inside sidebar */}
+        <div className={`shrink-0 flex items-center gap-2.5 border-b border-sidebar-border px-3 h-14 md:h-16 ${collapsed ? 'justify-center' : ''}`}>
+          {/* Logo */}
+          <SidebarLogo />
+          {!collapsed && <SidebarTitle />}
+        </div>
+
         {/* Navigation */}
         <ScrollArea className="flex-1 min-h-0">
           <nav className="px-2 sm:px-3 py-3 sm:py-4">
@@ -290,23 +350,6 @@ export default function AppSidebar({
             </button>
           </div>
         )}
-
-        {/* Collapse toggle button at bottom */}
-        <div className={`shrink-0 border-sidebar-border border-t p-2 ${collapsed ? 'flex justify-center' : ''}`}>
-          <button
-            onClick={handleToggle}
-            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-sidebar-foreground/60 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 transition-all ${
-              collapsed ? 'justify-center' : ''
-            }`}
-          >
-            {isRTL ? (
-              <ChevronLeft className={`h-4 w-4 shrink-0 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
-            ) : (
-              <ChevronRight className={`h-4 w-4 shrink-0 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
-            )}
-            {!collapsed && <span>{t('nav.collapseSidebar')}</span>}
-          </button>
-        </div>
 
         {/* Sticky Note Modal */}
         <StickyNoteModal open={stickyModalOpen} onClose={() => setStickyModalOpen(false)} />

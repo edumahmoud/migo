@@ -225,6 +225,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
+  const [descExpanded, setDescExpanded] = useState(false);
   const [editColor, setEditColor] = useState(SUBJECT_COLORS[0]);
   const [editLevel, setEditLevel] = useState('');
   const [editSubLevel, setEditSubLevel] = useState('');
@@ -826,7 +827,13 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 {subject.name}
               </h1>
               {subject.description && (
-                <p className="mt-1 text-white/75 text-sm md:text-base truncate max-w-lg md:max-w-xl">
+                <p
+                  onClick={() => setDescExpanded(!descExpanded)}
+                  className={`mt-1 text-white/75 text-sm md:text-base max-w-lg md:max-w-xl cursor-pointer transition-all ${
+                    descExpanded ? 'whitespace-normal' : 'truncate'
+                  }`}
+                  title={descExpanded ? undefined : subject.description}
+                >
                   {subject.description}
                 </p>
               )}

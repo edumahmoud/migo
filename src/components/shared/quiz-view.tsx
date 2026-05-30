@@ -2007,8 +2007,15 @@ interface MCQQuestionProps {
 }
 
 function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, showCorrectness }: MCQQuestionProps) {
-  const { t } = useTranslations();
+  const { t, locale } = useTranslations();
   if (!question.options) return null;
+
+  // Arabic alphabetical letters: أ, ب, ج, د, هـ, و, ز, ح, ط, ي, ك, ل, م, ن, س, ع, ف, ص, ق, ر, ش, ت, ث, خ, ذ, ض, ظ, غ
+  const arabicLetters = ['أ','ب','ج','د','هـ','و','ز','ح','ط','ي','ك','ل','م','ن','س','ع','ف','ص','ق','ر','ش','ت','ث','خ','ذ','ض','ظ','غ'];
+  const getOptionLabel = (idx: number) => {
+    if (locale === 'ar') return arabicLetters[idx] || String(idx + 1);
+    return String.fromCharCode(65 + idx); // A, B, C, D...
+  };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2063,7 +2070,7 @@ function MCQQuestion({ question, answered, isCorrect, selectedOption, onAnswer, 
                       : 'bg-sky-100 dark:bg-sky-800/40 text-sky-800 dark:text-sky-400'
               }`}
             >
-              {String.fromCharCode(1571 + idx)}
+              {getOptionLabel(idx)}
             </span>
 
             <span className="flex-1">{option}</span>

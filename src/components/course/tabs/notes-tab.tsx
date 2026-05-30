@@ -556,6 +556,8 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       <motion.div
         key={note.id}
         variants={itemVariants}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        layout
         className={`rounded-xl border bg-card shadow-sm hover:shadow-md transition-all overflow-hidden ${
           note.visibility === 'sticky'
             ? 'border-amber-300/80 dark:border-amber-700/60'
@@ -848,9 +850,11 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   {generalNotes.length}
                 </Badge>
               </div>
-              <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {generalNotes.map((note) => renderNoteCard(note, true))}
-              </motion.div>
+              <AnimatePresence>
+                <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {generalNotes.map((note) => renderNoteCard(note, true))}
+                </motion.div>
+              </AnimatePresence>
             </div>
           )}
 
@@ -864,9 +868,11 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   {lectureNotes.length}
                 </Badge>
               </div>
-              <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {lectureNotes.map((note) => renderNoteCard(note, false))}
-              </motion.div>
+              <AnimatePresence>
+                <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {lectureNotes.map((note) => renderNoteCard(note, false))}
+                </motion.div>
+              </AnimatePresence>
             </div>
           )}
         </div>

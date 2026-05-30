@@ -561,24 +561,29 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
   // Delete assignment
   // -------------------------------------------------------
   const handleDelete = async (id: string) => {
-    setDeletingId(id);
+    // Optimistic: remove from UI immediately
+    const previousAssignments = assignments;
+    setAssignments((prev) => prev.filter((a) => a.id !== id));
+    if (selectedAssignment?.id === id) {
+      setSelectedAssignment(null);
+      setSubmissions([]);
+    }
+    setDeleteConfirmId(null);
     try {
       const { error } = await supabase.from('assignments').delete().eq('id', id);
-      if (error) toast.error(t('errorDeletingAssignment'));
-      else {
+      if (error) {
+        toast.error(t('errorDeletingAssignment'));
+        // Rollback on error
+        setAssignments(previousAssignments);
+      } else {
         toast.success(t('assignmentDeletedToast'));
-        // Optimistic: remove from local state immediately (no full refetch)
-        setAssignments((prev) => prev.filter((a) => a.id !== id));
-        if (selectedAssignment?.id === id) {
-          setSelectedAssignment(null);
-          setSubmissions([]);
-        }
       }
     } catch {
+      // Rollback on error
+      setAssignments(previousAssignments);
       toast.error(tc('unexpectedError'));
     } finally {
       setDeletingId(null);
-      setDeleteConfirmId(null);
     }
   };
 
@@ -932,14 +937,15 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
           </p>
         </motion.div>
       ) : (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {filteredAssignments.map((assignment) => {
-            const mySub = mySubmissions[assignment.id];
-            const countdown = assignment.due_date ? getCountdown(assignment.due_date) : null;
-            const pastDue = assignment.due_date ? isPastDue(assignment.due_date) : false;
+        <AnimatePresence>
+          <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {filteredAssignments.map((assignment) => {
+              const mySub = mySubmissions[assignment.id];
+              const countdown = assignment.due_date ? getCountdown(assignment.due_date) : null;
+              const pastDue = assignment.due_date ? isPastDue(assignment.due_date) : false;
 
-            return (
-              <motion.div key={assignment.id} variants={itemVariants}>
+              return (
+                <motion.div key={assignment.id} variants={itemVariants} exit={{ opacity: 0, scale: 0.95, y: 10 }} layout>
                 <div
                   className="group relative rounded-2xl border bg-card p-5 shadow-sm hover:shadow-md transition-all cursor-pointer"
                   onClick={() => { setSelectedAssignment(assignment); setGradingId(null); setSubmitContent(''); setSubmitFile(null); setSelectedExistingFile(null); setSubmitMode('text'); }}
@@ -1033,6 +1039,7 @@ export default function AssignmentsTab({ profile, role, subjectId }: Assignments
             );
           })}
         </motion.div>
+        </AnimatePresence>
       )}
 
       {/* Delete confirmation */}
