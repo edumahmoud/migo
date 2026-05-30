@@ -185,15 +185,11 @@ export default function AppHeader({
             </svg>
           </button>
 
-          {/* Logo — hidden on desktop since sidebar shows it */}
-          <div className="md:hidden">
-            <HeaderLogo />
-          </div>
+          {/* Logo — always visible (sidebar no longer shows it on desktop) */}
+          <HeaderLogo />
 
-          {/* App name — hidden on desktop since sidebar shows it */}
-          <div className="md:hidden">
-            <HeaderTitle />
-          </div>
+          {/* App name — always visible */}
+          <HeaderTitle />
 
           {/* Section label - hidden on very small screens */}
           <ActiveSectionLabel role={userRole} />

@@ -114,7 +114,7 @@ function NavItems({
   role?: string;
 }) {
   const { chatUnreadCount, reportsUnreadCount } = useAppStore();
-  const { t } = useTranslations();
+  const { t, isRTL } = useTranslations();
 
   return (
     <ul className="space-y-1">
@@ -132,7 +132,7 @@ function NavItems({
               className={`flex w-full items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 collapsed
                   ? 'justify-center px-2 py-3'
-                  : 'px-4 py-3'
+                  : isRTL ? 'flex-row-reverse px-4 py-3' : 'px-4 py-3'
               } ${
                 isActive
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground border border-sidebar-primary shadow-sm'
@@ -169,11 +169,11 @@ function NavItems({
               </span>
               {!collapsed && (
                 <>
-                  <span>{t(item.labelKey)}</span>
+                  <span className={isRTL ? 'text-end flex-1' : ''}>{t(item.labelKey)}</span>
                   {isActive && item.id !== 'chat' && (
                     <motion.div
                       layoutId="activeIndicator"
-                      className="ms-auto h-2 w-2 rounded-full bg-sidebar-primary"
+                      className={`${isRTL ? 'me-auto' : 'ms-auto'} h-2 w-2 rounded-full bg-sidebar-primary`}
                       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                     />
                   )}
@@ -269,8 +269,8 @@ export default function AppSidebar({
             <SheetTitle>{t('nav.mainMenu')}</SheetTitle>
           </SheetHeader>
           <div className="flex h-full flex-col overflow-hidden" dir={direction}>
-            {/* App branding inside mobile sidebar */}
-            <div className="shrink-0 flex items-center gap-2.5 border-b border-sidebar-border px-3 h-14 md:h-16">
+            {/* Mobile: App branding inside mobile sidebar (desktop shows it in header) */}
+            <div className="shrink-0 flex items-center gap-2.5 border-b border-sidebar-border px-3 h-14 md:h-16 md:hidden">
               <SidebarLogo />
               <SidebarTitle />
             </div>
@@ -292,7 +292,7 @@ export default function AppSidebar({
               <div className="shrink-0 border-sidebar-border border-t p-3">
                 <button
                   onClick={() => { setStickyModalOpen(true); setSidebarOpen(false); }}
-                  className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all w-full"
+                  className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all w-full ${isRTL ? 'flex-row-reverse' : ''}`}
                 >
                   <StickyNote className="h-4 w-4 shrink-0" />
                   <span>{t('nav.stickyNotes')}</span>
@@ -315,12 +315,7 @@ export default function AppSidebar({
       }`}
     >
       <div className="flex h-full flex-col overflow-hidden" dir={direction}>
-        {/* App branding inside sidebar */}
-        <div className={`shrink-0 flex items-center gap-2.5 border-b border-sidebar-border px-3 h-14 md:h-16 ${collapsed ? 'justify-center' : ''}`}>
-          {/* Logo */}
-          <SidebarLogo />
-          {!collapsed && <SidebarTitle />}
-        </div>
+        {/* Desktop: No branding in sidebar — logo/title shown in header */}
 
         {/* Navigation */}
         <ScrollArea className="flex-1 min-h-0">
@@ -341,7 +336,7 @@ export default function AppSidebar({
             <button
               onClick={() => setStickyModalOpen(true)}
               className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-800/30 transition-all ${
-                collapsed ? 'justify-center' : ''
+                collapsed ? 'justify-center' : isRTL ? 'flex-row-reverse' : ''
               }`}
               title={collapsed ? t('nav.stickyNotes') : undefined}
             >

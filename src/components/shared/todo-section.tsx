@@ -910,11 +910,22 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
     const previousTodos = todos;
     setTodos((prev) => prev.filter((item) => item.id !== todoId));
     setDeleteConfirmId(null);
+    setDeletingId(todoId);
     try {
-      const { error } = await supabase.from('user_todos').delete().eq('id', todoId);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const res = await fetch('/api/todos', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id: todoId }),
+      });
+      const data = await res.json();
 
-      if (error) {
-        console.error('Error deleting todo:', error);
+      if (!res.ok || data.error) {
+        console.error('Error deleting todo:', data.error);
         // Rollback on error
         setTodos(previousTodos);
         toast.error(t('common.unexpectedError'));

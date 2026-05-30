@@ -647,6 +647,23 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   }, []);
 
   // -------------------------------------------------------
+  // Listen for subject-pause-changed events from course-page
+  // for instant pause/unpause updates without waiting for Realtime
+  // -------------------------------------------------------
+  useEffect(() => {
+    const handlePauseChanged = (e: Event) => {
+      const { subjectId, isPaused } = (e as CustomEvent).detail;
+      if (subjectId && typeof isPaused === 'boolean') {
+        setSubjects(prev => prev.map(s =>
+          s.id === subjectId ? { ...s, is_paused: isPaused } : s
+        ));
+      }
+    };
+    window.addEventListener('subject-pause-changed', handlePauseChanged);
+    return () => window.removeEventListener('subject-pause-changed', handlePauseChanged);
+  }, []);
+
+  // -------------------------------------------------------
   // Copy join code to clipboard
   // -------------------------------------------------------
   const handleCopyCode = useCallback((code: string, subjectId: string) => {
@@ -1362,6 +1379,17 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               alt={subject.name}
                               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                             />
+                            {/* Category badge overlay on cover */}
+                            {subject.category_id && (() => {
+                              const cat = categories.find(c => c.id === subject.category_id);
+                              if (!cat) return null;
+                              return (
+                                <div className="absolute top-3 end-3 z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium backdrop-blur-sm" style={{ backgroundColor: hexToRgba(cat.color || '#0369A1', 0.85), color: '#FFFFFF', border: `1px solid ${hexToRgba(cat.color || '#0369A1', 0.5)}` }}>
+                                  <Tag className="h-3 w-3 shrink-0" />
+                                  <span>{getCategoryName(cat)}</span>
+                                </div>
+                              );
+                            })()}
                             {/* Gradient overlay for text readability */}
                             <div
                               className="absolute inset-0"
@@ -1454,6 +1482,17 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                                 )}
                               </button>
                             )}
+                            {/* Category badge overlay on no-cover header */}
+                            {subject.category_id && (() => {
+                              const cat = categories.find(c => c.id === subject.category_id);
+                              if (!cat) return null;
+                              return (
+                                <div className="absolute top-3 end-3 z-10 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium backdrop-blur-sm" style={{ backgroundColor: hexToRgba(cat.color || '#0369A1', 0.15), color: cat.color || '#0369A1', border: `1px solid ${hexToRgba(cat.color || '#0369A1', 0.3)}` }}>
+                                  <Tag className="h-2.5 w-2.5 shrink-0" />
+                                  <span>{getCategoryName(cat)}</span>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
 
@@ -1495,18 +1534,6 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                               )}
                             </div>
                           )}
-
-                          {/* Category badge */}
-                          {subject.category_id && (() => {
-                            const cat = categories.find(c => c.id === subject.category_id);
-                            if (!cat) return null;
-                            return (
-                              <div className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: hexToRgba(cat.color || '#0369A1', 0.1), color: cat.color || '#0369A1', border: `1px solid ${hexToRgba(cat.color || '#0369A1', 0.25)}` }}>
-                                <Tag className="h-3 w-3 shrink-0" />
-                                <span>{getCategoryName(cat)}</span>
-                              </div>
-                            );
-                          })()}
 
                           {/* Co-teacher badge */}
                           {role === 'teacher' && subject.is_co_teacher && (

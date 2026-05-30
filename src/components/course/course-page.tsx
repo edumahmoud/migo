@@ -357,6 +357,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
 
   // -------------------------------------------------------
   // Supabase Realtime: subscribe to subject metadata changes
+  // (e.g., teacher pauses/unpauses from another session, or
+  //  co-teacher changes the state)
   // -------------------------------------------------------
   useEffect(() => {
     if (!subject?.id) return;
@@ -370,6 +372,21 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
+  }, [subject?.id]);
+
+  // -------------------------------------------------------
+  // Listen for subject-pause-changed custom event from
+  // another browser tab (BroadcastChannel-like behavior)
+  // -------------------------------------------------------
+  useEffect(() => {
+    const handlePauseChanged = (e: Event) => {
+      const { subjectId, isPaused } = (e as CustomEvent).detail;
+      if (subjectId === subject?.id && typeof isPaused === 'boolean') {
+        setSubject(prev => prev ? { ...prev, is_paused: isPaused } : prev);
+      }
+    };
+    window.addEventListener('subject-pause-changed', handlePauseChanged);
+    return () => window.removeEventListener('subject-pause-changed', handlePauseChanged);
   }, [subject?.id]);
 
   // -------------------------------------------------------
@@ -519,17 +536,29 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   const handleTogglePause = async () => {
     if (!subject) return;
     setTogglingPause(true);
+    const newPaused = !subject.is_paused;
     try {
-      const newPaused = !subject.is_paused;
-      const { error } = await supabase
-        .from('subjects')
-        .update({ is_paused: newPaused, updated_at: new Date().toISOString() })
-        .eq('id', subject.id);
-      if (error) {
-        console.error('Toggle pause error:', error);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || '';
+      const res = await fetch('/api/subject-pause', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ subjectId: subject.id, isPaused: newPaused }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        console.error('Toggle pause error:', data.error);
         toast.error(newPaused ? t('course.toastSubjectPauseFailed') : t('course.toastSubjectActivateFailed'));
       } else {
         setSubject(prev => prev ? { ...prev, is_paused: newPaused } : prev);
+        // Dispatch custom event for immediate cross-component updates (subjects-section, etc.)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('subject-pause-changed', { detail: { subjectId: subject.id, isPaused: newPaused } }));
+        }
         toast.success(newPaused ? t('course.toastSubjectPaused') : t('course.toastSubjectActivated'));
       }
     } catch {

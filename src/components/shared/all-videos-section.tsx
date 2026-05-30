@@ -595,7 +595,7 @@ export default function AllVideosSection({ profile, role }: AllVideosSectionProp
           </p>
         </motion.div>
       ) : (
-        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
+        <motion.div variants={containerVariants} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
           {filteredVideos.map((video) => (
             <motion.div key={video.id} variants={itemVariants}>
               <Card
