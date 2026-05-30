@@ -267,7 +267,10 @@ export async function POST(request: NextRequest) {
 
         const quizNotifTitle = 'اختبار جديد';
         const quizNotifMessage = `أنشأ المعلم ${quizTeacherName || 'المعلم'} اختبار${titleText}${dateTimeText}`;
-        const quizNotifLink = `subject:${quizSubjectId}:exams`;
+        // Use quiz deep link format so students can navigate directly to the quiz
+        const quizNotifLink = quizId
+          ? `quiz:${quizSubjectId}:${quizId}`
+          : `subject:${quizSubjectId}:exams`;
 
         await notifyUsers(quizStudentIds, 'quiz', quizNotifTitle, quizNotifMessage, quizNotifLink);
 

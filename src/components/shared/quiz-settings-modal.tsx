@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
@@ -51,7 +52,7 @@ const sectionVariants = {
 };
 
 // -------------------------------------------------------
-// Toggle Switch Sub-component
+// Toggle Switch Sub-component (uses shadcn/ui Switch for RTL support)
 // -------------------------------------------------------
 function ToggleSwitch({
   label,
@@ -70,14 +71,6 @@ function ToggleSwitch({
   disabled?: boolean;
   dir: 'rtl' | 'ltr';
 }) {
-  const isRTL = dir === 'rtl';
-
-  // RTL: OFF = thumb on right (translate-x-5), ON = thumb on left (translate-x-0)
-  // LTR: OFF = thumb on left (translate-x-0), ON = thumb on right (translate-x-5)
-  const thumbTranslate = checked
-    ? isRTL ? 'translate-x-0' : 'translate-x-5'
-    : isRTL ? 'translate-x-5' : 'translate-x-0';
-
   return (
     <div className="flex items-center justify-between rounded-lg border bg-card p-3 gap-3" dir={dir}>
       <div className="flex items-center gap-2.5 min-w-0">
@@ -93,21 +86,12 @@ function ToggleSwitch({
           )}
         </div>
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        onClick={() => onChange(!checked)}
+      <Switch
+        checked={checked}
+        onCheckedChange={onChange}
         disabled={disabled}
-        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-          checked ? 'bg-teal-600' : 'bg-muted'
-        }`}
-      >
-        <span
-          className={`pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform ${thumbTranslate}`}
-        />
-      </button>
+        className="data-[state=checked]:bg-teal-600"
+      />
     </div>
   );
 }
@@ -304,7 +288,7 @@ export default function QuizSettingsModal({
             variant="outline"
             onClick={onClose}
             disabled={saving}
-            className="border-teal-300 text-teal-700 hover:bg-teal-50 dark:text-teal-500 dark:border-teal-900/60 dark:hover:bg-teal-900/20"
+            className="border-teal-300 text-teal-700 hover:bg-teal-50 hover:text-teal-700 dark:text-teal-500 dark:border-teal-900/60 dark:hover:bg-teal-900/20 dark:hover:text-teal-500"
           >
             {t('common.cancel')}
           </Button>

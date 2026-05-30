@@ -128,6 +128,7 @@ export default function NotificationsSection() {
       setCurrentPage: appState.setCurrentPage,
       setPendingReportId: appState.setPendingReportId,
       openProfile: appState.openProfile,
+      setViewingQuizId: appState.setViewingQuizId,
       t,
     });
 

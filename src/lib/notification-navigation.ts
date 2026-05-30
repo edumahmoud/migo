@@ -96,6 +96,7 @@ export function navigateNotification(
     setCurrentPage: (page: AppPage) => void;
     setPendingReportId: (id: string | null) => void;
     openProfile: (userId: string) => void;
+    setViewingQuizId?: (id: string | null, reviewMode?: boolean) => void;
     // Translation helper for detecting link_request by title
     t?: (key: string) => string;
   }
@@ -111,6 +112,7 @@ export function navigateNotification(
     setCurrentPage,
     setPendingReportId,
     openProfile,
+    setViewingQuizId,
     t,
   } = options;
 
@@ -169,6 +171,29 @@ export function navigateNotification(
     } else if (userRole === 'admin' || userRole === 'superadmin') {
       setAdminSection('chat');
       setCurrentPage('admin-dashboard');
+    }
+    return 'handled';
+  }
+
+  // ─── 4b. Quiz deep links — navigate directly to a specific quiz ───
+  // Format: quiz:SUBJECT_ID:QUIZ_ID — opens the quiz directly for the student
+  if (notif.link?.startsWith('quiz:') && userRole === 'student') {
+    const parts = notif.link.split(':');
+    const subjectId = parts[1] || null;
+    const quizId = parts[2] || null;
+
+    if (subjectId) {
+      setSelectedSubjectId(subjectId);
+      setCourseTab('exams');
+      setStudentSection('subjects');
+    }
+
+    // If we have a quiz ID and the setter, open the quiz directly
+    if (quizId && setViewingQuizId) {
+      setViewingQuizId(quizId);
+    } else {
+      // Fallback: just navigate to the exams tab
+      setCurrentPage('student-dashboard');
     }
     return 'handled';
   }

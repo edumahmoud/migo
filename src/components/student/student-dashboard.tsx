@@ -1303,12 +1303,16 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
           // 4. Add to notification store (so it appears in the bell)
           try {
             const store = useNotificationStore.getState();
+            // Build a deep link so clicking the notification navigates to the exam
+            const quizLink = quiz.subject_id
+              ? `quiz:${quiz.subject_id}:${quiz.id}`
+              : undefined;
             store.createNotification({
               userId: profile.id,
               type: 'quiz',
               title: notifTitle,
               message: notifDesc,
-              link: undefined,
+              link: quizLink,
             });
           } catch { /* store not available */ }
         }
