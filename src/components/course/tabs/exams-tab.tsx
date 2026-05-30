@@ -1123,12 +1123,13 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
 
         // Also color-code the student answer column based on correctness
         const studentAnswerColIndex = Object.keys(detailRows[0]).indexOf(t('exams.excelStudentAnswer'));
-        if (studentAnswerColIndex >= 0) {
+        if (studentAnswerColIndex >= 0 && statusColIndex >= 0) {
           const answerColLetter = XLSX.utils.encode_col(studentAnswerColIndex);
+          const ansStatusColLetter = XLSX.utils.encode_col(statusColIndex);
           for (let i = 0; i < detailRows.length; i++) {
             const cellRef = `${answerColLetter}${i + 2}`;
             const cell = detailWs[cellRef];
-            const statusCell = detailWs[`${statusColLetter}${i + 2}`];
+            const statusCell = detailWs[`${ansStatusColLetter}${i + 2}`];
             if (cell && statusCell) {
               if (statusCell.v === '✓') {
                 cell.s = { font: { color: { rgb: '16A34A' } } };
