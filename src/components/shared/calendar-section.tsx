@@ -413,9 +413,19 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
   const [togglingTodoId, setTogglingTodoId] = useState<string | null>(null);
 
   const handleToggleTodo = useCallback(async (todoId: string, currentCompleted: boolean) => {
+    const newCompleted = !currentCompleted;
+
+    // Optimistic update IMMEDIATELY
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === `todo-${todoId}`
+          ? { ...e, completed: newCompleted }
+          : e
+      )
+    );
+
     setTogglingTodoId(todoId);
     try {
-      const newCompleted = !currentCompleted;
       const { error } = await supabase
         .from('user_todos')
         .update({
@@ -427,18 +437,25 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
 
       if (error) {
         console.error('Error toggling todo from calendar:', error);
-      } else {
-        // Optimistic update: update the event in place
+        // Revert on error
         setEvents((prev) =>
           prev.map((e) =>
             e.id === `todo-${todoId}`
-              ? { ...e, completed: newCompleted }
+              ? { ...e, completed: currentCompleted }
               : e
           )
         );
       }
     } catch {
       console.error('Toggle todo error from calendar');
+      // Revert on error
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === `todo-${todoId}`
+            ? { ...e, completed: currentCompleted }
+            : e
+        )
+      );
     } finally {
       setTogglingTodoId(null);
     }
@@ -775,7 +792,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       {event.time && <span className="text-[10px] text-muted-foreground shrink-0">{formatEventTime(event.time, locale)}</span>}
                       {/* Status badge */}
                       {isPast && !isToday && !event.completed && event.type !== 'quiz' && (
-                        <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.overdue')}</span>
+                        <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.missed')}</span>
                       )}
                       {isPast && !isToday && !event.completed && event.type === 'quiz' && (
                         <span className="shrink-0 text-[8px] font-bold rounded-full px-1.5 py-0.5 bg-muted-foreground/60 text-white">{t('exams.finished')}</span>
@@ -882,7 +899,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                       } ${event.completed ? 'line-through' : ''}`}>{event.title}</p>
                       {/* Status badge */}
                       {isOverdue && (
-                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.overdue')}</span>
+                        <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-rose-500 text-white">{t('calendar.missed')}</span>
                       )}
                       {event.completed && (
                         <span className="shrink-0 text-[9px] font-bold rounded-full px-1.5 py-0.5 bg-emerald-500 text-white">{t('calendar.completed')}</span>
@@ -993,6 +1010,23 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
 
           {/* Filter chips */}
           {renderFilters()}
+
+          {/* Color Legend */}
+          <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-white/10">
+            <span className="text-[10px] text-sky-200 font-medium">{t('calendar.legend')}:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+              <span className="text-[10px] text-sky-200/80">{t('calendar.legendMissed')}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+              <span className="text-[10px] text-sky-200/80">{t('calendar.legendCompleted')}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+              <span className="text-[10px] text-sky-200/80">{t('calendar.legendUpcoming')}</span>
+            </div>
+          </div>
         </div>
       </motion.div>
 

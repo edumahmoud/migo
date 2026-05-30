@@ -841,6 +841,9 @@
     "viewViewsTooltip": "View views",
     "noteCount": "{count} notes",
     "noNotesYetFull": "No notes yet",
+    "stickyNote": "Sticky Note",
+    "showAsSticky": "Show as sticky note",
+    "stickyNoteDesc": "This note will appear as a floating card on screen",
     "autoDistributeLabel": "Auto distribute",
     "createTeamsDesc": "Create teams to divide course students or use auto-assign",
     "selectAll": "Select All",
@@ -1173,7 +1176,11 @@
     "typeBoolean": "True or False",
     "typeCompletion": "Fill in the Blank",
     "typeMatching": "Matching",
-    "typeMcq": "Multiple Choice"
+    "typeMcq": "Multiple Choice",
+    "resultsNotAvailable": "Results Not Available",
+    "resultsNotAvailableDesc": "The teacher has not enabled result viewing yet",
+    "scoreOnly": "Quiz Submitted",
+    "scoreOnlyDesc": "Your quiz has been submitted successfully. The teacher will enable result viewing later."
   },
   "summary": {
     "summary": "Summary",
@@ -3602,7 +3609,20 @@
     "subjectColor": "Subject Color",
     "sublevelLabel": "Sub-level",
     "teacher": "Teacher",
-    "leaving": "Leaving..."
+    "leaving": "Leaving...",
+    "manageCategories": "Manage Categories",
+    "addCategory": "Add Category",
+    "editCategory": "Edit Category",
+    "deleteCategory": "Delete Category",
+    "deleteCategoryConfirm": "Are you sure you want to delete this category?",
+    "categoryNameAr": "Category Name (Arabic)",
+    "categoryNameEn": "Category Name (English)",
+    "categoryNameArPlaceholder": "e.g. Programming",
+    "categoryNameEnPlaceholder": "e.g. Programming",
+    "categoryColor": "Category Color",
+    "categoryNameRequired": "Arabic category name is required",
+    "noCategories": "No categories yet",
+    "categoryCount": "{count} categories"
   },
   "videos": {
     "all": "All",
@@ -3805,7 +3825,13 @@
     "all": "All",
     "overdue": "Overdue",
     "completed": "Completed",
-    "upcoming": "Upcoming"
+    "upcoming": "Upcoming",
+    "missed": "Missed",
+    "inProgress": "In Progress",
+    "legend": "Color Legend",
+    "legendMissed": "Missed",
+    "legendCompleted": "Completed",
+    "legendUpcoming": "Upcoming / In Progress"
   },
   "todos": {
     "title": "My Tasks",
@@ -3843,7 +3869,9 @@
     "editTodo": "Edit Task",
     "deleteTodo": "Delete Task",
     "actions": "Actions",
-    "saveChanges": "Save Changes"
+    "saveChanges": "Save Changes",
+    "autoQuiz": "Auto Quiz",
+    "autoAssignment": "Auto Assignment"
   },
   "platformAnnouncements": {
     "title": "Celebrations & Public Announcements",

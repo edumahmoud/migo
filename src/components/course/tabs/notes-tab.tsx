@@ -17,6 +17,7 @@ import {
   Megaphone,
   Clock,
   User,
+  Pin,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -24,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, Lecture, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import DraggableStickyNote from './draggable-sticky-note';
 
 // -------------------------------------------------------
 // Props
@@ -71,7 +73,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
   // ─── Note creation ───
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [noteContent, setNoteContent] = useState('');
-  const [noteVisibility, setNoteVisibility] = useState<'public' | 'private'>('public');
+  const [noteVisibility, setNoteVisibility] = useState<'public' | 'private' | 'sticky'>('public');
   const [noteLectureId, setNoteLectureId] = useState<string>('');
   const [savingNote, setSavingNote] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -86,6 +88,9 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
 
   // ─── General notes lecture ID ───
   const [generalLectureId, setGeneralLectureId] = useState<string | null>(null);
+
+  // ─── Sticky notes state ───
+  const [hiddenStickyIds, setHiddenStickyIds] = useState<Set<string>>(new Set());
 
   // -------------------------------------------------------
   // Helper: format relative date
@@ -153,6 +158,14 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
     return visibleNotes.filter((n) => n.lecture_id && n.lecture_id !== generalLectureId);
   }, [visibleNotes, generalLectureId]);
 
+  // Sticky notes: notes with visibility='sticky'
+  const stickyNotes = useMemo(() => {
+    return visibleNotes.filter((n) => n.visibility === 'sticky' && !hiddenStickyIds.has(n.id));
+  }, [visibleNotes, hiddenStickyIds]);
+
+  // Expose sticky notes for course-page.tsx to render across tabs
+  // (also return hiddenStickyIds management for course-level rendering)
+
   // -------------------------------------------------------
   // Fetch lectures
   // -------------------------------------------------------
@@ -205,7 +218,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
         .order('created_at', { ascending: false });
 
       if (role === 'student') {
-        notesQuery = notesQuery.or(`user_id.eq.${profile.id},visibility.eq.public`);
+        notesQuery = notesQuery.or(`user_id.eq.${profile.id},visibility.eq.public,visibility.eq.sticky`);
       }
 
       const { data, error } = await notesQuery;
@@ -323,7 +336,14 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           .update({ content, visibility: noteVisibility, updated_at: new Date().toISOString() })
           .eq('id', editingNoteId);
         if (error) toast.error(t('noteUpdateFailed'));
-        else { toast.success(t('noteUpdated')); setEditingNoteId(null); }
+        else {
+          toast.success(t('noteUpdated'));
+          setEditingNoteId(null);
+          // Un-hide sticky if re-editing
+          if (noteVisibility === 'sticky') {
+            setHiddenStickyIds((prev) => { const next = new Set(prev); next.delete(editingNoteId); return next; });
+          }
+        }
       } else {
         // Determine lecture_id
         let lectureId = noteLectureId;
@@ -347,9 +367,10 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
         });
         if (error) toast.error(t('noteCreateFailed'));
         else {
-          toast.success(noteVisibility === 'public' ? t('publicNotePublished') : t('privateNoteSaved'));
-          // Send notification to all students for public notes only
-          if (noteVisibility === 'public' && !editingNoteId) {
+          const visLabel = noteVisibility === 'sticky' ? t('stickyNote') : noteVisibility === 'public' ? t('publicNotePublished') : t('privateNoteSaved');
+          toast.success(visLabel);
+          // Send notification to all students for public/sticky notes
+          if ((noteVisibility === 'public' || noteVisibility === 'sticky') && !editingNoteId) {
             try {
               const preview = content.length > 50 ? content.substring(0, 50) + '...' : content;
               const { getCachedAuthHeaders } = await import('@/lib/client-auth');
@@ -373,6 +394,10 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
       setNoteLectureId('');
       setShowCreateForm(false);
       fetchAllNotes();
+      // Make new sticky note visible (un-hide if was hidden)
+      if (noteVisibility === 'sticky') {
+        // The new note will be fetched and shown automatically
+      }
     } catch {
       toast.error(tc('unexpectedError'));
     } finally {
@@ -424,6 +449,13 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
     setNoteVisibility('public');
     setNoteLectureId('');
     setShowCreateForm(false);
+  };
+
+  // -------------------------------------------------------
+  // Handle sticky note close (hide)
+  // -------------------------------------------------------
+  const handleStickyClose = (noteId: string) => {
+    setHiddenStickyIds((prev) => new Set(prev).add(noteId));
   };
 
   // -------------------------------------------------------
@@ -483,14 +515,16 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
         key={note.id}
         variants={itemVariants}
         className={`rounded-xl border bg-card shadow-sm hover:shadow-md transition-all overflow-hidden ${
-          note.visibility === 'public' && isGeneral
-            ? 'border-sky-200/60'
-            : note.visibility === 'public'
-              ? 'border-amber-200/60'
-              : 'border-muted'
+          note.visibility === 'sticky'
+            ? 'border-amber-300/80 dark:border-amber-700/60'
+            : note.visibility === 'public' && isGeneral
+              ? 'border-sky-200/60'
+              : note.visibility === 'public'
+                ? 'border-amber-200/60'
+                : 'border-muted'
         }`}
         onClick={() => {
-          if (role === 'student' && note.visibility === 'public') {
+          if (role === 'student' && (note.visibility === 'public' || note.visibility === 'sticky')) {
             handleRecordNoteView(note.id);
           }
         }}
@@ -499,13 +533,25 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
         {note.visibility === 'public' && isGeneral && (
           <div className="h-1 bg-sky-600" />
         )}
+        {/* Top bar for sticky notes */}
+        {note.visibility === 'sticky' && (
+          <div className="h-1 bg-amber-400 dark:bg-amber-500" />
+        )}
 
         <div className="p-4">
           {/* Header row */}
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex items-center gap-2 flex-wrap">
               {/* Visibility badge */}
-              {note.visibility === 'public' ? (
+              {note.visibility === 'sticky' ? (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400"
+                >
+                  <Pin className="h-2.5 w-2.5 me-1" />
+                  {t('stickyNote')}
+                </Badge>
+              ) : note.visibility === 'public' ? (
                 <Badge
                   variant="outline"
                   className="text-[10px] border-sky-300 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 text-sky-800 dark:text-sky-400"
@@ -535,7 +581,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
             </div>
             {/* Actions */}
             <div className="flex items-center gap-0.5 shrink-0">
-              {role === 'teacher' && note.visibility === 'public' && (
+              {role === 'teacher' && (note.visibility === 'public' || note.visibility === 'sticky') && (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleFetchViewers(note.id); }}
                   className="touch-target flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -636,7 +682,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               </div>
 
               {/* Visibility toggle */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs text-muted-foreground me-1">{t('visibility')}:</span>
                 <button
                   onClick={() => setNoteVisibility('public')}
@@ -650,6 +696,17 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   {t('publicToAllStudents')}
                 </button>
                 <button
+                  onClick={() => setNoteVisibility('sticky')}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                    noteVisibility === 'sticky'
+                      ? 'bg-amber-100 dark:bg-amber-800/40 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-700'
+                      : 'text-muted-foreground hover:bg-muted border border-transparent'
+                  }`}
+                >
+                  <Pin className="h-3.5 w-3.5" />
+                  {t('showAsSticky')}
+                </button>
+                <button
                   onClick={() => setNoteVisibility('private')}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                     noteVisibility === 'private'
@@ -661,6 +718,12 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   {t('privateDraft')}
                 </button>
               </div>
+              {/* Sticky note description */}
+              {noteVisibility === 'sticky' && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-1.5 border border-amber-200/50 dark:border-amber-800/30">
+                  {t('stickyNoteDesc')}
+                </p>
+              )}
 
               {/* Optional lecture selector */}
               {!editingNoteId && (
@@ -686,7 +749,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
               <textarea
                 value={noteContent}
                 onChange={(e) => setNoteContent(e.target.value)}
-                placeholder={noteVisibility === 'public' ? t('publicPlaceholder') : t('privatePlaceholder')}
+                placeholder={noteVisibility === 'sticky' ? t('stickyNote') : noteVisibility === 'public' ? t('publicPlaceholder') : t('privatePlaceholder')}
                 rows={4}
                 className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-colors resize-none"
                 dir={direction}
@@ -701,8 +764,8 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                   disabled={savingNote || !noteContent.trim()}
                   className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-sky-800 disabled:opacity-60"
                 >
-                  {savingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : noteVisibility === 'public' ? <Send className="h-3 w-3" /> : <StickyNote className="h-3 w-3" />}
-                  {editingNoteId ? t('updateBtn') : noteVisibility === 'public' ? t('publishToStudents') : t('saveAsDraft')}
+                  {savingNote ? <Loader2 className="h-3 w-3 animate-spin" /> : noteVisibility === 'sticky' ? <Pin className="h-3 w-3" /> : noteVisibility === 'public' ? <Send className="h-3 w-3" /> : <StickyNote className="h-3 w-3" />}
+                  {editingNoteId ? t('updateBtn') : noteVisibility === 'sticky' ? t('showAsSticky') : noteVisibility === 'public' ? t('publishToStudents') : t('saveAsDraft')}
                 </button>
                 <button
                   onClick={handleCancelForm}
@@ -815,6 +878,19 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Sticky Note Floating Cards */}
+      {stickyNotes.map((note) => (
+        <DraggableStickyNote
+          key={note.id}
+          id={note.id}
+          content={note.content}
+          authorName={note.author_name || ''}
+          onClose={handleStickyClose}
+          direction={direction}
+          labelSticky={t('stickyNote')}
+        />
+      ))}
     </motion.div>
   );
 }

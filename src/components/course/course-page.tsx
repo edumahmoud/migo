@@ -883,9 +883,10 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 title={t(tab.labelKey)}
                 className={`
                   relative flex items-center justify-center gap-1.5
-                  rounded-full px-3 py-2
+                  rounded-full py-2
                   text-sm font-medium whitespace-nowrap transition-all duration-200
                   active:scale-95
+                  ${isActive ? 'px-3' : 'px-2.5 lg:px-3'}
                   ${
                     isActive
                       ? 'text-white shadow-md'
@@ -899,7 +900,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
                 }
               >
                 <span className={isActive ? 'text-white' : ''}>{tab.icon}</span>
-                <span>{t(tab.labelKey)}</span>
+                {/* Show label on: active tab (all sizes), or non-active on large screens */}
+                <span className={`${isActive ? 'inline' : 'hidden lg:inline'}`}>{t(tab.labelKey)}</span>
               </button>
             );
           })}
@@ -907,17 +909,8 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       </div>
 
       {/* ============================================ */}
-      {/* MOBILE ACTIVE TAB INDICATOR (small screens only) */}
+      {/* MOBILE ACTIVE TAB INDICATOR (small screens only) — REMOVED: tabs now show active label inline */}
       {/* ============================================ */}
-      <div className="sm:hidden mt-3">
-        <div
-          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white"
-          style={{ backgroundColor: subjectColor }}
-        >
-          {availableTabs.find((t) => t.id === courseTab)?.icon}
-          <span>{t(availableTabs.find((tab) => tab.id === courseTab)?.labelKey || '')}</span>
-        </div>
-      </div>
 
       {/* ============================================ */}
       {/* TAB CONTENT (no AnimatePresence for performance) */}

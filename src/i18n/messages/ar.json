@@ -841,6 +841,9 @@
     "viewViewsTooltip": "عرض المشاهدات",
     "noteCount": "{count} ملاحظة",
     "noNotesYetFull": "لا توجد ملاحظات بعد",
+    "stickyNote": "ملاحظة عائمة",
+    "showAsSticky": "إظهار كملاحظة عائمة",
+    "stickyNoteDesc": "ستظهر هذه الملاحظة كبطاقة عائمة على الشاشة",
     "autoDistributeLabel": "توزيع تلقائي",
     "createTeamsDesc": "أنشئ فرقاً لتقسيم طلاب المقرر أو استخدم التوزيع التلقائي",
     "selectAll": "تحديد الكل",
@@ -1173,7 +1176,11 @@
     "typeBoolean": "صح أم خطأ",
     "typeCompletion": "أكمل الفراغ",
     "typeMatching": "توصيل",
-    "typeMcq": "اختيار من متعدد"
+    "typeMcq": "اختيار من متعدد",
+    "resultsNotAvailable": "النتائج غير متاحة",
+    "resultsNotAvailableDesc": "لم يفعّل المعلم عرض النتائج بعد",
+    "scoreOnly": "تم تسليم الاختبار",
+    "scoreOnlyDesc": "تم تسليم اختبارك بنجاح. سيقوم المعلم بتفعيل عرض النتائج لاحقاً"
   },
   "summary": {
     "summary": "ملخص",
@@ -3602,7 +3609,20 @@
     "subjectColor": "لون المقرر",
     "sublevelLabel": "المستوى الفرعي",
     "teacher": "المعلم",
-    "leaving": "جارٍ المغادرة..."
+    "leaving": "جارٍ المغادرة...",
+    "manageCategories": "إدارة التصنيفات",
+    "addCategory": "إضافة تصنيف",
+    "editCategory": "تعديل التصنيف",
+    "deleteCategory": "حذف التصنيف",
+    "deleteCategoryConfirm": "هل أنت متأكد من حذف هذا التصنيف؟",
+    "categoryNameAr": "اسم التصنيف (عربي)",
+    "categoryNameEn": "اسم التصنيف (إنجليزي)",
+    "categoryNameArPlaceholder": "مثال: برمجة",
+    "categoryNameEnPlaceholder": "مثال: Programming",
+    "categoryColor": "لون التصنيف",
+    "categoryNameRequired": "اسم التصنيف العربي مطلوب",
+    "noCategories": "لا توجد تصنيفات بعد",
+    "categoryCount": "{count} تصنيف"
   },
   "videos": {
     "all": "الكل",
@@ -3805,7 +3825,13 @@
     "all": "الكل",
     "overdue": "فات أوانه",
     "completed": "مكتمل",
-    "upcoming": "قادم"
+    "upcoming": "قادم",
+    "missed": "فات الأوان",
+    "inProgress": "جاري",
+    "legend": "دليل الألوان",
+    "legendMissed": "فات أوانه",
+    "legendCompleted": "تم تأديته",
+    "legendUpcoming": "قادم / جاري"
   },
   "todos": {
     "title": "مهامي",
@@ -3843,7 +3869,9 @@
     "editTodo": "تعديل المهمة",
     "deleteTodo": "حذف المهمة",
     "actions": "إجراءات",
-    "saveChanges": "حفظ التعديلات"
+    "saveChanges": "حفظ التعديلات",
+    "autoQuiz": "اختبار تلقائي",
+    "autoAssignment": "مهمة تلقائية"
   },
   "platformAnnouncements": {
     "title": "المعايدات والإعلانات العامة",

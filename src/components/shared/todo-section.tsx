@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2,
@@ -36,6 +36,22 @@ import type {
   TodoSource,
   Subject,
 } from '@/lib/types';
+
+// -------------------------------------------------------
+// Auto-generated item from quizzes/assignments
+// -------------------------------------------------------
+interface AutoTodoItem {
+  id: string;
+  title: string;
+  description: string | null;
+  category: TodoCategory;
+  due_date: string | null;
+  subject_id: string | null;
+  subject_name: string | null;
+  source: 'auto';
+  completed: boolean;
+  autoType: 'quiz' | 'assignment';
+}
 
 // -------------------------------------------------------
 // Animation variants (matching existing codebase)
@@ -185,6 +201,10 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // ─── Auto todos (quizzes/assignments) ───
+  const [autoTodos, setAutoTodos] = useState<AutoTodoItem[]>([]);
+  const [fetchingAuto, setFetchingAuto] = useState(false);
+
   // ─── Toggling state ───
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -271,16 +291,127 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   }, [profile.id]);
 
   // -------------------------------------------------------
+  // Fetch auto todos from quizzes and assignments
+  // -------------------------------------------------------
+  const fetchAutoTodos = useCallback(async () => {
+    setFetchingAuto(true);
+    try {
+      // Get enrolled subject IDs
+      const { data: enrollments } = await supabase
+        .from('subject_students')
+        .select('subject_id')
+        .eq('student_id', profile.id);
+
+      const enrolledIds = (enrollments || []).map((e: { subject_id: string }) => e.subject_id);
+
+      // Also teacher-owned subjects
+      const { data: owned } = await supabase
+        .from('subjects')
+        .select('id')
+        .eq('teacher_id', profile.id);
+
+      const ownedIds = (owned || []).map((s: { id: string }) => s.id);
+
+      const allSubjectIds = [...new Set([...enrolledIds, ...ownedIds])];
+
+      if (allSubjectIds.length === 0) {
+        setAutoTodos([]);
+        return;
+      }
+
+      // Build subject name map
+      const subjectNameMap: Record<string, string> = {};
+      const { data: subjectsData } = await supabase.from('subjects').select('id, name').in('id', allSubjectIds);
+      if (subjectsData) for (const s of subjectsData) subjectNameMap[s.id] = s.name;
+
+      const items: AutoTodoItem[] = [];
+      const now = new Date();
+
+      // Fetch upcoming quizzes
+      const { data: quizzes } = await supabase
+        .from('quizzes')
+        .select('*')
+        .in('subject_id', allSubjectIds);
+
+      if (quizzes) {
+        for (const q of quizzes) {
+          if (q.scheduled_date) {
+            const scheduledDate = new Date(q.scheduled_date);
+            // Only include future or recent quizzes
+            const diffDays = (scheduledDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+            if (diffDays > -7) { // Include quizzes up to 7 days old
+              items.push({
+                id: `auto-quiz-${q.id}`,
+                title: q.title || '',
+                description: null,
+                category: 'review' as TodoCategory,
+                due_date: q.scheduled_date,
+                subject_id: q.subject_id,
+                subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
+                source: 'auto',
+                completed: q.is_finished || false,
+                autoType: 'quiz',
+              });
+            }
+          }
+        }
+      }
+
+      // Fetch upcoming assignments
+      const { data: assignments } = await supabase
+        .from('assignments')
+        .select('*')
+        .in('subject_id', allSubjectIds);
+
+      if (assignments) {
+        for (const a of assignments) {
+          if (a.due_date) {
+            const dueDate = new Date(a.due_date);
+            const diffDays = (dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+            if (diffDays > -7) {
+              items.push({
+                id: `auto-assignment-${a.id}`,
+                title: a.title || '',
+                description: a.description || null,
+                category: 'assignment' as TodoCategory,
+                due_date: a.due_date,
+                subject_id: a.subject_id,
+                subject_name: a.subject_id ? subjectNameMap[a.subject_id] || null : null,
+                source: 'auto',
+                completed: false,
+                autoType: 'assignment',
+              });
+            }
+          }
+        }
+      }
+
+      setAutoTodos(items);
+    } catch (err) {
+      console.error('Fetch auto todos error:', err);
+    } finally {
+      setFetchingAuto(false);
+    }
+  }, [profile.id]);
+
+  // -------------------------------------------------------
   // Initial load
   // -------------------------------------------------------
   useEffect(() => {
     fetchTodos();
     fetchSubjects();
-  }, [fetchTodos, fetchSubjects]);
+    fetchAutoTodos();
+  }, [fetchTodos, fetchSubjects, fetchAutoTodos]);
 
   // -------------------------------------------------------
   // Real-time subscription
+  // NOTE: We debounce the re-fetch to avoid overwriting optimistic
+  // toggles. When a realtime event fires right after a toggle,
+  // the fetchTodos would overwrite the optimistic state.
+  // We use a flag to skip the re-fetch if a toggle is in progress.
   // -------------------------------------------------------
+  const togglingInProgress = useRef(false);
+
   useEffect(() => {
     const channel = supabase
       .channel('user-todos-realtime')
@@ -293,6 +424,8 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           filter: `user_id=eq.${profile.id}`,
         },
         () => {
+          // Skip re-fetch if a toggle is in progress to avoid overwriting optimistic state
+          if (togglingInProgress.current) return;
           fetchTodos();
         }
       )
@@ -304,15 +437,39 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
   }, [profile.id, fetchTodos]);
 
   // -------------------------------------------------------
+  // Computed: combined todos (manual + auto) for display
+  // -------------------------------------------------------
+  const allDisplayTodos = useMemo(() => {
+    // Convert auto todos to UserTodo-like format for display
+    const autoAsUserTodos: UserTodo[] = autoTodos.map((at) => ({
+      id: at.id,
+      user_id: profile.id,
+      title: at.title,
+      description: at.description,
+      priority: 'medium' as TodoPriority,
+      category: at.category,
+      due_date: at.due_date,
+      subject_id: at.subject_id,
+      subject_name: at.subject_name,
+      source: 'auto' as TodoSource,
+      completed: at.completed,
+      completed_at: null,
+      created_at: at.due_date || new Date().toISOString(),
+      updated_at: at.due_date || new Date().toISOString(),
+    }));
+    return [...todos, ...autoAsUserTodos];
+  }, [todos, autoTodos, profile.id]);
+
+  // -------------------------------------------------------
   // Computed: counts
   // -------------------------------------------------------
-  const pendingCount = todos.filter((todo) => !todo.completed).length;
-  const completedCount = todos.filter((todo) => todo.completed).length;
+  const pendingCount = allDisplayTodos.filter((todo) => !todo.completed).length;
+  const completedCount = allDisplayTodos.filter((todo) => todo.completed).length;
 
   // -------------------------------------------------------
   // Computed: filtered & sorted todos
   // -------------------------------------------------------
-  const filteredTodos = todos
+  const filteredTodos = allDisplayTodos
     .filter((todo) => {
       // Status filter
       if (statusFilter === 'active' && todo.completed) return false;
@@ -471,11 +628,40 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
   // -------------------------------------------------------
   // Toggle complete/incomplete
+  // FIX: Do optimistic update IMMEDIATELY before API call,
+  // and skip realtime re-fetch during toggle to prevent overwrite.
   // -------------------------------------------------------
   const handleToggle = async (todo: UserTodo) => {
+    const newCompleted = !todo.completed;
+    const isAuto = todo.source === 'auto' && todo.id.startsWith('auto-');
+
+    // Optimistic update BEFORE API call
+    if (isAuto) {
+      // Auto todos are not in the DB, just toggle local state
+      setAutoTodos((prev) =>
+        prev.map((item) =>
+          item.id === todo.id
+            ? { ...item, completed: newCompleted }
+            : item
+        )
+      );
+      return;
+    }
+
+    // Set flag to prevent realtime from overwriting
+    togglingInProgress.current = true;
     setTogglingId(todo.id);
+
+    // Optimistic update for DB todos
+    setTodos((prev) =>
+      prev.map((item) =>
+        item.id === todo.id
+          ? { ...item, completed: newCompleted, completed_at: newCompleted ? new Date().toISOString() : null }
+          : item
+      )
+    );
+
     try {
-      const newCompleted = !todo.completed;
       const updateData: Record<string, unknown> = {
         completed: newCompleted,
         completed_at: newCompleted ? new Date().toISOString() : null,
@@ -489,21 +675,33 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
       if (error) {
         console.error('Error toggling todo:', error);
-      } else {
-        toast.success(t('todos.updatedSuccess'));
-        // Optimistic update for faster UI
+        // Revert optimistic update on error
         setTodos((prev) =>
           prev.map((item) =>
             item.id === todo.id
-              ? { ...item, completed: newCompleted, completed_at: newCompleted ? new Date().toISOString() : null }
+              ? { ...item, completed: !newCompleted, completed_at: !newCompleted ? new Date().toISOString() : null }
               : item
           )
         );
+      } else {
+        toast.success(t('todos.updatedSuccess'));
       }
     } catch {
       console.error('Toggle todo error');
+      // Revert
+      setTodos((prev) =>
+        prev.map((item) =>
+          item.id === todo.id
+            ? { ...item, completed: !newCompleted, completed_at: !newCompleted ? new Date().toISOString() : null }
+            : item
+        )
+      );
     } finally {
       setTogglingId(null);
+      // Delay clearing the flag to allow the realtime event to pass
+      setTimeout(() => {
+        togglingInProgress.current = false;
+      }, 500);
     }
   };
 
@@ -701,9 +899,15 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
 
               {/* Auto source indicator */}
               {todo.source === 'auto' && (
-                <span className="inline-flex items-center gap-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 px-1.5 py-0.5 text-[9px] font-medium">
+                <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
+                  todo.id.startsWith('auto-quiz')
+                    ? 'bg-rose-100 dark:bg-rose-800/30 text-rose-600 dark:text-rose-400'
+                    : todo.id.startsWith('auto-assignment')
+                      ? 'bg-violet-100 dark:bg-violet-800/30 text-violet-600 dark:text-violet-400'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500'
+                }`}>
                   <Clock className="h-2 w-2" />
-                  auto
+                  {todo.id.startsWith('auto-quiz') ? t('todos.autoQuiz') : todo.id.startsWith('auto-assignment') ? t('todos.autoAssignment') : 'auto'}
                 </span>
               )}
             </div>

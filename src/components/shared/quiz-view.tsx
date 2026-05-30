@@ -224,6 +224,12 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
       // ─── Review mode: load saved score and show results + review directly ───
       if (reviewMode) {
+        // If teacher disabled show_results, don't load the review
+        if (quizData.show_results === false) {
+          setAlreadyTaken(true);
+          return;
+        }
+
         // Reset any state from a previous (non-review) fetch that would block the review UI
         setAlreadyTaken(false);
         setQuizCompleted(false);
@@ -290,6 +296,12 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
   useEffect(() => {
     if (!reviewMode || !quiz || !profile.id || reviewLoadedRef.current) return;
     reviewLoadedRef.current = true;
+
+    // If teacher disabled show_results, block review mode
+    if (quiz.show_results === false) {
+      setAlreadyTaken(true);
+      return;
+    }
 
     // Clear any blocking state from a non-review fetch
     setAlreadyTaken(false);
@@ -1243,7 +1255,28 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
   // -------------------------------------------------------
   // Already taken state — but review mode takes priority
+  // If reviewMode is true and show_results is false, show "results not available"
   // -------------------------------------------------------
+  if (alreadyTaken && reviewMode && quiz?.show_results === false) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={direction}>
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-800/40">
+          <Eye className="h-8 w-8 text-amber-600 dark:text-amber-500" />
+        </div>
+        <p className="text-lg font-semibold text-foreground">{t('quiz.resultsNotAvailable')}</p>
+        <p className="text-sm text-muted-foreground text-center max-w-sm">{t('quiz.resultsNotAvailableDesc')}</p>
+        <Button
+          onClick={onBack}
+          variant="outline"
+          className="gap-2 border-sky-300 dark:border-sky-900/60 text-sky-800 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
+        >
+          <ChevronRight className="h-4 w-4" />
+          {t('common.back')}
+        </Button>
+      </div>
+    );
+  }
+
   if (alreadyTaken && !reviewMode) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4" dir={direction}>
@@ -1266,6 +1299,7 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
 
   // -------------------------------------------------------
   // Results screen
+  // When show_results === false, only show score without review
   // -------------------------------------------------------
   if (showResults) {
     const finalScore = userAnswers.filter((a) => a.isCorrect).length;
@@ -1289,6 +1323,76 @@ export default function QuizView({ quizId, onBack, profile, reviewMode }: QuizVi
           ? 'ring-amber-200 dark:ring-amber-800'
           : 'ring-rose-200 dark:ring-rose-800';
 
+    // ─── show_results === false: show only score, no review ───
+    if (quiz?.show_results === false) {
+      return (
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={staggerContainer}
+          className="mx-auto max-w-2xl space-y-4 sm:space-y-6 p-3 sm:p-8"
+          dir={direction}
+        >
+          {/* Score display */}
+          <motion.div variants={fadeInUp} className="flex flex-col items-center gap-4">
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.2 }}
+              className={`flex h-24 w-24 sm:h-32 sm:w-32 items-center justify-center rounded-full ${scoreBg} ring-8 ${scoreRing} shadow-lg`}
+            >
+              <div className="text-center">
+                <Trophy className={`mx-auto h-8 w-8 ${scoreColor} mb-1`} />
+                <span className={`text-2xl sm:text-3xl font-bold ${scoreColor}`}>{percentage}%</span>
+              </div>
+            </motion.div>
+
+            <motion.div variants={fadeInUp} className="text-center">
+              <h2 className="text-2xl font-bold text-foreground">{t('quiz.scoreOnly')}</h2>
+              <p className="text-muted-foreground mt-1">{quiz?.title}</p>
+            </motion.div>
+
+            <motion.div
+              variants={fadeInUp}
+              className={`rounded-2xl border-2 px-8 py-4 ${scoreBg} ${scoreRing.replace('ring', 'border')}`}
+            >
+              <span className={`text-4xl font-bold ${scoreColor}`}>
+                {finalScore}
+              </span>
+              <span className="text-xl text-muted-foreground"> / {totalQuestions}</span>
+            </motion.div>
+
+            <motion.div variants={fadeInUp} className="text-center mt-2">
+              <p className="text-sm text-muted-foreground max-w-sm">{t('quiz.scoreOnlyDesc')}</p>
+            </motion.div>
+          </motion.div>
+
+          {/* Action buttons — no review button when show_results is false */}
+          <motion.div variants={fadeInUp} className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            {!reviewMode && (
+              <Button
+                onClick={handleRetry}
+                variant="outline"
+                className="gap-2 border-teal-300 dark:border-teal-900/60 text-teal-700 dark:text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/20"
+                style={{ display: quiz?.allow_retake ? undefined : 'none' }}
+              >
+                <RotateCcw className="h-4 w-4" />
+                {t('quiz.retake')}
+              </Button>
+            )}
+            <Button
+              onClick={onBack}
+              className="gap-2 bg-sky-700 dark:bg-sky-600 text-white hover:bg-sky-800 dark:hover:bg-sky-500"
+            >
+              <ChevronRight className="h-4 w-4" />
+              {reviewMode ? t('common.back') : t('common.returnToApp')}
+            </Button>
+          </motion.div>
+        </motion.div>
+      );
+    }
+
+    // ─── show_results !== false: full results with review ───
     return (
       <motion.div
         initial="hidden"

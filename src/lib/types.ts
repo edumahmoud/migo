@@ -158,7 +158,7 @@ export interface LectureNote {
   lecture_id: string;
   user_id: string;
   content: string;
-  visibility: 'public' | 'private';
+  visibility: 'public' | 'private' | 'sticky';
   created_at: string;
   updated_at: string;
 }

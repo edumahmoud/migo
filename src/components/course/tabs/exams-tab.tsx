@@ -232,7 +232,7 @@ function isQuizExpired(quiz: Quiz): boolean {
 // Main Component
 // -------------------------------------------------------
 export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
-  const { setViewingQuizId } = useAppStore();
+  const { setViewingQuizId, justCompletedQuizIds, addJustCompletedQuiz } = useAppStore();
   const { t, direction, locale } = useTranslations();
 
   // ─── Sub-tab ───
@@ -2115,9 +2115,9 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           )}
 
           {/* Active: Take quiz button (student) */}
-          {!isFinishedTab && !myScore && getQuizStatus(quiz) !== 'scheduled' && (
+          {!isFinishedTab && !myScore && !justCompletedQuizIds.has(quiz.id) && getQuizStatus(quiz) !== 'scheduled' && (
             <button
-              onClick={() => setViewingQuizId(quiz.id)}
+              onClick={() => { addJustCompletedQuiz(quiz.id); setViewingQuizId(quiz.id); }}
               className="flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-sky-800 mt-3 w-full justify-center"
             >
               <Play className="h-3.5 w-3.5" />
@@ -2125,8 +2125,8 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
             </button>
           )}
 
-          {/* View quiz (student completed / finished) */}
-          {myScore && (
+          {/* View quiz (student completed / finished) — only when teacher enabled results */}
+          {myScore && quiz.show_results !== false && (
             <button
               onClick={() => setViewingQuizId(quiz.id, true)}
               className="flex items-center gap-1.5 rounded-lg border px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors mt-3 w-full justify-center"

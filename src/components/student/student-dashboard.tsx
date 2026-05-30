@@ -272,7 +272,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   const { t, direction, locale } = useTranslations();
 
   // ─── App store ───
-  const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen } = useAppStore();
+  const { studentSection: storedStudentSection, setStudentSection: storeSetStudentSection, setViewingQuizId, setViewingSummaryId, viewingSummaryId, selectedSubjectId, setSelectedSubjectId, sidebarOpen, setSidebarOpen, justCompletedQuizIds, addJustCompletedQuiz } = useAppStore();
 
   // ─── Announcement banner height (for dynamic margin below header) ───
   const bannerHeight = useAnnouncementBannerStore((s) => s.bannerHeight);
@@ -3895,7 +3895,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
               {activeQuizzes.length > 0 && (
                 <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {activeQuizzes.map((quiz) => {
-                    const isCompleted = completedQuizIds.has(quiz.id);
+                    const isCompleted = completedQuizIds.has(quiz.id) || justCompletedQuizIds.has(quiz.id);
                     const score = scores.find((s) => s.quiz_id === quiz.id);
                     const pct = score ? scorePercentage(score.score, score.total) : null;
 
@@ -3948,16 +3948,18 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                           <div className="mt-4 flex items-center gap-2">
                             {isCompleted ? (
                               <>
-                                <button
-                                  onClick={() => setViewingQuizId(quiz.id, true)}
-                                  className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-400 transition-colors hover:bg-sky-100"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                  {t('student.viewResults')}
-                                </button>
+                                {quiz.show_results !== false && (
+                                  <button
+                                    onClick={() => setViewingQuizId(quiz.id, true)}
+                                    className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-400 transition-colors hover:bg-sky-100"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    {t('student.viewResults')}
+                                  </button>
+                                )}
                                 {quiz.allow_retake !== false && (
                                   <button
-                                    onClick={() => setViewingQuizId(quiz.id)}
+                                    onClick={() => { addJustCompletedQuiz(quiz.id); setViewingQuizId(quiz.id); }}
                                     className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-teal-700"
                                   >
                                     <Play className="h-3.5 w-3.5" />
@@ -3967,7 +3969,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                               </>
                             ) : (
                               <button
-                                onClick={() => setViewingQuizId(quiz.id)}
+                                onClick={() => { addJustCompletedQuiz(quiz.id); setViewingQuizId(quiz.id); }}
                                 className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-teal-700"
                               >
                                 <Play className="h-3.5 w-3.5" />
@@ -4099,13 +4101,15 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
                               )}
                             </div>
                             <div className="mt-4 flex items-center gap-2">
-                              <button
-                                onClick={() => setViewingQuizId(quiz.id, true)}
-                                className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-400 transition-colors hover:bg-sky-100"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                                {t('student.viewResults')}
-                              </button>
+                              {quiz.show_results !== false && (
+                                <button
+                                  onClick={() => setViewingQuizId(quiz.id, true)}
+                                  className="flex items-center gap-2 rounded-lg border border-sky-200 dark:border-sky-900/60 bg-sky-50 dark:bg-sky-900/15 px-3 py-1.5 text-xs font-medium text-sky-800 dark:text-sky-400 transition-colors hover:bg-sky-100"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  {t('student.viewResults')}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </motion.div>

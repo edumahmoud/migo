@@ -608,3 +608,140 @@ Stage Summary:
 - 7 tasks completed, 16 files changed, 692 insertions, 75 deletions
 - New file: src/stores/ai-generation-store.ts
 - Key improvements: notification sound/visibility, exam countdown readability, paused course card clarity, file extension removal, AI generation persistence
+
+---
+Task ID: 1
+Agent: Main
+Task: Teacher-controlled quiz review mode + fix start button visibility after quiz attempt
+
+Work Log:
+- Read worklog.md and all key files to understand current state
+- Analyzed quiz-view.tsx, exams-tab.tsx, student-dashboard.tsx, app-store.ts, and translation files
+
+**Requirement 1: Teacher-controlled review mode**
+1. **app-store.ts**: Added `justCompletedQuizIds` (Set<string>), `addJustCompletedQuiz`, and `removeJustCompletedQuiz` to the global store
+2. **exams-tab.tsx**:
+   - Added `justCompletedQuizIds` and `addJustCompletedQuiz` to the store destructuring
+   - "Review Quiz" button now only shown when `quiz.show_results !== false`
+   - "Start Quiz" button now checks `!justCompletedQuizIds.has(quiz.id)` and calls `addJustCompletedQuiz` on click
+3. **student-dashboard.tsx**:
+   - Added `justCompletedQuizIds` and `addJustCompletedQuiz` to the store destructuring
+   - Active quiz `isCompleted` now also checks `justCompletedQuizIds.has(quiz.id)`
+   - "View Results" buttons (both active and finished quizzes) now only shown when `quiz.show_results !== false`
+   - "Start Quiz" and "Retake" buttons now call `addJustCompletedQuiz` on click
+4. **quiz-view.tsx**:
+   - In `fetchQuiz`: when `reviewMode` is true and `quiz.show_results === false`, sets `alreadyTaken = true` and returns early (blocks review data loading)
+   - In review mode safety net useEffect: same check, sets `alreadyTaken = true` and returns early
+   - New render block: `alreadyTaken && reviewMode && quiz?.show_results === false` shows "Results Not Available" message with translated strings
+   - In results screen: when `quiz?.show_results === false`, renders a limited results view showing only the score percentage and "Quiz Submitted" title with `scoreOnlyDesc` message, no review button
+   - Full results with review section only shown when `show_results !== false`
+
+**Requirement 2: Fix start button staying visible after quiz attempt**
+- Added `justCompletedQuizIds` Set to app-store.ts (global state, survives component re-renders)
+- In exams-tab.tsx: start button condition now includes `!justCompletedQuizIds.has(quiz.id)`; clicking start also calls `addJustCompletedQuiz(quiz.id)`
+- In student-dashboard.tsx: `isCompleted` now includes `justCompletedQuizIds.has(quiz.id)`; start/retake buttons call `addJustCompletedQuiz`
+
+**Translation keys added:**
+- `quiz.resultsNotAvailable`: "النتائج غير متاحة" / "Results Not Available"
+- `quiz.resultsNotAvailableDesc`: "لم يفعّل المعلم عرض النتائج بعد" / "The teacher has not enabled result viewing yet"
+- `quiz.scoreOnly`: "تم تسليم الاختبار" / "Quiz Submitted"
+- `quiz.scoreOnlyDesc`: "تم تسليم اختبارك بنجاح. سيقوم المعلم بتفعيل عرض النتائج لاحقاً" / "Your quiz has been submitted successfully. The teacher will enable result viewing later."
+
+Stage Summary:
+- Lint passes with 0 errors
+- Files modified: src/stores/app-store.ts, src/components/course/tabs/exams-tab.tsx, src/components/student/student-dashboard.tsx, src/components/shared/quiz-view.tsx, src/i18n/messages/en.json, src/i18n/messages/ar.json
+
+---
+Task ID: 3
+Agent: Main
+Task: Add sticky notes feature — draggable floating card with visibility='sticky'
+
+Work Log:
+- Added 'sticky' to the `visibility` type in `LectureNote` interface (types.ts)
+- Created new `DraggableStickyNote` component (`src/components/course/tabs/draggable-sticky-note.tsx`):
+  - Fixed-position floating card with classic yellow sticky note styling
+  - Supports mouse and touch drag with viewport clamping
+  - Persists position to localStorage per note ID
+  - Has minimize (collapsed pill) and close (hide) buttons
+  - Shows author name in footer
+  - Stagger positions for multiple sticky notes using ID hash
+- Modified `notes-tab.tsx`:
+  - Added 'sticky' as third visibility option alongside public/private
+  - Added Pin icon toggle button "إظهار كملاحظة عائمة" / "Show as sticky note"
+  - Added description text when sticky is selected
+  - Updated note save to handle sticky visibility (toast label, notification)
+  - Updated student note query to include `visibility.eq.sticky`
+  - Added amber top bar for sticky note cards in the list
+  - Added Pin badge for sticky notes in the card
+  - Renders sticky notes as DraggableStickyNote floating cards at bottom of component
+  - Tracks hidden sticky IDs so user can dismiss them temporarily
+  - Sticky note viewers work like public notes (teacher can see viewers)
+- Added translation keys: stickyNote, showAsSticky, stickyNoteDesc (both ar/en)
+
+Stage Summary:
+- Sticky notes feature fully implemented: create, display in list, and render as draggable floating cards
+- Position persistence via localStorage, touch and mouse support
+- Lint passes with 0 errors
+- Files created: src/components/course/tabs/draggable-sticky-note.tsx
+- Files modified: src/lib/types.ts, src/components/course/tabs/notes-tab.tsx, src/i18n/messages/ar.json, src/i18n/messages/en.json
+
+---
+Task ID: 4
+Agent: Main
+Task: Auto-add quizzes/assignments to My Tasks + fix single-click completion
+
+Work Log:
+- Added `AutoTodoItem` interface and `autoTodos` state to `todo-section.tsx`
+- Created `fetchAutoTodos` function that:
+  - Gets all enrolled + owned subject IDs
+  - Fetches quizzes with scheduled_date from those subjects (up to 7 days old)
+  - Fetches assignments with due_date from those subjects (up to 7 days old)
+  - Converts them to AutoTodoItem objects with source='auto'
+  - Quiz autoType shows as 'review' category, assignment as 'assignment' category
+- Created `allDisplayTodos` computed value that merges manual todos with auto todos
+- Updated `filteredTodos`, `pendingCount`, `completedCount` to use combined list
+- Updated status filter chip counts to reflect combined list
+- Enhanced auto source indicator badge with color-coded labels:
+  - Quiz: rose-colored badge with "اختبار تلقائي" / "Auto Quiz"
+  - Assignment: violet-colored badge with "مهمة تلقائية" / "Auto Assignment"
+- **Fixed single-click completion bug:**
+  - Root cause: optimistic update happened AFTER the API call, and the realtime subscription would fire immediately after the DB update, triggering `fetchTodos()` which would overwrite the optimistic state with the old state before the DB had fully committed
+  - Fix: Moved optimistic update BEFORE the API call
+  - Added `togglingInProgress` ref flag to prevent realtime re-fetch during toggle
+  - Added 500ms delay after toggle completes before clearing the flag
+  - Added error revert logic to undo optimistic update on API failure
+  - Auto todos (not in DB) toggle local state directly without API call
+- Applied same fix to `calendar-section.tsx` `handleToggleTodo`: optimistic update before API call, revert on error
+
+Stage Summary:
+- Quizzes and assignments from enrolled courses now automatically appear in My Tasks section
+- Single-click completion fixed: optimistic update now happens immediately before API call
+- Realtime subscription skips re-fetch during toggle to prevent overwrite
+- Lint passes with 0 errors
+- Files modified: src/components/shared/todo-section.tsx, src/components/shared/calendar-section.tsx, src/i18n/messages/ar.json, src/i18n/messages/en.json
+
+---
+Task ID: 5
+Agent: Main
+Task: Calendar color-coding improvements with legend
+
+Work Log:
+- Changed overdue badge text from "overdue" to "missed" ("فات الأوان" / "Missed") in both week view and day detail panel
+- Added color legend bar at top of calendar header (below filter chips):
+  - Rose dot → "فات أوانه" / "Missed"
+  - Emerald dot → "تم تأديته" / "Completed"
+  - Amber dot → "قادم / جاري" / "Upcoming / In Progress"
+  - Styled with subtle sky-200 text on the gradient banner background
+- Added translation keys to both ar.json and en.json:
+  - calendar.missed: "فات الأوان" / "Missed"
+  - calendar.inProgress: "جاري" / "In Progress"
+  - calendar.legend: "دليل الألوان" / "Color Legend"
+  - calendar.legendMissed: "فات أوانه" / "Missed"
+  - calendar.legendCompleted: "تم تأديته" / "Completed"
+  - calendar.legendUpcoming: "قادم / جاري" / "Upcoming / In Progress"
+
+Stage Summary:
+- Calendar now shows a color legend at the top for clear status distinction
+- Overdue/missed badges use clearer "Missed" / "فات الأوان" terminology
+- Lint passes with 0 errors
+- Files modified: src/components/shared/calendar-section.tsx, src/i18n/messages/ar.json, src/i18n/messages/en.json

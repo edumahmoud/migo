@@ -73,7 +73,12 @@ interface AppState {
   // Language / i18n
   language: Locale;
   setLanguage: (locale: Locale) => void;
-  
+
+  // Track quiz IDs the student just started (prevents start button flash)
+  justCompletedQuizIds: Set<string>;
+  addJustCompletedQuiz: (id: string) => void;
+  removeJustCompletedQuiz: (id: string) => void;
+
   // Reset
   reset: () => void;
 }
@@ -97,6 +102,7 @@ const initialState = {
   reportsUnreadCount: 0,
   pendingReportId: null as string | null,
   language: 'ar' as Locale,
+  justCompletedQuizIds: new Set<string>(),
 };
 
 export const useAppStore = create<AppState>()(
@@ -149,7 +155,17 @@ export const useAppStore = create<AppState>()(
       setReportsUnreadCount: (count) => set({ reportsUnreadCount: count }),
       setPendingReportId: (id) => set({ pendingReportId: id }),
       setLanguage: (locale) => set({ language: locale }),
-      
+      addJustCompletedQuiz: (id) => set((state) => {
+        const next = new Set(state.justCompletedQuizIds);
+        next.add(id);
+        return { justCompletedQuizIds: next };
+      }),
+      removeJustCompletedQuiz: (id) => set((state) => {
+        const next = new Set(state.justCompletedQuizIds);
+        next.delete(id);
+        return { justCompletedQuizIds: next };
+      }),
+
       reset: () => set(initialState),
     }),
     {
