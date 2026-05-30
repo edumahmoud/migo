@@ -83,3 +83,47 @@ Stage Summary:
 - **Student ranking**: percentile-based (Top 5%/10%/25%/50%)
 - **Enhanced timeline**: filter buttons, new event types (grading, risk, achievement)
 - **CSV export**: 16 columns with all new metrics
+---
+Task ID: 3
+Agent: Main Agent
+Task: Final Audit & Completion Pass — Analytics System Hardening
+
+Work Log:
+- Performed comprehensive gap analysis of all analytics code
+- Found legacy 40/30/30 formula in teacher-dashboard.tsx (line 611-647) and student-dashboard.tsx (line 2950-2986)
+- Found duplicated business logic in teacher-student-tracking-section.tsx and student-tracking-section.tsx (inline subject-level growth/risk calculations)
+- Found hardcoded constants throughout performance-calculator.ts (weights, thresholds, classification ranges)
+- Created centralized analytics-config.ts with ALL configurable constants
+- Created strongly typed analytics models in analytics-types.ts
+- Refactored performance-calculator.ts to use centralized config instead of hardcoded values
+- Added computeSubjectPerformance() to eliminate duplicated subject-level logic
+- Added computeCohortAnalytics() for reusable cohort distribution calculations
+- Added improvementPercentage to calculateGrowthIndex return value
+- Added score field to calculateRiskLevel return value
+- Replaced legacy 40/30/30 in teacher-dashboard.tsx with computeAllMetrics from shared engine
+- Replaced legacy 40/30/30 in student-dashboard.tsx with computeAllMetrics from shared engine
+- Fixed student-profile-modal.tsx TypeScript error (score: number | undefined → score ?? null)
+- Fixed SubjectPerformanceInput interface (added missing student_id field)
+- Updated Excel export in handleExportSummaries with 14 new analytics columns
+- Added calculatePercentile import to teacher-dashboard for Excel ranking
+- Created 81 unit tests in analytics-engine.test.ts covering all calculation functions
+- Created comprehensive analytics documentation in docs/ANALYTICS_ENGINE.md
+- Added HistoricalSnapshot and HistoricalTrend interfaces for future-ready architecture
+- Excluded test directory from TypeScript compilation in tsconfig.json
+- All TypeScript checks pass, ESLint passes, dev server returns 200, 81/81 tests pass
+
+Stage Summary:
+- **FIXED**: Legacy 40/30/30 calculations removed from both dashboards
+- **FIXED**: All hardcoded constants moved to analytics-config.ts
+- **FIXED**: Duplicated subject-level logic extracted to computeSubjectPerformance()
+- **FIXED**: Excel export now includes all 14 new analytics metrics
+- **FIXED**: TypeScript errors resolved (score type, missing student_id)
+- **CREATED**: analytics-config.ts (centralized configuration)
+- **CREATED**: analytics-types.ts (strongly typed models)
+- **CREATED**: computeSubjectPerformance() (reusable subject analytics)
+- **CREATED**: computeCohortAnalytics() (cohort distribution engine)
+- **CREATED**: 81 unit tests (analytics-engine.test.ts)
+- **CREATED**: Analytics documentation (docs/ANALYTICS_ENGINE.md)
+- **VALIDATED**: Historical analytics architecture is future-ready
+- **VALIDATED**: CSV export already includes all metrics (from previous implementation)
+- **VALIDATED**: TypeScript, ESLint, dev server all pass cleanly

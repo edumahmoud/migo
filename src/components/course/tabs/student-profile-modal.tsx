@@ -147,7 +147,7 @@ export default function StudentProfileModal({ studentId, subjectId, open, onClos
         submissions: fetchedSubmissions.map(s => ({
           assignment_id: s.assignment_id,
           student_id: s.student_id,
-          score: s.score,
+          score: s.score ?? null,
           status: s.status,
           submitted_at: s.submitted_at,
         })),

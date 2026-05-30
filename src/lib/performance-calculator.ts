@@ -3,58 +3,77 @@
 // Comprehensive student performance analytics
 // All formulas are centralized here for consistency
 // across teacher view, student view, and profile modal.
+//
+// IMPORTANT: All weights, thresholds, and classification
+// ranges come from analytics-config.ts. No hardcoded
+// values in this file.
 // =====================================================
 
 import type { AttendanceStatus } from './types';
+import {
+  ATTENDANCE_POINTS,
+  PERFORMANCE_WEIGHTS,
+  PERFORMANCE_CLASSIFICATION,
+  EFFICIENCY_THRESHOLDS,
+  RISK_THRESHOLDS,
+  GROWTH_THRESHOLDS,
+  DISCIPLINE_WEIGHTS,
+  DISCIPLINE_PENALTIES,
+  RANKING_BANDS,
+  EFFICIENCY_WEIGHTS,
+  GROWTH_CALCULATION,
+  ACHIEVEMENT_THRESHOLDS,
+  // Re-export types and UI configs for backward compatibility
+  PERFORMANCE_LEVELS,
+  EFFICIENCY_LEVELS,
+  RISK_LEVELS,
+  GROWTH_TRENDS,
+  type PerformanceLevel,
+  type PerformanceLevelConfig,
+  type EfficiencyLevel,
+  type EfficiencyLevelConfig,
+  type RiskLevel,
+  type RiskLevelConfig,
+  type GrowthTrend,
+  type GrowthTrendConfig,
+} from './analytics-config';
 
-// -------------------------------------------------------
-// Attendance Status Point Values
-// -------------------------------------------------------
-export const ATTENDANCE_POINTS: Record<AttendanceStatus, number> = {
-  present: 100,
-  late: 75,
-  partial: 50,
-  absent: 0,
+// =====================================================
+// RE-EXPORTS for backward compatibility
+// Components that import from performance-calculator
+// must NOT break. All types and configs are re-exported.
+// =====================================================
+export {
+  ATTENDANCE_POINTS,
+  PERFORMANCE_WEIGHTS as DEFAULT_WEIGHTS,
+  PERFORMANCE_LEVELS,
+  EFFICIENCY_LEVELS,
+  RISK_LEVELS,
+  GROWTH_TRENDS,
+  PERFORMANCE_CLASSIFICATION,
+  RISK_THRESHOLDS,
+  GROWTH_THRESHOLDS,
+  DISCIPLINE_WEIGHTS,
+  RANKING_BANDS,
+  type PerformanceLevel,
+  type PerformanceLevelConfig,
+  type EfficiencyLevel,
+  type EfficiencyLevelConfig,
+  type RiskLevel,
+  type RiskLevelConfig,
+  type GrowthTrend,
+  type GrowthTrendConfig,
 };
 
 // -------------------------------------------------------
-// Default Performance Weights
+// Performance Level Classification
+// Uses centralized config thresholds
 // -------------------------------------------------------
-export const DEFAULT_WEIGHTS = {
-  examPerformance: 35,
-  attendanceScore: 20,
-  assignmentCompliance: 15,
-  assignmentQuality: 30,
-} as const;
-
-// -------------------------------------------------------
-// Performance Level Types & Classification
-// -------------------------------------------------------
-export type PerformanceLevel = 'excellent' | 'veryGood' | 'good' | 'acceptable' | 'weak';
-
-export interface PerformanceLevelConfig {
-  key: PerformanceLevel;
-  min: number;
-  color: string;
-  bgColor: string;
-  ringColor: string;
-  textColor: string;
-  icon: string;
-}
-
-export const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
-  { key: 'excellent', min: 90, color: 'bg-emerald-500', bgColor: 'bg-emerald-50 dark:bg-emerald-900/20', ringColor: 'ring-emerald-100', textColor: 'text-emerald-700 dark:text-emerald-500', icon: '★' },
-  { key: 'veryGood', min: 80, color: 'bg-sky-500', bgColor: 'bg-sky-50 dark:bg-sky-900/15', ringColor: 'ring-sky-100', textColor: 'text-sky-700 dark:text-sky-400', icon: '◆' },
-  { key: 'good', min: 70, color: 'bg-teal-500', bgColor: 'bg-teal-50 dark:bg-teal-900/20', ringColor: 'ring-teal-100', textColor: 'text-teal-700 dark:text-teal-500', icon: '●' },
-  { key: 'acceptable', min: 60, color: 'bg-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-900/20', ringColor: 'ring-amber-100', textColor: 'text-amber-700 dark:text-amber-500', icon: '▲' },
-  { key: 'weak', min: 0, color: 'bg-rose-500', bgColor: 'bg-rose-50 dark:bg-rose-900/20', ringColor: 'ring-rose-100', textColor: 'text-rose-700 dark:text-rose-500', icon: '▼' },
-];
-
 export function getPerformanceLevel(overallPct: number): PerformanceLevel {
-  if (overallPct >= 90) return 'excellent';
-  if (overallPct >= 80) return 'veryGood';
-  if (overallPct >= 70) return 'good';
-  if (overallPct >= 60) return 'acceptable';
+  if (overallPct >= PERFORMANCE_CLASSIFICATION.excellent.min) return 'excellent';
+  if (overallPct >= PERFORMANCE_CLASSIFICATION.veryGood.min) return 'veryGood';
+  if (overallPct >= PERFORMANCE_CLASSIFICATION.good.min) return 'good';
+  if (overallPct >= PERFORMANCE_CLASSIFICATION.acceptable.min) return 'acceptable';
   return 'weak';
 }
 
@@ -63,29 +82,13 @@ export function getPerformanceLevelConfig(level: PerformanceLevel): PerformanceL
 }
 
 // -------------------------------------------------------
-// Efficiency Level Types
+// Efficiency Level Classification
+// Uses centralized config thresholds
 // -------------------------------------------------------
-export type EfficiencyLevel = 'high' | 'medium' | 'low' | 'insufficient';
-
-export interface EfficiencyLevelConfig {
-  key: EfficiencyLevel;
-  color: string;
-  bgColor: string;
-  textColor: string;
-  ringColor: string;
-}
-
-export const EFFICIENCY_LEVELS: EfficiencyLevelConfig[] = [
-  { key: 'high', color: 'text-emerald-600 dark:text-emerald-500', bgColor: 'bg-emerald-50 dark:bg-emerald-900/20', textColor: 'text-emerald-700 dark:text-emerald-500', ringColor: 'stroke-emerald-500' },
-  { key: 'medium', color: 'text-amber-600 dark:text-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-900/20', textColor: 'text-amber-700 dark:text-amber-500', ringColor: 'stroke-amber-500' },
-  { key: 'low', color: 'text-rose-600 dark:text-rose-500', bgColor: 'bg-rose-50 dark:bg-rose-900/20', textColor: 'text-rose-700 dark:text-rose-500', ringColor: 'stroke-rose-500' },
-  { key: 'insufficient', color: 'text-gray-500 dark:text-gray-400', bgColor: 'bg-gray-50 dark:bg-gray-900/20', textColor: 'text-gray-600 dark:text-gray-400', ringColor: 'stroke-gray-400' },
-];
-
 export function getEfficiencyLevel(efficiency: number, effortScore: number): EfficiencyLevel {
-  if (effortScore < 40) return 'insufficient';
-  if (efficiency >= 80) return 'high';
-  if (efficiency >= 50) return 'medium';
+  if (effortScore < EFFICIENCY_THRESHOLDS.insufficientEffort) return 'insufficient';
+  if (efficiency >= EFFICIENCY_THRESHOLDS.high) return 'high';
+  if (efficiency >= EFFICIENCY_THRESHOLDS.medium) return 'medium';
   return 'low';
 }
 
@@ -94,48 +97,17 @@ export function getEfficiencyLevelConfig(level: EfficiencyLevel): EfficiencyLeve
 }
 
 // -------------------------------------------------------
-// Risk Level Types & Classification
+// Risk Level Classification
+// Uses centralized config thresholds
 // -------------------------------------------------------
-export type RiskLevel = 'healthy' | 'monitor' | 'concern' | 'atRisk';
-
-export interface RiskLevelConfig {
-  key: RiskLevel;
-  color: string;
-  bgColor: string;
-  textColor: string;
-  borderColor: string;
-  dotColor: string;
-}
-
-export const RISK_LEVELS: RiskLevelConfig[] = [
-  { key: 'healthy', color: 'bg-emerald-500', bgColor: 'bg-emerald-50 dark:bg-emerald-900/20', textColor: 'text-emerald-700 dark:text-emerald-500', borderColor: 'border-emerald-200 dark:border-emerald-900/60', dotColor: 'bg-emerald-400' },
-  { key: 'monitor', color: 'bg-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-900/20', textColor: 'text-amber-700 dark:text-amber-500', borderColor: 'border-amber-200 dark:border-amber-900/60', dotColor: 'bg-amber-400' },
-  { key: 'concern', color: 'bg-orange-500', bgColor: 'bg-orange-50 dark:bg-orange-900/20', textColor: 'text-orange-700 dark:text-orange-500', borderColor: 'border-orange-200 dark:border-orange-900/60', dotColor: 'bg-orange-400' },
-  { key: 'atRisk', color: 'bg-rose-500', bgColor: 'bg-rose-50 dark:bg-rose-900/20', textColor: 'text-rose-700 dark:text-rose-500', borderColor: 'border-rose-200 dark:border-rose-900/60', dotColor: 'bg-rose-400' },
-];
-
 export function getRiskLevelConfig(level: RiskLevel): RiskLevelConfig {
   return RISK_LEVELS.find(l => l.key === level) || RISK_LEVELS[0];
 }
 
 // -------------------------------------------------------
-// Growth Trend Types
+// Growth Trend Classification
+// Uses centralized config thresholds
 // -------------------------------------------------------
-export type GrowthTrend = 'improving' | 'stable' | 'declining';
-
-export interface GrowthTrendConfig {
-  key: GrowthTrend;
-  color: string;
-  textColor: string;
-  icon: string; // arrow direction
-}
-
-export const GROWTH_TRENDS: GrowthTrendConfig[] = [
-  { key: 'improving', color: 'bg-emerald-500', textColor: 'text-emerald-600 dark:text-emerald-500', icon: '↑' },
-  { key: 'stable', color: 'bg-sky-500', textColor: 'text-sky-600 dark:text-sky-500', icon: '→' },
-  { key: 'declining', color: 'bg-rose-500', textColor: 'text-rose-600 dark:text-rose-500', icon: '↓' },
-];
-
 export function getGrowthTrendConfig(trend: GrowthTrend): GrowthTrendConfig {
   return GROWTH_TRENDS.find(t => t.key === trend) || GROWTH_TRENDS[1];
 }
@@ -145,13 +117,13 @@ export function getGrowthTrendConfig(trend: GrowthTrend): GrowthTrendConfig {
 // -------------------------------------------------------
 export interface StudentPerformanceMetrics {
   // ── Core Metrics ──
-  examPerformance: number;        // Weighted: total earned / total possible × 100
-  attendanceScore: number;        // Points-based: sum(points) / max points × 100
-  assignmentCompliance: number;   // Submissions completed / total × 100
-  assignmentQuality: number;      // Points earned / points possible × 100
+  examPerformance: number;
+  attendanceScore: number;
+  assignmentCompliance: number;
+  assignmentQuality: number;
 
   // ── Composite ──
-  overallPerformance: number;     // Weighted average of available components
+  overallPerformance: number;
   performanceLevel: PerformanceLevel;
 
   // ── Efficiency ──
@@ -164,7 +136,7 @@ export interface StudentPerformanceMetrics {
   disciplineScore: number;
 
   // ── Growth ──
-  growthIndex: number;           // Ratio: recent avg / earliest avg
+  growthIndex: number;
   growthTrend: GrowthTrend;
 
   // ── Risk ──
@@ -187,7 +159,7 @@ export interface StudentPerformanceMetrics {
 
 // -------------------------------------------------------
 // Calculation: Exam Performance (Weighted)
-// Instead of averaging percentages, use total marks.
+// Uses total marks instead of averaging percentages.
 // This prevents small quizzes from having equal weight
 // with major exams.
 // -------------------------------------------------------
@@ -202,9 +174,7 @@ export function calculateExamPerformance(
 
 // -------------------------------------------------------
 // Calculation: Attendance Score (Points-Based)
-// Each session gets points based on status:
-// present=100, late=75, partial=50, absent=0
-// Students without a record for a session are "absent" (0 pts).
+// Uses centralized ATTENDANCE_POINTS config.
 // -------------------------------------------------------
 export function calculateAttendanceScore(params: {
   sessions: Array<{ id: string }>;
@@ -223,7 +193,7 @@ export function calculateAttendanceScore(params: {
   sessions.forEach(session => {
     const status = recordMap.get(session.id);
     if (status) {
-      const points = ATTENDANCE_POINTS[status];
+      const points = ATTENDANCE_POINTS[status] ?? 0;
       totalPoints += points;
       if (status === 'present') onTimeCount++;
       if (status === 'late') lateCount++;
@@ -275,14 +245,12 @@ export function calculateAssignmentQuality(params: {
       const earned = sub.score ?? 0;
       totalEarned += earned;
       totalPossible += assignment.max_score || 0;
-      // Check if submitted after due date
       if (assignment.due_date && sub.submitted_at) {
         if (new Date(sub.submitted_at) > new Date(assignment.due_date)) {
           missedDeadlines++;
         }
       }
     } else {
-      // Not submitted = 0 earned, but max_score still counts as possible
       totalPossible += assignment.max_score || 0;
       if (assignment.due_date && new Date() > new Date(assignment.due_date)) {
         missedDeadlines++;
@@ -296,7 +264,7 @@ export function calculateAssignmentQuality(params: {
 
 // -------------------------------------------------------
 // Calculation: Overall Performance
-// Default weights: Exam=35%, Attendance=20%, Compliance=15%, Quality=30%
+// Uses centralized PERFORMANCE_WEIGHTS.
 // Auto-normalize when a component has no data.
 // -------------------------------------------------------
 export function calculateOverallPerformance(components: {
@@ -306,10 +274,10 @@ export function calculateOverallPerformance(components: {
   assignmentQuality?: number;
 }): number {
   const parts: { value: number; weight: number }[] = [];
-  if (components.examPerformance !== undefined) parts.push({ value: components.examPerformance, weight: DEFAULT_WEIGHTS.examPerformance });
-  if (components.attendanceScore !== undefined) parts.push({ value: components.attendanceScore, weight: DEFAULT_WEIGHTS.attendanceScore });
-  if (components.assignmentCompliance !== undefined) parts.push({ value: components.assignmentCompliance, weight: DEFAULT_WEIGHTS.assignmentCompliance });
-  if (components.assignmentQuality !== undefined) parts.push({ value: components.assignmentQuality, weight: DEFAULT_WEIGHTS.assignmentQuality });
+  if (components.examPerformance !== undefined) parts.push({ value: components.examPerformance, weight: PERFORMANCE_WEIGHTS.examPerformance });
+  if (components.attendanceScore !== undefined) parts.push({ value: components.attendanceScore, weight: PERFORMANCE_WEIGHTS.attendanceScore });
+  if (components.assignmentCompliance !== undefined) parts.push({ value: components.assignmentCompliance, weight: PERFORMANCE_WEIGHTS.assignmentCompliance });
+  if (components.assignmentQuality !== undefined) parts.push({ value: components.assignmentQuality, weight: PERFORMANCE_WEIGHTS.assignmentQuality });
   if (parts.length === 0) return 0;
   const totalWeight = parts.reduce((sum, c) => sum + c.weight, 0);
   return parts.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight;
@@ -317,18 +285,16 @@ export function calculateOverallPerformance(components: {
 
 // -------------------------------------------------------
 // Calculation: Efficiency
-// Redesigned to handle low-effort students properly.
-// If effort < 40, show "Insufficient Data" instead of
-// misleadingly high efficiency.
+// Uses centralized EFFICIENCY_WEIGHTS and EFFICIENCY_THRESHOLDS.
 // -------------------------------------------------------
 export function calculateEfficiency(params: {
   attendanceScore: number;
   assignmentCompliance: number;
   overallPerformance: number;
 }): { effortScore: number; resultScore: number; efficiency: number; efficiencyLevel: EfficiencyLevel } {
-  const effortScore = (params.attendanceScore * 0.5) + (params.assignmentCompliance * 0.5);
+  const effortScore = (params.attendanceScore * EFFICIENCY_WEIGHTS.attendanceContribution) + (params.assignmentCompliance * EFFICIENCY_WEIGHTS.complianceContribution);
   const resultScore = params.overallPerformance;
-  const efficiency = effortScore >= 40
+  const efficiency = effortScore >= EFFICIENCY_THRESHOLDS.insufficientEffort
     ? Math.min((resultScore / effortScore) * 100, 100)
     : 0;
   const efficiencyLevel = getEfficiencyLevel(efficiency, effortScore);
@@ -337,9 +303,7 @@ export function calculateEfficiency(params: {
 
 // -------------------------------------------------------
 // Calculation: Discipline Score (0-100)
-// Measures behavioral commitment separately from academics.
-// Factors: attendance consistency, on-time submissions,
-// late arrivals, missed deadlines.
+// Uses centralized DISCIPLINE_WEIGHTS and DISCIPLINE_PENALTIES.
 // -------------------------------------------------------
 export function calculateDisciplineScore(params: {
   attendanceScore: number;
@@ -351,41 +315,39 @@ export function calculateDisciplineScore(params: {
 }): number {
   const { attendanceScore, lateCount, totalSessions, onTimeSubmissions, totalAssignments, missedDeadlines } = params;
 
-  // Component 1: Attendance consistency (40%)
-  // Penalized by late arrivals
-  const latePenalty = totalSessions > 0 ? (lateCount / totalSessions) * 20 : 0; // max 20 point penalty
+  // Component 1: Attendance consistency — penalized by late arrivals
+  const latePenalty = totalSessions > 0 ? (lateCount / totalSessions) * DISCIPLINE_PENALTIES.lateArrivalMaxPenalty : 0;
   const attendanceComponent = Math.max(0, attendanceScore - latePenalty);
 
-  // Component 2: On-time submission rate (40%)
-  const onTimeRate = totalAssignments > 0 ? (onTimeSubmissions / totalAssignments) * 100 : 100; // default 100 if no assignments
+  // Component 2: On-time submission rate
+  const onTimeRate = totalAssignments > 0 ? (onTimeSubmissions / totalAssignments) * 100 : 100;
 
-  // Component 3: Deadline respect (20%)
+  // Component 3: Deadline respect
   const deadlineRespect = totalAssignments > 0
     ? Math.max(0, 100 - (missedDeadlines / totalAssignments) * 100)
-    : 100; // default 100 if no assignments
+    : 100;
 
-  return (attendanceComponent * 0.4) + (onTimeRate * 0.4) + (deadlineRespect * 0.2);
+  return (attendanceComponent * DISCIPLINE_WEIGHTS.attendanceConsistency)
+    + (onTimeRate * DISCIPLINE_WEIGHTS.onTimeSubmissions)
+    + (deadlineRespect * DISCIPLINE_WEIGHTS.deadlineRespect);
 }
 
 // -------------------------------------------------------
 // Calculation: Growth Index
-// Compares recent assessments to earliest assessments.
-// Returns ratio and trend classification.
+// Uses centralized GROWTH_THRESHOLDS and GROWTH_CALCULATION.
 // -------------------------------------------------------
 export function calculateGrowthIndex(
   scores: Array<{ completed_at: string; score: number; total: number }>
-): { index: number; trend: GrowthTrend; recentAvg: number; earliestAvg: number } {
+): { index: number; trend: GrowthTrend; recentAvg: number; earliestAvg: number; improvementPercentage: number } {
   if (scores.length < 2) {
-    return { index: 1, trend: 'stable', recentAvg: 0, earliestAvg: 0 };
+    return { index: 1, trend: 'stable', recentAvg: 0, earliestAvg: 0, improvementPercentage: 0 };
   }
 
-  // Sort by date ascending
   const sorted = [...scores].sort((a, b) =>
     new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime()
   );
 
-  // Split into earliest third and recent third
-  const third = Math.max(1, Math.floor(sorted.length / 3));
+  const third = Math.max(1, Math.floor(sorted.length / GROWTH_CALCULATION.thirdFraction));
   const earliest = sorted.slice(0, third);
   const recent = sorted.slice(-third);
 
@@ -393,18 +355,19 @@ export function calculateGrowthIndex(
   const recentAvg = recent.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / recent.length;
 
   const index = earliestAvg > 0 ? recentAvg / earliestAvg : (recentAvg > 0 ? 2 : 1);
+  const improvementPercentage = earliestAvg > 0 ? ((recentAvg - earliestAvg) / earliestAvg) * 100 : 0;
 
   let trend: GrowthTrend;
-  if (index >= 1.1) trend = 'improving';     // ≥10% improvement
-  else if (index >= 0.9) trend = 'stable';    // Within ±10%
-  else trend = 'declining';                    // >10% decline
+  if (index >= GROWTH_THRESHOLDS.improving) trend = 'improving';
+  else if (index >= GROWTH_THRESHOLDS.stable) trend = 'stable';
+  else trend = 'declining';
 
-  return { index, trend, recentAvg, earliestAvg };
+  return { index, trend, recentAvg, earliestAvg, improvementPercentage };
 }
 
 // -------------------------------------------------------
 // Calculation: Risk Detection
-// Automated risk engine that triggers alerts.
+// Uses centralized RISK_THRESHOLDS.
 // -------------------------------------------------------
 export function calculateRiskLevel(params: {
   attendanceScore: number;
@@ -412,56 +375,50 @@ export function calculateRiskLevel(params: {
   missedLastThreeAssignments: boolean;
   growthTrend: GrowthTrend;
   daysSinceLastActivity: number | null;
-  inactivityThreshold?: number; // configurable, default 14 days
-}): { level: RiskLevel; reasons: string[] } {
+  inactivityThreshold?: number;
+}): { level: RiskLevel; reasons: string[]; score: number } {
   const reasons: string[] = [];
-  let score = 0; // 0 = healthy, higher = more risk
+  let score = 0;
 
-  // Check attendance below 50%
-  if (params.attendanceScore < 50) {
+  if (params.attendanceScore < RISK_THRESHOLDS.attendanceCritical) {
     reasons.push('attendanceBelow50');
-    score += 3;
-  } else if (params.attendanceScore < 70) {
+    score += RISK_THRESHOLDS.criticalContribution;
+  } else if (params.attendanceScore < RISK_THRESHOLDS.attendanceWarning) {
     reasons.push('attendanceBelow70');
-    score += 1;
+    score += RISK_THRESHOLDS.warningContribution;
   }
 
-  // Check overall performance below 60%
-  if (params.overallPerformance < 60) {
+  if (params.overallPerformance < RISK_THRESHOLDS.performanceCritical) {
     reasons.push('performanceBelow60');
-    score += 3;
-  } else if (params.overallPerformance < 70) {
+    score += RISK_THRESHOLDS.criticalContribution;
+  } else if (params.overallPerformance < RISK_THRESHOLDS.performanceWarning) {
     reasons.push('performanceBelow70');
-    score += 1;
+    score += RISK_THRESHOLDS.warningContribution;
   }
 
-  // Missing last 3 assignments
   if (params.missedLastThreeAssignments) {
     reasons.push('missedLast3Assignments');
-    score += 2;
+    score += RISK_THRESHOLDS.missedAssignmentContribution;
   }
 
-  // Continuous decline
   if (params.growthTrend === 'declining') {
     reasons.push('decliningTrend');
-    score += 2;
+    score += RISK_THRESHOLDS.decliningTrendContribution;
   }
 
-  // Inactivity check
-  const threshold = params.inactivityThreshold ?? 14;
+  const threshold = params.inactivityThreshold ?? RISK_THRESHOLDS.inactivityDays;
   if (params.daysSinceLastActivity !== null && params.daysSinceLastActivity > threshold) {
     reasons.push('inactivity');
-    score += 2;
+    score += RISK_THRESHOLDS.inactivityContribution;
   }
 
-  // Determine level
   let level: RiskLevel;
-  if (score >= 6) level = 'atRisk';
-  else if (score >= 4) level = 'concern';
-  else if (score >= 2) level = 'monitor';
+  if (score >= RISK_THRESHOLDS.atRisk) level = 'atRisk';
+  else if (score >= RISK_THRESHOLDS.concern) level = 'concern';
+  else if (score >= RISK_THRESHOLDS.monitor) level = 'monitor';
   else level = 'healthy';
 
-  return { level, reasons };
+  return { level, reasons, score };
 }
 
 // -------------------------------------------------------
@@ -478,13 +435,12 @@ export function computeAllMetrics(params: {
 }): StudentPerformanceMetrics {
   const { scores: allScores, attendanceSessions, attendanceRecords, submissions, assignments, studentId } = params;
 
-  // Filter data for this student
   const studentScores = allScores.filter(s => s.student_id === studentId);
 
-  // 1. Exam Performance (Weighted)
+  // 1. Exam Performance
   const exam = calculateExamPerformance(studentScores);
 
-  // 2. Attendance Score (Points-Based)
+  // 2. Attendance Score
   const attendance = calculateAttendanceScore({
     sessions: attendanceSessions,
     records: attendanceRecords,
@@ -542,22 +498,19 @@ export function computeAllMetrics(params: {
   const growth = calculateGrowthIndex(studentScores);
 
   // 9. Risk Detection
-  // Check if student missed last 3 assignments
   const recentAssignments = [...assignments]
     .sort((a, b) => {
       const dateA = a.due_date || '';
       const dateB = b.due_date || '';
       return new Date(dateB).getTime() - new Date(dateA).getTime();
     })
-    .slice(0, 3);
-  const missedLastThree = recentAssignments.length === 3 && recentAssignments.every(a =>
+    .slice(0, ACHIEVEMENT_THRESHOLDS.missedAssignmentCheck);
+  const missedLastThree = recentAssignments.length === ACHIEVEMENT_THRESHOLDS.missedAssignmentCheck && recentAssignments.every(a =>
     !submissions.some(s => s.student_id === studentId && s.assignment_id === a.id && (s.status === 'graded' || s.status === 'submitted'))
   );
 
-  // Calculate days since last activity
   const allDates = [
     ...studentScores.map(s => s.completed_at),
-    ...attendanceRecords.filter(r => r.student_id === studentId).map(() => ''),
     ...submissions.filter(s => s.student_id === studentId).map(s => s.submitted_at),
   ].filter(Boolean);
 
@@ -608,7 +561,7 @@ export function computeAllMetrics(params: {
 
 // -------------------------------------------------------
 // Student Ranking (Percentile-based)
-// Avoids showing exact rank positions.
+// Uses centralized RANKING_BANDS.
 // -------------------------------------------------------
 export function calculatePercentile(studentScore: number, allScores: number[]): number {
   if (allScores.length === 0) return 0;
@@ -617,15 +570,18 @@ export function calculatePercentile(studentScore: number, allScores: number[]): 
 }
 
 export function getPercentileLabel(percentile: number): string {
-  if (percentile >= 95) return 'top5';
-  if (percentile >= 90) return 'top10';
-  if (percentile >= 75) return 'top25';
-  if (percentile >= 50) return 'top50';
+  if (percentile >= RANKING_BANDS.top5) return 'top5';
+  if (percentile >= RANKING_BANDS.top10) return 'top10';
+  if (percentile >= RANKING_BANDS.top25) return 'top25';
+  if (percentile >= RANKING_BANDS.top50) return 'top50';
   return 'below50';
 }
 
 // -------------------------------------------------------
-// Per-Subject Performance
+// Per-Subject Performance Calculation
+// CENTRALIZED: Use this instead of duplicating logic
+// in UI components. Both teacher-student-tracking and
+// student-tracking sections should call this function.
 // -------------------------------------------------------
 export interface SubjectPerformanceData {
   subjectId: string;
@@ -637,12 +593,85 @@ export interface SubjectPerformanceData {
   overallPerformance: number;
   growthTrend: GrowthTrend;
   riskLevel: RiskLevel;
-  // Raw counts
   quizCount: number;
   totalSessions: number;
   attendedSessions: number;
   assignmentCount: number;
   completedAssignments: number;
+}
+
+export interface SubjectPerformanceInput {
+  subjectId: string;
+  subjectName: string;
+  studentScores: Array<{ score: number; total: number; completed_at: string }>;
+  attendanceSessions: Array<{ id: string }>;
+  attendanceRecords: Array<{ session_id: string; student_id: string; attendance_status?: AttendanceStatus }>;
+  studentId: string;
+  assignments: Array<{ id: string; max_score: number; due_date?: string }>;
+  submissions: Array<{ assignment_id: string; student_id: string; score: number | null; status: string; submitted_at: string }>;
+}
+
+export function computeSubjectPerformance(input: SubjectPerformanceInput): SubjectPerformanceData {
+  const { subjectId, subjectName, studentScores, attendanceSessions, attendanceRecords, studentId, assignments, submissions } = input;
+
+  // Exam Performance
+  const exam = calculateExamPerformance(studentScores);
+
+  // Attendance Score
+  const attendance = calculateAttendanceScore({
+    sessions: attendanceSessions,
+    records: attendanceRecords,
+    studentId,
+  });
+
+  // Assignment Compliance
+  const studentSubmissions = submissions.filter(s => s.student_id === studentId);
+  const completedAssignments = studentSubmissions.filter(s => s.status === 'graded' || s.status === 'submitted').length;
+  const compliance = assignments.length > 0 ? (completedAssignments / assignments.length) * 100 : 0;
+
+  // Assignment Quality
+  const quality = calculateAssignmentQuality({
+    submissions,
+    assignments,
+    studentId,
+  });
+
+  // Overall (auto-normalize)
+  const overallPerformance = calculateOverallPerformance({
+    examPerformance: studentScores.length > 0 ? exam.value : undefined,
+    attendanceScore: attendanceSessions.length > 0 ? attendance.value : undefined,
+    assignmentCompliance: assignments.length > 0 ? compliance : undefined,
+    assignmentQuality: assignments.length > 0 ? quality.value : undefined,
+  });
+
+  // Growth
+  const growth = calculateGrowthIndex(studentScores);
+
+  // Risk (simplified for subject level)
+  const risk = calculateRiskLevel({
+    attendanceScore: attendance.value,
+    overallPerformance,
+    missedLastThreeAssignments: false,
+    growthTrend: growth.trend,
+    daysSinceLastActivity: null,
+  });
+
+  return {
+    subjectId,
+    subjectName,
+    examPerformance: exam.value,
+    attendanceScore: attendance.value,
+    assignmentCompliance: compliance,
+    assignmentQuality: quality.value,
+    overallPerformance,
+    growthTrend: growth.trend,
+    riskLevel: risk.level,
+    quizCount: studentScores.length,
+    totalSessions: attendanceSessions.length,
+    attendedSessions: attendance.attended,
+    assignmentCount: assignments.length,
+    completedAssignments,
+  };
 }
 
 // -------------------------------------------------------
@@ -656,4 +685,120 @@ export interface ActivityEvent {
   title: string;
   detail: string;
   importance?: 'high' | 'medium' | 'low';
+}
+
+// -------------------------------------------------------
+// Cohort Analytics Engine
+// Reusable distribution calculations for teacher dashboards.
+// No UI component should compute distributions independently.
+// -------------------------------------------------------
+export interface CohortPerformanceDistribution {
+  excellent: number;
+  veryGood: number;
+  good: number;
+  acceptable: number;
+  weak: number;
+}
+
+export interface CohortRiskDistribution {
+  healthy: number;
+  monitor: number;
+  concern: number;
+  atRisk: number;
+}
+
+export interface CohortGrowthDistribution {
+  improving: number;
+  stable: number;
+  declining: number;
+}
+
+export interface CohortDisciplineDistribution {
+  high: number;    // >= 80
+  medium: number;  // >= 60
+  low: number;     // < 60
+}
+
+export interface CohortAnalytics {
+  totalStudents: number;
+  avgPerformance: number;
+  avgAttendance: number;
+  avgDiscipline: number;
+  avgEfficiency: number;
+  performanceDistribution: CohortPerformanceDistribution;
+  riskDistribution: CohortRiskDistribution;
+  growthDistribution: CohortGrowthDistribution;
+  disciplineDistribution: CohortDisciplineDistribution;
+  atRiskCount: number;
+  topPerformerCount: number;
+}
+
+export function computeCohortAnalytics(
+  allMetrics: StudentPerformanceMetrics[]
+): CohortAnalytics {
+  const totalStudents = allMetrics.length;
+  if (totalStudents === 0) {
+    return {
+      totalStudents: 0,
+      avgPerformance: 0,
+      avgAttendance: 0,
+      avgDiscipline: 0,
+      avgEfficiency: 0,
+      performanceDistribution: { excellent: 0, veryGood: 0, good: 0, acceptable: 0, weak: 0 },
+      riskDistribution: { healthy: 0, monitor: 0, concern: 0, atRisk: 0 },
+      growthDistribution: { improving: 0, stable: 0, declining: 0 },
+      disciplineDistribution: { high: 0, medium: 0, low: 0 },
+      atRiskCount: 0,
+      topPerformerCount: 0,
+    };
+  }
+
+  const avgPerformance = allMetrics.reduce((sum, m) => sum + m.overallPerformance, 0) / totalStudents;
+  const avgAttendance = allMetrics.reduce((sum, m) => sum + m.attendanceScore, 0) / totalStudents;
+  const avgDiscipline = allMetrics.reduce((sum, m) => sum + m.disciplineScore, 0) / totalStudents;
+  const avgEfficiency = allMetrics.reduce((sum, m) => sum + m.efficiency, 0) / totalStudents;
+
+  const performanceDistribution: CohortPerformanceDistribution = {
+    excellent: allMetrics.filter(m => m.performanceLevel === 'excellent').length,
+    veryGood: allMetrics.filter(m => m.performanceLevel === 'veryGood').length,
+    good: allMetrics.filter(m => m.performanceLevel === 'good').length,
+    acceptable: allMetrics.filter(m => m.performanceLevel === 'acceptable').length,
+    weak: allMetrics.filter(m => m.performanceLevel === 'weak').length,
+  };
+
+  const riskDistribution: CohortRiskDistribution = {
+    healthy: allMetrics.filter(m => m.riskLevel === 'healthy').length,
+    monitor: allMetrics.filter(m => m.riskLevel === 'monitor').length,
+    concern: allMetrics.filter(m => m.riskLevel === 'concern').length,
+    atRisk: allMetrics.filter(m => m.riskLevel === 'atRisk').length,
+  };
+
+  const growthDistribution: CohortGrowthDistribution = {
+    improving: allMetrics.filter(m => m.growthTrend === 'improving').length,
+    stable: allMetrics.filter(m => m.growthTrend === 'stable').length,
+    declining: allMetrics.filter(m => m.growthTrend === 'declining').length,
+  };
+
+  const disciplineDistribution: CohortDisciplineDistribution = {
+    high: allMetrics.filter(m => m.disciplineScore >= 80).length,
+    medium: allMetrics.filter(m => m.disciplineScore >= 60 && m.disciplineScore < 80).length,
+    low: allMetrics.filter(m => m.disciplineScore < 60).length,
+  };
+
+  const atRiskCount = allMetrics.filter(m => m.riskLevel === 'atRisk' || m.riskLevel === 'concern').length;
+  const topPerformerCount = allMetrics.filter(m => m.performanceLevel === 'excellent').length;
+
+  return {
+    totalStudents,
+    avgPerformance,
+    avgAttendance,
+    avgDiscipline,
+    avgEfficiency,
+    performanceDistribution,
+    riskDistribution,
+    growthDistribution,
+    disciplineDistribution,
+    atRiskCount,
+    topPerformerCount,
+  };
 }

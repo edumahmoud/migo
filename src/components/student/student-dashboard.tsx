@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
@@ -39,6 +39,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { computeAllMetrics } from '@/lib/performance-calculator';
 import { waitForSession as waitForSessionShared, getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
@@ -2944,46 +2945,39 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
   // -------------------------------------------------------
   // Computed: average performance
   // -------------------------------------------------------
-  // ─── Composite performance average ───
-  // Combines: quiz scores (40%), assignment grades (30%), attendance (30%)
-  // Each component is calculated as a percentage (0-100), then weighted.
-  const avgPerformance = (() => {
-    const components: { value: number; weight: number }[] = [];
-
-    // Quiz scores component (40% weight)
-    if (scores.length > 0) {
-      const quizAvg = scores.reduce((sum, s) => sum + scorePercentage(s.score, s.total), 0) / scores.length;
-      components.push({ value: quizAvg, weight: 40 });
-    }
-
-    // Assignment grades component (30% weight)
-    const gradedSubmissions = submissions.filter(s => s.score !== null && s.score !== undefined);
-    if (gradedSubmissions.length > 0) {
-      const assignAvgs = gradedSubmissions.map(sub => {
-        const assignment = assignments.find(a => a.id === sub.assignment_id);
-        if (assignment && assignment.max_score > 0) {
-          return (sub.score! / assignment.max_score) * 100;
-        }
-        return 0;
-      });
-      const assignAvg = assignAvgs.reduce((sum, v) => sum + v, 0) / assignAvgs.length;
-      components.push({ value: assignAvg, weight: 30 });
-    }
-
-    // Attendance component (30% weight)
-    if (attendanceSessions.length > 0) {
-      const attendedSessionIds = new Set(attendanceRecords.map(r => r.session_id));
-      const attendancePct = (attendedSessionIds.size / attendanceSessions.length) * 100;
-      components.push({ value: attendancePct, weight: 30 });
-    }
-
-    // Calculate weighted average
-    if (components.length === 0) return 0;
-
-    // Re-normalize weights when some components are missing
-    const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
-    return Math.round(components.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight);
-  })();
+  // Uses the centralized analytics engine with the new
+  // weighted model: Exam 35%, Attendance 20%, Compliance 15%, Quality 30%
+  // (replaces legacy 40/30/30 formula)
+  const avgPerformance = useMemo(() => {
+    const metrics = computeAllMetrics({
+      scores: scores.map(s => ({
+        score: s.score,
+        total: s.total,
+        completed_at: s.completed_at,
+        student_id: s.student_id,
+      })),
+      attendanceSessions: attendanceSessions.map(s => ({ id: s.id })),
+      attendanceRecords: attendanceRecords.map(r => ({
+        session_id: r.session_id,
+        student_id: r.student_id,
+        attendance_status: r.attendance_status,
+      })),
+      submissions: submissions.map(s => ({
+        assignment_id: s.assignment_id,
+        student_id: s.student_id,
+        score: s.score ?? null,
+        status: s.status,
+        submitted_at: s.submitted_at,
+      })),
+      assignments: assignments.map(a => ({
+        id: a.id,
+        max_score: a.max_score,
+        due_date: a.due_date,
+      })),
+      studentId: profile.id,
+    });
+    return Math.round(metrics.overallPerformance);
+  }, [scores, attendanceSessions, attendanceRecords, submissions, assignments, profile.id]);
 
   // -------------------------------------------------------
   // Render: Dashboard Section

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 // recharts is imported at top level for now — consider lazy-loading the analytics tab component
 import {
@@ -47,6 +47,7 @@ import {
   ListChecks,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { computeAllMetrics, calculatePercentile } from '@/lib/performance-calculator';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
 import AppSidebar from '@/components/shared/app-sidebar';
 import AppHeader from '@/components/shared/app-header';
@@ -608,43 +609,46 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // Computed values
   // -------------------------------------------------------
   // ─── Composite performance average ───
-  // Combines: quiz scores (40%), assignment grades (30%), attendance (30%)
-  // For teacher view: averages across all their students
-  const avgPerformance = (() => {
-    const components: { value: number; weight: number }[] = [];
+  // Uses the centralized analytics engine with the new
+  // weighted model: Exam 35%, Attendance 20%, Compliance 15%, Quality 30%
+  // (replaces legacy 40/30/30 formula)
+  const avgPerformance = useMemo(() => {
+    if (students.length === 0) return 0;
 
-    // Quiz scores component (40% weight)
-    if (scores.length > 0) {
-      const quizAvg = scores.reduce((sum, s) => sum + scorePercentage(s.score, s.total), 0) / scores.length;
-      components.push({ value: quizAvg, weight: 40 });
-    }
-
-    // Assignment grades component (30% weight)
-    const gradedSubmissions = teacherSubmissions.filter(s => s.score !== null && s.score !== undefined);
-    if (gradedSubmissions.length > 0) {
-      const assignAvgs = gradedSubmissions.map(sub => {
-        const assignment = teacherAssignments.find(a => a.id === sub.assignment_id);
-        if (assignment && assignment.max_score > 0) {
-          return (sub.score! / assignment.max_score) * 100;
-        }
-        return 0;
+    // Compute metrics for each student using the centralized engine
+    const allMetrics = students.map(student => {
+      return computeAllMetrics({
+        scores: scores.map(s => ({
+          score: s.score,
+          total: s.total,
+          completed_at: s.completed_at,
+          student_id: s.student_id,
+        })),
+        attendanceSessions: teacherAttendanceSessions.map(s => ({ id: s.id })),
+        attendanceRecords: teacherAttendanceRecords.map(r => ({
+          session_id: r.session_id,
+          student_id: r.student_id,
+          attendance_status: r.attendance_status,
+        })),
+        submissions: teacherSubmissions.map(s => ({
+          assignment_id: s.assignment_id,
+          student_id: s.student_id,
+          score: s.score,
+          status: s.status,
+          submitted_at: s.submitted_at || new Date().toISOString(),
+        })),
+        assignments: teacherAssignments.map(a => ({
+          id: a.id,
+          max_score: a.max_score,
+          due_date: a.due_date,
+        })),
+        studentId: student.id,
       });
-      const assignAvg = assignAvgs.reduce((sum, v) => sum + v, 0) / assignAvgs.length;
-      components.push({ value: assignAvg, weight: 30 });
-    }
+    });
 
-    // Attendance component (30% weight)
-    if (teacherAttendanceSessions.length > 0) {
-      const attendedSessionIds = new Set(teacherAttendanceRecords.map(r => r.session_id));
-      const attendancePct = (attendedSessionIds.size / teacherAttendanceSessions.length) * 100;
-      components.push({ value: attendancePct, weight: 30 });
-    }
-
-    // Calculate weighted average with renormalization
-    if (components.length === 0) return 0;
-    const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
-    return Math.round(components.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight);
-  })();
+    const total = allMetrics.reduce((sum, m) => sum + m.overallPerformance, 0);
+    return Math.round(total / allMetrics.length);
+  }, [students, scores, teacherAttendanceSessions, teacherAttendanceRecords, teacherSubmissions, teacherAssignments]);
 
   const filteredStudents = students.filter(
     (s) =>
@@ -687,19 +691,65 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
       const wb = XLSX.utils.book_new();
 
-      // Sheet 1: Student overview
-      const overviewData = students.map((s) => {
+      // Compute full analytics metrics for each student
+      const allStudentMetrics = students.map((s) => {
+        const metrics = computeAllMetrics({
+          scores: scores.map(sc => ({
+            score: sc.score,
+            total: sc.total,
+            completed_at: sc.completed_at,
+            student_id: sc.student_id,
+          })),
+          attendanceSessions: teacherAttendanceSessions.map(ses => ({ id: ses.id })),
+          attendanceRecords: teacherAttendanceRecords.map(r => ({
+            session_id: r.session_id,
+            student_id: r.student_id,
+            attendance_status: r.attendance_status,
+          })),
+          submissions: teacherSubmissions.map(sub => ({
+            assignment_id: sub.assignment_id,
+            student_id: sub.student_id,
+            score: sub.score,
+            status: sub.status,
+            submitted_at: sub.submitted_at || new Date().toISOString(),
+          })),
+          assignments: teacherAssignments.map(a => ({
+            id: a.id,
+            max_score: a.max_score,
+            due_date: a.due_date,
+          })),
+          studentId: s.id,
+        });
+        return { student: s, metrics };
+      });
+
+      // Compute percentile rankings across the class
+      const allOverallScores = allStudentMetrics.map(({ metrics }) => metrics.overallPerformance);
+
+      // Sheet 1: Student overview with full analytics
+      const overviewData = allStudentMetrics.map(({ student: s, metrics }) => {
+        const percentile = calculatePercentile(metrics.overallPerformance, allOverallScores);
         const sScores = getStudentScores(s.id);
         const lastScore = sScores[0];
-        const avg = sScores.length > 0
-          ? Math.round(sScores.reduce((sum, sc) => sum + scorePercentage(sc.score, sc.total), 0) / sScores.length)
-          : 0;
         return {
           [t('teacher.excelStudentName')]: s.name,
           [t('teacher.excelEmail')]: s.email,
           [t('teacher.excelQuizCount')]: sScores.length,
           [t('teacher.excelLastResult')]: lastScore ? `${lastScore.score}/${lastScore.total}` : '—',
-          [t('teacher.excelAvgPerformance')]: `${avg}%`,
+          'Exam Performance': metrics.examPerformance.toFixed(1),
+          'Attendance Score': metrics.attendanceScore.toFixed(1),
+          'Assignment Compliance': metrics.assignmentCompliance.toFixed(1),
+          'Assignment Quality': metrics.assignmentQuality.toFixed(1),
+          'Overall Performance': metrics.overallPerformance.toFixed(1),
+          'Classification': metrics.performanceLevel,
+          'Efficiency': metrics.efficiency.toFixed(1),
+          'Efficiency Level': metrics.efficiencyLevel,
+          'Discipline Score': metrics.disciplineScore.toFixed(1),
+          'Growth Index': metrics.growthIndex.toFixed(2),
+          'Growth Trend': metrics.growthTrend,
+          'Risk Level': metrics.riskLevel,
+          'Risk Reasons': metrics.riskReasons.join(', '),
+          'Ranking (Percentile)': Math.round(percentile),
         };
       });
       const ws1 = XLSX.utils.json_to_sheet(overviewData);
