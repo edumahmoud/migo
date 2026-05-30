@@ -115,7 +115,7 @@ const eventTypeConfig: Record<CalendarEventType, EventTypeConfig> = {
 // Todo priority badge helpers
 // -------------------------------------------------------
 const priorityConfig: Record<TodoPriority, { icon: typeof AlertCircle; className: string; label: string }> = {
-  urgent: { icon: AlertCircle, className: 'text-red-600 dark:text-red-500 bg-red-100 dark:bg-red-800/30', label: '🔴' },
+  task: { icon: AlertCircle, className: 'text-red-600 dark:text-red-500 bg-red-100 dark:bg-red-800/30', label: '🔴' },
   medium: { icon: MinusCircle, className: 'text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-800/30', label: '🟡' },
   low: { icon: ArrowDownCircle, className: 'text-sky-600 dark:text-sky-400 bg-sky-100 dark:bg-sky-800/30', label: '🔵' },
 };
@@ -123,7 +123,7 @@ const priorityConfig: Record<TodoPriority, { icon: typeof AlertCircle; className
 const categoryConfig: Record<TodoCategory, { icon: typeof BookMarked; className: string }> = {
   study: { icon: BookMarked, className: 'text-purple-600 dark:text-purple-400' },
   assignment: { icon: FileText, className: 'text-amber-600 dark:text-amber-500' },
-  review: { icon: ClipboardList, className: 'text-teal-600 dark:text-teal-500' },
+  task: { icon: ClipboardList, className: 'text-teal-600 dark:text-teal-500' },
   personal: { icon: User, className: 'text-gray-600 dark:text-gray-500' },
 };
 

@@ -204,20 +204,20 @@ function StickyNoteCard({
 // Main Overlay Component
 // -------------------------------------------------------
 export default function StickyNotesOverlay() {
-  const { profile } = useAuthStore();
+  const { user } = useAuthStore();
   const [notes, setNotes] = useState<StickyNoteData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const direction = profile?.locale === 'ar' ? 'rtl' as const : 'ltr' as const;
+  const direction = user?.locale === 'ar' ? 'rtl' as const : 'ltr' as const;
 
   // Fetch sticky notes
   const fetchNotes = useCallback(async () => {
-    if (!profile?.id) { setNotes([]); setLoading(false); return; }
+    if (!user?.id) { setNotes([]); setLoading(false); return; }
     try {
       const { data, error } = await supabase
         .from('sticky_notes')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -232,23 +232,23 @@ export default function StickyNotesOverlay() {
     } finally {
       setLoading(false);
     }
-  }, [profile?.id]);
+  }, [user?.id]);
 
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
 
   // Realtime subscription
   useEffect(() => {
-    if (!profile?.id) return;
+    if (!user?.id) return;
     const channel = supabase
       .channel('sticky-notes-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'sticky_notes', filter: `user_id=eq.${profile.id}` },
+        { event: '*', schema: 'public', table: 'sticky_notes', filter: `user_id=eq.${user.id}` },
         () => { fetchNotes(); }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [profile?.id, fetchNotes]);
+  }, [user?.id, fetchNotes]);
 
   // Update note
   const handleUpdate = useCallback(async (id: string, updates: Partial<StickyNoteData>) => {
@@ -277,7 +277,7 @@ export default function StickyNotesOverlay() {
   }, []);
 
   // Don't render if not authenticated or still loading
-  if (!profile?.id || loading) return null;
+  if (!user?.id || loading) return null;
 
   // Don't render if no notes
   if (notes.length === 0) return null;
