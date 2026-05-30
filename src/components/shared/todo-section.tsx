@@ -463,8 +463,8 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
           if (item.autoType === 'quiz' && !item.completed) {
             const timeCompleted = isQuizTimeCompleted(
               item.due_date,
-              item.scheduled_time,
-              item.duration
+              item.scheduled_time ?? null,
+              item.duration ?? null
             );
             if (timeCompleted) {
               return { ...item, completed: true };
