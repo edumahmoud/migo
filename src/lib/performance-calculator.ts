@@ -634,10 +634,12 @@ export function computeSubjectPerformance(input: SubjectPerformanceInput): Subje
     studentId,
   });
 
-  // Assignment Compliance
-  const studentSubmissions = submissions.filter(s => s.student_id === studentId);
-  const completedAssignments = studentSubmissions.filter(s => s.status === 'graded' || s.status === 'submitted').length;
-  const compliance = assignments.length > 0 ? (completedAssignments / assignments.length) * 100 : 0;
+  // Assignment Compliance — uses shared function for consistency (includes clamping)
+  const compliance = calculateAssignmentCompliance({
+    submissions,
+    totalAssignments: assignments.length,
+    studentId,
+  });
 
   // Assignment Quality
   const quality = calculateAssignmentQuality({
@@ -650,7 +652,7 @@ export function computeSubjectPerformance(input: SubjectPerformanceInput): Subje
   const overallPerformance = calculateOverallPerformance({
     examPerformance: studentScores.length > 0 ? exam.value : undefined,
     attendanceScore: attendanceSessions.length > 0 ? attendance.value : undefined,
-    assignmentCompliance: assignments.length > 0 ? compliance : undefined,
+    assignmentCompliance: assignments.length > 0 ? compliance.value : undefined,
     assignmentQuality: assignments.length > 0 ? quality.value : undefined,
   });
 
@@ -671,7 +673,7 @@ export function computeSubjectPerformance(input: SubjectPerformanceInput): Subje
     subjectName,
     examPerformance: exam.value,
     attendanceScore: attendance.value,
-    assignmentCompliance: compliance,
+    assignmentCompliance: compliance.value,
     assignmentQuality: quality.value,
     overallPerformance,
     growthTrend: growth.trend,
@@ -680,7 +682,7 @@ export function computeSubjectPerformance(input: SubjectPerformanceInput): Subje
     totalSessions: attendanceSessions.length,
     attendedSessions: attendance.attended,
     assignmentCount: assignments.length,
-    completedAssignments,
+    completedAssignments: compliance.completed,
   };
 }
 

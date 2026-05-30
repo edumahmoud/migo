@@ -1299,7 +1299,7 @@ function EfficiencyGauge({
 // -------------------------------------------------------
 // Subject Performance Mini Card (enhanced)
 // -------------------------------------------------------
-function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
+function SubjectPerformanceCard({ subject }: { subject: SubjectPerformanceData }) {
   const { t } = useTranslations();
   const levelConfig = getPerformanceLevelConfig(getPerformanceLevel(subject.overallPerformance));
   const riskConfig = getRiskLevelConfig(subject.riskLevel);

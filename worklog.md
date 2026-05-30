@@ -162,3 +162,34 @@ Stage Summary:
 - **HARDENED**: All calculation functions now clamp outputs to [0, 100] range
 - **HARDENED**: Zero-weight and empty-array guards prevent NaN/Infinity
 - **VERIFIED**: Single source of truth — all KPIs from engine only, no inline calculations
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Analytics System Hardening — Controlled Refinement Pass (6 Areas)
+
+Work Log:
+- Audited entire analytics codebase: performance-calculator.ts, analytics-config.ts, analytics-types.ts, all dashboard/tracking components
+- Found triple computeAllMetrics() computation in teacher-dashboard.tsx (avgPerformance + handleExportSummaries + TeacherStudentTrackingSection)
+- Fixed teacher-dashboard.tsx: Created single allStudentMetrics useMemo, derived avgPerformance from it, reused in handleExportSummaries — eliminates 2 of 3 recomputations
+- Found computeSubjectPerformance() had inline compliance calculation that duplicated calculateAssignmentCompliance() — inline version was missing [0, 100] clamping
+- Fixed performance-calculator.ts: Replaced inline compliance calculation with calculateAssignmentCompliance() function call for consistency and clamping
+- Fixed pre-existing TypeScript error in teacher-student-tracking-section.tsx (SubjectPerformance → SubjectPerformanceData)
+- Refined architecture doc (ANALYTICS_SERVER_ARCHITECTURE.md) with all 6 areas:
+  1. Cache consistency: Consolidated 6 overlapping trigger rows into 2 unified rules
+  2. Trigger reliability: Added explicit TTL-only fallback statement (no queues/workers)
+  3. Snapshot clarity: Reduced from 3 types to 2 (daily + on_change), removed weekly and risk-change triggers
+  4. Computational duplication: Added no-hidden-recomputation rule, fixed actual code duplication
+  5. API simplification: Removed /api/migrate/analytics-tables from endpoint list (DDL is migration SQL, not API)
+  6. Consistency rule: Added explicit section verifying cache/snapshot/live produce identical metrics via same function
+- TypeScript: passes clean, ESLint: passes clean, dev server: running
+
+Stage Summary:
+- **FIXED**: Triple computeAllMetrics() reduced to single computation in teacher-dashboard.tsx
+- **FIXED**: computeSubjectPerformance() compliance now uses shared function with clamping (was inline without clamping)
+- **FIXED**: TypeScript error SubjectPerformance → SubjectPerformanceData
+- **SIMPLIFIED**: Architecture cache invalidation from 6 rules to 2 unified rules
+- **SIMPLIFIED**: Snapshot types from 3 to 2 (removed weekly, removed risk-change trigger)
+- **SIMPLIFIED**: API endpoints from 7 to 6 (removed DDL migration endpoint)
+- **CLARIFIED**: TTL expiration is the ONLY fallback if triggers fail
+- **CLARIFIED**: All computation paths must use same computeStudentMetrics() function

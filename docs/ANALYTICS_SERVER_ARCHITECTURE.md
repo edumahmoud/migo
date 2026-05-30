@@ -1,4 +1,4 @@
-# Analytics Server Architecture Design
+# Analytics Server Architecture Design (Refined)
 
 ## CONSTRAINT 1: Single Source of Truth (Strict)
 
@@ -87,7 +87,7 @@
 
 ---
 
-## CONSTRAINT 2: Cache Invalidation Rules
+## CONSTRAINT 2: Cache Invalidation Rules (Simplified)
 
 Every cache entry has a `cache_key` that encodes what data it depends on.
 Invalidation targets specific keys based on what changed.
@@ -101,16 +101,20 @@ cohort:{teacherId}                         — teacher's full cohort
 cohort:{teacherId}:subject:{subjectId}     — teacher's subject cohort
 ```
 
-### Invalidation Trigger Map
+### Unified Invalidation Rules (2 rules, not 6)
 
-| Database Event | Tables Affected | Cache Keys Invalidated | Who Triggers |
+Previous design had 6 overlapping trigger rows that all produced the same
+invalidation pattern. Consolidated into 2 rules:
+
+| Rule | DB Events | Cache Keys Invalidated | Trigger Method |
 |---|---|---|---|
-| **Attendance record INSERT/UPDATE/DELETE** | `attendance_records` | `student:{studentId}`, `student:{studentId}:subject:{subjectId}`, `cohort:{teacherId}`, `cohort:{teacherId}:subject:{subjectId}` | Supabase DB trigger → calls `/api/analytics/refresh` |
-| **Score INSERT/UPDATE** (quiz completion) | `scores` | `student:{studentId}`, `student:{studentId}:subject:{subjectId}`, `cohort:{teacherId}`, `cohort:{teacherId}:subject:{subjectId}` | Supabase DB trigger → calls `/api/analytics/refresh` |
-| **Submission INSERT** (new submission) | `submissions` | `student:{studentId}`, `student:{studentId}:subject:{subjectId}`, `cohort:{teacherId}`, `cohort:{teacherId}:subject:{subjectId}` | Supabase DB trigger → calls `/api/analytics/refresh` |
-| **Submission UPDATE** (grade posted) | `submissions` | `student:{studentId}`, `student:{studentId}:subject:{subjectId}`, `cohort:{teacherId}`, `cohort:{teacherId}:subject:{subjectId}` | Supabase DB trigger → calls `/api/analytics/refresh` |
-| **Assignment INSERT/UPDATE/DELETE** | `assignments` | `cohort:{teacherId}`, all `student:*` in that subject | Supabase DB trigger → calls `/api/analytics/refresh` |
-| **Student enrollment change** | `subject_students`, `teacher_student_links` | `cohort:{teacherId}`, `student:{studentId}` | Application code on enrollment API → calls `/api/analytics/refresh` |
+| **Student data change** | attendance_records INSERT/UPDATE/DELETE, scores INSERT/UPDATE, submissions INSERT/UPDATE | `student:{studentId}`, `student:{studentId}:subject:{subjectId}`, `cohort:{teacherId}`, `cohort:{teacherId}:subject:{subjectId}` | Supabase DB trigger → POST `/api/analytics/refresh` |
+| **Course structure change** | assignments INSERT/UPDATE/DELETE, subject_students change, teacher_student_links change | `cohort:{teacherId}`, all `student:*` in affected subject, `student:{studentId}` | Supabase DB trigger + application code → POST `/api/analytics/refresh` |
+
+**Why 2 rules instead of 6:**
+- All "student data" events (attendance, scores, submissions) invalidate the exact same keys
+- All "course structure" events affect the cohort + student roster
+- No overlap, no ambiguity, one canonical path per rule
 
 ### Invalidation Flow
 
@@ -136,9 +140,11 @@ analytics-service.invalidate()
      eagerly recompute if `recompute=true` param
 ```
 
-### TTL Strategy (Safety Net)
+### TTL Strategy (ONLY Fallback)
 
-Even if an invalidation trigger fails, cache expires automatically:
+If a Supabase DB trigger fails (pg_net timeout, cold start, network issue),
+cache expires automatically via TTL. **TTL expiration is the ONLY fallback
+mechanism.** No queues, no workers, no retry systems.
 
 | Cache Type | TTL | Rationale |
 |---|---|---|
@@ -147,20 +153,29 @@ Even if an invalidation trigger fails, cache expires automatically:
 | Cohort metrics | 15 minutes | Aggregated data, slight staleness acceptable |
 | History/snapshots | No TTL | Immutable historical records |
 
+**Maximum staleness**: If a trigger fails, data is at most 30 minutes stale
+for student-level, 15 minutes for cohort-level. This is acceptable because:
+1. Analytics are advisory, not transactional
+2. Next user request after TTL expiry gets fresh data
+3. Triggers resume working on next DB change
+
 ---
 
-## CONSTRAINT 3: Event-Driven Snapshot System
+## CONSTRAINT 3: Event-Driven Snapshot System (2 Types Only)
 
 Snapshots are NEVER created by API calls from the client.
-They are created exclusively by database triggers or background workers.
+They are created exclusively by database triggers or daily jobs.
 
-### Snapshot Triggers
+### Snapshot Types (exactly 2)
 
-| Trigger | Snapshot Type | When |
-|---|---|---|
-| **Daily cron job** | `daily` | Every day at 00:00 UTC — captures current metrics for all active students |
-| **Grade posted** | `on_change` | When a submission transitions to `graded` status — captures post-grade state |
-| **Significant risk change** | `on_change` | When a student's risk level changes between cache computations — detected during daily job |
+| Type | Trigger | When | Retention |
+|---|---|---|---|
+| `daily` | Cron job | Every day at 00:00 UTC | 365 days |
+| `on_change` | DB trigger | When a submission transitions to `graded` status | 90 days |
+
+**Removed from previous design:**
+- ~~`weekly` snapshot type~~ — Weekly data is derived from `daily` snapshots at read time via `WHERE snapshot_type = 'daily' GROUP BY date_trunc('week', created_at)`. No separate storage needed.
+- ~~"Significant risk change" trigger~~ — Risk changes are already captured in `daily` snapshots. Adding a separate trigger creates overlap without new information.
 
 ### Daily Job Flow
 
@@ -174,8 +189,8 @@ POST /api/analytics/snapshot  (internal, no client access)
 analytics-service.createDailySnapshots()
   │
   ├─ For each active student:
-  │    1. Recompute metrics (or read from cache if fresh)
-  │    2. Check if snapshot already exists for today
+  │    1. Read from cache if fresh, else recompute
+  │    2. Check if daily snapshot already exists for today
   │    3. If not, INSERT into analytics_snapshots
   │
   └─ Batch insert (not per-student roundtrip)
@@ -194,7 +209,7 @@ pg_net.http_post(
     'studentId', NEW.student_id,
     'subjectId', <derived from assignment>,
     'reason', 'grade_posted',
-    'createSnapshot', true   ← triggers snapshot creation
+    'createSnapshot', true
   )
 )
 ```
@@ -203,23 +218,27 @@ pg_net.http_post(
 
 ```sql
 analytics_snapshots (
-  student_id  UUID NOT NULL,
-  subject_id  UUID NULL,          -- NULL = overall, set = per-subject
-  snapshot_type TEXT NOT NULL,     -- 'daily' | 'on_change' | 'weekly'
-  metrics     JSONB NOT NULL,      -- full StudentPerformanceMetrics JSON
-  created_at  TIMESTAMPTZ
+  student_id    UUID NOT NULL,
+  subject_id    UUID NULL,          -- NULL = overall, set = per-subject
+  snapshot_type TEXT NOT NULL,      -- 'daily' | 'on_change'  (ONLY these two)
+  metrics       JSONB NOT NULL,     -- full StudentPerformanceMetrics JSON
+  created_at    TIMESTAMPTZ
 )
+
+-- Index for efficient history queries
+CREATE INDEX idx_snapshots_student_date ON analytics_snapshots (student_id, subject_id, created_at DESC);
+CREATE INDEX idx_snapshots_type_date ON analytics_snapshots (snapshot_type, created_at);
 ```
 
-### Retention Policy
+### Retention Policy (2 rules, no ambiguity)
 
-| Snapshot Type | Retention | Rationale |
+| Snapshot Type | Retention | Cleanup Method |
 |---|---|---|
-| `daily` | 365 days | Full year of daily data for trend charts |
-| `on_change` | 90 days | Grade events — useful for short-term analysis |
-| `weekly` (aggregated from daily) | Indefinite | Weekly averages for long-term trends |
+| `daily` | 365 days | Daily job deletes WHERE snapshot_type='daily' AND created_at < now() - interval '365 days' |
+| `on_change` | 90 days | Daily job deletes WHERE snapshot_type='on_change' AND created_at < now() - interval '90 days' |
 
-Weekly snapshots are computed from daily snapshots via a weekly rollup job, not stored separately in real-time.
+Weekly/monthly trends are computed at read time from `daily` snapshots.
+No rollup jobs. No aggregated snapshot tables.
 
 ---
 
@@ -279,6 +298,14 @@ getHistory()  ──→ reads snapshots directly (no computation)
 
 `getCohort` reuses `computeStudentMetrics` per student then aggregates.
 It does NOT have its own separate calculation path.
+
+### No Hidden Recomputation
+
+Within a single request, `computeStudentMetrics()` is called at most ONCE
+per student. The service layer must NOT:
+- Call `computeStudentMetrics()` twice for the same student in one request
+- Re-filter raw data that was already indexed in Maps
+- Compute intermediate results that a prior call already produced
 
 ---
 
@@ -363,6 +390,33 @@ students.forEach(student => {
 - **Eager** (for critical paths): Invalidate cache → immediately recompute and store
 
 The `/api/analytics/refresh` endpoint supports `?recompute=true` for eager mode.
+
+---
+
+## CONSTRAINT 6: Consistency Rule
+
+**Cache, Snapshots, and Live computation MUST produce identical metrics.**
+
+This is enforced by a single architectural rule:
+
+> ALL computation paths — whether serving a cache miss, writing a snapshot,
+> or computing on-demand — MUST call the same `computeStudentMetrics()`
+> function in `analytics-service.ts`, which itself calls `performance-calculator.ts`.
+>
+> There is NO separate formula for snapshots. There is NO different
+> calculation for cache warming. One function, one result.
+
+### Verification Points
+
+| Path | Uses computeStudentMetrics()? | Source of truth |
+|---|---|---|
+| Cache hit | N/A (reads stored result) | Result was originally computed by computeStudentMetrics() |
+| Cache miss (live) | YES | performance-calculator.ts |
+| Daily snapshot creation | YES | Same function, stores result for history |
+| on_change snapshot | YES | Same function, triggered by grade event |
+| Cohort aggregation | YES (per student) | Reuses student results, then aggregates |
+
+If any path produces different numbers for the same input, that is a bug.
 
 ---
 
@@ -451,7 +505,11 @@ The `/api/analytics/refresh` endpoint supports `?recompute=true` for eager mode.
 | `/api/analytics/history` | GET | Read historical snapshots | `getHistory()` | NO computation |
 | `/api/analytics/refresh` | POST | Invalidate cache entries | `invalidate()` | Delete only (optional eager recompute) |
 | `/api/analytics/snapshot` | POST | Create daily/on_change snapshots | `createSnapshot()` | Compute + write snapshot |
-| `/api/migrate/analytics-tables` | POST | Create DB tables | DDL only | One-time setup |
+
+**Note**: DB table creation (analytics_cache, analytics_snapshots, cohort_analytics_cache)
+is handled via Supabase migration SQL, NOT via an API endpoint. Previous design
+had `/api/migrate/analytics-tables` — removed because DDL does not belong in
+runtime API routes.
 
 ### What Each Endpoint Does NOT Do
 
@@ -532,9 +590,6 @@ src/
 │   ├── refresh/route.ts             ← NEW: POST cache invalidation
 │   └── snapshot/route.ts            ← NEW: POST snapshot creation
 │
-├── app/api/migrate/
-│   └── analytics-tables/route.ts    ← NEW: DDL for cache + snapshot tables
-│
 ├── hooks/
 │   └── useAnalytics.ts              ← NEW: React Query hooks
 │
@@ -554,13 +609,13 @@ src/
 
 ## MIGRATION STRATEGY
 
-### Phase 1: Foundation (This Session)
-1. Create DB tables via migration endpoint
+### Phase 1: Foundation
+1. Create DB tables via Supabase SQL migration (NOT API endpoint)
 2. Build `analytics-service.ts` with cache-aside + computation
 3. Build all 6 API routes
 4. Build React Query hooks
 
-### Phase 2: Client Migration (This Session)
+### Phase 2: Client Migration
 5. Refactor teacher components to use hooks
 6. Refactor student components to use hooks
 7. Refactor student-profile-modal to use hooks
@@ -568,7 +623,7 @@ src/
 
 ### Phase 3: Event-Driven (Future)
 9. Create Supabase DB triggers for cache invalidation
-10. Create Supabase DB triggers for on_change snapshots
+10. Create Supabase DB trigger for on_change snapshots (grade posted)
 11. Set up daily cron job for daily snapshots
 12. Add Supabase Realtime subscription on analytics_cache for client invalidation
 

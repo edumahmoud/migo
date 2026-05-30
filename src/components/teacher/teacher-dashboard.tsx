@@ -608,16 +608,15 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   // -------------------------------------------------------
   // Computed values
   // -------------------------------------------------------
-  // ─── Composite performance average ───
-  // Uses the centralized analytics engine with the new
-  // weighted model: Exam 35%, Attendance 20%, Compliance 15%, Quality 30%
-  // (replaces legacy 40/30/30 formula)
-  const avgPerformance = useMemo(() => {
-    if (students.length === 0) return 0;
-
-    // Compute metrics for each student using the centralized engine
-    const allMetrics = students.map(student => {
-      return computeAllMetrics({
+  // ─── Pre-computed student metrics (single computation) ───
+  // Computes ALL student metrics ONCE and reuses for:
+  // 1. avgPerformance (dashboard overview)
+  // 2. handleExportSummaries (Excel export)
+  // This eliminates the previous triple computeAllMetrics() call.
+  const allStudentMetrics = useMemo(() => {
+    return students.map(student => ({
+      student,
+      metrics: computeAllMetrics({
         scores: scores.map(s => ({
           score: s.score,
           total: s.total,
@@ -643,12 +642,16 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
           due_date: a.due_date,
         })),
         studentId: student.id,
-      });
-    });
-
-    const total = allMetrics.reduce((sum, m) => sum + m.overallPerformance, 0);
-    return Math.round(total / allMetrics.length);
+      }),
+    }));
   }, [students, scores, teacherAttendanceSessions, teacherAttendanceRecords, teacherSubmissions, teacherAssignments]);
+
+  // Derived: average performance (from single computation above)
+  const avgPerformance = useMemo(() => {
+    if (allStudentMetrics.length === 0) return 0;
+    const total = allStudentMetrics.reduce((sum, { metrics }) => sum + metrics.overallPerformance, 0);
+    return Math.round(total / allStudentMetrics.length);
+  }, [allStudentMetrics]);
 
   const filteredStudents = students.filter(
     (s) =>
@@ -691,39 +694,7 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
 
       const wb = XLSX.utils.book_new();
 
-      // Compute full analytics metrics for each student
-      const allStudentMetrics = students.map((s) => {
-        const metrics = computeAllMetrics({
-          scores: scores.map(sc => ({
-            score: sc.score,
-            total: sc.total,
-            completed_at: sc.completed_at,
-            student_id: sc.student_id,
-          })),
-          attendanceSessions: teacherAttendanceSessions.map(ses => ({ id: ses.id })),
-          attendanceRecords: teacherAttendanceRecords.map(r => ({
-            session_id: r.session_id,
-            student_id: r.student_id,
-            attendance_status: r.attendance_status,
-          })),
-          submissions: teacherSubmissions.map(sub => ({
-            assignment_id: sub.assignment_id,
-            student_id: sub.student_id,
-            score: sub.score,
-            status: sub.status,
-            submitted_at: sub.submitted_at || new Date().toISOString(),
-          })),
-          assignments: teacherAssignments.map(a => ({
-            id: a.id,
-            max_score: a.max_score,
-            due_date: a.due_date,
-          })),
-          studentId: s.id,
-        });
-        return { student: s, metrics };
-      });
-
-      // Compute percentile rankings across the class
+      // Reuse pre-computed metrics from allStudentMetrics (no recomputation)
       const allOverallScores = allStudentMetrics.map(({ metrics }) => metrics.overallPerformance);
 
       // Sheet 1: Student overview with full analytics
