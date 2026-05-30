@@ -370,7 +370,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
     return { score: quizScore.score, total: quizScore.total, percentage };
   }, [quizzes, scores]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<{ id: string; session_id: string; student_id: string; checked_in_at: string }[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<{ id: string; session_id: string; student_id: string; checked_in_at: string; attendance_status?: 'present' | 'late' | 'partial' | 'absent' }[]>([]);
   const [attendanceSessions, setAttendanceSessions] = useState<{ id: string; subject_id: string; status: string }[]>([]);
   const [linkedTeachers, setLinkedTeachers] = useState<UserProfile[]>([]);
   const [fileCount, setFileCount] = useState(0);
@@ -1001,7 +1001,7 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
             const sessionIds = sessions.map(s => s.id);
             const { data: records, error: recError } = await supabase
               .from('attendance_records')
-              .select('id, session_id, student_id, checked_in_at')
+              .select('id, session_id, student_id, checked_in_at, attendance_status')
               .eq('student_id', profile.id)
               .in('session_id', sessionIds);
             if (!recError && records) {

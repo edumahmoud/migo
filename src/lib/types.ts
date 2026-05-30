@@ -294,10 +294,13 @@ export interface AttendanceSession {
   updated_at: string;
 }
 
+export type AttendanceStatus = 'present' | 'late' | 'partial' | 'absent';
+
 export interface AttendanceRecord {
   id: string;
   session_id: string;
   student_id: string;
+  attendance_status?: AttendanceStatus; // 'present' (default), 'late', 'partial', 'absent'
   checked_in_at: string;
   student_latitude?: number | null;
   student_longitude?: number | null;

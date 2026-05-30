@@ -22,6 +22,9 @@ import {
   Route,
   Target,
   BookOpen,
+  ShieldCheck,
+  AlertTriangle,
+  Flame,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +33,30 @@ import type { UserProfile, Score, Quiz, Subject } from '@/lib/types';
 import UserAvatar from '@/components/shared/user-avatar';
 import UserLink from '@/components/shared/user-link';
 import { useTranslations } from '@/i18n/use-translations';
+import {
+  computeAllMetrics,
+  type StudentPerformanceMetrics,
+  type PerformanceLevel,
+  type PerformanceLevelConfig,
+  PERFORMANCE_LEVELS,
+  getPerformanceLevel,
+  getPerformanceLevelConfig,
+  type EfficiencyLevel,
+  EFFICIENCY_LEVELS,
+  getEfficiencyLevelConfig,
+  type RiskLevel,
+  RISK_LEVELS,
+  getRiskLevelConfig,
+  type GrowthTrend,
+  GROWTH_TRENDS,
+  getGrowthTrendConfig,
+  calculatePercentile,
+  getPercentileLabel,
+  type SubjectPerformanceData,
+  type ActivityType,
+  type ActivityEvent,
+  DEFAULT_WEIGHTS,
+} from '@/lib/performance-calculator';
 
 // -------------------------------------------------------
 // Props
@@ -39,10 +66,10 @@ interface TeacherStudentTrackingSectionProps {
   students: UserProfile[];
   scores: Score[];
   quizzes: Quiz[];
-  teacherSubmissions: { id: string; assignment_id: string; student_id: string; score: number | null; status: string }[];
-  teacherAssignments: { id: string; max_score: number; subject_id: string | null }[];
+  teacherSubmissions: { id: string; assignment_id: string; student_id: string; score: number | null; status: string; submitted_at?: string }[];
+  teacherAssignments: { id: string; max_score: number; subject_id: string | null; due_date?: string }[];
   teacherAttendanceSessions: { id: string; subject_id: string }[];
-  teacherAttendanceRecords: { id: string; session_id: string; student_id: string }[];
+  teacherAttendanceRecords: { id: string; session_id: string; student_id: string; attendance_status?: 'present' | 'late' | 'partial' | 'absent' }[];
   subjects?: Subject[];
 }
 
@@ -63,70 +90,7 @@ const itemVariants = {
 };
 
 // -------------------------------------------------------
-// Performance Level Types
-// -------------------------------------------------------
-type PerformanceLevel = 'excellent' | 'veryGood' | 'good' | 'acceptable' | 'weak';
-
-interface PerformanceLevelConfig {
-  key: PerformanceLevel;
-  label: string;
-  color: string;
-  bgColor: string;
-  ringColor: string;
-  textColor: string;
-  icon: string;
-}
-
-const PERFORMANCE_LEVELS: PerformanceLevelConfig[] = [
-  {
-    key: 'excellent',
-    label: 'teacher.trackingLevelExcellent',
-    color: 'bg-emerald-500',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
-    ringColor: 'ring-emerald-100',
-    textColor: 'text-emerald-700 dark:text-emerald-500',
-    icon: '★',
-  },
-  {
-    key: 'veryGood',
-    label: 'teacher.trackingLevelVeryGood',
-    color: 'bg-sky-500',
-    bgColor: 'bg-sky-50 dark:bg-sky-900/15',
-    ringColor: 'ring-sky-100',
-    textColor: 'text-sky-700 dark:text-sky-400',
-    icon: '◆',
-  },
-  {
-    key: 'good',
-    label: 'teacher.trackingLevelGood',
-    color: 'bg-teal-500',
-    bgColor: 'bg-teal-50 dark:bg-teal-900/20',
-    ringColor: 'ring-teal-100',
-    textColor: 'text-teal-700 dark:text-teal-500',
-    icon: '●',
-  },
-  {
-    key: 'acceptable',
-    label: 'teacher.trackingLevelAcceptable',
-    color: 'bg-amber-500',
-    bgColor: 'bg-amber-50 dark:bg-amber-900/20',
-    ringColor: 'ring-amber-100',
-    textColor: 'text-amber-700 dark:text-amber-500',
-    icon: '▲',
-  },
-  {
-    key: 'weak',
-    label: 'teacher.trackingLevelWeak',
-    color: 'bg-rose-500',
-    bgColor: 'bg-rose-50 dark:bg-rose-900/20',
-    ringColor: 'ring-rose-100',
-    textColor: 'text-rose-700 dark:text-rose-500',
-    icon: '▼',
-  },
-];
-
-// -------------------------------------------------------
-// Percentage Range Types
+// Percentage Range Types (kept locally for range filter UI)
 // -------------------------------------------------------
 type PercentageRange = '90-100' | '80-89' | '70-79' | '60-69' | 'below-60';
 
@@ -188,62 +152,6 @@ const PERCENTAGE_RANGES: PercentageRangeConfig[] = [
   },
 ];
 
-// -------------------------------------------------------
-// Efficiency Level Types
-// -------------------------------------------------------
-type EfficiencyLevel = 'high' | 'medium' | 'low';
-
-interface EfficiencyLevelConfig {
-  key: EfficiencyLevel;
-  label: string;
-  color: string;
-  bgColor: string;
-  textColor: string;
-  ringColor: string;
-}
-
-const EFFICIENCY_LEVELS: EfficiencyLevelConfig[] = [
-  {
-    key: 'high',
-    label: 'teacher.trackingEfficiencyHigh',
-    color: 'text-emerald-600 dark:text-emerald-500',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
-    textColor: 'text-emerald-700 dark:text-emerald-500',
-    ringColor: 'stroke-emerald-500',
-  },
-  {
-    key: 'medium',
-    label: 'teacher.trackingEfficiencyMedium',
-    color: 'text-amber-600 dark:text-amber-500',
-    bgColor: 'bg-amber-50 dark:bg-amber-900/20',
-    textColor: 'text-amber-700 dark:text-amber-500',
-    ringColor: 'stroke-amber-500',
-  },
-  {
-    key: 'low',
-    label: 'teacher.trackingEfficiencyLow',
-    color: 'text-rose-600 dark:text-rose-500',
-    bgColor: 'bg-rose-50 dark:bg-rose-900/20',
-    textColor: 'text-rose-700 dark:text-rose-500',
-    ringColor: 'stroke-rose-500',
-  },
-];
-
-// -------------------------------------------------------
-// Helpers
-// -------------------------------------------------------
-function getPerformanceLevel(overallPct: number): PerformanceLevel {
-  if (overallPct >= 90) return 'excellent';    // ممتاز (A)
-  if (overallPct >= 80) return 'veryGood';    // جيد جداً (B)
-  if (overallPct >= 70) return 'good';        // جيد (C)
-  if (overallPct >= 60) return 'acceptable';  // مقبول (D)
-  return 'weak';                               // ضعيف (F)
-}
-
-function getPerformanceLevelConfig(level: PerformanceLevel): PerformanceLevelConfig {
-  return PERFORMANCE_LEVELS.find(l => l.key === level) || PERFORMANCE_LEVELS[4];
-}
-
 function getPercentageRange(overallPct: number): PercentageRange {
   if (overallPct >= 90) return '90-100';
   if (overallPct >= 80) return '80-89';
@@ -256,16 +164,24 @@ function getPercentageRangeConfig(range: PercentageRange): PercentageRangeConfig
   return PERCENTAGE_RANGES.find(r => r.key === range) || PERCENTAGE_RANGES[4];
 }
 
-function getEfficiencyLevel(efficiency: number): EfficiencyLevel {
-  if (efficiency >= 80) return 'high';
-  if (efficiency >= 50) return 'medium';
-  return 'low';
+// -------------------------------------------------------
+// Performance Level Labels (not in calculator config)
+// -------------------------------------------------------
+const PERFORMANCE_LEVEL_LABELS: Record<PerformanceLevel, string> = {
+  excellent: 'teacher.trackingLevelExcellent',
+  veryGood: 'teacher.trackingLevelVeryGood',
+  good: 'teacher.trackingLevelGood',
+  acceptable: 'teacher.trackingLevelAcceptable',
+  weak: 'teacher.trackingLevelWeak',
+};
+
+function getPerformanceLevelLabel(level: PerformanceLevel): string {
+  return PERFORMANCE_LEVEL_LABELS[level] || 'teacher.trackingLevelWeak';
 }
 
-function getEfficiencyLevelConfig(level: EfficiencyLevel): EfficiencyLevelConfig {
-  return EFFICIENCY_LEVELS.find(l => l.key === level) || EFFICIENCY_LEVELS[2];
-}
-
+// -------------------------------------------------------
+// Helpers
+// -------------------------------------------------------
 function formatDate(dateStr: string): string {
   try {
     const date = new Date(dateStr);
@@ -291,47 +207,44 @@ function formatTime(dateStr: string): string {
 }
 
 // -------------------------------------------------------
-// Per-Subject Performance Data
+// Per-Subject Performance (extended with new metrics)
 // -------------------------------------------------------
 interface SubjectPerformance {
   subjectId: string;
   subjectName: string;
-  quizAvg: number;
-  attendanceRate: number;
+  examPerformance: number;
+  attendanceScore: number;
+  assignmentCompliance: number;
+  assignmentQuality: number;
+  overallPerformance: number;
+  growthTrend: GrowthTrend;
+  riskLevel: RiskLevel;
   quizCount: number;
-  attendanceSessions: number;
+  totalSessions: number;
   attendedSessions: number;
   assignmentCount: number;
   completedAssignments: number;
 }
 
 // -------------------------------------------------------
-// Student Performance Data
+// Student Performance Data (extended with new metrics)
 // -------------------------------------------------------
 interface StudentPerformanceData {
   student: UserProfile;
-  quizAvg: number;
-  attendanceRate: number;
-  assignmentCompletion: number;
-  overallPerformance: number;
+  metrics: StudentPerformanceMetrics;
   level: PerformanceLevel;
   percentageRange: PercentageRange;
   studentScores: Score[];
-  studentSubmissions: { id: string; assignment_id: string; student_id: string; score: number | null; status: string }[];
-  attendedSessionIds: Set<string>;
-  recentActivities: Array<{ date: string; type: 'quiz' | 'attendance' | 'assignment'; title: string; detail: string }>;
-  // New fields
-  effortScore: number;
-  resultScore: number;
-  efficiency: number;
-  efficiencyLevel: EfficiencyLevel;
   subjectPerformances: SubjectPerformance[];
+  recentActivities: ActivityEvent[];
+  percentile: number;
+  percentileLabel: string;
 }
 
 // -------------------------------------------------------
-// Sort options
+// Sort options (extended)
 // -------------------------------------------------------
-type SortOption = 'name' | 'performance' | 'attendance' | 'quiz' | 'efficiency';
+type SortOption = 'name' | 'performance' | 'attendance' | 'quiz' | 'efficiency' | 'discipline' | 'growth' | 'risk' | 'exam' | 'assignQuality';
 
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: 'name', label: 'teacher.trackingSortName' },
@@ -339,6 +252,11 @@ const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: 'attendance', label: 'teacher.trackingSortAttendance' },
   { key: 'quiz', label: 'teacher.trackingSortQuiz' },
   { key: 'efficiency', label: 'teacher.trackingSortEfficiency' },
+  { key: 'discipline', label: 'teacher.trackingSortDiscipline' },
+  { key: 'growth', label: 'teacher.trackingSortGrowth' },
+  { key: 'risk', label: 'teacher.trackingSortRisk' },
+  { key: 'exam', label: 'teacher.trackingSortExam' },
+  { key: 'assignQuality', label: 'teacher.trackingSortAssignQuality' },
 ];
 
 // -------------------------------------------------------
@@ -359,16 +277,16 @@ export default function TeacherStudentTrackingSection({
   // ─── Local state ───
   const [filterLevel, setFilterLevel] = useState<PerformanceLevel | 'all'>('all');
   const [filterRange, setFilterRange] = useState<PercentageRange | 'all'>('all');
+  const [filterRisk, setFilterRisk] = useState<RiskLevel | 'all'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('performance');
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilterTab, setActiveFilterTab] = useState<'level' | 'range'>('level');
+  const [activeFilterTab, setActiveFilterTab] = useState<'level' | 'range' | 'risk'>('level');
 
   // ─── Subject name lookup ───
   const subjectNameMap = useMemo(() => {
     const map = new Map<string, string>();
     subjects.forEach(s => map.set(s.id, s.name));
-    // Also derive from quiz titles as fallback
     quizzes.forEach(q => {
       if (q.subject_id && !map.has(q.subject_id)) {
         map.set(q.subject_id, q.title || t('teacher.trackingCourse'));
@@ -377,66 +295,45 @@ export default function TeacherStudentTrackingSection({
     return map;
   }, [subjects, quizzes, t]);
 
-  // ─── Compute performance data for each student ───
+  // ─── Compute performance data for each student using shared engine ───
   const studentPerformanceData = useMemo<StudentPerformanceData[]>(() => {
-    return students.map(student => {
-      // Quiz performance
-      const studentScores = scores.filter(s => s.student_id === student.id);
-      const quizAvg = studentScores.length > 0
-        ? studentScores.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / studentScores.length
-        : 0;
+    const allOverallScores: number[] = [];
 
-      // Attendance rate
-      const studentRecords = teacherAttendanceRecords.filter(r => r.student_id === student.id);
-      const attendedSessionIds = new Set(studentRecords.map(r => r.session_id));
-      const attendanceRate = teacherAttendanceSessions.length > 0
-        ? (attendedSessionIds.size / teacherAttendanceSessions.length) * 100
-        : 0;
+    // First pass: compute metrics for each student
+    const dataWithMetrics = students.map(student => {
+      const metrics = computeAllMetrics({
+        scores: scores.map(s => ({
+          score: s.score,
+          total: s.total,
+          completed_at: s.completed_at,
+          student_id: s.student_id,
+        })),
+        attendanceSessions: teacherAttendanceSessions.map(s => ({ id: s.id })),
+        attendanceRecords: teacherAttendanceRecords.map(r => ({
+          session_id: r.session_id,
+          student_id: r.student_id,
+          attendance_status: r.attendance_status,
+        })),
+        submissions: teacherSubmissions.map(s => ({
+          assignment_id: s.assignment_id,
+          student_id: s.student_id,
+          score: s.score,
+          status: s.status,
+          submitted_at: s.submitted_at || new Date().toISOString(),
+        })),
+        assignments: teacherAssignments.map(a => ({
+          id: a.id,
+          max_score: a.max_score,
+          due_date: a.due_date,
+        })),
+        studentId: student.id,
+      });
 
-      // Assignment completion
-      const studentSubmissions = teacherSubmissions.filter(s => s.student_id === student.id);
-      const completedAssignments = studentSubmissions.filter(s => s.status === 'graded' || s.status === 'submitted').length;
-      const assignmentCompletion = teacherAssignments.length > 0
-        ? (completedAssignments / teacherAssignments.length) * 100
-        : 0;
-
-      // Overall performance (adaptive weighted: quiz 40%, attendance 30%, assignments 30%)
-      // Weights are renormalized when a component has no data, following LMS standards
-      const overallPerformance = (() => {
-        const components: { value: number; weight: number }[] = [];
-        if (studentScores.length > 0) {
-          components.push({ value: quizAvg, weight: 40 });
-        }
-        if (teacherAttendanceSessions.length > 0) {
-          components.push({ value: attendanceRate, weight: 30 });
-        }
-        if (teacherAssignments.length > 0) {
-          components.push({ value: assignmentCompletion, weight: 30 });
-        }
-        if (components.length === 0) return 0;
-        const totalWeight = components.reduce((sum, c) => sum + c.weight, 0);
-        return components.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight;
-      })();
-
-      const level = getPerformanceLevel(overallPerformance);
-      const percentageRange = getPercentageRange(overallPerformance);
-
-      // ─── Efficiency calculation ───
-      // Measures how effectively a student converts effort into results.
-      // Effort = weighted average of (attendance rate 50%, assignment submission 50%)
-      // Results = quiz score average
-      // Efficiency = (Results / Effort) × 100, clamped 0-100%
-      // A student with high quiz scores but low effort has high efficiency (productive per unit effort)
-      // A student with high effort but low quiz scores has low efficiency (needs support)
-      const effortScore = (attendanceRate * 0.5 + assignmentCompletion * 0.5);
-      const resultScore = quizAvg;
-      const efficiency = effortScore > 0
-        ? Math.min((resultScore / effortScore) * 100, 100)
-        : 0;
-      const efficiencyLevel = getEfficiencyLevel(efficiency);
+      allOverallScores.push(metrics.overallPerformance);
 
       // ─── Per-subject performance ───
       const subjectMap = new Map<string, SubjectPerformance>();
+      const studentScores = scores.filter(s => s.student_id === student.id);
 
       // Gather quiz data per subject
       studentScores.forEach(score => {
@@ -446,10 +343,15 @@ export default function TeacherStudentTrackingSection({
           subjectMap.set(subjectId, {
             subjectId,
             subjectName: subjectNameMap.get(subjectId) || t('teacher.trackingCourse'),
-            quizAvg: 0,
-            attendanceRate: 0,
+            examPerformance: 0,
+            attendanceScore: 0,
+            assignmentCompliance: 0,
+            assignmentQuality: 0,
+            overallPerformance: 0,
+            growthTrend: 'stable',
+            riskLevel: 'healthy',
             quizCount: 0,
-            attendanceSessions: 0,
+            totalSessions: 0,
             attendedSessions: 0,
             assignmentCount: 0,
             completedAssignments: 0,
@@ -457,14 +359,6 @@ export default function TeacherStudentTrackingSection({
         }
         const entry = subjectMap.get(subjectId)!;
         entry.quizCount++;
-        entry.quizAvg += score.total > 0 ? (score.score / score.total) * 100 : 0;
-      });
-
-      // Average quiz scores per subject
-      subjectMap.forEach(entry => {
-        if (entry.quizCount > 0) {
-          entry.quizAvg = entry.quizAvg / entry.quizCount;
-        }
       });
 
       // Attendance per subject
@@ -474,27 +368,26 @@ export default function TeacherStudentTrackingSection({
           subjectMap.set(subjectId, {
             subjectId,
             subjectName: subjectNameMap.get(subjectId) || t('teacher.trackingCourse'),
-            quizAvg: 0,
-            attendanceRate: 0,
+            examPerformance: 0,
+            attendanceScore: 0,
+            assignmentCompliance: 0,
+            assignmentQuality: 0,
+            overallPerformance: 0,
+            growthTrend: 'stable',
+            riskLevel: 'healthy',
             quizCount: 0,
-            attendanceSessions: 0,
+            totalSessions: 0,
             attendedSessions: 0,
             assignmentCount: 0,
             completedAssignments: 0,
           });
         }
         const entry = subjectMap.get(subjectId)!;
-        entry.attendanceSessions++;
-        if (attendedSessionIds.has(session.id)) {
+        entry.totalSessions++;
+        const record = teacherAttendanceRecords.find(r => r.student_id === student.id && r.session_id === session.id);
+        if (record) {
           entry.attendedSessions++;
         }
-      });
-
-      // Calculate attendance rate per subject
-      subjectMap.forEach(entry => {
-        entry.attendanceRate = entry.attendanceSessions > 0
-          ? (entry.attendedSessions / entry.attendanceSessions) * 100
-          : 0;
       });
 
       // Assignments per subject
@@ -504,10 +397,15 @@ export default function TeacherStudentTrackingSection({
           subjectMap.set(subjectId, {
             subjectId,
             subjectName: subjectNameMap.get(subjectId) || t('teacher.trackingCourse'),
-            quizAvg: 0,
-            attendanceRate: 0,
+            examPerformance: 0,
+            attendanceScore: 0,
+            assignmentCompliance: 0,
+            assignmentQuality: 0,
+            overallPerformance: 0,
+            growthTrend: 'stable',
+            riskLevel: 'healthy',
             quizCount: 0,
-            attendanceSessions: 0,
+            totalSessions: 0,
             attendedSessions: 0,
             assignmentCount: 0,
             completedAssignments: 0,
@@ -515,90 +413,206 @@ export default function TeacherStudentTrackingSection({
         }
         const entry = subjectMap.get(subjectId)!;
         entry.assignmentCount++;
-        // Check if student submitted this assignment
-        const submitted = studentSubmissions.some(s => s.assignment_id === assignment.id && (s.status === 'graded' || s.status === 'submitted'));
+        const submitted = teacherSubmissions.some(s => s.student_id === student.id && s.assignment_id === assignment.id && (s.status === 'graded' || s.status === 'submitted'));
         if (submitted) {
           entry.completedAssignments++;
         }
       });
 
+      // Calculate subject-level metrics
+      subjectMap.forEach(entry => {
+        // Exam performance for subject
+        const subjectScores = studentScores.filter(s => {
+          const quiz = quizzes.find(q => q.id === s.quiz_id);
+          return quiz?.subject_id === entry.subjectId;
+        });
+        if (subjectScores.length > 0) {
+          const totalEarned = subjectScores.reduce((sum, s) => sum + s.score, 0);
+          const totalPossible = subjectScores.reduce((sum, s) => sum + s.total, 0);
+          entry.examPerformance = totalPossible > 0 ? (totalEarned / totalPossible) * 100 : 0;
+        }
+
+        // Attendance score for subject
+        entry.attendanceScore = entry.totalSessions > 0 ? (entry.attendedSessions / entry.totalSessions) * 100 : 0;
+
+        // Assignment compliance for subject
+        entry.assignmentCompliance = entry.assignmentCount > 0 ? (entry.completedAssignments / entry.assignmentCount) * 100 : 0;
+
+        // Assignment quality for subject
+        const subjectAssignments = teacherAssignments.filter(a => (a.subject_id || 'unknown') === entry.subjectId);
+        const subjectSubmissions = teacherSubmissions.filter(s => s.student_id === student.id && (s.status === 'graded' || s.status === 'submitted'));
+        let totalEarnedPts = 0;
+        let totalPossiblePts = 0;
+        subjectAssignments.forEach(a => {
+          const sub = subjectSubmissions.find(s => s.assignment_id === a.id);
+          if (sub && sub.score !== null) {
+            totalEarnedPts += sub.score;
+          }
+          totalPossiblePts += a.max_score || 0;
+        });
+        entry.assignmentQuality = totalPossiblePts > 0 ? (totalEarnedPts / totalPossiblePts) * 100 : 0;
+
+        // Overall for subject
+        const parts: { value: number; weight: number }[] = [];
+        if (subjectScores.length > 0) parts.push({ value: entry.examPerformance, weight: DEFAULT_WEIGHTS.examPerformance });
+        if (entry.totalSessions > 0) parts.push({ value: entry.attendanceScore, weight: DEFAULT_WEIGHTS.attendanceScore });
+        if (entry.assignmentCount > 0) {
+          parts.push({ value: entry.assignmentCompliance, weight: DEFAULT_WEIGHTS.assignmentCompliance });
+          parts.push({ value: entry.assignmentQuality, weight: DEFAULT_WEIGHTS.assignmentQuality });
+        }
+        if (parts.length > 0) {
+          const totalWeight = parts.reduce((sum, c) => sum + c.weight, 0);
+          entry.overallPerformance = parts.reduce((sum, c) => sum + (c.value * c.weight), 0) / totalWeight;
+        }
+
+        // Growth trend for subject
+        if (subjectScores.length >= 2) {
+          const sorted = [...subjectScores].sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime());
+          const third = Math.max(1, Math.floor(sorted.length / 3));
+          const earliest = sorted.slice(0, third);
+          const recent = sorted.slice(-third);
+          const earliestAvg = earliest.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / earliest.length;
+          const recentAvg = recent.reduce((sum, s) => sum + (s.total > 0 ? (s.score / s.total) * 100 : 0), 0) / recent.length;
+          const ratio = earliestAvg > 0 ? recentAvg / earliestAvg : 1;
+          if (ratio >= 1.1) entry.growthTrend = 'improving';
+          else if (ratio >= 0.9) entry.growthTrend = 'stable';
+          else entry.growthTrend = 'declining';
+        }
+
+        // Risk level for subject
+        let riskScore = 0;
+        if (entry.attendanceScore < 50) riskScore += 3;
+        else if (entry.attendanceScore < 70) riskScore += 1;
+        if (entry.overallPerformance < 60) riskScore += 3;
+        else if (entry.overallPerformance < 70) riskScore += 1;
+        if (entry.growthTrend === 'declining') riskScore += 2;
+        if (riskScore >= 6) entry.riskLevel = 'atRisk';
+        else if (riskScore >= 4) entry.riskLevel = 'concern';
+        else if (riskScore >= 2) entry.riskLevel = 'monitor';
+        else entry.riskLevel = 'healthy';
+      });
+
       const subjectPerformances = Array.from(subjectMap.values());
 
-      // ─── Recent activities ───
-      const recentActivities: Array<{ date: string; type: 'quiz' | 'attendance' | 'assignment'; title: string; detail: string }> = [];
+      // ─── Build activity timeline ───
+      const recentActivities: ActivityEvent[] = [];
 
       // Quiz activities
-      studentScores.slice(0, 5).forEach(score => {
+      studentScores.forEach(score => {
         recentActivities.push({
           date: score.completed_at,
           type: 'quiz',
           title: t('teacher.trackingActivityQuizComplete'),
           detail: `${score.quiz_title} — ${score.score}/${score.total}`,
+          importance: score.total > 0 && (score.score / score.total) * 100 >= 90 ? 'high' : 'medium',
         });
       });
 
       // Attendance activities
+      const studentRecords = teacherAttendanceRecords.filter(r => r.student_id === student.id);
       studentRecords.slice(0, 5).forEach(record => {
         const session = teacherAttendanceSessions.find(s => s.id === record.session_id);
         const subjectName = session ? subjectNameMap.get(session.subject_id) || t('teacher.trackingCourse') : t('teacher.trackingAttendanceSession');
         recentActivities.push({
-          date: session ? session.id : new Date().toISOString(), // Best available date
+          date: record.id,
           type: 'attendance',
           title: t('teacher.trackingActivityAttendanceRecord'),
           detail: subjectName,
+          importance: 'low',
         });
       });
 
-      // Assignment activities
-      studentSubmissions.slice(0, 5).forEach(sub => {
+      // Assignment submission activities
+      const studentSubmissions = teacherSubmissions.filter(s => s.student_id === student.id);
+      studentSubmissions.forEach(sub => {
         const assignment = teacherAssignments.find(a => a.id === sub.assignment_id);
         recentActivities.push({
-          date: new Date().toISOString(), // Submissions don't have submitted_at in this data shape
+          date: sub.submitted_at || new Date().toISOString(),
           type: 'assignment',
           title: t('teacher.trackingActivityAssignmentSubmit'),
           detail: assignment ? `${t('teacher.trackingTaskLabel')} (${sub.score !== null ? `${sub.score}/${assignment.max_score}` : t('teacher.trackingGrading')})` : t('teacher.trackingTaskLabel'),
+          importance: 'low',
         });
       });
+
+      // Grading events
+      studentSubmissions.filter(s => s.status === 'graded').forEach(sub => {
+        const assignment = teacherAssignments.find(a => a.id === sub.assignment_id);
+        if (assignment && sub.score !== null) {
+          recentActivities.push({
+            date: sub.submitted_at || new Date().toISOString(),
+            type: 'grading',
+            title: t('teacher.trackingTimelineGrading'),
+            detail: `${t('teacher.trackingTaskLabel')} — ${sub.score}/${assignment.max_score}`,
+            importance: sub.score / assignment.max_score >= 0.9 ? 'high' : 'medium',
+          });
+        }
+      });
+
+      // Risk alert events
+      if (metrics.riskLevel === 'concern' || metrics.riskLevel === 'atRisk') {
+        recentActivities.push({
+          date: new Date().toISOString(),
+          type: 'risk',
+          title: t('teacher.trackingTimelineRiskAlert'),
+          detail: metrics.riskReasons.map(r => t(`teacher.trackingRiskReason${r.charAt(0).toUpperCase() + r.slice(1)}`)).join(', '),
+          importance: 'high',
+        });
+      }
+
+      // Achievement events for top performers
+      if (metrics.performanceLevel === 'excellent' && metrics.overallPerformance >= 95) {
+        recentActivities.push({
+          date: new Date().toISOString(),
+          type: 'achievement',
+          title: t('teacher.trackingTimelineAchievement'),
+          detail: `${t('teacher.trackingLevelExcellent')} — ${Math.round(metrics.overallPerformance)}%`,
+          importance: 'high',
+        });
+      }
 
       // Sort by date
       recentActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       return {
         student,
-        quizAvg,
-        attendanceRate,
-        assignmentCompletion,
-        overallPerformance,
-        level,
-        percentageRange,
+        metrics,
+        level: metrics.performanceLevel,
+        percentageRange: getPercentageRange(metrics.overallPerformance),
         studentScores,
-        studentSubmissions,
-        attendedSessionIds,
-        recentActivities: recentActivities.slice(0, 10),
-        effortScore,
-        resultScore,
-        efficiency,
-        efficiencyLevel,
         subjectPerformances,
+        recentActivities: recentActivities.slice(0, 15),
+        percentile: 0,
+        percentileLabel: '',
       };
     });
-   
+
+    // Second pass: calculate percentiles
+    if (allOverallScores.length > 0) {
+      dataWithMetrics.forEach(d => {
+        d.percentile = calculatePercentile(d.metrics.overallPerformance, allOverallScores);
+        d.percentileLabel = getPercentileLabel(d.percentile);
+      });
+    }
+
+    return dataWithMetrics;
   }, [students, scores, teacherSubmissions, teacherAssignments, teacherAttendanceSessions, teacherAttendanceRecords, quizzes, subjectNameMap, t]);
 
   // ─── Overview stats ───
   const overviewStats = useMemo(() => {
     const totalStudents = students.length;
     const avgPerformance = totalStudents > 0
-      ? studentPerformanceData.reduce((sum, d) => sum + d.overallPerformance, 0) / totalStudents
+      ? studentPerformanceData.reduce((sum, d) => sum + d.metrics.overallPerformance, 0) / totalStudents
       : 0;
     const avgAttendance = totalStudents > 0
-      ? studentPerformanceData.reduce((sum, d) => sum + d.attendanceRate, 0) / totalStudents
+      ? studentPerformanceData.reduce((sum, d) => sum + d.metrics.attendanceScore, 0) / totalStudents
       : 0;
-    const avgEfficiency = totalStudents > 0
-      ? studentPerformanceData.reduce((sum, d) => sum + d.efficiency, 0) / totalStudents
+    const avgDiscipline = totalStudents > 0
+      ? studentPerformanceData.reduce((sum, d) => sum + d.metrics.disciplineScore, 0) / totalStudents
       : 0;
-    const topPerformers = studentPerformanceData.filter(d => d.level === 'excellent').length;
-    return { totalStudents, avgPerformance, avgAttendance, avgEfficiency, topPerformers };
+    const atRiskStudents = studentPerformanceData.filter(d => d.metrics.riskLevel === 'atRisk' || d.metrics.riskLevel === 'concern').length;
+    const topPerformers = studentPerformanceData.filter(d => d.metrics.performanceLevel === 'excellent').length;
+    return { totalStudents, avgPerformance, avgAttendance, avgDiscipline, atRiskStudents, topPerformers };
   }, [students.length, studentPerformanceData]);
 
   // ─── Classification counts ───
@@ -615,10 +629,17 @@ export default function TeacherStudentTrackingSection({
     return distribution;
   }, [studentPerformanceData]);
 
+  // ─── Risk level distribution ───
+  const riskLevelDistribution = useMemo(() => {
+    const distribution: Record<RiskLevel, number> = { healthy: 0, monitor: 0, concern: 0, atRisk: 0 };
+    studentPerformanceData.forEach(d => { distribution[d.metrics.riskLevel]++; });
+    return distribution;
+  }, [studentPerformanceData]);
+
   // ─── Class average efficiency ───
   const classAvgEfficiency = useMemo(() => {
     if (studentPerformanceData.length === 0) return 0;
-    return studentPerformanceData.reduce((sum, d) => sum + d.efficiency, 0) / studentPerformanceData.length;
+    return studentPerformanceData.reduce((sum, d) => sum + d.metrics.efficiency, 0) / studentPerformanceData.length;
   }, [studentPerformanceData]);
 
   // ─── Filtered & sorted students ───
@@ -633,6 +654,11 @@ export default function TeacherStudentTrackingSection({
     // Filter by percentage range
     if (filterRange !== 'all') {
       data = data.filter(d => d.percentageRange === filterRange);
+    }
+
+    // Filter by risk level
+    if (filterRisk !== 'all') {
+      data = data.filter(d => d.metrics.riskLevel === filterRisk);
     }
 
     // Filter by search
@@ -650,20 +676,32 @@ export default function TeacherStudentTrackingSection({
         case 'name':
           return a.student.name.localeCompare(b.student.name, 'ar');
         case 'performance':
-          return b.overallPerformance - a.overallPerformance;
+          return b.metrics.overallPerformance - a.metrics.overallPerformance;
         case 'attendance':
-          return b.attendanceRate - a.attendanceRate;
+          return b.metrics.attendanceScore - a.metrics.attendanceScore;
         case 'quiz':
-          return b.quizAvg - a.quizAvg;
+          return b.metrics.examPerformance - a.metrics.examPerformance;
         case 'efficiency':
-          return b.efficiency - a.efficiency;
+          return b.metrics.efficiency - a.metrics.efficiency;
+        case 'discipline':
+          return b.metrics.disciplineScore - a.metrics.disciplineScore;
+        case 'growth':
+          return b.metrics.growthIndex - a.metrics.growthIndex;
+        case 'risk': {
+          const riskOrder: Record<RiskLevel, number> = { atRisk: 4, concern: 3, monitor: 2, healthy: 1 };
+          return riskOrder[b.metrics.riskLevel] - riskOrder[a.metrics.riskLevel];
+        }
+        case 'exam':
+          return b.metrics.examPerformance - a.metrics.examPerformance;
+        case 'assignQuality':
+          return b.metrics.assignmentQuality - a.metrics.assignmentQuality;
         default:
           return 0;
       }
     });
 
     return data;
-  }, [studentPerformanceData, filterLevel, filterRange, searchQuery, sortBy]);
+  }, [studentPerformanceData, filterLevel, filterRange, filterRisk, searchQuery, sortBy]);
 
   // ─── Toggle expand ───
   const toggleExpand = (studentId: string) => {
@@ -675,27 +713,77 @@ export default function TeacherStudentTrackingSection({
     const headers = [
       t('teacher.trackingCsvName'),
       t('teacher.trackingCsvEmail'),
-      t('teacher.trackingCsvQuizAvg'),
-      t('teacher.trackingCsvAttendanceRate'),
-      t('teacher.trackingCsvAssignmentCompletion'),
+      t('teacher.trackingCsvExamPerformance'),
+      t('teacher.trackingCsvAttendanceScore'),
+      t('teacher.trackingCsvAssignCompliance'),
+      t('teacher.trackingCsvAssignQuality'),
       t('teacher.trackingCsvOverallPerformance'),
       t('teacher.trackingCsvClassification'),
-      t('teacher.trackingCsvPercentage'),
       t('teacher.trackingCsvEfficiency'),
       t('teacher.trackingCsvEfficiencyLevel'),
+      t('teacher.trackingCsvDiscipline'),
+      t('teacher.trackingCsvGrowth'),
+      t('teacher.trackingCsvGrowthTrend'),
+      t('teacher.trackingCsvRisk'),
+      t('teacher.trackingCsvRiskReasons'),
+      t('teacher.trackingCsvRanking'),
     ];
+
+    const riskReasonTranslationMap: Record<string, string> = {
+      attendanceBelow50: t('teacher.trackingRiskReasonAttendance'),
+      attendanceBelow70: t('teacher.trackingRiskReasonAttendance70'),
+      performanceBelow60: t('teacher.trackingRiskReasonPerformance'),
+      performanceBelow70: t('teacher.trackingRiskReasonPerformance70'),
+      missedLast3Assignments: t('teacher.trackingRiskReasonMissed3'),
+      decliningTrend: t('teacher.trackingRiskReasonDeclining'),
+      inactivity: t('teacher.trackingRiskReasonInactivity'),
+    };
+
+    const percentileLabelMap: Record<string, string> = {
+      top5: t('teacher.trackingPercentileTop5'),
+      top10: t('teacher.trackingPercentileTop10'),
+      top25: t('teacher.trackingPercentileTop25'),
+      top50: t('teacher.trackingPercentileTop50'),
+      below50: t('teacher.trackingPercentileBelow50'),
+    };
+
+    const efficiencyLabelMap: Record<EfficiencyLevel, string> = {
+      high: t('teacher.trackingEfficiencyHigh'),
+      medium: t('teacher.trackingEfficiencyMedium'),
+      low: t('teacher.trackingEfficiencyLow'),
+      insufficient: t('teacher.trackingEfficiencyInsufficient'),
+    };
+
+    const growthTrendLabelMap: Record<GrowthTrend, string> = {
+      improving: t('teacher.trackingGrowthImproving'),
+      stable: t('teacher.trackingGrowthStable'),
+      declining: t('teacher.trackingGrowthDeclining'),
+    };
+
+    const riskLabelMap: Record<RiskLevel, string> = {
+      healthy: t('teacher.trackingRiskHealthy'),
+      monitor: t('teacher.trackingRiskMonitor'),
+      concern: t('teacher.trackingRiskConcern'),
+      atRisk: t('teacher.trackingRiskAtRisk'),
+    };
 
     const rows = studentPerformanceData.map(d => [
       d.student.name,
       d.student.email,
-      Math.round(d.quizAvg) + '%',
-      Math.round(d.attendanceRate) + '%',
-      Math.round(d.assignmentCompletion) + '%',
-      Math.round(d.overallPerformance) + '%',
-      t(getPerformanceLevelConfig(d.level).label),
-      d.percentageRange === 'below-60' ? t('teacher.trackingBelow60') : d.percentageRange.replace('-', ' - ') + '%',
-      Math.round(d.efficiency) + '%',
-      t(getEfficiencyLevelConfig(d.efficiencyLevel).label),
+      Math.round(d.metrics.examPerformance) + '%',
+      Math.round(d.metrics.attendanceScore) + '%',
+      Math.round(d.metrics.assignmentCompliance) + '%',
+      Math.round(d.metrics.assignmentQuality) + '%',
+      Math.round(d.metrics.overallPerformance) + '%',
+      t(getPerformanceLevelLabel(d.level)),
+      Math.round(d.metrics.efficiency) + '%',
+      efficiencyLabelMap[d.metrics.efficiencyLevel],
+      Math.round(d.metrics.disciplineScore) + '%',
+      d.metrics.growthIndex.toFixed(2),
+      growthTrendLabelMap[d.metrics.growthTrend],
+      riskLabelMap[d.metrics.riskLevel],
+      d.metrics.riskReasons.map(r => riskReasonTranslationMap[r] || r).join('; '),
+      percentileLabelMap[d.percentileLabel] || '',
     ]);
 
     // BOM for Arabic UTF-8 support
@@ -709,8 +797,18 @@ export default function TeacherStudentTrackingSection({
     link.download = `student_performance_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-   
   }, [studentPerformanceData, t]);
+
+  // ─── Risk level label helper ───
+  const getRiskLabel = useCallback((level: RiskLevel): string => {
+    const map: Record<RiskLevel, string> = {
+      healthy: t('teacher.trackingRiskHealthy'),
+      monitor: t('teacher.trackingRiskMonitor'),
+      concern: t('teacher.trackingRiskConcern'),
+      atRisk: t('teacher.trackingRiskAtRisk'),
+    };
+    return map[level];
+  }, [t]);
 
   return (
     <motion.div
@@ -742,9 +840,9 @@ export default function TeacherStudentTrackingSection({
         </motion.button>
       </motion.div>
 
-      {/* ── Overview Cards ── */}
+      {/* ── Overview Cards (6 cards) ── */}
       <motion.div variants={itemVariants}>
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 sm:gap-4">
           {/* Total Students */}
           <Card className="border-sky-100/50 shadow-sm">
             <CardContent className="p-4">
@@ -775,7 +873,7 @@ export default function TeacherStudentTrackingSection({
             </CardContent>
           </Card>
 
-          {/* Attendance Rate */}
+          {/* Avg Attendance Score */}
           <Card className="border-amber-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -790,23 +888,38 @@ export default function TeacherStudentTrackingSection({
             </CardContent>
           </Card>
 
-          {/* Average Efficiency */}
+          {/* Avg Discipline Score */}
           <Card className="border-violet-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-900/20 ring-2 ring-violet-100">
-                  <Zap className="h-5 w-5 text-violet-600" />
+                  <ShieldCheck className="h-5 w-5 text-violet-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-violet-700">{Math.round(overviewStats.avgEfficiency)}%</p>
-                  <p className="text-xs text-muted-foreground">{t('teacher.trackingAvgEfficiency')}</p>
+                  <p className="text-2xl font-bold text-violet-700 dark:text-violet-500">{Math.round(overviewStats.avgDiscipline)}%</p>
+                  <p className="text-xs text-muted-foreground">{t('teacher.trackingDisciplineScore')}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* At Risk Students */}
+          <Card className="border-rose-100/50 shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-900/20 ring-2 ring-rose-100">
+                  <AlertTriangle className="h-5 w-5 text-rose-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-rose-700 dark:text-rose-500">{overviewStats.atRiskStudents}</p>
+                  <p className="text-xs text-muted-foreground">{t('teacher.trackingRiskLevel')}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Top Performers */}
-          <Card className="border-emerald-100/50 shadow-sm col-span-2 lg:col-span-1">
+          <Card className="border-emerald-100/50 shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/20 ring-2 ring-emerald-100">
@@ -822,11 +935,11 @@ export default function TeacherStudentTrackingSection({
         </div>
       </motion.div>
 
-      {/* ── Classification Distribution with Tabs ── */}
+      {/* ── Classification Distribution with Tabs (level / range / risk) ── */}
       <motion.div variants={itemVariants}>
         <Card className="border-sky-100/50 shadow-sm">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Filter className="h-5 w-5 text-sky-600" />
                 {t('teacher.trackingClassificationByPerformance')}
@@ -852,6 +965,16 @@ export default function TeacherStudentTrackingSection({
                   }`}
                 >
                   {t('teacher.trackingByPercentage')}
+                </button>
+                <button
+                  onClick={() => setActiveFilterTab('risk')}
+                  className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                    activeFilterTab === 'risk'
+                      ? 'bg-white dark:bg-card text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:text-foreground'
+                  }`}
+                >
+                  {t('teacher.trackingRiskLevel')}
                 </button>
               </div>
             </div>
@@ -886,7 +1009,7 @@ export default function TeacherStudentTrackingSection({
                             {count}
                           </span>
                           <span className={`text-sm font-medium ${isActive ? level.textColor : 'text-gray-500 dark:text-muted-foreground'}`}>
-                            {t(level.label)}
+                            {t(getPerformanceLevelLabel(level.key))}
                           </span>
                           <span className={`text-xs ${isActive ? level.textColor : 'text-gray-400 dark:text-muted-foreground'}`}>
                             {level.key === 'excellent' ? '90-100%' : level.key === 'veryGood' ? '80-89%' : level.key === 'good' ? '70-79%' : level.key === 'acceptable' ? '60-69%' : '<60%'}
@@ -903,7 +1026,7 @@ export default function TeacherStudentTrackingSection({
                     })}
                   </div>
                 </motion.div>
-              ) : (
+              ) : activeFilterTab === 'range' ? (
                 <motion.div
                   key="range-tab"
                   initial={{ opacity: 0, x: 10 }}
@@ -977,11 +1100,90 @@ export default function TeacherStudentTrackingSection({
                     </div>
                   </div>
                 </motion.div>
+              ) : (
+                /* Risk Level Distribution Tab */
+                <motion.div
+                  key="risk-tab"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {RISK_LEVELS.map(risk => {
+                      const count = riskLevelDistribution[risk.key];
+                      const isActive = filterRisk === risk.key;
+                      return (
+                        <motion.button
+                          key={risk.key}
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => setFilterRisk(isActive ? 'all' : risk.key)}
+                          className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 ${
+                            isActive
+                              ? `${risk.bgColor} ${risk.borderColor} border-current ${risk.textColor}`
+                              : 'bg-white dark:bg-card border-gray-100 hover:border-gray-200 text-gray-600 dark:text-muted-foreground dark:text-gray-500'
+                          }`}
+                        >
+                          <span className={`flex h-3 w-3 rounded-full ${risk.dotColor} mb-1`} />
+                          <span className={`text-3xl font-bold ${isActive ? risk.textColor : 'text-gray-400 dark:text-muted-foreground'}`}>
+                            {count}
+                          </span>
+                          <span className={`text-sm font-medium ${isActive ? risk.textColor : 'text-gray-500 dark:text-muted-foreground'}`}>
+                            {getRiskLabel(risk.key)}
+                          </span>
+                          {isActive && (
+                            <motion.div
+                              layoutId="activeRiskFilterIndicator"
+                              className={`absolute bottom-0 start-1/2 -translate-x-1/2 w-8 h-1 rounded-full ${risk.color}`}
+                              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                            />
+                          )}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Risk Distribution Bar Chart */}
+                  <div className="mt-4 p-4 rounded-xl bg-gradient-to-l from-gray-50/80 dark:from-gray-800/50 to-white dark:to-card border border-gray-100/80 dark:border-gray-800/60">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="h-4 w-4 text-rose-600" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingRiskLevel')}</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {RISK_LEVELS.map(risk => {
+                        const count = riskLevelDistribution[risk.key];
+                        const percentage = students.length > 0 ? (count / students.length) * 100 : 0;
+                        return (
+                          <div key={risk.key} className="flex items-center gap-3">
+                            <span className="text-[11px] font-medium text-gray-600 dark:text-muted-foreground min-w-[70px] text-start">
+                              {getRiskLabel(risk.key)}
+                            </span>
+                            <div className="flex-1 h-6 bg-gray-100 dark:bg-gray-800/40 rounded-full overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.max(percentage, 0)}%` }}
+                                transition={{ duration: 0.6, ease: 'easeOut' as const }}
+                                className={`h-full ${risk.color} rounded-full`}
+                              />
+                            </div>
+                            <span className="text-xs font-bold text-gray-700 dark:text-foreground min-w-[30px] text-center">
+                              {count}
+                            </span>
+                            <span className="text-[10px] text-gray-400 dark:text-muted-foreground min-w-[35px] text-center">
+                              {Math.round(percentage)}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>
 
             {/* Active filter indicators */}
-            {(filterLevel !== 'all' || filterRange !== 'all') && (
+            {(filterLevel !== 'all' || filterRange !== 'all' || filterRisk !== 'all') && (
               <motion.div
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -994,7 +1196,7 @@ export default function TeacherStudentTrackingSection({
                     className={`${getPerformanceLevelConfig(filterLevel).bgColor} ${getPerformanceLevelConfig(filterLevel).textColor} cursor-pointer`}
                     onClick={() => setFilterLevel('all')}
                   >
-                    {t(getPerformanceLevelConfig(filterLevel).label)} ({classificationCounts[filterLevel]})
+                    {t(getPerformanceLevelLabel(filterLevel))} ({classificationCounts[filterLevel]})
                     <XCircle className="h-3 w-3 ms-1" />
                   </Badge>
                 )}
@@ -1008,8 +1210,18 @@ export default function TeacherStudentTrackingSection({
                     <XCircle className="h-3 w-3 ms-1" />
                   </Badge>
                 )}
+                {filterRisk !== 'all' && (
+                  <Badge
+                    variant="secondary"
+                    className={`${getRiskLevelConfig(filterRisk).bgColor} ${getRiskLevelConfig(filterRisk).textColor} cursor-pointer`}
+                    onClick={() => setFilterRisk('all')}
+                  >
+                    {getRiskLabel(filterRisk)} ({riskLevelDistribution[filterRisk]})
+                    <XCircle className="h-3 w-3 ms-1" />
+                  </Badge>
+                )}
                 <button
-                  onClick={() => { setFilterLevel('all'); setFilterRange('all'); }}
+                  onClick={() => { setFilterLevel('all'); setFilterRange('all'); setFilterRisk('all'); }}
                   className="text-xs text-sky-600 hover:text-sky-700 dark:hover:text-sky-300 font-medium"
                 >
                   {t('teacher.trackingViewAll')}
@@ -1088,6 +1300,7 @@ export default function TeacherStudentTrackingSection({
                     totalSessions={teacherAttendanceSessions.length}
                     totalAssignments={teacherAssignments.length}
                     classAvgEfficiency={classAvgEfficiency}
+                    getRiskLabel={getRiskLabel}
                   />
                 ))}
               </div>
@@ -1106,24 +1319,30 @@ function EfficiencyGauge({
   efficiency,
   efficiencyLevel,
   classAvg,
+  effortScore,
 }: {
   efficiency: number;
   efficiencyLevel: EfficiencyLevel;
   classAvg: number;
+  effortScore: number;
 }) {
   const { t } = useTranslations();
   const config = getEfficiencyLevelConfig(efficiencyLevel);
-  const displayEfficiency = Math.min(efficiency, 150);
-  const circumference = 2 * Math.PI * 40; // radius 40
-  const progress = (displayEfficiency / 150) * circumference;
-  const classAvgProgress = (classAvg / 150) * circumference;
+  const isInsufficient = effortScore < 40;
 
   // Color based on level
   const strokeColor = efficiencyLevel === 'high'
-    ? '#10b981' // emerald-500
+    ? '#10b981'
     : efficiencyLevel === 'medium'
-      ? '#f59e0b' // amber-500
-      : '#f43f5e'; // rose-500
+      ? '#f59e0b'
+      : efficiencyLevel === 'insufficient'
+        ? '#9ca3af'
+        : '#f43f5e';
+
+  const displayEfficiency = isInsufficient ? 0 : Math.min(efficiency, 150);
+  const circumference = 2 * Math.PI * 40;
+  const progress = (displayEfficiency / 150) * circumference;
+  const classAvgProgress = (classAvg / 150) * circumference;
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -1139,16 +1358,18 @@ function EfficiencyGauge({
             strokeWidth="6"
           />
           {/* Class average indicator */}
-          <circle
-            cx="48"
-            cy="48"
-            r="40"
-            fill="none"
-            stroke="var(--border)"
-            strokeWidth="2"
-            strokeDasharray={`${classAvgProgress} ${circumference - classAvgProgress}`}
-            strokeLinecap="round"
-          />
+          {!isInsufficient && classAvg > 0 && (
+            <circle
+              cx="48"
+              cy="48"
+              r="40"
+              fill="none"
+              stroke="var(--border)"
+              strokeWidth="2"
+              strokeDasharray={`${classAvgProgress} ${circumference - classAvgProgress}`}
+              strokeLinecap="round"
+            />
+          )}
           {/* Efficiency arc */}
           <motion.circle
             cx="48"
@@ -1166,19 +1387,33 @@ function EfficiencyGauge({
         </svg>
         {/* Center text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-bold" style={{ color: strokeColor }}>
-            {Math.round(efficiency)}%
-          </span>
-          <span className="text-[9px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingEfficiency')}</span>
+          {isInsufficient ? (
+            <>
+              <span className="text-xs font-bold text-gray-400 dark:text-gray-500">—</span>
+              <span className="text-[8px] text-gray-400 dark:text-muted-foreground text-center leading-tight">{t('teacher.trackingEfficiencyInsufficient')}</span>
+            </>
+          ) : (
+            <>
+              <span className="text-lg font-bold" style={{ color: strokeColor }}>
+                {Math.round(efficiency)}%
+              </span>
+              <span className="text-[9px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingEfficiency')}</span>
+            </>
+          )}
         </div>
       </div>
       <Badge
         variant="secondary"
         className={`${config.bgColor} ${config.textColor} text-[10px] px-2 py-0.5 border-0 font-bold`}
       >
-        {t(config.label)}
+        {efficiencyLevel === 'insufficient' ? t('teacher.trackingEfficiencyInsufficient') : t(`teacher.trackingEfficiency${efficiencyLevel.charAt(0).toUpperCase() + efficiencyLevel.slice(1)}` as Parameters<typeof t>[0])}
       </Badge>
-      {classAvg > 0 && (
+      {isInsufficient && (
+        <p className="text-[9px] text-gray-400 dark:text-muted-foreground text-center leading-tight max-w-[100px]">
+          {t('teacher.trackingEfficiencyInsufficientNote')}
+        </p>
+      )}
+      {!isInsufficient && classAvg > 0 && (
         <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-muted-foreground">
           <Target className="h-3 w-3" />
           <span>{t('teacher.trackingClassAvg', { value: Math.round(classAvg) })}</span>
@@ -1189,30 +1424,42 @@ function EfficiencyGauge({
 }
 
 // -------------------------------------------------------
-// Subject Performance Mini Card
+// Subject Performance Mini Card (enhanced)
 // -------------------------------------------------------
 function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
   const { t } = useTranslations();
+  const levelConfig = getPerformanceLevelConfig(getPerformanceLevel(subject.overallPerformance));
+  const riskConfig = getRiskLevelConfig(subject.riskLevel);
+  const growthConfig = getGrowthTrendConfig(subject.growthTrend);
+
   return (
     <div className="p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80 space-y-2">
-      <div className="flex items-center gap-2">
-        <BookOpen className="h-3.5 w-3.5 text-sky-600 shrink-0" />
-        <span className="text-xs font-medium text-gray-900 dark:text-foreground truncate">{subject.subjectName}</span>
+      <div className="flex items-center gap-2 justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <BookOpen className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+          <span className="text-xs font-medium text-gray-900 dark:text-foreground truncate">{subject.subjectName}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className={`text-[10px] ${growthConfig.textColor}`}>{growthConfig.icon}</span>
+          {subject.riskLevel !== 'healthy' && (
+            <span className={`h-2 w-2 rounded-full ${riskConfig.dotColor}`} />
+          )}
+        </div>
       </div>
       <div className="space-y-1.5">
-        {/* Quiz avg */}
+        {/* Exam performance */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-gray-500 dark:text-muted-foreground min-w-[50px]">{t('teacher.trackingQuizzes')}</span>
           <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/40 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${Math.min(subject.quizAvg, 100)}%` }}
+              animate={{ width: `${Math.min(subject.examPerformance, 100)}%` }}
               transition={{ duration: 0.5, ease: 'easeOut' as const }}
               className="h-full bg-sky-500 rounded-full"
             />
           </div>
           <span className="text-[10px] font-bold text-sky-700 dark:text-sky-400 min-w-[28px] text-start">
-            {Math.round(subject.quizAvg)}%
+            {Math.round(subject.examPerformance)}%
           </span>
         </div>
         {/* Attendance */}
@@ -1221,13 +1468,13 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
           <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800/40 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${Math.min(subject.attendanceRate, 100)}%` }}
+              animate={{ width: `${Math.min(subject.attendanceScore, 100)}%` }}
               transition={{ duration: 0.5, ease: 'easeOut' as const, delay: 0.1 }}
               className="h-full bg-teal-500 rounded-full"
             />
           </div>
           <span className="text-[10px] font-bold text-teal-700 dark:text-teal-500 min-w-[28px] text-start">
-            {Math.round(subject.attendanceRate)}%
+            {Math.round(subject.attendanceScore)}%
           </span>
         </div>
         {/* Assignments */}
@@ -1246,12 +1493,21 @@ function SubjectPerformanceCard({ subject }: { subject: SubjectPerformance }) {
           </span>
         </div>
       </div>
+      {/* Overall score badge */}
+      <div className="flex items-center justify-between pt-1">
+        <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${levelConfig.bgColor} ${levelConfig.textColor} border-0 font-bold`}>
+          {Math.round(subject.overallPerformance)}%
+        </Badge>
+        {subject.riskLevel !== 'healthy' && (
+          <span className={`text-[9px] ${riskConfig.textColor}`}>{subject.riskLevel === 'atRisk' ? '⚠' : subject.riskLevel === 'concern' ? '◉' : '○'}</span>
+        )}
+      </div>
     </div>
   );
 }
 
 // -------------------------------------------------------
-// Student Card Component
+// Student Card Component (expanded with new metrics)
 // -------------------------------------------------------
 function StudentCard({
   data,
@@ -1260,6 +1516,7 @@ function StudentCard({
   totalSessions,
   totalAssignments,
   classAvgEfficiency,
+  getRiskLabel,
 }: {
   data: StudentPerformanceData;
   isExpanded: boolean;
@@ -1267,10 +1524,43 @@ function StudentCard({
   totalSessions: number;
   totalAssignments: number;
   classAvgEfficiency: number;
+  getRiskLabel: (level: RiskLevel) => string;
 }) {
   const { t } = useTranslations();
+  const metrics = data.metrics;
   const levelConfig = getPerformanceLevelConfig(data.level);
   const rangeConfig = getPercentageRangeConfig(data.percentageRange);
+  const riskConfig = getRiskLevelConfig(metrics.riskLevel);
+  const growthConfig = getGrowthTrendConfig(metrics.growthTrend);
+
+  // Percentile badge
+  const percentileBadgeMap: Record<string, { label: string; className: string }> = {
+    top5: { label: t('teacher.trackingPercentileTop5'), className: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-500 border-emerald-200 dark:border-emerald-900/60' },
+    top10: { label: t('teacher.trackingPercentileTop10'), className: 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-900/60' },
+    top25: { label: t('teacher.trackingPercentileTop25'), className: 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500 border-teal-200 dark:border-teal-900/60' },
+    top50: { label: t('teacher.trackingPercentileTop50'), className: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-500 border-amber-200 dark:border-amber-900/60' },
+    below50: { label: t('teacher.trackingPercentileBelow50'), className: 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500 border-rose-200 dark:border-rose-900/60' },
+  };
+  const percentileBadge = percentileBadgeMap[data.percentileLabel] || percentileBadgeMap.below50;
+
+  // Timeline filter state
+  const [timelineFilter, setTimelineFilter] = useState<ActivityType | 'all'>('all');
+
+  const filteredActivities = useMemo(() => {
+    if (timelineFilter === 'all') return data.recentActivities;
+    return data.recentActivities.filter(a => a.type === timelineFilter);
+  }, [data.recentActivities, timelineFilter]);
+
+  // Risk reason translation
+  const riskReasonTranslationMap: Record<string, string> = {
+    attendanceBelow50: t('teacher.trackingRiskReasonAttendance'),
+    attendanceBelow70: t('teacher.trackingRiskReasonAttendance70'),
+    performanceBelow60: t('teacher.trackingRiskReasonPerformance'),
+    performanceBelow70: t('teacher.trackingRiskReasonPerformance70'),
+    missedLast3Assignments: t('teacher.trackingRiskReasonMissed3'),
+    decliningTrend: t('teacher.trackingRiskReasonDeclining'),
+    inactivity: t('teacher.trackingRiskReasonInactivity'),
+  };
 
   return (
     <motion.div
@@ -1313,24 +1603,32 @@ function StudentCard({
               variant="secondary"
               className={`${levelConfig.bgColor} ${levelConfig.textColor} text-[10px] px-1.5 py-0 border-0 font-bold`}
             >
-              {t(levelConfig.label)}
+              {t(getPerformanceLevelLabel(data.level))}
             </Badge>
             <Badge
               variant="outline"
-              className={`${rangeConfig.bgColor} ${rangeConfig.textColor} ${rangeConfig.borderColor} text-[9px] px-1.5 py-0 font-medium`}
+              className={`${percentileBadge.className} text-[9px] px-1.5 py-0 font-medium`}
             >
-              {data.percentageRange === 'below-60' ? t(rangeConfig.range) : rangeConfig.range}
+              {percentileBadge.label}
             </Badge>
+            {metrics.riskLevel !== 'healthy' && (
+              <Badge
+                variant="outline"
+                className={`${riskConfig.bgColor} ${riskConfig.textColor} ${riskConfig.borderColor} text-[9px] px-1.5 py-0 font-medium`}
+              >
+                {getRiskLabel(metrics.riskLevel)}
+              </Badge>
+            )}
           </div>
 
           {/* Progress bar */}
           <div className="flex items-center gap-2 mt-1.5">
             <Progress
-              value={Math.round(data.overallPerformance)}
+              value={Math.round(metrics.overallPerformance)}
               className="h-2 flex-1"
             />
             <span className={`text-xs font-bold min-w-[40px] text-start ${levelConfig.textColor}`}>
-              {Math.round(data.overallPerformance)}%
+              {Math.round(metrics.overallPerformance)}%
             </span>
           </div>
         </div>
@@ -1338,12 +1636,22 @@ function StudentCard({
         {/* Efficiency mini indicator */}
         <div className="hidden sm:flex flex-col items-center gap-0.5 shrink-0">
           <div className={`text-sm font-bold ${
-            data.efficiencyLevel === 'high' ? 'text-emerald-600 dark:text-emerald-500' :
-            data.efficiencyLevel === 'medium' ? 'text-amber-600 dark:text-amber-500' : 'text-rose-600 dark:text-rose-500'
+            metrics.efficiencyLevel === 'high' ? 'text-emerald-600 dark:text-emerald-500' :
+            metrics.efficiencyLevel === 'medium' ? 'text-amber-600 dark:text-amber-500' :
+            metrics.efficiencyLevel === 'insufficient' ? 'text-gray-400 dark:text-gray-500' :
+            'text-rose-600 dark:text-rose-500'
           }`}>
-            {Math.round(data.efficiency)}%
+            {metrics.effortScore < 40 ? '—' : `${Math.round(metrics.efficiency)}%`}
           </div>
           <span className="text-[9px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingEfficiency')}</span>
+        </div>
+
+        {/* Growth mini indicator */}
+        <div className="hidden md:flex flex-col items-center gap-0.5 shrink-0">
+          <span className={`text-sm font-bold ${growthConfig.textColor}`}>
+            {growthConfig.icon} {metrics.growthIndex.toFixed(1)}
+          </span>
+          <span className="text-[9px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingGrowthIndex')}</span>
         </div>
 
         {/* Expand icon */}
@@ -1363,43 +1671,58 @@ function StudentCard({
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 pt-1 space-y-4">
-              {/* Performance breakdown cards */}
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                {/* Quiz average */}
+              {/* 4 Metric Cards: Exam, Attendance, Compliance, Quality */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                {/* Exam Performance */}
                 <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
                     <BarChart3 className="h-4 w-4 text-sky-700 dark:text-sky-400" />
                   </div>
-                  <span className="text-lg font-bold text-sky-800 dark:text-sky-400">{Math.round(data.quizAvg)}%</span>
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingQuizAvg')}</span>
+                  <span className="text-lg font-bold text-sky-800 dark:text-sky-400">{Math.round(metrics.examPerformance)}%</span>
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingExamPerformance')}</span>
+                  <span className="text-[9px] text-muted-foreground">
+                    {metrics.totalEarnedMarks}/{metrics.totalPossibleMarks}
+                  </span>
                 </div>
 
-                {/* Attendance rate */}
+                {/* Attendance Score */}
                 <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-800/40">
                     <CheckCircle2 className="h-4 w-4 text-teal-700" />
                   </div>
-                  <span className="text-lg font-bold text-teal-700 dark:text-teal-500">{Math.round(data.attendanceRate)}%</span>
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingAttendanceRatio')}</span>
+                  <span className="text-lg font-bold text-teal-700 dark:text-teal-500">{Math.round(metrics.attendanceScore)}%</span>
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingAttendanceScore')}</span>
                   <span className="text-[9px] text-muted-foreground">
-                    {data.attendedSessionIds.size}/{totalSessions} {t('teacher.trackingSession')}
+                    {metrics.attendedSessions}/{metrics.totalSessions} {t('teacher.trackingSession')}
                   </span>
                 </div>
 
-                {/* Assignment completion */}
+                {/* Assignment Compliance */}
                 <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-800/40">
                     <ClipboardList className="h-4 w-4 text-amber-700" />
                   </div>
-                  <span className="text-lg font-bold text-amber-700 dark:text-amber-500">{Math.round(data.assignmentCompletion)}%</span>
-                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingAssignmentCompletion')}</span>
+                  <span className="text-lg font-bold text-amber-700 dark:text-amber-500">{Math.round(metrics.assignmentCompliance)}%</span>
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingAssignCompliance')}</span>
                   <span className="text-[9px] text-muted-foreground">
-                    {data.studentSubmissions.filter(s => s.status === 'graded' || s.status === 'submitted').length}/{totalAssignments} {t('teacher.trackingTask')}
+                    {metrics.completedAssignments}/{metrics.totalAssignments} {t('teacher.trackingTask')}
+                  </span>
+                </div>
+
+                {/* Assignment Quality */}
+                <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/80 dark:bg-card/80 border border-gray-100/80 dark:border-gray-800/60/80">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-800/40">
+                    <FileText className="h-4 w-4 text-orange-700" />
+                  </div>
+                  <span className="text-lg font-bold text-orange-700 dark:text-orange-500">{Math.round(metrics.assignmentQuality)}%</span>
+                  <span className="text-[10px] text-muted-foreground text-center leading-tight">{t('teacher.trackingAssignQuality')}</span>
+                  <span className="text-[9px] text-muted-foreground">
+                    {metrics.totalEarnedPoints}/{metrics.totalPossiblePoints}
                   </span>
                 </div>
               </div>
 
-              {/* ── Efficiency Section (كفاءة الطالب) ── */}
+              {/* ── Efficiency Section ── */}
               <div className="p-3 rounded-xl bg-gradient-to-l from-violet-50/80 to-white border border-violet-100/50">
                 <div className="flex items-center gap-2 mb-3">
                   <Zap className="h-4 w-4 text-violet-600" />
@@ -1409,44 +1732,45 @@ function StudentCard({
                 <div className="flex items-center gap-4">
                   {/* Circular gauge */}
                   <EfficiencyGauge
-                    efficiency={data.efficiency}
-                    efficiencyLevel={data.efficiencyLevel}
+                    efficiency={metrics.efficiency}
+                    efficiencyLevel={metrics.efficiencyLevel}
                     classAvg={classAvgEfficiency}
+                    effortScore={metrics.effortScore}
                   />
                   {/* Efficiency breakdown */}
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-800/60/50">
                       <span className="text-[11px] text-gray-600 dark:text-muted-foreground">{t('teacher.trackingEffort')}</span>
                       <div className="flex items-center gap-2">
-                        <Progress value={Math.round(data.effortScore)} className="h-1.5 w-16" />
-                        <span className="text-xs font-bold text-gray-700 dark:text-foreground">{Math.round(data.effortScore)}%</span>
+                        <Progress value={Math.round(metrics.effortScore)} className="h-1.5 w-16" />
+                        <span className="text-xs font-bold text-gray-700 dark:text-foreground">{Math.round(metrics.effortScore)}%</span>
                       </div>
                     </div>
                     <div className="text-[9px] text-gray-400 dark:text-muted-foreground pe-2">
-                      {t('teacher.trackingEffortFormula', { attendance: Math.round(data.attendanceRate), assignments: Math.round(data.assignmentCompletion) })}
+                      {t('teacher.trackingEffortFormula', { attendance: Math.round(metrics.attendanceScore), assignments: Math.round(metrics.assignmentCompliance) })}
                     </div>
                     <div className="flex items-center justify-between p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-800/60/50">
                       <span className="text-[11px] text-gray-600 dark:text-muted-foreground">{t('teacher.trackingResults')}</span>
                       <div className="flex items-center gap-2">
-                        <Progress value={Math.round(data.resultScore)} className="h-1.5 w-16" />
-                        <span className="text-xs font-bold text-gray-700 dark:text-foreground">{Math.round(data.resultScore)}%</span>
+                        <Progress value={Math.round(metrics.resultScore)} className="h-1.5 w-16" />
+                        <span className="text-xs font-bold text-gray-700 dark:text-foreground">{Math.round(metrics.resultScore)}%</span>
                       </div>
                     </div>
                     <div className="text-[9px] text-gray-400 dark:text-muted-foreground pe-2">
-                      {t('teacher.trackingResultsFormula', { quizAvg: Math.round(data.quizAvg) })}
+                      {t('teacher.trackingResultsFormula', { quizAvg: Math.round(metrics.examPerformance) })}
                     </div>
                     {/* Comparison to class average */}
-                    {classAvgEfficiency > 0 && (
+                    {metrics.effortScore >= 40 && classAvgEfficiency > 0 && (
                       <div className={`flex items-center gap-1.5 text-[11px] font-medium ${
-                        data.efficiency >= classAvgEfficiency ? 'text-emerald-600' : 'text-rose-600'
+                        metrics.efficiency >= classAvgEfficiency ? 'text-emerald-600' : 'text-rose-600'
                       }`}>
-                        {data.efficiency >= classAvgEfficiency ? (
+                        {metrics.efficiency >= classAvgEfficiency ? (
                           <TrendingUp className="h-3 w-3" />
                         ) : (
                           <TrendingUp className="h-3 w-3 rotate-180" />
                         )}
                         <span>
-                          {data.efficiency >= classAvgEfficiency ? t('teacher.trackingAboveClassAvg', { diff: Math.abs(Math.round(data.efficiency - classAvgEfficiency)) }) : t('teacher.trackingBelowClassAvg', { diff: Math.abs(Math.round(data.efficiency - classAvgEfficiency)) })}
+                          {metrics.efficiency >= classAvgEfficiency ? t('teacher.trackingAboveClassAvg', { diff: Math.abs(Math.round(metrics.efficiency - classAvgEfficiency)) }) : t('teacher.trackingBelowClassAvg', { diff: Math.abs(Math.round(metrics.efficiency - classAvgEfficiency)) })}
                         </span>
                       </div>
                     )}
@@ -1454,7 +1778,105 @@ function StudentCard({
                 </div>
               </div>
 
-              {/* ── Per-Subject Performance (مسار الطالب - المقررات) ── */}
+              {/* ── Discipline Score Card ── */}
+              <div className="p-3 rounded-xl bg-gradient-to-l from-violet-50/60 to-teal-50/60 border border-violet-100/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldCheck className="h-4 w-4 text-violet-600" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingDisciplineScore')}</span>
+                  <span className="text-[10px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingDisciplineTooltip')}</span>
+                </div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex-1">
+                    <Progress value={Math.round(metrics.disciplineScore)} className="h-2.5" />
+                  </div>
+                  <span className="text-lg font-bold text-violet-700 dark:text-violet-500 min-w-[45px] text-start">{Math.round(metrics.disciplineScore)}%</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  {/* Attendance consistency */}
+                  <div className="p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-800/60/50">
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAttendance')}</p>
+                    <p className="text-sm font-bold text-teal-700 dark:text-teal-500">{metrics.onTimeCount + metrics.lateCount}/{metrics.totalSessions}</p>
+                    <p className="text-[9px] text-muted-foreground">
+                      {metrics.totalSessions > 0 ? Math.round(((metrics.onTimeCount + metrics.lateCount) / metrics.totalSessions) * 100) : 0}%
+                    </p>
+                  </div>
+                  {/* On-time rate */}
+                  <div className="p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-800/60/50">
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAttendance')}</p>
+                    <p className="text-sm font-bold text-emerald-700 dark:text-emerald-500">{metrics.onTimeCount}/{metrics.onTimeCount + metrics.lateCount}</p>
+                    <p className="text-[9px] text-muted-foreground">
+                      {(metrics.onTimeCount + metrics.lateCount) > 0 ? Math.round((metrics.onTimeCount / (metrics.onTimeCount + metrics.lateCount)) * 100) : 100}%
+                    </p>
+                  </div>
+                  {/* Deadline respect */}
+                  <div className="p-2 rounded-lg bg-white/60 dark:bg-card/60 border border-gray-100/50 dark:border-gray-800/60/50">
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAssignments')}</p>
+                    <p className="text-sm font-bold text-amber-700 dark:text-amber-500">
+                      {metrics.totalAssignments > 0 ? metrics.totalAssignments - metrics.missedDeadlines : 0}/{metrics.totalAssignments}
+                    </p>
+                    <p className="text-[9px] text-muted-foreground">
+                      {metrics.totalAssignments > 0 ? Math.round(((metrics.totalAssignments - metrics.missedDeadlines) / metrics.totalAssignments) * 100) : 100}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Growth Index Card ── */}
+              <div className="p-3 rounded-xl bg-gradient-to-l from-emerald-50/60 to-white border border-emerald-100/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <Flame className="h-4 w-4 text-emerald-600" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingGrowthIndex')}</span>
+                  <span className="text-[10px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingGrowthTooltip')}</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-2xl font-bold ${growthConfig.textColor}`}>
+                      {growthConfig.icon} {metrics.growthIndex.toFixed(2)}
+                    </span>
+                    <Badge
+                      variant="secondary"
+                      className={`${growthConfig.textColor} bg-opacity-20 text-[10px] px-2 py-0.5 border-0 font-bold`}
+                      style={{ backgroundColor: metrics.growthTrend === 'improving' ? 'rgba(16,185,129,0.1)' : metrics.growthTrend === 'declining' ? 'rgba(244,63,94,0.1)' : 'rgba(14,165,233,0.1)' }}
+                    >
+                      {metrics.growthTrend === 'improving' ? t('teacher.trackingGrowthImproving') : metrics.growthTrend === 'declining' ? t('teacher.trackingGrowthDeclining') : t('teacher.trackingGrowthStable')}
+                    </Badge>
+                  </div>
+                </div>
+                {data.studentScores.length >= 2 && (
+                  <div className="mt-2 flex items-center gap-4 text-[10px] text-muted-foreground">
+                    <span>{t('teacher.trackingRecentVsEarliest') || 'Recent vs Earliest'}:</span>
+                    <span className="font-medium text-gray-700 dark:text-foreground">
+                      {Math.round(metrics.growthIndex >= 1 ? (metrics.growthIndex - 1) * 100 : (1 - metrics.growthIndex) * 100)}% {metrics.growthTrend === 'improving' ? '↑' : metrics.growthTrend === 'declining' ? '↓' : '→'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Risk Level Badge (with reasons) ── */}
+              {metrics.riskLevel !== 'healthy' && (
+                <div className={`p-3 rounded-xl border ${riskConfig.borderColor} ${riskConfig.bgColor}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className={`h-4 w-4 ${riskConfig.textColor}`} />
+                    <span className={`text-sm font-medium ${riskConfig.textColor}`}>{t('teacher.trackingRiskLevel')}: {getRiskLabel(metrics.riskLevel)}</span>
+                    <span className="text-[10px] text-gray-400 dark:text-muted-foreground">{t('teacher.trackingRiskTooltip')}</span>
+                  </div>
+                  {metrics.riskReasons.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {metrics.riskReasons.map((reason, idx) => (
+                        <Badge
+                          key={idx}
+                          variant="outline"
+                          className={`text-[9px] px-1.5 py-0 ${riskConfig.borderColor} ${riskConfig.textColor}`}
+                        >
+                          {riskReasonTranslationMap[reason] || reason}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Per-Subject Performance ── */}
               {data.subjectPerformances.length > 0 && (
                 <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-white border border-sky-100/50">
                   <div className="flex items-center gap-2 mb-3">
@@ -1472,95 +1894,151 @@ function StudentCard({
                 </div>
               )}
 
-              {/* Weighted performance breakdown */}
+              {/* ── Weighted performance breakdown (35/20/15/30) ── */}
               <div className="p-3 rounded-xl bg-gradient-to-l from-sky-50/80 to-teal-50/80 border border-sky-100/50">
                 <div className="flex items-center gap-2 mb-2">
                   <TrendingUp className="h-4 w-4 text-sky-600" />
                   <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingOverallPerformanceCalc')}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-4 gap-2 text-center">
                   <div>
-                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingQuizWeight')}</p>
-                    <p className="text-sm font-bold text-sky-700 dark:text-sky-400">{Math.round(data.quizAvg * 0.4)}</p>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingExamWeight')} (35%)</p>
+                    <p className="text-sm font-bold text-sky-700 dark:text-sky-400">{Math.round(metrics.examPerformance * DEFAULT_WEIGHTS.examPerformance / 100)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAttendanceWeight')}</p>
-                    <p className="text-sm font-bold text-teal-700 dark:text-teal-500">{Math.round(data.attendanceRate * 0.3)}</p>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAttendanceWeight')} (20%)</p>
+                    <p className="text-sm font-bold text-teal-700 dark:text-teal-500">{Math.round(metrics.attendanceScore * DEFAULT_WEIGHTS.attendanceScore / 100)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingAssignmentWeight')}</p>
-                    <p className="text-sm font-bold text-amber-700 dark:text-amber-500">{Math.round(data.assignmentCompletion * 0.3)}</p>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingComplianceWeight')} (15%)</p>
+                    <p className="text-sm font-bold text-amber-700 dark:text-amber-500">{Math.round(metrics.assignmentCompliance * DEFAULT_WEIGHTS.assignmentCompliance / 100)}</p>
                   </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">{t('teacher.trackingQualityWeight')} (30%)</p>
+                    <p className="text-sm font-bold text-orange-700 dark:text-orange-500">{Math.round(metrics.assignmentQuality * DEFAULT_WEIGHTS.assignmentQuality / 100)}</p>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-gray-200/50 dark:border-gray-800/50 text-center">
+                  <span className="text-[10px] text-muted-foreground">{t('teacher.trackingWeightedExamNote')}</span>
                 </div>
               </div>
 
-              {/* ── Enhanced Activity Timeline (مسار الطالب) ── */}
+              {/* ── Enhanced Activity Timeline with Filters ── */}
               {data.recentActivities.length > 0 && (
                 <div className="p-3 rounded-xl bg-gradient-to-l from-teal-50/60 to-white border border-teal-100/50">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Route className="h-4 w-4 text-teal-600" />
-                    <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingStudentPath')}</span>
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500 border-teal-100 dark:border-teal-900/60">
-                      {t('teacher.trackingActivityCount', { count: data.recentActivities.length })}
-                    </Badge>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Route className="h-4 w-4 text-teal-600" />
+                      <span className="text-sm font-medium text-gray-900 dark:text-foreground">{t('teacher.trackingStudentPath')}</span>
+                      <Badge variant="secondary" className="text-[9px] px-1.5 py-0 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500 border-teal-100 dark:border-teal-900/60">
+                        {t('teacher.trackingActivityCount', { count: data.recentActivities.length })}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="relative space-y-0 max-h-52 overflow-y-auto custom-scrollbar">
-                    {/* Timeline line */}
-                    <div className="absolute end-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-teal-200 via-sky-200 to-amber-200" />
 
-                    {data.recentActivities.map((item, idx) => {
-                      const iconMap = {
-                        attendance: <CheckCircle2 className="h-3.5 w-3.5 text-teal-600" />,
-                        quiz: <FileText className="h-3.5 w-3.5 text-sky-600" />,
-                        assignment: <ClipboardList className="h-3.5 w-3.5 text-amber-600" />,
-                      };
-                      const bgMap = {
-                        attendance: 'bg-teal-50 dark:bg-teal-900/20 ring-teal-100',
-                        quiz: 'bg-sky-50 dark:bg-sky-900/15 ring-sky-100',
-                        assignment: 'bg-amber-50 dark:bg-amber-900/20 ring-amber-100',
-                      };
-                      const dotColorMap = {
-                        attendance: 'bg-teal-400',
-                        quiz: 'bg-sky-400',
-                        assignment: 'bg-amber-400',
-                      };
-                      const badgeMap = {
-                        attendance: { label: t('teacher.trackingAttendanceBadge'), className: 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500 border-teal-100 dark:border-teal-900/60' },
-                        quiz: { label: t('teacher.trackingQuizBadge'), className: 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-100 dark:border-sky-900/60' },
-                        assignment: { label: t('teacher.trackingAssignmentBadge'), className: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-500 border-amber-100 dark:border-amber-900/60' },
-                      };
+                  {/* Timeline filter buttons */}
+                  <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                    {([
+                      { key: 'all' as const, label: t('teacher.trackingTimelineFilterAll') },
+                      { key: 'quiz' as const, label: t('teacher.trackingTimelineFilterQuizzes') },
+                      { key: 'attendance' as const, label: t('teacher.trackingTimelineFilterAttendance') },
+                      { key: 'assignment' as const, label: t('teacher.trackingTimelineFilterAssignments') },
+                      { key: 'grading' as const, label: t('teacher.trackingTimelineFilterGrading') },
+                      { key: 'risk' as const, label: t('teacher.trackingTimelineFilterRisk') },
+                    ] as const).map(filter => (
+                      <button
+                        key={filter.key}
+                        onClick={() => setTimelineFilter(filter.key)}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all ${
+                          timelineFilter === filter.key
+                            ? 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 ring-1 ring-teal-200 dark:ring-teal-900/60'
+                            : 'bg-gray-50 dark:bg-gray-800/40 text-gray-500 dark:text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800/60'
+                        }`}
+                      >
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
 
-                      return (
-                        <motion.div
-                          key={idx}
-                          initial={{ opacity: 0, x: 10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.2, delay: idx * 0.05 }}
-                          className="relative flex items-start gap-2.5 py-1.5 px-1"
-                        >
-                          <div className={`relative z-10 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full ring-2 ${bgMap[item.type]}`}>
-                            {iconMap[item.type]}
-                            {/* Pulsing dot */}
-                            <span className={`absolute -top-0.5 -start-0.5 h-2 w-2 rounded-full ${dotColorMap[item.type]} ring-2 ring-white`} />
-                          </div>
-                          <div className="flex-1 min-w-0 pt-0.5">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-xs font-medium text-gray-900 dark:text-foreground">{item.title}</p>
-                              <Badge variant="secondary" className={`text-[9px] px-1 py-0 ${badgeMap[item.type].className}`}>
-                                {badgeMap[item.type].label}
-                              </Badge>
+                  {filteredActivities.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <p className="text-xs">{t('teacher.trackingNoMatchingResults')}</p>
+                    </div>
+                  ) : (
+                    <div className="relative space-y-0 max-h-52 overflow-y-auto custom-scrollbar">
+                      {/* Timeline line */}
+                      <div className="absolute end-[15px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-teal-200 via-sky-200 to-amber-200" />
+
+                      {filteredActivities.map((item, idx) => {
+                        const iconMap: Record<ActivityType, React.ReactNode> = {
+                          attendance: <CheckCircle2 className="h-3.5 w-3.5 text-teal-600" />,
+                          quiz: <FileText className="h-3.5 w-3.5 text-sky-600" />,
+                          assignment: <ClipboardList className="h-3.5 w-3.5 text-amber-600" />,
+                          grading: <BarChart3 className="h-3.5 w-3.5 text-violet-600" />,
+                          risk: <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />,
+                          achievement: <Award className="h-3.5 w-3.5 text-emerald-600" />,
+                          feedback: <FileText className="h-3.5 w-3.5 text-sky-600" />,
+                        };
+                        const bgMap: Record<ActivityType, string> = {
+                          attendance: 'bg-teal-50 dark:bg-teal-900/20 ring-teal-100',
+                          quiz: 'bg-sky-50 dark:bg-sky-900/15 ring-sky-100',
+                          assignment: 'bg-amber-50 dark:bg-amber-900/20 ring-amber-100',
+                          grading: 'bg-violet-50 dark:bg-violet-900/20 ring-violet-100',
+                          risk: 'bg-rose-50 dark:bg-rose-900/20 ring-rose-100',
+                          achievement: 'bg-emerald-50 dark:bg-emerald-900/20 ring-emerald-100',
+                          feedback: 'bg-sky-50 dark:bg-sky-900/15 ring-sky-100',
+                        };
+                        const dotColorMap: Record<ActivityType, string> = {
+                          attendance: 'bg-teal-400',
+                          quiz: 'bg-sky-400',
+                          assignment: 'bg-amber-400',
+                          grading: 'bg-violet-400',
+                          risk: 'bg-rose-400',
+                          achievement: 'bg-emerald-400',
+                          feedback: 'bg-sky-400',
+                        };
+                        const badgeMap: Record<ActivityType, { label: string; className: string }> = {
+                          attendance: { label: t('teacher.trackingAttendanceBadge'), className: 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-500 border-teal-100 dark:border-teal-900/60' },
+                          quiz: { label: t('teacher.trackingQuizBadge'), className: 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-100 dark:border-sky-900/60' },
+                          assignment: { label: t('teacher.trackingAssignmentBadge'), className: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-500 border-amber-100 dark:border-amber-900/60' },
+                          grading: { label: t('teacher.trackingTimelineFilterGrading'), className: 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-500 border-violet-100 dark:border-violet-900/60' },
+                          risk: { label: t('teacher.trackingTimelineFilterRisk'), className: 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-500 border-rose-100 dark:border-rose-900/60' },
+                          achievement: { label: t('teacher.trackingTimelineAchievement'), className: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-500 border-emerald-100 dark:border-emerald-900/60' },
+                          feedback: { label: t('teacher.trackingQuizBadge'), className: 'bg-sky-50 dark:bg-sky-900/15 text-sky-700 dark:text-sky-400 border-sky-100 dark:border-sky-900/60' },
+                        };
+
+                        return (
+                          <motion.div
+                            key={idx}
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.2, delay: idx * 0.05 }}
+                            className="relative flex items-start gap-2.5 py-1.5 px-1"
+                          >
+                            <div className={`relative z-10 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full ring-2 ${bgMap[item.type]}`}>
+                              {iconMap[item.type]}
+                              {/* Pulsing dot */}
+                              <span className={`absolute -top-0.5 -start-0.5 h-2 w-2 rounded-full ${dotColorMap[item.type]} ring-2 ring-white`} />
                             </div>
-                            <p className="text-[11px] text-muted-foreground truncate">{item.detail}</p>
-                            <p className="text-[9px] text-gray-300 mt-0.5">
-                              {item.date && item.date !== new Date().toISOString()
-                                ? formatDate(item.date)
-                                : t('teacher.trackingDateUnavailable')}
-                            </p>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
+                            <div className="flex-1 min-w-0 pt-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-xs font-medium text-gray-900 dark:text-foreground">{item.title}</p>
+                                <Badge variant="secondary" className={`text-[9px] px-1 py-0 ${badgeMap[item.type].className}`}>
+                                  {badgeMap[item.type].label}
+                                </Badge>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground truncate">{item.detail}</p>
+                              <p className="text-[9px] text-gray-300 mt-0.5">
+                                {item.date && item.date !== new Date().toISOString()
+                                  ? formatDate(item.date)
+                                  : t('teacher.trackingDateUnavailable')}
+                              </p>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

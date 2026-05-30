@@ -181,10 +181,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
   const [students, setStudents] = useState<UserProfile[]>([]);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [scores, setScores] = useState<Score[]>([]);
-  const [teacherSubmissions, setTeacherSubmissions] = useState<{ id: string; assignment_id: string; student_id: string; score: number | null; status: string }[]>([]);
-  const [teacherAssignments, setTeacherAssignments] = useState<{ id: string; max_score: number; subject_id: string | null }[]>([]);
+  const [teacherSubmissions, setTeacherSubmissions] = useState<{ id: string; assignment_id: string; student_id: string; score: number | null; status: string; submitted_at: string }[]>([]);
+  const [teacherAssignments, setTeacherAssignments] = useState<{ id: string; max_score: number; subject_id: string | null; due_date?: string }[]>([]);
   const [teacherAttendanceSessions, setTeacherAttendanceSessions] = useState<{ id: string; subject_id: string }[]>([]);
-  const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState<{ id: string; session_id: string; student_id: string }[]>([]);
+  const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState<{ id: string; session_id: string; student_id: string; attendance_status?: 'present' | 'late' | 'partial' | 'absent' }[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // ─── Students section ───
@@ -378,10 +378,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     // Fetch assignments created by this teacher
     const { data: assignData, error: assignErr } = await supabase
       .from('assignments')
-      .select('id, max_score, subject_id')
+      .select('id, max_score, subject_id, due_date')
       .eq('teacher_id', profile.id);
     if (!assignErr && assignData) {
-      setTeacherAssignments(assignData as { id: string; max_score: number; subject_id: string | null }[]);
+      setTeacherAssignments(assignData as { id: string; max_score: number; subject_id: string | null; due_date?: string }[]);
     }
 
     // Fetch graded submissions for this teacher's assignments
@@ -389,11 +389,11 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
     if (assignmentIds.length > 0) {
       const { data: subData, error: subErr } = await supabase
         .from('submissions')
-        .select('id, assignment_id, student_id, score, status')
+        .select('id, assignment_id, student_id, score, status, submitted_at')
         .in('assignment_id', assignmentIds)
-        .eq('status', 'graded');
+        .in('status', ['graded', 'submitted']);
       if (!subErr && subData) {
-        setTeacherSubmissions(subData as { id: string; assignment_id: string; student_id: string; score: number | null; status: string }[]);
+        setTeacherSubmissions(subData as { id: string; assignment_id: string; student_id: string; score: number | null; status: string; submitted_at: string }[]);
       }
     }
   }, [profile.id]);
@@ -412,10 +412,10 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       if (sessionIds.length > 0) {
         const { data: recData, error: recErr } = await supabase
           .from('attendance_records')
-          .select('id, session_id, student_id')
+          .select('id, session_id, student_id, attendance_status')
           .in('session_id', sessionIds);
         if (!recErr && recData) {
-          setTeacherAttendanceRecords(recData as { id: string; session_id: string; student_id: string }[]);
+          setTeacherAttendanceRecords(recData as { id: string; session_id: string; student_id: string; attendance_status?: 'present' | 'late' | 'partial' | 'absent' }[]);
         }
       }
     }
