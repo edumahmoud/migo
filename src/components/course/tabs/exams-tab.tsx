@@ -231,7 +231,7 @@ function isQuizExpired(quiz: Quiz): boolean {
 // -------------------------------------------------------
 // Main Component
 // -------------------------------------------------------
-export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
+export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTabProps) {
   const { setViewingQuizId, justCompletedQuizIds, addJustCompletedQuiz } = useAppStore();
   const { t, direction, locale } = useTranslations();
 
@@ -537,12 +537,13 @@ export default function ExamsTab({ profile, role, subjectId }: ExamsTabProps) {
           quizDate: quiz.scheduled_date || undefined,
           quizTime: quiz.scheduled_time || undefined,
           teacherName: profile.name,
+          subjectName: subject?.name || undefined,
         }),
       });
     } catch (err) {
       console.error('[notify] Failed to send quiz notification:', err);
     }
-  }, [role, subjectId, profile.name]);
+  }, [role, subjectId, profile.name, subject?.name]);
 
   // -------------------------------------------------------
   // Create / Update quiz

@@ -433,6 +433,14 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
         .select('*')
         .in('subject_id', allSubjectIds);
 
+      // Fetch scores for the current student to check which quizzes they've already taken
+      const studentCompletedQuizIds = new Set<string>();
+      if (quizzes && quizzes.length > 0 && profile.role === 'student') {
+        const quizIds = quizzes.map(q => q.id);
+        const { data: myScores } = await supabase.from('scores').select('quiz_id').eq('student_id', profile.id).in('quiz_id', quizIds);
+        if (myScores) for (const s of myScores) studentCompletedQuizIds.add(s.quiz_id);
+      }
+
       if (quizzes) {
         for (const q of quizzes) {
           if (q.scheduled_date) {
@@ -440,7 +448,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
             // Only include future or recent quizzes
             const diffDays = (scheduledDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
             if (diffDays > -7) { // Include quizzes up to 7 days old
-              // Mark completed if: is_finished in DB OR time has passed (start_time + duration + 1s)
+              // Mark completed if: is_finished in DB OR time has passed OR student has already taken the quiz
               const timeCompleted = isQuizTimeCompleted(q.scheduled_date, q.scheduled_time, q.duration);
               items.push({
                 id: `auto-quiz-${q.id}`,
@@ -451,7 +459,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 subject_id: q.subject_id,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
                 source: 'auto',
-                completed: q.is_finished || timeCompleted,
+                completed: q.is_finished || timeCompleted || studentCompletedQuizIds.has(q.id),
                 autoType: 'quiz',
                 scheduled_time: q.scheduled_time || null,
                 duration: q.duration || null,

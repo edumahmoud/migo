@@ -233,13 +233,23 @@ export async function POST(request: NextRequest) {
 
       // ─── 10) Teacher creates a new quiz → notify all students ───
       case 'quiz_created': {
-        const { subjectId: quizSubjectId, quizTitle, quizId, teacherName: quizTeacherName, quizDate, quizTime } = body;
+        const { subjectId: quizSubjectId, quizTitle, quizId, teacherName: quizTeacherName, quizDate, quizTime, subjectName: quizSubjectName } = body;
         if (!quizSubjectId || !quizTitle) {
           return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
         const quizStudentIds = await getStudentIds(quizSubjectId);
         const titleText = quizTitle ? ` "${quizTitle}"` : '';
+
+        // Look up subject name if not provided
+        let subjectName = quizSubjectName || '';
+        if (!subjectName) {
+          try {
+            const { supabaseServer } = await import('@/lib/supabase-server');
+            const { data: subjectData } = await supabaseServer.from('subjects').select('name').eq('id', quizSubjectId).single();
+            if (subjectData?.name) subjectName = subjectData.name;
+          } catch { /* ignore */ }
+        }
 
         // Format date and time together
         let dateTimeText = '';
@@ -265,8 +275,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        const subjectText = subjectName ? ` في مقرر "${subjectName}"` : '';
         const quizNotifTitle = 'اختبار جديد';
-        const quizNotifMessage = `أنشأ المعلم ${quizTeacherName || 'المعلم'} اختبار${titleText}${dateTimeText}`;
+        const quizNotifMessage = `أنشأ المعلم ${quizTeacherName || 'المعلم'} اختبار${titleText}${subjectText}${dateTimeText}`;
         // Use quiz deep link format so students can navigate directly to the quiz
         const quizNotifLink = quizId
           ? `quiz:${quizSubjectId}:${quizId}`

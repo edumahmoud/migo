@@ -361,10 +361,17 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
 
         // 5. Quizzes
         const { data: quizzes } = await supabase.from('quizzes').select('*').in('subject_id', subjectIds);
+        // Fetch scores for the current student to check which quizzes they've already taken
+        const studentCompletedQuizIds = new Set<string>();
+        if (quizzes && quizzes.length > 0 && profile.role === 'student') {
+          const quizIds = quizzes.map(q => q.id);
+          const { data: myScores } = await supabase.from('scores').select('quiz_id').eq('student_id', profile.id).in('quiz_id', quizIds);
+          if (myScores) for (const s of myScores) studentCompletedQuizIds.add(s.quiz_id);
+        }
         if (quizzes && quizzes.length > 0) {
           for (const q of quizzes) {
             if (q.scheduled_date) {
-              // Mark completed if: is_finished in DB OR time has passed (scheduled_date + scheduled_time + duration + 1s)
+              // Mark completed if: is_finished in DB OR time has passed OR student has already taken the quiz
               let timeCompleted = false;
               if (q.scheduled_time && q.duration) {
                 const [h, m] = q.scheduled_time.split(':').map(Number);
@@ -383,7 +390,7 @@ export default function CalendarSection({ profile }: { profile: UserProfile }) {
                 time: q.scheduled_time || null, subject_id: q.subject_id || null,
                 subject_name: q.subject_id ? subjectNameMap[q.subject_id] || null : null,
                 color: 'rose', icon: 'Star',
-                completed: q.is_finished || timeCompleted,
+                completed: q.is_finished || timeCompleted || studentCompletedQuizIds.has(q.id),
                 meta: { quiz_id: q.id, duration: q.duration, scheduled_date: q.scheduled_date, scheduled_time: q.scheduled_time },
               });
             }
