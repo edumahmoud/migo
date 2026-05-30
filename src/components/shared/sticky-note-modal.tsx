@@ -63,6 +63,10 @@ export default function StickyNoteModal({ open, onClose }: StickyNoteModalProps)
         console.error('Error creating sticky note:', data.error);
         toast.error(t('todos.stickyNoteCreateFailed'));
       } else {
+        // Dispatch custom event so the overlay immediately adds the note
+        if (data.data) {
+          window.dispatchEvent(new CustomEvent('sticky-note-created', { detail: data.data }));
+        }
         toast.success(t('todos.stickyNoteCreated'));
         setContent('');
         setColor('amber');

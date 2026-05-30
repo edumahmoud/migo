@@ -7,9 +7,10 @@ import { useAuthStore } from '@/stores/auth-store';
 import type { StickyNoteData } from '@/lib/types';
 
 // -------------------------------------------------------
-// Position storage
+// Position & visibility storage
 // -------------------------------------------------------
 const POS_PREFIX = 'attendo_sticky_pos_';
+const VIS_PREFIX = 'attendo_sticky_vis_';
 
 function getStoredPosition(id: string): { x: number; y: number } | null {
   try {
@@ -22,6 +23,22 @@ function getStoredPosition(id: string): { x: number; y: number } | null {
 function storePosition(id: string, x: number, y: number): void {
   try {
     localStorage.setItem(`${POS_PREFIX}${id}`, JSON.stringify({ x, y }));
+  } catch { /* ignore */ }
+}
+
+/** Get the local visibility override (true = shown/expanded, false = minimized) */
+function getStoredVisibility(id: string): boolean | null {
+  try {
+    const raw = localStorage.getItem(`${VIS_PREFIX}${id}`);
+    if (raw !== null) return raw === '1';
+  } catch { /* ignore */ }
+  return null;
+}
+
+/** Store local visibility override */
+function storeVisibility(id: string, visible: boolean): void {
+  try {
+    localStorage.setItem(`${VIS_PREFIX}${id}`, visible ? '1' : '0');
   } catch { /* ignore */ }
 }
 
@@ -149,7 +166,11 @@ function StickyNoteCard({
   direction: 'rtl' | 'ltr';
 }) {
   const colors = getColorClasses(note.color);
-  const [minimized, setMinimized] = useState(note.is_minimized);
+  const [minimized, setMinimized] = useState(() => {
+    // Prefer localStorage override, fallback to DB value
+    const stored = getStoredVisibility(note.id);
+    return stored !== null ? !stored : note.is_minimized;
+  });
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
     const stored = getStoredPosition(note.id);
     if (stored) {
@@ -232,7 +253,7 @@ function StickyNoteCard({
   if (minimized) {
     return (
       <button
-        onClick={() => { setMinimized(false); onUpdate(note.id, { is_minimized: false }); }}
+        onClick={() => { setMinimized(false); storeVisibility(note.id, true); onUpdate(note.id, { is_minimized: false }); }}
         className={`fixed z-[60] flex items-center gap-1.5 rounded-full ${colors.minimizedBg} ${colors.minimizedBorder} border px-3 py-1.5 shadow-lg hover:shadow-xl transition-all ${colors.minimizedText} text-xs font-medium`}
         style={{ left: position.x, top: position.y }}
         dir={direction}
@@ -266,7 +287,7 @@ function StickyNoteCard({
             ✏️
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); setMinimized(true); onUpdate(note.id, { is_minimized: true }); }}
+            onClick={(e) => { e.stopPropagation(); setMinimized(true); storeVisibility(note.id, false); onUpdate(note.id, { is_minimized: true }); }}
             className={`flex h-5 w-5 items-center justify-center rounded ${colors.hoverBtn} transition-colors text-[10px]`}
             aria-label="Minimize"
           >
@@ -342,7 +363,26 @@ export default function StickyNotesOverlay() {
 
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
 
-  // Realtime subscription — still listen for changes to refresh
+  // Listen for custom event dispatched by StickyNoteModal for immediate appearance
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<StickyNoteData>;
+      const newNote = customEvent.detail;
+      if (newNote && newNote.id) {
+        // Mark the new note as visible (not minimized) in localStorage
+        storeVisibility(newNote.id, true);
+        setNotes((prev) => {
+          // Avoid duplicates (realtime might also fire)
+          if (prev.some((n) => n.id === newNote.id)) return prev;
+          return [...prev, newNote];
+        });
+      }
+    };
+    window.addEventListener('sticky-note-created', handler);
+    return () => { window.removeEventListener('sticky-note-created', handler); };
+  }, []);
+
+  // Realtime subscription — listen for changes from other tabs/windows
   useEffect(() => {
     if (!user?.id) return;
     const channel = supabase
@@ -379,6 +419,9 @@ export default function StickyNotesOverlay() {
   // Delete note via API
   const handleDelete = useCallback(async (id: string) => {
     setNotes((prev) => prev.filter((n) => n.id !== id));
+    // Clean up localStorage for deleted note
+    try { localStorage.removeItem(`${POS_PREFIX}${id}`); } catch { /* ignore */ }
+    try { localStorage.removeItem(`${VIS_PREFIX}${id}`); } catch { /* ignore */ }
     try {
       const authHeaders = await getCachedAuthHeaders();
       const res = await fetch('/api/sticky-notes', {
