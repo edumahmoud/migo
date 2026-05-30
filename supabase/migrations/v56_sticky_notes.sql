@@ -36,25 +36,26 @@ DROP POLICY IF EXISTS "Users can delete own sticky notes" ON public.sticky_notes
 CREATE POLICY "Users can delete own sticky notes" ON public.sticky_notes
   FOR DELETE USING (user_id = auth.uid());
 
--- Also fix: Add 'sticky' to lecture_notes visibility if it has a CHECK constraint
--- First, try to drop any existing CHECK constraint on visibility
+-- Also fix: Add 'sticky' to lecture_notes visibility
+-- IMPORTANT: Must drop ALL policies that reference the visibility column FIRST,
+-- before altering its type, then re-create them after.
+
+-- Step 1: Drop policies that depend on the visibility column
+DROP POLICY IF EXISTS "Students can view public notes in enrolled subjects" ON public.lecture_notes;
+
+-- Step 2: Drop any CHECK constraints on visibility
 DO $$
 BEGIN
-  -- Try to drop the constraint if it exists
   ALTER TABLE public.lecture_notes DROP CONSTRAINT IF EXISTS lecture_notes_visibility_check;
-  -- Also try the default name Postgres gives
   ALTER TABLE public.lecture_notes DROP CONSTRAINT IF EXISTS lecture_notes_visibility_check1;
 EXCEPTION WHEN OTHERS THEN
   NULL;
 END $$;
 
--- Ensure the visibility column can hold 'sticky'
--- If the column is VARCHAR without constraint, this is a no-op
--- If it has an enum, we may need to alter it
+-- Step 3: Now safe to alter the column type
 ALTER TABLE public.lecture_notes ALTER COLUMN visibility TYPE TEXT;
 
--- Update RLS policy for students to also see sticky notes
-DROP POLICY IF EXISTS "Students can view public notes in enrolled subjects" ON public.lecture_notes;
+-- Step 4: Re-create the RLS policy with 'sticky' support
 CREATE POLICY "Students can view public notes in enrolled subjects" ON public.lecture_notes
   FOR SELECT USING (
     ((visibility = 'public' OR visibility = 'sticky') AND public.is_lecture_student(lecture_id, auth.uid()))
