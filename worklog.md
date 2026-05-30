@@ -374,3 +374,42 @@ Stage Summary:
 - Lint passes with 0 errors
 - Files created: src/components/shared/file-upload-indicator.tsx
 - Files modified: src/app/layout.tsx, src/components/shared/personal-files-section.tsx
+
+---
+Task ID: 9
+Agent: Main
+Task: Fix 3 UI issues: suspended course overlay, reports modal reasons, AI progress bar
+
+Work Log:
+- Analyzed 3 user-uploaded screenshots with VLM to understand each issue
+- **Suspended course overlay (subjects-section.tsx + course-page.tsx)**:
+  - Changed overlay from centered to top-aligned (justify-start + pt-5) so course name is visible below
+  - Increased overlay opacity (70% → 80%) and blur (3px → 4px)
+  - Removed line-clamp-1 from description text for full visibility
+  - Added click guard: `if (isPaused && role === 'student') return;`
+  - Changed cursor to `cursor-not-allowed` for paused course cards
+  - Removed `hover:-translate-y-0.5` and `hover:shadow-lg` for paused cards
+  - Hidden "Leave Course" button on paused course cards (subjects-section.tsx)
+  - Hidden "Leave Course" button in course-page.tsx header for paused courses
+  - Course-page.tsx overlay now shows course name prominently + paused status text
+- **Reports modal reasons (report-button.tsx + reports-section.tsx)**:
+  - Root cause: key name mismatch between component and next-intl JSON files
+  - `inappropriate` → `inappropriateContent` (matches JSON key)
+  - `misinformation` → `impersonation` (replaced non-existent key with existing JSON key)
+  - Updated both report-button.tsx and reports-section.tsx consistently
+  - Updated ar.ts and en.ts legacy translation files to match
+- **AI progress bar (question-bank-section.tsx)**:
+  - Removed `sticky top-0 z-40` which caused it to float above the page header
+  - Changed to inline flow positioning (mb-4, no sticky/absolute)
+  - Redesigned layout: Row 1 (title + cancel), Row 2 (step indicators + progress bar)
+  - Step indicators now spread horizontally with labels always visible (removed `hidden sm:inline`)
+  - Progress bar thicker (h-1 → h-1.5) for better visibility
+  - Larger step circles (h-4 w-4 → h-5 w-5) with larger text
+  - Smooth height animation instead of scale+translateY for enter/exit
+
+Stage Summary:
+- All 3 fixes implemented and tested
+- Build passes successfully
+- Lint passes with 0 errors
+- Pushed to GitHub (commit d725345)
+- Files modified: subjects-section.tsx, course-page.tsx, report-button.tsx, reports-section.tsx, question-bank-section.tsx, ar.ts, en.ts
