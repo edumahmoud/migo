@@ -3873,7 +3873,8 @@
     "actions": "Actions",
     "saveChanges": "Save Changes",
     "autoQuiz": "Auto Quiz",
-    "autoAssignment": "Auto Assignment"
+    "autoAssignment": "Auto Assignment",
+    "byTeacher": "By {name}"
   },
   "platformAnnouncements": {
     "title": "Celebrations & Public Announcements",

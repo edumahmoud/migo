@@ -3873,7 +3873,8 @@
     "actions": "إجراءات",
     "saveChanges": "حفظ التعديلات",
     "autoQuiz": "اختبار تلقائي",
-    "autoAssignment": "مهمة تلقائية"
+    "autoAssignment": "مهمة تلقائية",
+    "byTeacher": "بواسطة {name}"
   },
   "platformAnnouncements": {
     "title": "المعايدات والإعلانات العامة",

@@ -55,6 +55,8 @@ interface AutoTodoItem {
   scheduled_time?: string | null;
   /** For quizzes: duration in minutes */
   duration?: number | null;
+  /** Teacher name who created the quiz/assignment */
+  teacher_name?: string | null;
 }
 
 // -------------------------------------------------------
@@ -364,10 +366,28 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
         return;
       }
 
-      // Build subject name map
+      // Build subject name map + teacher name map
       const subjectNameMap: Record<string, string> = {};
-      const { data: subjectsData } = await supabase.from('subjects').select('id, name').in('id', allSubjectIds);
-      if (subjectsData) for (const s of subjectsData) subjectNameMap[s.id] = s.name;
+      const subjectTeacherMap: Record<string, string> = {}; // subject_id -> teacher_name
+      const { data: subjectsData } = await supabase.from('subjects').select('id, name, teacher_id').in('id', allSubjectIds);
+      if (subjectsData) {
+        for (const s of subjectsData) {
+          subjectNameMap[s.id] = s.name;
+          subjectTeacherMap[s.id] = s.teacher_id;
+        }
+      }
+
+      // Fetch teacher names for all teacher_ids
+      const teacherIds = [...new Set(Object.values(subjectTeacherMap))];
+      const teacherNameMap: Record<string, string> = {};
+      if (teacherIds.length > 0) {
+        const { data: teachersData } = await supabase.from('users').select('id, name').in('id', teacherIds);
+        if (teachersData) {
+          for (const t of teachersData) {
+            teacherNameMap[t.id] = t.name;
+          }
+        }
+      }
 
       const items: AutoTodoItem[] = [];
       const now = new Date();
@@ -400,6 +420,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 autoType: 'quiz',
                 scheduled_time: q.scheduled_time || null,
                 duration: q.duration || null,
+                teacher_name: q.subject_id ? teacherNameMap[subjectTeacherMap[q.subject_id]] || null : null,
               });
             }
           }
@@ -429,6 +450,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 source: 'auto',
                 completed: false,
                 autoType: 'assignment',
+                teacher_name: a.subject_id ? teacherNameMap[subjectTeacherMap[a.subject_id]] || null : null,
               });
             }
           }
@@ -531,6 +553,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
       completed_at: null,
       created_at: at.due_date || new Date().toISOString(),
       updated_at: at.due_date || new Date().toISOString(),
+      teacher_name: at.teacher_name,
     }));
     return [...todos, ...autoAsUserTodos];
   }, [todos, autoTodos, profile.id]);
@@ -972,7 +995,7 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                 </span>
               )}
 
-              {/* Auto source indicator */}
+              {/* Auto source indicator - show teacher name */}
               {todo.source === 'auto' && (
                 <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
                   todo.id.startsWith('auto-quiz')
@@ -982,7 +1005,10 @@ export default function TodoSection({ profile }: { profile: UserProfile }) {
                       : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500'
                 }`}>
                   <Clock className="h-2 w-2" />
-                  {todo.id.startsWith('auto-quiz') ? t('todos.autoQuiz') : todo.id.startsWith('auto-assignment') ? t('todos.autoAssignment') : 'auto'}
+                  {todo.teacher_name
+                    ? t('todos.byTeacher', { name: todo.teacher_name })
+                    : (todo.id.startsWith('auto-quiz') ? t('todos.autoQuiz') : todo.id.startsWith('auto-assignment') ? t('todos.autoAssignment') : 'auto')
+                  }
                 </span>
               )}
             </div>

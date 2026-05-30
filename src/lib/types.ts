@@ -460,6 +460,8 @@ export interface UserTodo {
   completed_at?: string | null;
   created_at: string;
   updated_at: string;
+  /** For auto-todos: name of the teacher who created the quiz/assignment */
+  teacher_name?: string | null;
 }
 
 // -------------------------------------------------------
