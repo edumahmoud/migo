@@ -1985,38 +1985,23 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
             </div>
           )}
 
-          {/* Quiz settings toggles */}
-          <div className="flex items-center gap-3 text-xs mb-3" dir={direction}>
+          {/* Quiz settings indicator */}
+          <div className="flex items-center gap-2 text-xs mb-3" dir={direction}>
             <button
-              onClick={() => handleToggleQuizSetting(quiz.id, 'show_results', quiz.show_results !== false)}
-              disabled={togglingQuizId === quiz.id}
-              className="flex items-center gap-1.5 transition-colors"
+              onClick={() => setSettingsQuiz(quiz)}
+              className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-900/60 bg-teal-50/50 dark:bg-teal-900/15 px-2.5 py-1 text-xs font-medium text-teal-700 dark:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/25 transition-colors"
             >
-              {togglingQuizId === quiz.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              ) : quiz.show_results === false ? (
-                <EyeOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
-              ) : (
-                <Eye className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
-              )}
-              <span className={quiz.show_results === false ? 'text-amber-600 dark:text-amber-500' : 'text-sky-700 dark:text-sky-400'}>
-                {quiz.show_results === false ? t('exams.resultsHidden') : t('exams.showResults')}
-              </span>
+              <Settings className="h-3.5 w-3.5" />
+              <span>{t('exams.settings')}</span>
             </button>
-            <button
-              onClick={() => handleToggleQuizSetting(quiz.id, 'allow_retake', quiz.allow_retake || false)}
-              disabled={togglingQuizId === quiz.id}
-              className="flex items-center gap-1.5 transition-colors"
-            >
-              {quiz.allow_retake ? (
-                <RotateCcw className="h-3.5 w-3.5 text-sky-700 dark:text-sky-400" />
-              ) : (
-                <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <span className={quiz.allow_retake ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}>
-                {quiz.allow_retake ? t('exams.retakeAllowed') : t('exams.retakeNotAllowed')}
-              </span>
-            </button>
+            <span className={`flex items-center gap-1 ${quiz.show_results === false ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'}`}>
+              {quiz.show_results === false ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              {quiz.show_results === false ? t('exams.resultsHidden') : t('exams.showResults')}
+            </span>
+            <span className={`flex items-center gap-1 ${quiz.allow_retake ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}`}>
+              <RotateCcw className="h-3 w-3" />
+              {quiz.allow_retake ? t('exams.retakeAllowed') : t('exams.retakeNotAllowed')}
+            </span>
           </div>
 
           {/* Action buttons */}
