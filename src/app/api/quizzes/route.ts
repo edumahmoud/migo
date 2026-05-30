@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
 
     const userId = authResult.user.id;
     const body = await request.json();
-    const { title, questions, summaryId, subject_id, show_results, allow_retake } = body;
+    const { title, questions, summaryId, subject_id, show_results, show_review, allow_retake } = body;
 
     if (!title || !questions || !Array.isArray(questions)) {
       return NextResponse.json(
@@ -44,6 +44,10 @@ export async function POST(request: NextRequest) {
 
     if (show_results !== undefined) {
       insertData.show_results = show_results;
+    }
+
+    if (show_review !== undefined) {
+      insertData.show_review = show_review;
     }
 
     if (allow_retake !== undefined) {
@@ -73,6 +77,7 @@ export async function POST(request: NextRequest) {
         if (summaryId) safeData.summary_id = summaryId;
         if (subject_id) safeData.subject_id = subject_id;
         if (show_results !== undefined) safeData.show_results = show_results;
+        if (show_review !== undefined) safeData.show_review = show_review;
         if (allow_retake !== undefined) safeData.allow_retake = allow_retake;
 
         const { data: retryQuiz, error: retryError } = await supabaseServer
@@ -165,7 +170,7 @@ export async function PUT(request: NextRequest) {
       }
 
       // Build the update payload from allowed fields
-      const allowedFields = ['allow_retake', 'show_results', 'duration', 'is_finished', 'title'];
+      const allowedFields = ['allow_retake', 'show_results', 'show_review', 'duration', 'is_finished', 'title'];
       // NOTE: shuffle_questions is NOT in the DB schema — it's a client-side-only feature
       const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
@@ -235,7 +240,7 @@ export async function PUT(request: NextRequest) {
       // Preserve the quiz settings for the re-generated quiz
       const { data: fullQuiz } = await supabaseServer
         .from('quizzes')
-        .select('allow_retake, show_results, duration, subject_id, is_finished')
+        .select('allow_retake, show_results, show_review, duration, subject_id, is_finished')
         .eq('id', quizId)
         .single();
 
@@ -315,6 +320,7 @@ export async function PUT(request: NextRequest) {
       // Preserve settings from the original quiz
       allow_retake: preservedSettings.allow_retake ?? false,
       show_results: preservedSettings.show_results ?? true,
+      show_review: preservedSettings.show_review ?? true,
       // NOTE: shuffle_questions is NOT a DB column — it's client-side only
     };
 

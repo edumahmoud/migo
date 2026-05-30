@@ -10,6 +10,8 @@ import {
   Shuffle,
   RotateCcw,
   Eye,
+  EyeOff,
+  BookOpen,
 } from 'lucide-react';
 import {
   Dialog,
@@ -108,12 +110,10 @@ export default function QuizSettingsModal({
   const { t, direction } = useTranslations();
   const [allowRetake, setAllowRetake] = useState(quiz.allow_retake ?? true);
   const [showResults, setShowResults] = useState(quiz.show_results ?? true);
+  const [showReview, setShowReview] = useState(quiz.show_review ?? true);
   const [shuffleQuestions, setShuffleQuestions] = useState(quiz.shuffle_questions ?? true);
   const [duration, setDuration] = useState(quiz.duration?.toString() ?? '');
   const [saving, setSaving] = useState(false);
-
-  // Reset local state when quiz prop changes (using key pattern on the Dialog instead)
-  // This avoids the lint error about calling setState in useEffect
 
   const handleSave = async () => {
     setSaving(true);
@@ -121,6 +121,7 @@ export default function QuizSettingsModal({
       const updates: Record<string, unknown> = {
         allow_retake: allowRetake,
         show_results: showResults,
+        show_review: showReview,
         // NOTE: shuffle_questions is NOT a DB column — it's client-side only.
         // We do NOT send it to the server. The quiz-view.tsx handles shuffling locally.
       };
@@ -198,21 +199,31 @@ export default function QuizSettingsModal({
             </div>
 
             <ToggleSwitch
-              label={t('quiz.allowRetake')}
-              description={t('quiz.allowRetake')}
-              icon={<RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
-              checked={allowRetake}
-              onChange={setAllowRetake}
+              label={t('quiz.showResults')}
+              description={t('quiz.showResultsDesc')}
+              icon={<Eye className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
+              checked={showResults}
+              onChange={setShowResults}
               disabled={saving}
               dir={direction}
             />
 
             <ToggleSwitch
-              label={t('quiz.showResults')}
-              description={t('quiz.showResultsAfter')}
-              icon={<Eye className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
-              checked={showResults}
-              onChange={setShowResults}
+              label={t('quiz.showReview')}
+              description={t('quiz.showReviewDesc')}
+              icon={<BookOpen className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
+              checked={showReview}
+              onChange={setShowReview}
+              disabled={saving}
+              dir={direction}
+            />
+
+            <ToggleSwitch
+              label={t('quiz.allowRetake')}
+              description={t('quiz.allowRetakeDesc')}
+              icon={<RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-500" />}
+              checked={allowRetake}
+              onChange={setAllowRetake}
               disabled={saving}
               dir={direction}
             />

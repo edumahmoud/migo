@@ -123,25 +123,14 @@ export default function NotificationBell() {
     initAuthCacheListener();
   }, []);
 
-  // The notification store already handles both Realtime subscription AND polling,
-  // so we only need to trigger initialization here — no duplicate polling needed.
+  // The notification store handles both Realtime subscription AND polling (8s → 15s),
+  // so no additional polling is needed here. The bell just reads from the store.
+  // On open, we refetch to ensure the latest state.
   useEffect(() => {
     if (user?.id && !initialized) {
       initializeNotifications(user.id);
     }
   }, [user?.id, initialized, initializeNotifications]);
-
-  // ─── Periodic forced refresh for the bell (every 30s) ───
-  // This ensures the badge count and notification list stay up-to-date even
-  // if the store's Realtime subscription drops or polling misses events.
-  // It runs independently of the store's internal 8s/15s polling.
-  useEffect(() => {
-    if (!user?.id) return;
-    const timer = setInterval(() => {
-      refetchNotifications();
-    }, 30000);
-    return () => clearInterval(timer);
-  }, [user?.id, refetchNotifications]);
 
 
 

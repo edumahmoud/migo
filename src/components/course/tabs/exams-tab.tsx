@@ -965,32 +965,6 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
   };
 
   // -------------------------------------------------------
-  // Toggle quiz settings
-  // -------------------------------------------------------
-  const handleToggleQuizSetting = async (quizId: string, field: 'show_results' | 'allow_retake', currentValue: boolean) => {
-    setTogglingQuizId(quizId);
-    try {
-      const { error } = await supabase
-        .from('quizzes')
-        .update({ [field]: !currentValue })
-        .eq('id', quizId);
-      if (error) {
-        toast.error(t('exams.toastSettingUpdateFailed'));
-      } else {
-        toast.success(field === 'show_results'
-          ? (!currentValue ? t('exams.toastShowResultsEnabled') : t('exams.toastShowResultsDisabled'))
-          : (!currentValue ? t('exams.toastRetakeEnabled') : t('exams.toastRetakeDisabled'))
-        );
-        fetchData();
-      }
-    } catch {
-      toast.error(t('common.unexpectedError'));
-    } finally {
-      setTogglingQuizId(null);
-    }
-  };
-
-  // -------------------------------------------------------
   // Toggle is_finished
   // -------------------------------------------------------
   const handleToggleFinished = async (quiz: Quiz) => {
@@ -1040,14 +1014,113 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         return;
       }
       const wb = XLSX.utils.book_new();
-      const data = qScores.map((s) => ({
-        [t('exams.excelStudentName')]: subjectStudents.find((st) => st.id === s.student_id)?.name || '—',
-        [t('exams.excelScore')]: `${s.score}/${s.total}`,
-        [t('exams.excelPercentage')]: `${scorePercentage(s.score, s.total)}%`,
-        [t('exams.excelCompletionDate')]: formatDate(s.completed_at, locale),
+
+      // ─── Sheet 1: Summary ───
+      const summaryData = qScores.map((s) => {
+        const student = subjectStudents.find((st) => st.id === s.student_id);
+        return {
+          [t('exams.excelStudentName')]: student?.name || '—',
+          [t('exams.excelEmail')]: student?.email || '—',
+          [t('exams.excelScore')]: `${s.score}/${s.total}`,
+          [t('exams.excelPercentage')]: `${scorePercentage(s.score, s.total)}%`,
+          [t('exams.excelCompletionDate')]: formatDate(s.completed_at, locale),
+        };
+      });
+      const summaryWs = XLSX.utils.json_to_sheet(summaryData);
+
+      // Auto-size columns for summary sheet
+      const summaryColWidths = Object.keys(summaryData[0] || {}).map((key) => ({
+        wch: Math.max(key.length + 2, ...summaryData.map((row) => String(row[key as keyof typeof row] || '').length + 2)),
       }));
-      const ws = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, quiz.title);
+      summaryWs['!cols'] = summaryColWidths;
+
+      XLSX.utils.book_append_sheet(wb, summaryWs, t('exams.excelSummarySheet'));
+
+      // ─── Sheet 2: Detailed Q&A ───
+      const questions = quiz.questions || [];
+      const detailRows: Record<string, string>[] = [];
+
+      for (const s of qScores) {
+        const student = subjectStudents.find((st) => st.id === s.student_id);
+        const studentName = student?.name || '—';
+        const studentEmail = student?.email || '—';
+        const userAnswers = s.user_answers || [];
+
+        for (const ua of userAnswers) {
+          const q = questions[ua.questionIndex];
+          if (!q) continue;
+
+          const questionText = q.question || '';
+          const correctAnswer = q.correctAnswer || (q.pairs ? q.pairs.map(p => `${p.key} → ${p.value}`).join(', ') : '');
+          const studentAnswer = typeof ua.answer === 'string' ? ua.answer :
+            (q.type === 'matching' ? Object.entries(ua.answer).map(([k, v]) => `${k} → ${v}`).join(', ') : JSON.stringify(ua.answer));
+          const status = ua.isCorrect ? '✓' : '✗';
+
+          detailRows.push({
+            [t('exams.excelStudentName')]: studentName,
+            [t('exams.excelEmail')]: studentEmail,
+            [t('exams.excelQuestionNum')]: `${ua.questionIndex + 1}`,
+            [t('exams.excelQuestion')]: questionText,
+            [t('exams.excelCorrectAnswer')]: correctAnswer,
+            [t('exams.excelStudentAnswer')]: studentAnswer,
+            [t('exams.excelStatus')]: status,
+          });
+        }
+      }
+
+      if (detailRows.length > 0) {
+        const detailWs = XLSX.utils.json_to_sheet(detailRows);
+
+        // Auto-size columns for detail sheet
+        const detailColWidths = Object.keys(detailRows[0]).map((key) => ({
+          wch: Math.max(key.length + 2, ...detailRows.slice(0, 50).map((row) => String(row[key] || '').length + 2), 15),
+        }));
+        detailWs['!cols'] = detailColWidths;
+
+        // Apply color coding to the Status column
+        const statusColIndex = Object.keys(detailRows[0]).indexOf(t('exams.excelStatus'));
+        if (statusColIndex >= 0) {
+          const statusColLetter = XLSX.utils.encode_col(statusColIndex);
+          for (let i = 0; i < detailRows.length; i++) {
+            const cellRef = `${statusColLetter}${i + 2}`; // +2 for header row and 0-index
+            const cell = detailWs[cellRef];
+            if (cell) {
+              if (cell.v === '✓') {
+                cell.s = {
+                  font: { color: { rgb: '16A34A' }, bold: true },
+                  fill: { fgColor: { rgb: 'DCFCE7' } },
+                };
+              } else if (cell.v === '✗') {
+                cell.s = {
+                  font: { color: { rgb: 'DC2626' }, bold: true },
+                  fill: { fgColor: { rgb: 'FEE2E2' } },
+                };
+              }
+            }
+          }
+        }
+
+        // Also color-code the student answer column based on correctness
+        const studentAnswerColIndex = Object.keys(detailRows[0]).indexOf(t('exams.excelStudentAnswer'));
+        if (studentAnswerColIndex >= 0) {
+          const answerColLetter = XLSX.utils.encode_col(studentAnswerColIndex);
+          for (let i = 0; i < detailRows.length; i++) {
+            const cellRef = `${answerColLetter}${i + 2}`;
+            const cell = detailWs[cellRef];
+            const statusCell = detailWs[`${statusColLetter}${i + 2}`];
+            if (cell && statusCell) {
+              if (statusCell.v === '✓') {
+                cell.s = { font: { color: { rgb: '16A34A' } } };
+              } else if (statusCell.v === '✗') {
+                cell.s = { font: { color: { rgb: 'DC2626' } } };
+              }
+            }
+          }
+        }
+
+        XLSX.utils.book_append_sheet(wb, detailWs, t('exams.excelDetailSheet'));
+      }
+
       XLSX.writeFile(wb, `${quiz.title}_${t('exams.exportResults')}_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast.success(t('exams.toastExportSuccess'));
     } catch {
@@ -1984,25 +2057,6 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
               </div>
             </div>
           )}
-
-          {/* Quiz settings indicator */}
-          <div className="flex items-center gap-2 text-xs mb-3" dir={direction}>
-            <button
-              onClick={() => setSettingsQuiz(quiz)}
-              className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-900/60 bg-teal-50/50 dark:bg-teal-900/15 px-2.5 py-1 text-xs font-medium text-teal-700 dark:text-teal-500 hover:bg-teal-100 dark:hover:bg-teal-900/25 transition-colors"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              <span>{t('exams.settings')}</span>
-            </button>
-            <span className={`flex items-center gap-1 ${quiz.show_results === false ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'}`}>
-              {quiz.show_results === false ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-              {quiz.show_results === false ? t('exams.resultsHidden') : t('exams.showResults')}
-            </span>
-            <span className={`flex items-center gap-1 ${quiz.allow_retake ? 'text-sky-700 dark:text-sky-400' : 'text-muted-foreground'}`}>
-              <RotateCcw className="h-3 w-3" />
-              {quiz.allow_retake ? t('exams.retakeAllowed') : t('exams.retakeNotAllowed')}
-            </span>
-          </div>
 
           {/* Action buttons */}
           <div className="flex items-center gap-2 pt-3 border-t">

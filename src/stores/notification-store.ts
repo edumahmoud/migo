@@ -390,12 +390,21 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       });
 
       // ─── Show toasts + feedback for notifications detected via polling ───
-      if (newFromPoll.length > 0) {
+      // Only show toasts for notifications that are genuinely fresh (< 30s old).
+      // This prevents duplicate toasts when Realtime already showed the notification,
+      // and prevents re-showing old notifications on page refresh.
+      const FRESH_THRESHOLD_MS = 30000; // 30 seconds
+      const freshNewFromPoll = newFromPoll.filter(n => {
+        const created = new Date(n.createdAt).getTime();
+        return Date.now() - created < FRESH_THRESHOLD_MS;
+      });
+
+      if (freshNewFromPoll.length > 0) {
         // Play notification sound/haptic
         playNotificationFeedback();
 
-        // Show toasts for unread notifications (limit to 3 to avoid flooding)
-        const toShow = newFromPoll.filter(n => !n.read).slice(0, 3);
+        // Show toasts for unread fresh notifications (limit to 3 to avoid flooding)
+        const toShow = freshNewFromPoll.filter(n => !n.read).slice(0, 3);
         for (const n of toShow) {
           try {
             toast(n.title, {
@@ -421,21 +430,21 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
     try {
     // Early RLS recursion check — try a lightweight query first
+    // If it fails, still set up polling as a fallback (don't just give up)
+    let rlsBlocked = false;
     try {
       const { error } = await supabase
         .from('notifications')
         .select('id')
         .limit(1);
       if (isRLSRecursionError(error)) {
-        console.warn('Notification store: RLS recursion detected, skipping real-time setup');
-        set({ initialized: true, initializing: false, currentUserId: userId });
-        return;
+        console.warn('Notification store: RLS recursion detected, Realtime will be skipped');
+        rlsBlocked = true;
       }
     } catch {
-      // If even the probe throws, degrade gracefully
-      console.warn('Notification store: probe query failed, degrading gracefully');
-      set({ initialized: true, initializing: false, currentUserId: userId });
-      return;
+      // Probe failed — still try to set up the store, just skip Realtime
+      console.warn('Notification store: probe query failed, will try polling only');
+      rlsBlocked = true;
     }
 
     // Clean up any existing subscription first (partial reset — keep data and dedup structures
@@ -495,9 +504,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         seenNotificationIds.add(n.id);
       }
 
-      // 3. Set up real-time subscription for INSERT events
+      // 3. Set up real-time subscription for INSERT events (skip if RLS blocked)
       // Build the channel with all handlers BEFORE subscribing
-      const channel = supabase
+      const channel = rlsBlocked ? null : supabase
         .channel(channelName)
         .on(
           'postgres_changes',
@@ -617,30 +626,49 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
             });
           }
         )
-        .subscribe((status) => {
+        .subscribe((status, err) => {
           // ─── Reconnection logic ───
           // If the subscription drops or errors, the polling fallback will keep
           // notifications flowing. But we log the status for debugging.
           if (status === 'SUBSCRIBED') {
             console.log(`[notifications] Realtime subscription active for user ${userId}`);
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.warn(`[notifications] Realtime subscription issue (${status}) for user ${userId} — polling fallback active`);
-            // Attempt to re-subscribe after a delay if the channel errored
-            if (status === 'CHANNEL_ERROR') {
+            console.warn(`[notifications] Realtime subscription issue (${status}) for user ${userId} — polling fallback active`, err);
+            // Attempt to re-subscribe after a delay
+            setTimeout(() => {
+              const currentSub = get().subscription;
+              if (currentSub) {
+                console.log(`[notifications] Attempting to re-subscribe for user ${userId}`);
+                try {
+                  currentSub.unsubscribe();
+                  setTimeout(() => {
+                    try {
+                      currentSub.subscribe();
+                    } catch {
+                      console.warn(`[notifications] Re-subscribe failed for user ${userId}`);
+                    }
+                  }, 2000);
+                } catch {
+                  console.warn(`[notifications] Unsubscribe before re-subscribe failed for user ${userId}`);
+                }
+              }
+            }, 5000);
+          } else if (status === 'CLOSED') {
+            console.log(`[notifications] Realtime channel closed for user ${userId}`);
+            // Try to re-subscribe after a delay if the channel was unexpectedly closed
+            if (get().currentUserId === userId) {
               setTimeout(() => {
                 const currentSub = get().subscription;
-                if (currentSub) {
-                  console.log(`[notifications] Attempting to re-subscribe for user ${userId}`);
+                if (currentSub && get().currentUserId === userId) {
+                  console.log(`[notifications] Attempting to re-subscribe after close for user ${userId}`);
                   try {
                     currentSub.subscribe();
                   } catch {
-                    console.warn(`[notifications] Re-subscribe failed for user ${userId}`);
+                    console.warn(`[notifications] Re-subscribe after close failed for user ${userId}`);
                   }
                 }
-              }, 5000);
+              }, 3000);
             }
-          } else if (status === 'CLOSED') {
-            console.log(`[notifications] Realtime channel closed for user ${userId}`);
           }
         });
 
