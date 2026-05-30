@@ -796,3 +796,24 @@ Stage Summary:
 - Auto-quiz items show "جاري" (Running) badge with green flash/ping animation when exam time is active
 - Badge re-evaluates every 30 seconds via tick state
 - Translation keys added in both ar.json and en.json
+
+---
+Task ID: 1
+Agent: Main
+Task: Fix toggle RTL support, cancel button hover text, and exam notification navigation
+
+Work Log:
+- Analyzed uploaded screenshot using VLM to identify toggle RTL and cancel button issues
+- Replaced custom ToggleSwitch in quiz-settings-modal.tsx with shadcn/ui Switch component (uses CSS logical properties for RTL)
+- Fixed cancel button text turning white on hover by adding hover:text-teal-700 and dark:hover:text-teal-500
+- Added quiz deep link format (quiz:SUBJECT_ID:QUIZ_ID) for exam notifications
+- Added navigation handler for quiz deep links in notification-navigation.ts that sets viewingQuizId
+- Updated quiz_created API notification to use quiz deep link format
+- Passed setViewingQuizId to notification navigation in bell and section components
+- Build passed, lint passed, pushed to main
+
+Stage Summary:
+- 6 files modified, build successful, pushed commit 040eb92
+- Toggle switches now use Radix UI Switch with CSS logical properties for RTL
+- Cancel button hover text stays visible on white background
+- Quiz notifications navigate directly to the exam when clicked
