@@ -1095,7 +1095,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="space-y-6"
+      className="space-y-6 overflow-x-hidden"
     >
       {/* ─── Header ─── */}
       <motion.div
@@ -1108,32 +1108,34 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
             {role === 'teacher' ? t('course.coursePage') : t('course.enrolledStudents')}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {role === 'student' && (
             <button
               onClick={() => setJoinCodeOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-teal-200 transition-all hover:bg-teal-700 hover:shadow-md hover:shadow-teal-200 active:scale-[0.97]"
+              className="flex items-center gap-2 rounded-xl bg-teal-600 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-teal-200 transition-all hover:bg-teal-700 hover:shadow-md hover:shadow-teal-200 active:scale-[0.97]"
             >
               <UserPlus className="h-4 w-4" />
-              {t('dashboard.joinSubject')}
+              <span className="hidden sm:inline">{t('dashboard.joinSubject')}</span>
+              <span className="sm:hidden">{t('dashboard.joinSubject')}</span>
             </button>
           )}
           {role === 'teacher' && (
             <button
               onClick={() => setCreateSubjectOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-sky-200 transition-all hover:bg-sky-800 hover:shadow-md hover:shadow-sky-200 active:scale-[0.97]"
+              className="flex items-center gap-1.5 sm:gap-2 rounded-xl bg-sky-700 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-sky-200 transition-all hover:bg-sky-800 hover:shadow-md hover:shadow-sky-200 active:scale-[0.97]"
             >
               <Plus className="h-4 w-4" />
-              {t('dashboard.createSubject')}
+              <span className="sm:hidden">{t('subjects.createSubject')}</span>
+              <span className="hidden sm:inline">{t('dashboard.createSubject')}</span>
             </button>
           )}
           {role === 'teacher' && (
             <button
               onClick={openNewCategory}
-              className="flex items-center gap-2 rounded-xl border border-sky-200 dark:border-sky-800 px-4 py-2.5 text-sm font-medium text-sky-700 dark:text-sky-400 transition-all hover:bg-sky-50 dark:hover:bg-sky-900/20 active:scale-[0.97]"
+              className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-sky-200 dark:border-sky-800 px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-sky-700 dark:text-sky-400 transition-all hover:bg-sky-50 dark:hover:bg-sky-900/20 active:scale-[0.97]"
             >
               <Tag className="h-4 w-4" />
-              {t('subjects.manageCategories')}
+              <span className="hidden sm:inline">{t('subjects.manageCategories')}</span>
             </button>
           )}
         </div>
@@ -1143,20 +1145,20 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
       {!loadingSubjects && subjects.length > 0 && (
         <motion.div
           variants={cardVariants}
-          className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border bg-card p-4 shadow-sm"
+          className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm"
         >
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground shrink-0">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground shrink-0 mb-3">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <span>{t('common.search')}</span>
           </div>
-          <div className="flex flex-1 flex-wrap items-center gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2 sm:gap-3">
             {/* الفرقة filter */}
             <div className="flex items-center gap-2">
               <GraduationCap className="h-4 w-4 text-muted-foreground shrink-0" />
               <select
                 value={filterLevel}
                 onChange={(e) => setFilterLevel(e.target.value)}
-                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
+                className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer sm:min-w-[140px]"
                 dir={direction}
               >
                 <option value="">{t('common.all')}</option>
@@ -1172,7 +1174,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <select
                 value={filterSubLevel}
                 onChange={(e) => setFilterSubLevel(e.target.value)}
-                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
+                className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer sm:min-w-[140px]"
                 dir={direction}
               >
                 <option value="">{t('common.all')}</option>
@@ -1194,7 +1196,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <select
                 value={filterPaused}
                 onChange={(e) => setFilterPaused(e.target.value as 'all' | 'active' | 'paused')}
-                className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
+                className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer sm:min-w-[140px]"
                 dir={direction}
               >
                 <option value="all">{t('course.filterAll')}</option>
@@ -1210,7 +1212,7 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                 <select
                   value={filterCategory}
                   onChange={(e) => setFilterCategory(e.target.value)}
-                  className="rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer min-w-[140px]"
+                  className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600 transition-all appearance-none cursor-pointer sm:min-w-[140px]"
                   dir={direction}
                 >
                   <option value="">{t('course.filterAll')}</option>
