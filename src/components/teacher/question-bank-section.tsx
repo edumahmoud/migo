@@ -28,9 +28,11 @@ import {
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/app-store';
+import { useAiGenerationStore } from '@/stores/ai-generation-store';
 import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { extractTextFromFile } from '@/lib/pdf-client';
 import type { UserProfile, Subject, QuestionBank, BankQuestion, QuizQuestion, SubjectFile } from '@/lib/types';
+import { stripFileExtension } from '@/lib/utils';
 import { useTranslations } from '@/i18n/use-translations';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -180,17 +182,22 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   const [loadingCourseFiles, setLoadingCourseFiles] = useState(false);
   const [generatingFromAi, setGeneratingFromAi] = useState(false);
   const [aiConfigTypes, setAiConfigTypes] = useState({ mcq: 3, boolean: 2, completion: 2, matching: 2 });
-  const [aiBackgroundTask, setAiBackgroundTask] = useState<{ bankId: string; bankName: string; status: 'extracting' | 'generating' | 'saving' } | null>(null);
+  const { activeTask: aiBackgroundTask, startTask: startAiTask, updateStatus: updateAiStatus, completeTask: completeAiTask, cancelTask: cancelAiTask } = useAiGenerationStore();
   const aiAbortRef = useRef<AbortController | null>(null);
+
+  // Restore any persisted generation task on mount
+  useEffect(() => {
+    useAiGenerationStore.getState().restoreFromStorage();
+  }, []);
 
   const handleCancelAiGeneration = useCallback(() => {
     if (aiAbortRef.current) {
       aiAbortRef.current.abort();
       aiAbortRef.current = null;
     }
-    setAiBackgroundTask(null);
+    cancelAiTask();
     toast.info(t('questionBank.toastGenerationCancelled'));
-  }, [t]);
+  }, [t, cancelAiTask]);
 
   // ─── Edit bank ───
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -631,8 +638,8 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
     setSelectedCourseFile(null);
     setCourseFiles([]);
 
-    // Set background task indicator
-    setAiBackgroundTask({ bankId: capturedBank.id, bankName: capturedBank.name, status: 'extracting' });
+    // Set background task indicator (persisted to localStorage via Zustand store)
+    startAiTask(capturedBank.id, capturedBank.name, capturedBank.subject_name);
 
     // Create a shared AbortController for cancellation support
     const abortController = new AbortController();
@@ -648,7 +655,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
         // ─── Step 1: Extract text from file (multi-strategy with fallbacks) ───
         if (isAborted()) return;
-        setAiBackgroundTask({ bankId: capturedBank.id, bankName: capturedBank.name, status: 'extracting' });
+        updateAiStatus('extracting');
         let content: string | null = null;
 
         // Strategy A: Server-side extraction from URL (most reliable for existing files)
@@ -746,7 +753,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
         // ─── Step 2: Generate questions using AI ───
         if (isAborted()) return;
-        setAiBackgroundTask({ bankId: capturedBank.id, bankName: capturedBank.name, status: 'generating' });
+        updateAiStatus('generating');
 
         const quizController = new AbortController();
         const quizTimeoutId = setTimeout(() => quizController.abort(), 120000);
@@ -789,7 +796,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
 
         // ─── Step 3: Add questions to the bank via API ───
         if (isAborted()) return;
-        setAiBackgroundTask({ bankId: capturedBank.id, bankName: capturedBank.name, status: 'saving' });
+        updateAiStatus('saving');
 
         const bankQuestions = questions.map(q => ({
           type: q.type,
@@ -848,7 +855,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
         if (aiAbortRef.current === abortController) {
           aiAbortRef.current = null;
         }
-        setAiBackgroundTask(null);
+        completeAiTask();
       }
     };
 
@@ -1752,7 +1759,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                         }`}
                       >
                         <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm text-foreground truncate">{file.file_name}</span>
+                        <span className="text-sm text-foreground truncate">{stripFileExtension(file.file_name)}</span>
                       </button>
                     ))}
                   </div>
@@ -1870,7 +1877,7 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
   // -------------------------------------------------------
   return (
     <div className="space-y-0">
-      {/* Background AI generation task indicator — inline within content flow */}
+      {/* Background AI generation task indicator — sticky at top */}
       <AnimatePresence>
         {aiBackgroundTask && (
           <motion.div
@@ -1878,22 +1885,29 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="mb-4 overflow-hidden"
+            className="sticky top-0 z-30 overflow-hidden"
           >
-            <div className="relative overflow-hidden rounded-xl border border-violet-200 dark:border-violet-800/40 bg-gradient-to-bl from-violet-50 via-white to-violet-50 dark:from-violet-950/30 dark:via-background dark:to-violet-950/30 px-4 py-3 shadow-sm" dir={direction}>
+            <div className="relative overflow-hidden border border-violet-200 dark:border-violet-800/40 bg-gradient-to-bl from-violet-50 via-white to-violet-50 dark:from-violet-950/30 dark:via-background dark:to-violet-950/30 px-4 py-3 shadow-md backdrop-blur-sm" dir={direction}>
               {/* Animated shimmer background */}
               <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-violet-200/20 dark:via-violet-500/10 to-transparent" />
 
               <div className="relative space-y-2.5">
-                {/* Row 1: Title + Cancel */}
+                {/* Row 1: Title + Subject + Cancel */}
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/40">
                       <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400 animate-pulse" />
                     </div>
-                    <p className="text-sm font-semibold text-violet-800 dark:text-violet-300 truncate">
-                      {t('questionBank.backgroundGenerating', { bankName: aiBackgroundTask.bankName })}
-                    </p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-violet-800 dark:text-violet-300 truncate">
+                        {t('questionBank.backgroundGenerating', { bankName: aiBackgroundTask.bankName })}
+                      </p>
+                      {aiBackgroundTask.subjectName && (
+                        <p className="text-xs text-violet-600 dark:text-violet-400 truncate">
+                          {t('questionBank.subjectNameLabel', { name: aiBackgroundTask.subjectName })}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <button
                     onClick={handleCancelAiGeneration}
@@ -1904,7 +1918,19 @@ export default function QuestionBankSection({ profile, onNavigateToCourse }: Que
                   </button>
                 </div>
 
-                {/* Row 2: Step indicators with progress bar */}
+                {/* Row 2: Prominent stage name */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-violet-700 dark:text-violet-300 uppercase tracking-wide">
+                    {t('questionBank.stageLabel')}
+                  </span>
+                  <span className="text-sm font-semibold text-violet-900 dark:text-violet-200">
+                    {aiBackgroundTask.status === 'extracting' && t('questionBank.stageExtracting')}
+                    {aiBackgroundTask.status === 'generating' && t('questionBank.stageGenerating')}
+                    {aiBackgroundTask.status === 'saving' && t('questionBank.stageSaving')}
+                  </span>
+                </div>
+
+                {/* Row 3: Step indicators with progress bar */}
                 <div className="space-y-1.5">
                   {/* Step labels */}
                   <div className="flex items-center justify-between gap-2">

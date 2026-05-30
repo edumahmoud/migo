@@ -37,6 +37,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, Lecture, AttendanceSession, LectureWithAttendance, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
+import { stripFileExtension } from '@/lib/utils';
 import LectureModal from '@/components/course/tabs/lecture-modal';
 import { useTranslations } from '@/i18n/use-translations';
 
@@ -2440,7 +2441,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                                           className="flex items-center gap-1.5 text-sm font-medium text-sky-800 dark:text-sky-400 hover:text-sky-900 transition-colors min-w-0"
                                         >
                                           <Eye className="h-3.5 w-3.5 shrink-0" />
-                                          <span className="truncate">{fileRef.name}</span>
+                                          <span className="truncate">{stripFileExtension(fileRef.name)}</span>
                                         </button>
                                         <button
                                           onClick={(e) => { e.stopPropagation(); downloadWithCustomName(fileRef.url, fileRef.name); }}
@@ -3021,7 +3022,7 @@ export default function LecturesTab({ profile, role, subjectId, subject, teacher
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
                     <FileText className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   </div>
-                  <h3 className="text-sm font-bold text-foreground truncate">{studentPreviewFile.name}</h3>
+                  <h3 className="text-sm font-bold text-foreground truncate">{stripFileExtension(studentPreviewFile.name)}</h3>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button

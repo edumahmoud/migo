@@ -413,3 +413,171 @@ Stage Summary:
 - Lint passes with 0 errors
 - Pushed to GitHub (commit d725345)
 - Files modified: subjects-section.tsx, course-page.tsx, report-button.tsx, reports-section.tsx, question-bank-section.tsx, ar.ts, en.ts
+
+---
+Task ID: 4
+Agent: Main
+Task: Fix notification system — bell visibility, sound enhancement, exam/task time notifications
+
+Work Log:
+- Read worklog.md and all key files to understand current state
+- Analyzed notification-store.ts, notification-bell.tsx, student-dashboard.tsx, and translation files
+
+**1. Fixed bell notification visibility (notification-bell.tsx)**
+- Changed from destructuring the entire store object to using individual Zustand selectors (`useNotificationStore((s) => s.notifications)`, etc.) to ensure each value triggers independent re-renders and avoids stale closures
+- Added a periodic forced refresh useEffect (every 30s) that calls `refetchNotifications()` independently of the store's internal polling, ensuring the badge count and notification list stay up-to-date even if Realtime drops or internal polling misses events
+
+**2. Enhanced notification sound (notification-store.ts)**
+- Exported `playNotificationFeedback()` function (was previously module-private)
+- Increased gain: first tone 0.15→0.35, second tone 0.12→0.30
+- Added third tone at 1760Hz (0.25 gain) for more distinct ascending chime
+- Increased first tone frequency: 660Hz→880Hz, second tone: 880Hz→1320Hz
+- Increased tone durations: first 0.15→0.2s, second 0.2→0.23s, third 0.55s total
+- Added HTML5 Audio element fallback: generates a WAV blob (800Hz, 250ms sine wave with fade-out) and plays via `new Audio(url)` with volume 0.8 — more reliable on mobile browsers (especially iOS Safari)
+- Enhanced vibration pattern: [100,50,100] → [150,80,150]
+- Both playback methods attempt in parallel for maximum compatibility
+
+**3. Added exam/task time notifications (student-dashboard.tsx)**
+- Added imports for `playNotificationFeedback` and `useNotificationStore` from notification-store
+- Added new useEffect with `setInterval` (30s) that checks all scheduled quizzes and assignments
+- When a quiz start time arrives (within 1 minute window), triggers:
+  1. `playNotificationFeedback()` for sound
+  2. `toast.info()` for in-app toast notification (8s duration)
+  3. Browser `Notification` API (with permission request on first run)
+  4. `useNotificationStore.getState().createNotification()` to add entry to the bell
+- Same 4-step notification for assignment due time arrivals
+- Tracks notified IDs in a Set to avoid duplicate notifications
+- Uses existing `parseLocalDateTime()` function for quiz time parsing
+
+**4. Added translation keys (en.json + ar.json)**
+- `student.quizStartingNow`: "Quiz Starting Now!" / "بدأ الاختبار الآن!"
+- `student.quizStartingNowDesc`: "Quiz \"{title}\" has started — you can enter now" / "اختبار \"{title}\" قد بدأ — يمكنك الدخول الآن"
+- `student.assignmentDueNow`: "Assignment Time!" / "حان وقت المهمة!"
+- `student.assignmentDueNowDesc`: "Assignment \"{title}\" is now available" / "المهمة \"{title}\" أصبحت متاحة الآن"
+
+Stage Summary:
+- Bell notification visibility fixed with proper Zustand selectors + 30s forced refresh
+- Notification sound enhanced with 3-tone chime + HTML5 Audio fallback for mobile
+- Exam/task time notification system added with sound, toast, browser notification, and bell entry
+- All 4 translation keys added in both en.json and ar.json
+- TypeScript type check passes
+- Lint passes with 0 errors
+- Files modified: src/stores/notification-store.ts, src/components/shared/notification-bell.tsx, src/components/student/student-dashboard.tsx, src/i18n/messages/en.json, src/i18n/messages/ar.json
+
+---
+Task ID: 5
+Agent: Main
+Task: Fix file display system — Realtime for files tab, remove extensions from display, keep type badges
+
+Work Log:
+- Read worklog.md and all key files to understand current state
+- Verified that files-tab.tsx ALREADY has Supabase Realtime subscriptions for subject_files INSERT/UPDATE/DELETE (added in Task ID 1 worklog entry). No additional Realtime work needed.
+- Verified that personal-files-section.tsx ALREADY strips extensions using `getFileNameWithoutExt()` in all display locations (lines 1750, 2233, 2563, 2718, 2990, 3076, 3138, 3436). No changes needed.
+
+**1. Created shared `stripFileExtension` helper function**
+- Added `stripFileExtension()` to `src/lib/utils.ts` (alongside existing `cn()` utility)
+- Handles edge cases: hidden files (`.gitignore`), no extension, empty strings, compound extensions (`archive.tar.gz` → `archive.tar`)
+- Exported so all components can import from a single location
+
+**2. Applied extension removal in files-tab.tsx**
+- Added `import { stripFileExtension } from '@/lib/utils'`
+- Line 752: `{file.file_name}` → `{stripFileExtension(file.file_name)}` (file list primary name)
+- Line 1071: `{previewFile.file_name}` → `{stripFileExtension(previewFile.file_name)}` (preview modal header)
+- Kept `file.file_name` for download (`a.download = file.file_name`), alt text, and title attributes
+
+**3. Applied extension removal in file-upload-indicator.tsx**
+- Line 301-302: Removed `{task.extension ? `.${task.extension}` : ''}` from the task name display
+- Now shows only `{task.customName}` without the extension suffix (type badge already indicates the file type)
+
+**4. Applied extension removal in question-bank-section.tsx**
+- Added `import { stripFileExtension } from '@/lib/utils'`
+- Line 1756: `{file.file_name}` → `{stripFileExtension(file.file_name)}` (AI modal file list)
+
+**5. Applied extension removal in lectures-tab.tsx**
+- Added `import { stripFileExtension } from '@/lib/utils'`
+- Line 2444: `{fileRef.name}` → `{stripFileExtension(fileRef.name)}` (student expanded notes file link)
+- Line 3025: `{studentPreviewFile.name}` → `{stripFileExtension(studentPreviewFile.name)}` (file preview modal header)
+- Kept `fileRef.name` for download calls (downloadWithCustomName), alt text, title, and extension detection for preview type
+
+**6. Applied extension removal in lecture-modal.tsx**
+- Added `import { stripFileExtension } from '@/lib/utils'`
+- Line 1332: `{fileRef.name}` → `{stripFileExtension(fileRef.name)}` (teacher file notes display)
+- Line 1381: `{fileRef.name}` → `{stripFileExtension(fileRef.name)}` (student file notes display)
+- Line 1704: `{previewFile.name}` → `{stripFileExtension(previewFile.name)}` (file preview modal header)
+- Kept `previewFile.name` for download calls, alt text, and title attributes
+
+**Important preservation notes:**
+- Full file names (with extension) are preserved for all functional operations: downloads (`a.download`), preview type detection, alt/title attributes
+- File type badges (PDF, DOC, IMAGE, etc.) remain unchanged — they use `getFileTypeLabel()` which derives from MIME type, not the file name extension
+- Database storage is unchanged — only display is affected
+- The `fetchFiles` function already accepts `showLoading` parameter for Realtime refetches
+
+Stage Summary:
+- Realtime subscription for files-tab.tsx was already in place from previous task — verified, no changes needed
+- Extension removal applied across 5 components (files-tab, file-upload-indicator, question-bank-section, lectures-tab, lecture-modal)
+- personal-files-section.tsx already had extension stripping — no changes needed
+- Shared `stripFileExtension` helper added to `src/lib/utils.ts` for consistent behavior
+- Lint passes with 0 errors
+- Files modified: src/lib/utils.ts, src/components/course/tabs/files-tab.tsx, src/components/shared/file-upload-indicator.tsx, src/components/teacher/question-bank-section.tsx, src/components/course/tabs/lectures-tab.tsx, src/components/course/tabs/lecture-modal.tsx
+
+---
+Task ID: 6
+Agent: Main
+Task: Improve AI question generation system — sticky progress bar, stage names, persisted state
+
+Work Log:
+- Read worklog.md and all key files to understand current implementation
+- Identified that `aiBackgroundTask` was local useState (lost on navigation)
+- Identified that progress indicator was inline (not sticky) and lacked subject name and stage name
+- Identified that existing translation keys (backgroundGenerating, backgroundExtracting, backgroundGeneratingStatus, backgroundSaving) were missing from JSON files
+
+**1. Created Zustand store for AI generation state**
+- Created `src/stores/ai-generation-store.ts`:
+  - `AiGenerationState` interface with bankId, bankName, subjectName, status, startedAt
+  - Actions: startTask, updateStatus, completeTask, cancelTask, restoreFromStorage
+  - Persists to localStorage under key `attendo_ai_generation`
+  - Auto-clears stale tasks older than 10 minutes on restore
+  - All localStorage operations wrapped in try/catch for private browsing safety
+
+**2. Added translation keys to ar.json and en.json**
+- `backgroundGenerating`: "جارٍ إنشاء أسئلة لبنك: {bankName}" / "Generating questions for bank: {bankName}"
+- `backgroundExtracting`: "استخراج النص" / "Extracting text"
+- `backgroundGeneratingStatus`: "إنشاء الأسئلة" / "Generating questions"
+- `backgroundSaving`: "حفظ الأسئلة" / "Saving questions"
+- `stageLabel`: "المرحلة:" / "Stage:"
+- `stageExtracting`: "استخراج النص من الملف" / "Extracting text from file"
+- `stageGenerating`: "إنشاء الأسئلة بالذكاء الاصطناعي" / "Generating questions with AI"
+- `stageSaving`: "حفظ الأسئلة في البنك" / "Saving questions to bank"
+- `subjectNameLabel`: "المقرر: {name}" / "Course: {name}"
+
+**3. Modified question-bank-section.tsx**
+- Replaced `useState<aiBackgroundTask>` with `useAiGenerationStore()` destructured as `{ activeTask, startTask, updateStatus, completeTask, cancelTask }`
+- Added `useEffect` on mount to call `restoreFromStorage()` (survives navigation away and back)
+- Updated `handleGenerateFromAiFile`:
+  - `startAiTask(capturedBank.id, capturedBank.name, capturedBank.subject_name)` — now includes subject name
+  - `updateAiStatus('extracting'/'generating'/'saving')` instead of `setAiBackgroundTask(...)`
+  - `completeAiTask()` instead of `setAiBackgroundTask(null)` in finally block
+- Updated `handleCancelAiGeneration` to use `cancelAiTask()` instead of `setAiBackgroundTask(null)`
+- Made progress indicator sticky at top:
+  - Changed outer `motion.div` class from `mb-4 overflow-hidden` to `sticky top-0 z-30 overflow-hidden`
+  - Changed inner card from `rounded-xl shadow-sm` to `shadow-md backdrop-blur-sm` (flat top when sticky, stronger shadow for visibility)
+- Added subject name display:
+  - Bank name + subject name now in a stacked layout with `min-w-0` for truncation
+  - Subject name shown as secondary text: `{t('questionBank.subjectNameLabel', { name: subjectName })}`
+- Added prominent stage name:
+  - New "Row 2" between title and step indicators
+  - Shows "المرحلة:" label (uppercase, bold, tracking-wide) + current stage name (semibold, larger font)
+  - Stage name changes dynamically based on status: extracting → generating → saving
+- `aiAbortRef` (AbortController) remains as a useRef — not serialized to store, as AbortControllers can't be serialized
+- When restoring from localStorage, the AbortController is lost so user can't cancel a restored task — acceptable since stale tasks auto-clear after 10 minutes
+
+Stage Summary:
+- AI generation state now persists to localStorage via Zustand store — survives navigation within the app
+- Progress indicator is sticky at top of question bank section — stays visible when scrolling
+- Subject/course name displayed alongside bank name in progress indicator
+- Current stage name shown prominently above step indicators
+- All 9 translation keys added to both ar.json and en.json
+- Previously missing translation keys (backgroundGenerating, backgroundExtracting, etc.) now populated
+- Lint passes with 0 errors
+- Files created: src/stores/ai-generation-store.ts
+- Files modified: src/components/teacher/question-bank-section.tsx, src/i18n/messages/ar.json, src/i18n/messages/en.json

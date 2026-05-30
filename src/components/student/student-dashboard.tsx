@@ -84,6 +84,7 @@ import { useAppStore } from '@/stores/app-store';
 import { useAnnouncementBannerStore } from '@/stores/announcement-banner-store';
 import { useTranslations } from '@/i18n/use-translations';
 import { useAuthStore } from '@/stores/auth-store';
+import { playNotificationFeedback, useNotificationStore } from '@/stores/notification-store';
 import { toast } from 'sonner';
 import type { UserProfile, Summary, Quiz, Score, StudentSection, Subject, UserFile, Submission, Assignment } from '@/lib/types';
 import { extractPdfTextClient, extractTextFromFile } from '@/lib/pdf-client';
@@ -204,15 +205,22 @@ function isQuizTimeExpired(quiz: { scheduled_date?: string; scheduled_time?: str
 
 // -------------------------------------------------------
 // Student quiz countdown timer (mini version for dashboard cards)
+// Shows human-readable format: "يبدأ بعد ساعتين و 15 دقيقة"
 // -------------------------------------------------------
 function StudentQuizCountdown({ targetDate }: { targetDate: Date }) {
   const { t } = useTranslations();
   const [remaining, setRemaining] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+  const [started, setStarted] = useState(false);
 
   useEffect(() => {
     const tick = () => {
       const diff = targetDate.getTime() - Date.now();
-      if (diff <= 0) { setRemaining(null); return; }
+      if (diff <= 0) {
+        setStarted(true);
+        setRemaining(null);
+        return;
+      }
+      setStarted(false);
       setRemaining({
         d: Math.floor(diff / 86_400_000),
         h: Math.floor((diff % 86_400_000) / 3_600_000),
@@ -225,14 +233,32 @@ function StudentQuizCountdown({ targetDate }: { targetDate: Date }) {
     return () => clearInterval(id);
   }, [targetDate]);
 
+  if (started) {
+    return (
+      <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-teal-50 dark:bg-teal-900/15 border border-teal-200 dark:border-teal-900/60">
+        <Play className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+        <span className="text-xs font-bold text-teal-700 dark:text-teal-400">{t('exams.availableNow')}</span>
+      </div>
+    );
+  }
+
   if (!remaining) return null;
 
+  // Build human-readable parts like: "يومين و 3 ساعات و 15 دقيقة"
+  const parts: string[] = [];
+  if (remaining.d > 0) parts.push(`${remaining.d} ${t('exams.dayUnit')}`);
+  if (remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.h} ${t('exams.hourUnit')}`);
+  if (remaining.m > 0 || remaining.h > 0 || remaining.d > 0) parts.push(`${remaining.m} ${t('exams.minuteUnit')}`);
+  // Only show seconds when countdown is short (less than 1 hour)
+  if (remaining.d === 0 && remaining.h === 0) {
+    parts.push(`${remaining.s} ${t('exams.secondUnit')}`);
+  }
+
   return (
-    <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-amber-100/50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40">
-      <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-      <span className="text-xs font-bold text-amber-700 dark:text-amber-400">
-        {t('exams.startsIn')} {remaining.d > 0 && `${remaining.d}${t('exams.dayUnit')} `}
-        {remaining.h.toString().padStart(2, '0')}:{remaining.m.toString().padStart(2, '0')}:{remaining.s.toString().padStart(2, '0')}
+    <div className="flex items-center gap-1.5 mt-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/60">
+      <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500 animate-pulse" />
+      <span className="text-xs font-semibold text-amber-700 dark:text-amber-500">
+        {t('exams.startsIn')} {parts.join(` ${t('exams.and')} `)}
       </span>
     </div>
   );
@@ -1228,6 +1254,116 @@ export default function StudentDashboard({ profile, onSignOut }: StudentDashboar
       authListener?.subscription?.unsubscribe();
     };
   }, [fetchSummaries]);
+
+  // ─── Exam/Task time notification system ───
+  // Checks all scheduled quizzes and assignments every 30 seconds.
+  // When a quiz/assignment start time arrives (within 1 minute window),
+  // triggers: browser notification + sound + toast + store notification entry.
+  useEffect(() => {
+    if (!profile?.id) return;
+
+    const notifiedIds = new Set<string>();
+
+    // Request browser notification permission on first run
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+
+    const checkTimes = () => {
+      const now = new Date();
+
+      // Check quizzes
+      for (const quiz of quizzes) {
+        if (!quiz.scheduled_date || quiz.is_finished) continue;
+        const startTime = parseLocalDateTime(quiz.scheduled_date, quiz.scheduled_time || '00:00');
+        if (!startTime) continue;
+
+        const diffMs = startTime.getTime() - now.getTime();
+        // Notify if the quiz starts within 1 minute (before or after)
+        if (diffMs <= 60000 && diffMs >= -60000 && !notifiedIds.has(`quiz-${quiz.id}`)) {
+          notifiedIds.add(`quiz-${quiz.id}`);
+
+          const title = quiz.title || t('nav.exams');
+          const notifTitle = t('student.quizStartingNow');
+          const notifDesc = t('student.quizStartingNowDesc', { title });
+
+          // 1. Play notification sound
+          playNotificationFeedback();
+
+          // 2. Show toast
+          toast.info(notifTitle, { description: notifDesc, duration: 8000 });
+
+          // 3. Browser notification
+          try {
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification(notifTitle, { body: notifDesc, icon: '/icon-192x192.png' });
+            }
+          } catch { /* Notification API not supported */ }
+
+          // 4. Add to notification store (so it appears in the bell)
+          try {
+            const store = useNotificationStore.getState();
+            store.createNotification({
+              userId: profile.id,
+              type: 'quiz',
+              title: notifTitle,
+              message: notifDesc,
+              link: undefined,
+            });
+          } catch { /* store not available */ }
+        }
+      }
+
+      // Check assignments
+      for (const assignment of assignments) {
+        if (!assignment.due_date) continue;
+        // Parse assignment due date — assignments use ISO string or datetime
+        const dueDate = new Date(assignment.due_date);
+        if (isNaN(dueDate.getTime())) continue;
+
+        const diffMs = dueDate.getTime() - now.getTime();
+        // Notify if the assignment due time arrives within 1 minute
+        if (diffMs <= 60000 && diffMs >= -60000 && !notifiedIds.has(`assignment-${assignment.id}`)) {
+          notifiedIds.add(`assignment-${assignment.id}`);
+
+          const title = assignment.title || t('nav.assignments');
+          const notifTitle = t('student.assignmentDueNow');
+          const notifDesc = t('student.assignmentDueNowDesc', { title });
+
+          // 1. Play notification sound
+          playNotificationFeedback();
+
+          // 2. Show toast
+          toast.info(notifTitle, { description: notifDesc, duration: 8000 });
+
+          // 3. Browser notification
+          try {
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification(notifTitle, { body: notifDesc, icon: '/icon-192x192.png' });
+            }
+          } catch { /* Notification API not supported */ }
+
+          // 4. Add to notification store (so it appears in the bell)
+          try {
+            const store = useNotificationStore.getState();
+            store.createNotification({
+              userId: profile.id,
+              type: 'assignment',
+              title: notifTitle,
+              message: notifDesc,
+              link: undefined,
+            });
+          } catch { /* store not available */ }
+        }
+      }
+    };
+
+    // Check immediately on mount
+    checkTimes();
+    // Then check every 30 seconds
+    const timer = setInterval(checkTimes, 30000);
+    return () => clearInterval(timer);
+  }, [profile.id, quizzes, assignments, t]);
 
   // -------------------------------------------------------
   // Realtime subscriptions

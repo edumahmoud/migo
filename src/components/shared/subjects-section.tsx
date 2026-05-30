@@ -1342,14 +1342,11 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                           setStoreSelectedSubjectId(subject.id);
                         }}
                       >
-                        {/* ── Paused overlay for students ── */}
+                        {/* ── Paused banner for students (over cover only, name stays visible) ── */}
                         {isPaused && role === 'student' && (
-                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-start bg-background/80 backdrop-blur-[4px] transition-opacity pt-5">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30 shadow-sm mb-2">
-                              <Pause className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                            </div>
-                            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">{t('course.paused')}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5 px-4 text-center">{t('course.pausedOverlayDesc')}</p>
+                          <div className="absolute top-0 start-0 end-0 z-20 flex items-center justify-center gap-2 bg-amber-500/90 dark:bg-amber-600/90 backdrop-blur-sm py-2 px-3 shadow-sm">
+                            <Pause className="h-4 w-4 text-white shrink-0" />
+                            <span className="text-xs font-bold text-white">{t('course.paused')}</span>
                           </div>
                         )}
                         {/* ── Cover Image Section ── */}
@@ -1457,11 +1454,16 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
 
                         {/* ── Card Body ── */}
                         <div className="relative p-4">
-                          {/* Paused badge */}
+                          {/* Paused badge + description for students */}
                           {isPaused && (
-                            <div className="mb-2 inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 px-2.5 py-1 text-xs text-amber-700 dark:text-amber-400 font-semibold">
-                              <Pause className="h-3 w-3 shrink-0" />
-                              {t('course.paused')}
+                            <div className="mb-2">
+                              <div className="inline-flex items-center gap-1 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/60 px-2.5 py-1 text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                                <Pause className="h-3 w-3 shrink-0" />
+                                {t('course.paused')}
+                              </div>
+                              {role === 'student' && (
+                                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{t('course.pausedOverlayDesc')}</p>
+                              )}
                             </div>
                           )}
                           {/* Description (only when no cover, since cover already shows it) */}

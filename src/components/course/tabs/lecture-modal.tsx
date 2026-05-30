@@ -38,6 +38,7 @@ import { waitForSession, getCachedAuthHeaders, initAuthCacheListener } from '@/l
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import type { UserProfile, LectureWithAttendance, AttendanceRecordWithStudent, LectureNote, LectureNoteWithAuthor } from '@/lib/types';
+import { stripFileExtension } from '@/lib/utils';
 import UserAvatar from '@/components/shared/user-avatar';
 
 // -------------------------------------------------------
@@ -1328,7 +1329,7 @@ export default function LectureModal({
                                     className="flex items-center gap-2 rounded-lg bg-sky-700/10 border border-sky-200 dark:border-sky-900/60 px-3 py-2 text-sm font-medium text-sky-800 dark:text-sky-400 hover:bg-sky-100 transition-colors flex-1 text-end"
                                   >
                                     <Eye className="h-4 w-4 shrink-0" />
-                                    <span className="truncate">{fileRef.name}</span>
+                                    <span className="truncate">{stripFileExtension(fileRef.name)}</span>
                                   </button>
                                   <button
                                     onClick={() => downloadWithCustomName(fileRef.url, fileRef.name)}
@@ -1377,7 +1378,7 @@ export default function LectureModal({
                                 className="flex items-center gap-2 flex-1 text-end text-sm font-medium text-sky-800 dark:text-sky-400 hover:text-sky-900 transition-colors min-w-0"
                               >
                                 <Eye className="h-4 w-4 shrink-0" />
-                                <span className="truncate">{fileRef.name}</span>
+                                <span className="truncate">{stripFileExtension(fileRef.name)}</span>
                               </button>
                               <button
                                 onClick={() => downloadWithCustomName(fileRef.url, fileRef.name)}
@@ -1700,7 +1701,7 @@ export default function LectureModal({
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-800/40">
                     <FileText className="h-5 w-5 text-sky-700 dark:text-sky-400" />
                   </div>
-                  <h3 className="text-sm font-bold text-foreground truncate">{previewFile.name}</h3>
+                  <h3 className="text-sm font-bold text-foreground truncate">{stripFileExtension(previewFile.name)}</h3>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button

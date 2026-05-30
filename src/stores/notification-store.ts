@@ -172,20 +172,73 @@ function isRLSRecursionError(error: { code?: string; message?: string } | null |
 // ─── Notification sound / haptic feedback ───
 /**
  * Play a short notification sound and vibrate the device when a new
- * notification arrives. Uses the Web Audio API to generate a subtle
- * chime without requiring an external audio file.
+ * notification arrives. Uses the Web Audio API to generate a distinct
+ * three-tone chime without requiring an external audio file.
+ * Also attempts an HTML5 Audio fallback for more reliable mobile playback.
  */
 let audioContext: AudioContext | null = null;
 
-function playNotificationFeedback(): void {
+export function playNotificationFeedback(): void {
   // Vibrate on supported devices (mobile)
   try {
     if (navigator.vibrate) {
-      navigator.vibrate([100, 50, 100]);
+      navigator.vibrate([150, 80, 150]);
     }
   } catch { /* vibration not supported */ }
 
-  // Play a short chime using Web Audio API
+  // ─── Attempt 1: HTML5 Audio with data URI (more reliable on mobile) ───
+  // Some mobile browsers (especially iOS Safari) only allow audio playback
+  // via the Audio element, not Web Audio API, and only after user interaction.
+  // We try this first because it's more likely to work on mobile.
+  try {
+    // Generate a short WAV file as a data URI for a noticeable beep
+    // This is a simple PCM sine wave beep: 800Hz, 200ms, mono, 8000 sample rate
+    const sampleRate = 8000;
+    const duration = 0.25;
+    const numSamples = Math.floor(sampleRate * duration);
+    const frequency = 800;
+    // Create WAV buffer
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
+    // WAV header
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    };
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true); // chunk size
+    view.setUint16(20, 1, true);  // PCM
+    view.setUint16(22, 1, true);  // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); // byte rate
+    view.setUint16(32, 2, true);  // block align
+    view.setUint16(34, 16, true); // bits per sample
+    writeString(36, 'data');
+    view.setUint32(40, numSamples * 2, true);
+    // Generate sine wave samples with fade-out
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      const fadeOut = 1 - (t / duration); // linear fade out
+      const sample = Math.sin(2 * Math.PI * frequency * t) * 0.6 * fadeOut;
+      view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, sample * 32767)), true);
+    }
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.volume = 0.8;
+    const playPromise = audio.play();
+    if (playPromise) {
+      playPromise.catch(() => { /* autoplay blocked, will try Web Audio */ }).finally(() => {
+        // Clean up the object URL after a delay
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+    }
+  } catch { /* Audio element not supported, try Web Audio fallback */ }
+
+  // ─── Attempt 2: Web Audio API three-tone chime ───
+  // Play a more noticeable three-tone ascending chime with higher gain
   try {
     if (!audioContext) {
       audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -195,33 +248,45 @@ function playNotificationFeedback(): void {
       ctx.resume();
     }
 
-    // Create a pleasant two-tone chime
     const now = ctx.currentTime;
 
-    // First tone
+    // First tone — 880Hz, louder
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.type = 'sine';
     osc1.frequency.setValueAtTime(880, now);
-    gain1.gain.setValueAtTime(0.15, now);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    gain1.gain.setValueAtTime(0.35, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
     osc1.connect(gain1);
     gain1.connect(ctx.destination);
     osc1.start(now);
-    osc1.stop(now + 0.15);
+    osc1.stop(now + 0.2);
 
-    // Second tone (higher pitch, delayed)
+    // Second tone — 1320Hz, higher pitch, delayed
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(1100, now + 0.1);
+    osc2.frequency.setValueAtTime(1320, now + 0.12);
     gain2.gain.setValueAtTime(0.001, now);
-    gain2.gain.setValueAtTime(0.12, now + 0.1);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    gain2.gain.setValueAtTime(0.30, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
     osc2.connect(gain2);
     gain2.connect(ctx.destination);
-    osc2.start(now + 0.1);
-    osc2.stop(now + 0.3);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.35);
+
+    // Third tone — 1760Hz, highest pitch, more delayed — more distinct
+    const osc3 = ctx.createOscillator();
+    const gain3 = ctx.createGain();
+    osc3.type = 'sine';
+    osc3.frequency.setValueAtTime(1760, now + 0.25);
+    gain3.gain.setValueAtTime(0.001, now);
+    gain3.gain.setValueAtTime(0.25, now + 0.25);
+    gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    osc3.connect(gain3);
+    gain3.connect(ctx.destination);
+    osc3.start(now + 0.25);
+    osc3.stop(now + 0.55);
   } catch { /* audio not available, non-critical */ }
 }
 

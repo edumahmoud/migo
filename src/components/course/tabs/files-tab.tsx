@@ -45,6 +45,7 @@ import {
 import { formatNameWithTitle } from '@/components/shared/user-avatar';
 import type { UserProfile, Subject, SubjectFile } from '@/lib/types';
 import { useTranslations } from '@/i18n/use-translations';
+import { stripFileExtension } from '@/lib/utils';
 
 // -------------------------------------------------------
 // Props
@@ -748,7 +749,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
 
                 {/* File info */}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground truncate">{file.file_name}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">{stripFileExtension(file.file_name)}</p>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1 flex-wrap">
                     <span>{formatFileSize(file.file_size)}</span>
                     <span className="text-muted-foreground/40">•</span>
@@ -1067,7 +1068,7 @@ export default function FilesTab({ profile, role, subjectId }: FilesTabProps) {
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b p-4 shrink-0">
-                <h3 className="text-sm font-bold text-foreground truncate">{previewFile.file_name}</h3>
+                <h3 className="text-sm font-bold text-foreground truncate">{stripFileExtension(previewFile.file_name)}</h3>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleDownload(previewFile)}

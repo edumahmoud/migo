@@ -97,17 +97,17 @@ export default function NotificationBell() {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [linkRequestModal, setLinkRequestModal] = useState<{teacherId: string; notificationId: string; teacher: any | null; loading: boolean} | null>(null);
   const [processingAction, setProcessingAction] = useState(false);
-  const { 
-    notifications, 
-    unreadCount, 
-    initialized,
-    initializeNotifications, 
-    refetchNotifications,
-    markAsRead, 
-    markAllAsRead, 
-    clearNotification, 
-    clearAll 
-  } = useNotificationStore();
+  // Use individual selectors to ensure each value triggers independent re-renders
+  // This avoids stale closures that can occur when destructuring from a single object
+  const notifications = useNotificationStore((s) => s.notifications);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const initialized = useNotificationStore((s) => s.initialized);
+  const initializeNotifications = useNotificationStore((s) => s.initializeNotifications);
+  const refetchNotifications = useNotificationStore((s) => s.refetchNotifications);
+  const markAsRead = useNotificationStore((s) => s.markAsRead);
+  const markAllAsRead = useNotificationStore((s) => s.markAllAsRead);
+  const clearNotification = useNotificationStore((s) => s.clearNotification);
+  const clearAll = useNotificationStore((s) => s.clearAll);
   const { user } = useAuthStore();
   const { setStudentSection, setTeacherSection, setAdminSection, setCurrentPage } = useAppStore();
 
@@ -130,6 +130,18 @@ export default function NotificationBell() {
       initializeNotifications(user.id);
     }
   }, [user?.id, initialized, initializeNotifications]);
+
+  // ─── Periodic forced refresh for the bell (every 30s) ───
+  // This ensures the badge count and notification list stay up-to-date even
+  // if the store's Realtime subscription drops or polling misses events.
+  // It runs independently of the store's internal 8s/15s polling.
+  useEffect(() => {
+    if (!user?.id) return;
+    const timer = setInterval(() => {
+      refetchNotifications();
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [user?.id, refetchNotifications]);
 
 
 

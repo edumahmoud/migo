@@ -299,7 +299,6 @@ export default function FileUploadIndicator() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">
                           {task.customName}
-                          {task.extension ? `.${task.extension}` : ''}
                         </p>
                         {(task.status === 'uploading' || task.status === 'paused') && (
                           <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
