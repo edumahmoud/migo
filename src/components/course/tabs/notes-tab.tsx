@@ -158,7 +158,7 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
     return visibleNotes.filter((n) => n.lecture_id && n.lecture_id !== generalLectureId);
   }, [visibleNotes, generalLectureId]);
 
-  // Sticky notes: notes with visibility='sticky'
+  // Sticky notes: notes with visibility='sticky' OR from sticky_notes table
   const stickyNotes = useMemo(() => {
     return visibleNotes.filter((n) => n.visibility === 'sticky' && !hiddenStickyIds.has(n.id));
   }, [visibleNotes, hiddenStickyIds]);
@@ -345,32 +345,20 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           }
         }
       } else {
-        // Determine lecture_id
-        let lectureId = noteLectureId;
-
-        // If no lecture selected, use general notes lecture
-        if (!lectureId) {
-          const genId = await ensureGeneralLecture();
-          if (!genId) {
+        // If visibility is 'sticky', create in sticky_notes table (app-level)
+        if (noteVisibility === 'sticky') {
+          const { error } = await supabase.from('sticky_notes').insert({
+            user_id: profile.id,
+            subject_id: subjectId,
+            content,
+            color: 'amber',
+          });
+          if (error) {
+            console.error('Error creating sticky note:', error);
             toast.error(t('noteCreateFailed'));
-            setSavingNote(false);
-            return;
-          }
-          lectureId = genId;
-        }
-
-        const { error } = await supabase.from('lecture_notes').insert({
-          lecture_id: lectureId,
-          user_id: profile.id,
-          content,
-          visibility: noteVisibility,
-        });
-        if (error) toast.error(t('noteCreateFailed'));
-        else {
-          const visLabel = noteVisibility === 'sticky' ? t('stickyNote') : noteVisibility === 'public' ? t('publicNotePublished') : t('privateNoteSaved');
-          toast.success(visLabel);
-          // Send notification to all students for public/sticky notes
-          if ((noteVisibility === 'public' || noteVisibility === 'sticky') && !editingNoteId) {
+          } else {
+            toast.success(t('stickyNote'));
+            // Send notification
             try {
               const preview = content.length > 50 ? content.substring(0, 50) + '...' : content;
               const { getCachedAuthHeaders } = await import('@/lib/client-auth');
@@ -386,6 +374,51 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
                 }),
               });
             } catch { /* notification failure is non-critical */ }
+          }
+        } else {
+          // Regular note: create in lecture_notes table
+          // Determine lecture_id
+          let lectureId = noteLectureId;
+
+          // If no lecture selected, use general notes lecture
+          if (!lectureId) {
+            const genId = await ensureGeneralLecture();
+            if (!genId) {
+              toast.error(t('noteCreateFailed'));
+              setSavingNote(false);
+              return;
+            }
+            lectureId = genId;
+          }
+
+          const { error } = await supabase.from('lecture_notes').insert({
+            lecture_id: lectureId,
+            user_id: profile.id,
+            content,
+            visibility: noteVisibility,
+          });
+          if (error) toast.error(t('noteCreateFailed'));
+          else {
+            const visLabel = noteVisibility === 'public' ? t('publicNotePublished') : t('privateNoteSaved');
+            toast.success(visLabel);
+            // Send notification to all students for public notes
+            if (noteVisibility === 'public' && !editingNoteId) {
+              try {
+                const preview = content.length > 50 ? content.substring(0, 50) + '...' : content;
+                const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+                const authHeaders = await getCachedAuthHeaders();
+                await fetch('/api/notify', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', ...authHeaders },
+                  body: JSON.stringify({
+                    action: 'public_note_created',
+                    subjectId,
+                    notePreview: preview,
+                    teacherName: profile.name,
+                  }),
+                });
+              } catch { /* notification failure is non-critical */ }
+            }
           }
         }
       }

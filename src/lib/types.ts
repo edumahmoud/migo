@@ -465,6 +465,22 @@ export interface UserTodo {
 }
 
 // -------------------------------------------------------
+// Sticky Notes (app-level floating notes)
+// -------------------------------------------------------
+export interface StickyNoteData {
+  id: string;
+  user_id: string;
+  subject_id?: string | null;
+  content: string;
+  color: string;
+  position_x: number;
+  position_y: number;
+  is_minimized: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// -------------------------------------------------------
 // Polls
 // -------------------------------------------------------
 export type PollType = 'vote' | 'rating' | 'open';

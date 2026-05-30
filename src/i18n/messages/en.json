@@ -843,7 +843,7 @@
     "noNotesYetFull": "No notes yet",
     "stickyNote": "Sticky Note",
     "showAsSticky": "Show as sticky note",
-    "stickyNoteDesc": "This note will appear as a floating card on screen",
+    "stickyNoteDesc": "This note will appear as a floating card across the entire app. You can drag and edit it.",
     "autoDistributeLabel": "Auto distribute",
     "createTeamsDesc": "Create teams to divide course students or use auto-assign",
     "selectAll": "Select All",
