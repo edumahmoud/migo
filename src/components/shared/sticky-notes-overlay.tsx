@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useAuthStore } from '@/stores/auth-store';
 import type { StickyNoteData } from '@/lib/types';
 
@@ -318,21 +319,18 @@ export default function StickyNotesOverlay() {
 
   const direction = user?.locale === 'ar' ? 'rtl' as const : 'ltr' as const;
 
-  // Fetch sticky notes
+  // Fetch sticky notes via API (uses service role key, bypasses RLS)
   const fetchNotes = useCallback(async () => {
     if (!user?.id) { setNotes([]); setLoading(false); return; }
     try {
-      const { data, error } = await supabase
-        .from('sticky_notes')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching sticky notes:', error);
-        setNotes([]);
+      const authHeaders = await getCachedAuthHeaders();
+      const res = await fetch('/api/sticky-notes', { headers: authHeaders });
+      if (res.ok) {
+        const data = await res.json();
+        setNotes((data.data as StickyNoteData[]) || []);
       } else {
-        setNotes((data as StickyNoteData[]) || []);
+        console.error('Error fetching sticky notes:', res.status);
+        setNotes([]);
       }
     } catch (err) {
       console.error('Fetch sticky notes error:', err);
@@ -344,7 +342,7 @@ export default function StickyNotesOverlay() {
 
   useEffect(() => { fetchNotes(); }, [fetchNotes]);
 
-  // Realtime subscription
+  // Realtime subscription — still listen for changes to refresh
   useEffect(() => {
     if (!user?.id) return;
     const channel = supabase
@@ -358,27 +356,40 @@ export default function StickyNotesOverlay() {
     return () => { supabase.removeChannel(channel); };
   }, [user?.id, fetchNotes]);
 
-  // Update note
+  // Update note via API
   const handleUpdate = useCallback(async (id: string, updates: Partial<StickyNoteData>) => {
     // Optimistic
     setNotes((prev) => prev.map((n) => n.id === id ? { ...n, ...updates } : n));
     try {
-      const { error } = await supabase
-        .from('sticky_notes')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id);
-      if (error) console.error('Error updating sticky note:', error);
+      const authHeaders = await getCachedAuthHeaders();
+      const res = await fetch('/api/sticky-notes', {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ id, ...updates }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        console.error('Error updating sticky note:', data.error);
+      }
     } catch (err) {
       console.error('Update sticky note error:', err);
     }
   }, []);
 
-  // Delete note
+  // Delete note via API
   const handleDelete = useCallback(async (id: string) => {
     setNotes((prev) => prev.filter((n) => n.id !== id));
     try {
-      const { error } = await supabase.from('sticky_notes').delete().eq('id', id);
-      if (error) console.error('Error deleting sticky note:', error);
+      const authHeaders = await getCachedAuthHeaders();
+      const res = await fetch('/api/sticky-notes', {
+        method: 'DELETE',
+        headers: authHeaders,
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        console.error('Error deleting sticky note:', data.error);
+      }
     } catch (err) {
       console.error('Delete sticky note error:', err);
     }

@@ -345,35 +345,44 @@ export default function NotesTab({ profile, role, subjectId, teacherName }: Note
           }
         }
       } else {
-        // If visibility is 'sticky', create in sticky_notes table (app-level)
+        // If visibility is 'sticky', create via API (uses service role key, bypasses RLS)
         if (noteVisibility === 'sticky') {
-          const { error } = await supabase.from('sticky_notes').insert({
-            user_id: profile.id,
-            subject_id: subjectId,
-            content,
-            color: 'amber',
-          });
-          if (error) {
-            console.error('Error creating sticky note:', error);
+          try {
+            const { getCachedAuthHeaders } = await import('@/lib/client-auth');
+            const authHeaders = await getCachedAuthHeaders();
+            const res = await fetch('/api/sticky-notes', {
+              method: 'POST',
+              headers: authHeaders,
+              body: JSON.stringify({
+                content,
+                color: 'amber',
+                subject_id: subjectId,
+              }),
+            });
+            const data = await res.json();
+            if (!res.ok || data.error) {
+              console.error('Error creating sticky note:', data.error);
+              toast.error(t('noteCreateFailed'));
+            } else {
+              toast.success(t('stickyNote'));
+              // Send notification
+              try {
+                const preview = content.length > 50 ? content.substring(0, 50) + '...' : content;
+                await fetch('/api/notify', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', ...authHeaders },
+                  body: JSON.stringify({
+                    action: 'public_note_created',
+                    subjectId,
+                    notePreview: preview,
+                    teacherName: profile.name,
+                  }),
+                });
+              } catch { /* notification failure is non-critical */ }
+            }
+          } catch (err) {
+            console.error('Create sticky note error:', err);
             toast.error(t('noteCreateFailed'));
-          } else {
-            toast.success(t('stickyNote'));
-            // Send notification
-            try {
-              const preview = content.length > 50 ? content.substring(0, 50) + '...' : content;
-              const { getCachedAuthHeaders } = await import('@/lib/client-auth');
-              const authHeaders = await getCachedAuthHeaders();
-              await fetch('/api/notify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...authHeaders },
-                body: JSON.stringify({
-                  action: 'public_note_created',
-                  subjectId,
-                  notePreview: preview,
-                  teacherName: profile.name,
-                }),
-              });
-            } catch { /* notification failure is non-critical */ }
           }
         } else {
           // Regular note: create in lecture_notes table

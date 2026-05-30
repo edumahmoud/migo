@@ -9,8 +9,7 @@ import {
   Loader2,
   X,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/stores/auth-store';
+import { getCachedAuthHeaders } from '@/lib/client-auth';
 import { useTranslations } from '@/i18n/use-translations';
 import { toast } from 'sonner';
 
@@ -33,7 +32,6 @@ interface StickyNoteModalProps {
 }
 
 export default function StickyNoteModal({ open, onClose }: StickyNoteModalProps) {
-  const { user } = useAuthStore();
   const { t, direction } = useTranslations();
   const [content, setContent] = useState('');
   const [color, setColor] = useState<StickyColor>('amber');
@@ -45,23 +43,24 @@ export default function StickyNoteModal({ open, onClose }: StickyNoteModalProps)
       return;
     }
 
-    if (!user?.id) return;
-
     setCreating(true);
     try {
-      const { error } = await supabase
-        .from('sticky_notes')
-        .insert({
-          user_id: user.id,
+      const authHeaders = await getCachedAuthHeaders();
+      const res = await fetch('/api/sticky-notes', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({
           content: content.trim(),
           color,
-          position_x: 20 + Math.random() * 100,
-          position_y: 80 + Math.random() * 80,
-          is_minimized: false,
-        } as Record<string, unknown>);
+          position_x: Math.floor(20 + Math.random() * 100),
+          position_y: Math.floor(80 + Math.random() * 80),
+        }),
+      });
 
-      if (error) {
-        console.error('Error creating sticky note:', error);
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        console.error('Error creating sticky note:', data.error);
         toast.error(t('todos.stickyNoteCreateFailed'));
       } else {
         toast.success(t('todos.stickyNoteCreated'));
@@ -69,7 +68,8 @@ export default function StickyNoteModal({ open, onClose }: StickyNoteModalProps)
         setColor('amber');
         onClose();
       }
-    } catch {
+    } catch (err) {
+      console.error('Create sticky note error:', err);
       toast.error(t('todos.stickyNoteCreateFailed'));
     } finally {
       setCreating(false);
