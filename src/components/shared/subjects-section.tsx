@@ -1178,8 +1178,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
         <div>
-          {/* Breadcrumb when inside a category */}
-          {filterCategory && !categoriesView && role === 'teacher' ? (
+          {/* Breadcrumb when inside a category or all-courses view */}
+          {!categoriesView && role === 'teacher' ? (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { setFilterCategory(''); setCategoriesView(true); }}
@@ -1189,10 +1189,15 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               </button>
               <ChevronLeft className={`h-5 w-5 text-muted-foreground ${direction === 'rtl' ? 'rotate-180' : ''}`} />
               <h2 className="text-2xl font-bold text-foreground">
-                {(() => {
-                  const cat = categories.find(c => c.id === filterCategory);
-                  return cat ? getCategoryName(cat) : '';
-                })()}
+                {filterCategory === '__none__'
+                  ? t('subjects.withoutCategory')
+                  : filterCategory
+                    ? (() => {
+                        const cat = categories.find(c => c.id === filterCategory);
+                        return cat ? getCategoryName(cat) : '';
+                      })()
+                    : t('subjects.allCourses')
+                }
               </h2>
             </div>
           ) : (
@@ -1461,17 +1466,13 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                         </div>
                         {courseCount > 0 && (
                           <div className="mt-3 pt-3 border-t border-border">
-                            <div className="flex flex-wrap gap-1">
-                              {subjects.filter(s => s.category_id === cat.id).slice(0, 3).map(s => (
-                                <span key={s.id} className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
-                                  {s.name.length > 15 ? s.name.substring(0, 15) + '...' : s.name}
-                                </span>
-                              ))}
-                              {courseCount > 3 && (
-                                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
-                                  +{courseCount - 3}
-                                </span>
-                              )}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {subjects.filter(s => s.category_id === cat.id).map(s => s.name).join(' ، ')}
+                              </p>
+                              <span className="shrink-0 text-[10px] font-semibold text-muted-foreground">
+                                {courseCount}
+                              </span>
                             </div>
                           </div>
                         )}

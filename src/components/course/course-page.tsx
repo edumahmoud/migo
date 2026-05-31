@@ -344,7 +344,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   // Fetch categories (teacher only, for edit modal dropdown)
   // -------------------------------------------------------
   useEffect(() => {
-    if (role !== 'teacher' || !subject?.teacher_id) return;
+    if (!subject?.teacher_id) return;
     supabase
       .from('categories')
       .select('*')
@@ -359,7 +359,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   // Real-time subscription for categories — instant updates
   // -------------------------------------------------------
   useEffect(() => {
-    if (role !== 'teacher' || !subject?.teacher_id) return;
+    if (!subject?.teacher_id) return;
     const channel = supabase
       .channel(`categories-course-${subject.teacher_id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'categories', filter: `teacher_id=eq.${subject.teacher_id}` }, (payload) => {
@@ -385,7 +385,7 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [role, subject?.teacher_id]);
+  }, [subject?.teacher_id]);
 
   // -------------------------------------------------------
   // Supabase Realtime: subscribe to subject changes (UPDATE/DELETE)
@@ -758,16 +758,34 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
 
         {/* Banner content */}
         <div className="relative z-10 flex flex-col justify-between p-5 md:p-6" style={{ minHeight: '150px' }}>
-          {/* Top row: back button + actions */}
+          {/* Top row: back button + breadcrumb + actions */}
           <div className="flex items-start justify-between gap-3">
-            {/* Back button - white circle */}
-            <button
-              onClick={handleBack}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/15 backdrop-blur-sm text-white transition-all hover:bg-black/25 active:scale-95"
-              aria-label={t('course.backToSubjects')}
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
+            {/* Back button + breadcrumb */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <button
+                onClick={handleBack}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/15 backdrop-blur-sm text-white transition-all hover:bg-black/25 active:scale-95"
+                aria-label={t('course.backToSubjects')}
+              >
+                <ChevronLeft className={`h-5 w-5 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+              </button>
+              {/* Breadcrumb: Subjects » Category Name */}
+              <div className="flex items-center gap-1.5 min-w-0 text-white/70 text-xs truncate">
+                <button onClick={handleBack} className="hover:text-white transition-colors shrink-0">
+                  {t('nav.subjects')}
+                </button>
+                {subject.category_id && (() => {
+                  const cat = categories.find(c => c.id === subject.category_id);
+                  if (!cat) return null;
+                  return (
+                    <>
+                      <ChevronLeft className={`h-3 w-3 shrink-0 ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+                      <span className="truncate">{getCategoryName(cat)}</span>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
 
             {/* Right side: action buttons + join code + teacher name */}
             <div className="flex flex-col items-end gap-2">
