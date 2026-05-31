@@ -3759,9 +3759,16 @@
     "categoryColor": "لون التصنيف",
     "categoryNameRequired": "اسم التصنيف العربي مطلوب",
     "noCategories": "لا توجد تصنيفات بعد",
+    "noCategoriesDesc": "أنشئ تصنيفات لتنظيم مقرراتك الدراسية",
     "categoryCount": "{count} تصنيف",
     "noCategory": "الكل",
-    "withoutCategory": "بدون تصنيف"
+    "withoutCategory": "بدون تصنيف",
+    "categories": "التصنيفات",
+    "categoriesTitle": "التصنيفات",
+    "categoriesDesc": "تنظيم المقررات في تصنيفات للوصول السريع",
+    "newCategory": "تصنيف جديد",
+    "courseCount": "{count} مقرر",
+    "coursesInCategory": "المقررات في هذا التصنيف"
   },
   "videos": {
     "all": "الكل",

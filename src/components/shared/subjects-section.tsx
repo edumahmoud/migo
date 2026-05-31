@@ -26,6 +26,8 @@ import {
   Tag,
   Pencil,
   Trash2,
+  FolderTree,
+  ChevronLeft,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCachedAuthHeaders, initAuthCacheListener } from '@/lib/client-auth';
@@ -224,6 +226,9 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
   const [filterSubLevel, setFilterSubLevel] = useState<string>('');
   const [filterPaused, setFilterPaused] = useState<'all' | 'active' | 'paused'>('all');
   const [filterCategory, setFilterCategory] = useState<string>('');
+
+  // ─── Categories view state ───
+  const [categoriesView, setCategoriesView] = useState(false); // Show categories grid instead of courses
 
   // ─── Categories state ───
   const [categories, setCategories] = useState<Category[]>([]);
@@ -1171,9 +1176,34 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
         <div>
-          <h2 className="text-2xl font-bold text-foreground">{t('nav.subjects')}</h2>
+          {/* Breadcrumb when inside a category */}
+          {filterCategory && !categoriesView && role === 'teacher' ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setFilterCategory(''); }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <h2 className="text-2xl font-bold">{t('nav.subjects')}</h2>
+              </button>
+              <ChevronLeft className={`h-5 w-5 text-muted-foreground ${direction === 'rtl' ? 'rotate-180' : ''}`} />
+              <h2 className="text-2xl font-bold text-foreground">
+                {(() => {
+                  const cat = categories.find(c => c.id === filterCategory);
+                  return cat ? getCategoryName(cat) : '';
+                })()}
+              </h2>
+            </div>
+          ) : (
+            <h2 className="text-2xl font-bold text-foreground">
+              {categoriesView ? t('subjects.categoriesTitle') : t('nav.subjects')}
+            </h2>
+          )}
           <p className="text-muted-foreground mt-1 text-sm">
-            {role === 'teacher' ? t('course.coursePage') : t('course.enrolledStudents')}
+            {categoriesView
+              ? t('subjects.categoriesDesc')
+              : filterCategory && role === 'teacher'
+                ? t('subjects.coursesInCategory')
+                : role === 'teacher' ? t('course.coursePage') : t('course.enrolledStudents')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1189,7 +1219,10 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
           )}
           {role === 'teacher' && (
             <button
-              onClick={() => setCreateSubjectOpen(true)}
+              onClick={() => {
+                setNewSubjectCategory(filterCategory || '');
+                setCreateSubjectOpen(true);
+              }}
               className="flex items-center gap-1.5 sm:gap-2 rounded-xl bg-sky-700 px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white shadow-sm shadow-sky-200 transition-all hover:bg-sky-800 hover:shadow-md hover:shadow-sky-200 active:scale-[0.97]"
             >
               <Plus className="h-4 w-4" />
@@ -1197,20 +1230,40 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               <span className="hidden sm:inline">{t('dashboard.createSubject')}</span>
             </button>
           )}
-          {role === 'teacher' && (
+          {role === 'teacher' && categoriesView && (
             <button
               onClick={openNewCategory}
-              className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-sky-200 dark:border-sky-800 px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-sky-700 dark:text-sky-400 transition-all hover:bg-sky-50 dark:hover:bg-sky-900/20 active:scale-[0.97]"
+              className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-emerald-200 dark:border-emerald-800 px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-emerald-700 dark:text-emerald-400 transition-all hover:bg-emerald-50 dark:hover:bg-emerald-900/20 active:scale-[0.97]"
             >
-              <Tag className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('subjects.manageCategories')}</span>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">{t('subjects.newCategory')}</span>
+            </button>
+          )}
+          {role === 'teacher' && (
+            <button
+              onClick={() => {
+                if (categoriesView) {
+                  setCategoriesView(false);
+                } else {
+                  setFilterCategory('');
+                  setCategoriesView(true);
+                }
+              }}
+              className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border px-2.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium transition-all active:scale-[0.97] ${
+                categoriesView
+                  ? 'border-sky-400 dark:border-sky-600 bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300'
+                  : 'border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20'
+              }`}
+            >
+              <FolderTree className="h-4 w-4" />
+              <span className="hidden sm:inline">{t('subjects.categories')}</span>
             </button>
           )}
         </div>
       </motion.div>
 
       {/* ─── Filters ─── */}
-      {!loadingSubjects && subjects.length > 0 && (
+      {!loadingSubjects && subjects.length > 0 && !categoriesView && (
         <motion.div
           variants={cardVariants}
           className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm"
@@ -1303,6 +1356,133 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
               </button>
             )}
           </div>
+        </motion.div>
+      )}
+
+      {/* ─── Categories View (teacher only) ─── */}
+      {role === 'teacher' && categoriesView && !loadingSubjects && (
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
+          {categories.length === 0 ? (
+            <motion.div
+              variants={cardVariants}
+              className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 dark:border-emerald-900/60 bg-gradient-to-b from-emerald-50/50 dark:from-emerald-900/20 to-transparent py-20"
+            >
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-800/40 mb-5">
+                <FolderTree className="h-10 w-10 text-emerald-700 dark:text-emerald-400" />
+              </div>
+              <p className="text-lg font-bold text-foreground mb-1.5">{t('subjects.noCategories')}</p>
+              <p className="text-sm text-muted-foreground mb-6">{t('subjects.noCategoriesDesc')}</p>
+              <button
+                onClick={openNewCategory}
+                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 active:scale-[0.97]"
+              >
+                <Plus className="h-4 w-4" />
+                {t('subjects.newCategory')}
+              </button>
+            </motion.div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {categories.map((cat) => {
+                const courseCount = subjects.filter(s => s.category_id === cat.id).length;
+                const catColor = cat.color || '#0369A1';
+                return (
+                  <motion.div key={cat.id} variants={cardVariants}>
+                    <div
+                      onClick={() => {
+                        setFilterCategory(cat.id);
+                        setCategoriesView(false);
+                      }}
+                      className="group cursor-pointer rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-0.5"
+                    >
+                      {/* Color bar */}
+                      <div className="h-2" style={{ backgroundColor: catColor }} />
+                      <div className="p-5">
+                        <div className="flex items-start justify-between mb-3">
+                          <div
+                            className="flex h-10 w-10 items-center justify-center rounded-xl text-white shrink-0"
+                            style={{ backgroundColor: catColor }}
+                          >
+                            <FolderTree className="h-5 w-5" />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingCategory(cat); setNewCategoryNameAr(cat.name_ar); setNewCategoryNameEn(cat.name_en || ''); setNewCategoryColor(cat.color || SUBJECT_COLORS[0]); setCategoryModalOpen(true); }}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteCategoryConfirm(cat); }}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <h3 className="font-bold text-foreground text-sm leading-tight mb-1 line-clamp-2">
+                          {getCategoryName(cat)}
+                        </h3>
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            {t('subjects.courseCount', { count: courseCount })}
+                          </span>
+                        </div>
+                        {courseCount > 0 && (
+                          <div className="mt-3 pt-3 border-t border-border">
+                            <div className="flex flex-wrap gap-1">
+                              {subjects.filter(s => s.category_id === cat.id).slice(0, 3).map(s => (
+                                <span key={s.id} className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                                  {s.name.length > 15 ? s.name.substring(0, 15) + '...' : s.name}
+                                </span>
+                              ))}
+                              {courseCount > 3 && (
+                                <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                                  +{courseCount - 3}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+              {/* "Uncategorized" card */}
+              {(() => {
+                const uncategorizedCount = subjects.filter(s => !s.category_id).length;
+                if (uncategorizedCount === 0) return null;
+                return (
+                  <motion.div variants={cardVariants}>
+                    <div
+                      onClick={() => {
+                        setFilterCategory('__none__');
+                        setCategoriesView(false);
+                      }}
+                      className="group cursor-pointer rounded-2xl border border-dashed bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-0.5"
+                    >
+                      <div className="h-2 bg-gray-300 dark:bg-gray-700" />
+                      <div className="p-5">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0 mb-3">
+                          <BookOpen className="h-5 w-5" />
+                        </div>
+                        <h3 className="font-bold text-foreground text-sm leading-tight mb-1">
+                          {t('subjects.withoutCategory')}
+                        </h3>
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">
+                            {t('subjects.courseCount', { count: uncategorizedCount })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })()}
+            </div>
+          )}
         </motion.div>
       )}
 

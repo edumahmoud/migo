@@ -3759,9 +3759,16 @@
     "categoryColor": "Category Color",
     "categoryNameRequired": "Arabic category name is required",
     "noCategories": "No categories yet",
+    "noCategoriesDesc": "Create categories to organize your courses",
     "categoryCount": "{count} categories",
     "noCategory": "All",
-    "withoutCategory": "Without Category"
+    "withoutCategory": "Without Category",
+    "categories": "Categories",
+    "categoriesTitle": "Categories",
+    "categoriesDesc": "Organize courses into categories for quick access",
+    "newCategory": "New Category",
+    "courseCount": "{count} courses",
+    "coursesInCategory": "Courses in this category"
   },
   "videos": {
     "all": "All",
