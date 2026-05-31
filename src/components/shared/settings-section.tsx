@@ -81,6 +81,7 @@ const GENDER_OPTIONS = [
 const ACADEMIC_TITLES = [
   { value: 'teacher', label: 'titles.teacher', femaleLabel: 'titles.teacherFemale' },
   { value: 'dr', label: 'titles.dr', femaleLabel: 'titles.drFemale' },
+  { value: 'instructor', label: 'titles.instructor', femaleLabel: 'titles.instructorFemale' },
   { value: 'prof', label: 'titles.prof', femaleLabel: 'titles.profFemale' },
   { value: 'assoc_prof', label: 'titles.assocProf', femaleLabel: 'titles.assocProfFemale' },
   { value: 'assist_prof', label: 'titles.assistProf', femaleLabel: 'titles.assistProfFemale' },

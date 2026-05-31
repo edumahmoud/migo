@@ -10,6 +10,7 @@ import { useTranslations } from '@/i18n/use-translations';
 const ACADEMIC_TITLE_KEYS = [
   { value: 'teacher', key: 'teacher' },
   { value: 'dr', key: 'doctor' },
+  { value: 'instructor', key: 'instructor' },
   { value: 'prof', key: 'professor' },
   { value: 'assoc_prof', key: 'associateProfessor' },
   { value: 'assist_prof', key: 'assistantProfessor' },
@@ -21,7 +22,7 @@ export function getAcademicTitles(t: (key: string) => string) {
   return ACADEMIC_TITLE_KEYS.map(item => ({
     value: item.value,
     label: t(`academicTitles.${item.key}`),
-    femaleLabel: t(`roles.${item.key === 'teacher' ? 'teacherWithGender.female' : item.value === 'dr' ? 'doctorFemale' : item.value === 'prof' ? 'professorFemale' : item.value === 'assoc_prof' ? 'associateProfessorFemale' : item.value === 'assist_prof' ? 'assistantProfessorFemale' : item.key === 'lecturer' ? 'lecturerFemale' : item.value === 'teaching_assist' ? 'teachingAssistantFemale' : 'teachingAssistantFemale'}`),
+    femaleLabel: t(`${item.key === 'teacher' ? 'roles.teacherWithGender.female' : item.value === 'dr' ? 'roles.doctorFemale' : item.value === 'instructor' ? 'titles.instructorFemale' : item.value === 'prof' ? 'roles.professorFemale' : item.value === 'assoc_prof' ? 'roles.associateProfessorFemale' : item.value === 'assist_prof' ? 'roles.assistantProfessorFemale' : item.key === 'lecturer' ? 'roles.lecturerFemale' : item.value === 'teaching_assist' ? 'roles.teachingAssistantFemale' : 'roles.teachingAssistantFemale'}`),
   }));
 }
 
@@ -36,6 +37,7 @@ export function getTitleLabel(titleId?: string | null, gender?: string | null, t
   if (gender === 'female') {
     const femaleKey = titleKey.key === 'teacher' ? 'roles.teacherWithGender.female' 
       : titleKey.key === 'doctor' ? 'roles.doctorFemale' 
+      : titleKey.key === 'instructor' ? 'titles.instructorFemale'
       : titleKey.key === 'professor' ? 'roles.professorFemale' 
       : titleKey.key === 'associateProfessor' ? 'roles.associateProfessorFemale' 
       : titleKey.key === 'assistantProfessor' ? 'roles.assistantProfessorFemale'

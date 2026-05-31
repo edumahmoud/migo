@@ -349,7 +349,8 @@
     "assistantProfessor": "أ.م.م",
     "lecturer": "م.م",
     "teachingAssistant": "م.ت",
-    "doctor": "د"
+    "doctor": "د",
+    "instructor": "مُدرب"
   },
   "features": {
     "ai": "ذكاء اصطناعي",
@@ -3876,6 +3877,8 @@
     "teacherFemale": "معلمة",
     "dr": "دكتور",
     "drFemale": "دكتورة",
+    "instructor": "مُدرب",
+    "instructorFemale": "مُدربة",
     "prof": "أستاذ دكتور",
     "profFemale": "أستاذة دكتورة",
     "assocProf": "أستاذ مشارك",

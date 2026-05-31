@@ -349,7 +349,8 @@
     "assistantProfessor": "Asst. Prof.",
     "lecturer": "Lecturer",
     "teachingAssistant": "TA",
-    "doctor": "Dr."
+    "doctor": "Dr.",
+    "instructor": "Instructor"
   },
   "features": {
     "ai": "AI Powered",
@@ -3876,6 +3877,8 @@
     "teacherFemale": "Teacher",
     "dr": "Dr.",
     "drFemale": "Dr.",
+    "instructor": "Instructor",
+    "instructorFemale": "Instructor",
     "prof": "Professor",
     "profFemale": "Professor",
     "assocProf": "Assoc. Professor",
