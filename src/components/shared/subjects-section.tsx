@@ -1417,22 +1417,23 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                   }}
                   className="group cursor-pointer rounded-2xl border-2 border-sky-200 dark:border-sky-800 bg-gradient-to-br from-sky-50 to-sky-100/50 dark:from-sky-900/30 dark:to-sky-800/20 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-0.5"
                 >
-                  <div className="h-2 bg-sky-500" />
-                  <div className="p-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-600 text-white shrink-0 mb-3">
-                      <BookOpen className="h-5 w-5" />
-                    </div>
-                    <h3 className="font-bold text-foreground text-sm leading-tight mb-1">
-                      {t('subjects.allCourses')}
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground leading-snug mt-1">
-                      {t('subjects.allCoursesDesc')}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <BookOpen className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
-                      <span className="text-xs font-medium text-sky-700 dark:text-sky-400">
-                        {t('subjects.courseCount', { count: subjects.length })}
-                      </span>
+                  <div className="h-1.5 bg-sky-500" />
+                  <div className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-600 text-white shrink-0">
+                        <BookOpen className="h-4.5 w-4.5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-bold text-foreground text-sm leading-tight truncate">
+                          {t('subjects.allCourses')}
+                        </h3>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <BookOpen className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                          <span className="text-[11px] font-medium text-sky-700 dark:text-sky-400">
+                            {t('subjects.courseCount', { count: subjects.length })}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1450,16 +1451,29 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       className="group cursor-pointer rounded-2xl border bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-0.5"
                     >
                       {/* Color bar */}
-                      <div className="h-2" style={{ backgroundColor: catColor }} />
-                      <div className="p-5">
-                        <div className="flex items-start justify-between mb-3">
-                          <div
-                            className="flex h-10 w-10 items-center justify-center rounded-xl text-white shrink-0"
-                            style={{ backgroundColor: catColor }}
-                          >
-                            <FolderTree className="h-5 w-5" />
+                      <div className="h-1.5" style={{ backgroundColor: catColor }} />
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div
+                              className="flex h-9 w-9 items-center justify-center rounded-lg text-white shrink-0"
+                              style={{ backgroundColor: catColor }}
+                            >
+                              <FolderTree className="h-4.5 w-4.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="font-bold text-foreground text-sm leading-tight truncate">
+                                {getCategoryName(cat)}
+                              </h3>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <BookOpen className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-[11px] text-muted-foreground">
+                                  {t('subjects.courseCount', { count: courseCount })}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5 shrink-0">
                             <button
                               onClick={(e) => { e.stopPropagation(); setEditingCategory(cat); setNewCategoryNameAr(cat.name_ar); setNewCategoryNameEn(cat.name_en || ''); setNewCategoryColor(cat.color || SUBJECT_COLORS[0]); setCategoryModalOpen(true); }}
                               className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -1474,17 +1488,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                             </button>
                           </div>
                         </div>
-                        <h3 className="font-bold text-foreground text-sm leading-tight mb-1 line-clamp-2">
-                          {getCategoryName(cat)}
-                        </h3>
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">
-                            {t('subjects.courseCount', { count: courseCount })}
-                          </span>
-                        </div>
                         {courseCount > 0 && (
-                          <div className="mt-3 pt-3 border-t border-border">
+                          <div className="mt-3 pt-2.5 border-t border-border">
                             <div className="flex flex-wrap gap-1">
                               {subjects.filter(s => s.category_id === cat.id).slice(0, 3).map(s => (
                                 <span key={s.id} className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
@@ -1517,19 +1522,23 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
                       }}
                       className="group cursor-pointer rounded-2xl border border-dashed bg-card shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden hover:-translate-y-0.5"
                     >
-                      <div className="h-2 bg-gray-300 dark:bg-gray-700" />
-                      <div className="p-5">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0 mb-3">
-                          <BookOpen className="h-5 w-5" />
-                        </div>
-                        <h3 className="font-bold text-foreground text-sm leading-tight mb-1">
-                          {t('subjects.withoutCategory')}
-                        </h3>
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">
-                            {t('subjects.courseCount', { count: uncategorizedCount })}
-                          </span>
+                      <div className="h-1.5 bg-gray-300 dark:bg-gray-700" />
+                      <div className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 shrink-0">
+                            <BookOpen className="h-4.5 w-4.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-bold text-foreground text-sm leading-tight truncate">
+                              {t('subjects.withoutCategory')}
+                            </h3>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <BookOpen className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-[11px] text-muted-foreground">
+                                {t('subjects.courseCount', { count: uncategorizedCount })}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
