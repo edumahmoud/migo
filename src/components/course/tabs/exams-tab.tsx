@@ -1057,91 +1057,71 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
 
       XLSX.utils.book_append_sheet(wb, summaryWs, t('exams.excelSummarySheet'));
 
-      // ─── Sheet 2: Detailed Q&A ───
+      // ─── Sheet 2: Per-student answers matrix (one row per student, questions as columns) ───
       const questions = quiz.questions || [];
-      const detailRows: Record<string, string>[] = [];
+      const studentNameKey = t('exams.excelStudentName');
+      const scoreKey = t('exams.excelScore');
 
-      for (const s of qScores) {
+      // Build header: Student Name | Q1 | Q2 | ... | Qn | Score
+      const headers: string[] = [studentNameKey];
+      questions.forEach((q, idx) => {
+        const typeLabel = q.type === 'mcq' ? '☁' : q.type === 'boolean' ? '✓✗' : q.type === 'completion' ? '✍' : '🔗';
+        headers.push(`${t('exams.excelQuestion')}${idx + 1} ${typeLabel}`);
+      });
+      headers.push(scoreKey);
+
+      // Build data rows — one row per student
+      const rows: (string | number)[][] = qScores.map((s) => {
         const student = subjectStudents.find((st) => st.id === s.student_id);
         const studentName = student?.name || '—';
-        const studentEmail = student?.email || '—';
-        const userAnswers = s.user_answers || [];
+        const row: (string | number)[] = [studentName];
 
-        for (const ua of userAnswers) {
-          const q = questions[ua.questionIndex];
-          if (!q) continue;
-
-          const questionText = q.question || '';
-          const correctAnswer = q.correctAnswer || (q.pairs ? q.pairs.map(p => `${p.key} → ${p.value}`).join(', ') : '');
-          const studentAnswer = typeof ua.answer === 'string' ? ua.answer :
-            (q.type === 'matching' ? Object.entries(ua.answer).map(([k, v]) => `${k} → ${v}`).join(', ') : JSON.stringify(ua.answer));
-          const status = ua.isCorrect ? '✓' : '✗';
-
-          detailRows.push({
-            [t('exams.excelStudentName')]: studentName,
-            [t('exams.excelEmail')]: studentEmail,
-            [t('exams.excelQuestionNum')]: `${ua.questionIndex + 1}`,
-            [t('exams.excelQuestion')]: questionText,
-            [t('exams.excelCorrectAnswer')]: correctAnswer,
-            [t('exams.excelStudentAnswer')]: studentAnswer,
-            [t('exams.excelStatus')]: status,
-          });
-        }
-      }
-
-      if (detailRows.length > 0) {
-        const detailWs = XLSX.utils.json_to_sheet(detailRows);
-
-        // Auto-size columns for detail sheet
-        const detailColWidths = Object.keys(detailRows[0]).map((key) => ({
-          wch: Math.max(key.length + 2, ...detailRows.slice(0, 50).map((row) => String(row[key] || '').length + 2), 15),
-        }));
-        detailWs['!cols'] = detailColWidths;
-
-        // Apply color coding to the Status column
-        const statusColIndex = Object.keys(detailRows[0]).indexOf(t('exams.excelStatus'));
-        if (statusColIndex >= 0) {
-          const statusColLetter = XLSX.utils.encode_col(statusColIndex);
-          for (let i = 0; i < detailRows.length; i++) {
-            const cellRef = `${statusColLetter}${i + 2}`; // +2 for header row and 0-index
-            const cell = detailWs[cellRef];
-            if (cell) {
-              if (cell.v === '✓') {
-                cell.s = {
-                  font: { color: { rgb: '16A34A' }, bold: true },
-                  fill: { fgColor: { rgb: 'DCFCE7' } },
-                };
-              } else if (cell.v === '✗') {
-                cell.s = {
-                  font: { color: { rgb: 'DC2626' }, bold: true },
-                  fill: { fgColor: { rgb: 'FEE2E2' } },
-                };
-              }
-            }
+        questions.forEach((_, idx) => {
+          const ua = s.user_answers?.[idx];
+          if (!ua) {
+            row.push('—');
+          } else if (ua.type === 'matching' && typeof ua.answer === 'object') {
+            const pairs = Object.entries(ua.answer as Record<string, string>)
+              .map(([k, v]) => `${k}→${v}`)
+              .join(', ');
+            row.push(pairs);
+          } else {
+            row.push(String(ua.answer));
           }
-        }
+        });
 
-        // Also color-code the student answer column based on correctness
-        const studentAnswerColIndex = Object.keys(detailRows[0]).indexOf(t('exams.excelStudentAnswer'));
-        if (studentAnswerColIndex >= 0 && statusColIndex >= 0) {
-          const answerColLetter = XLSX.utils.encode_col(studentAnswerColIndex);
-          const ansStatusColLetter = XLSX.utils.encode_col(statusColIndex);
-          for (let i = 0; i < detailRows.length; i++) {
-            const cellRef = `${answerColLetter}${i + 2}`;
-            const cell = detailWs[cellRef];
-            const statusCell = detailWs[`${ansStatusColLetter}${i + 2}`];
-            if (cell && statusCell) {
-              if (statusCell.v === '✓') {
-                cell.s = { font: { color: { rgb: '16A34A' } } };
-              } else if (statusCell.v === '✗') {
-                cell.s = { font: { color: { rgb: 'DC2626' } } };
-              }
-            }
+        row.push(`${s.score}/${s.total}`);
+        return row;
+      });
+
+      const detailWs = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+      // Set column widths
+      detailWs['!cols'] = headers.map((_, i) => {
+        if (i === 0) return { wch: 25 };
+        if (i === headers.length - 1) return { wch: 12 };
+        return { wch: 20 };
+      });
+
+      // Conditional formatting: correct = green, incorrect = red
+      qScores.forEach((s, rowIdx) => {
+        questions.forEach((_, qIdx) => {
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: qIdx + 1 });
+          const cell = detailWs[cellRef];
+          if (!cell) return;
+          const ua = s.user_answers?.[qIdx];
+          if (ua) {
+            cell.s = {
+              font: { color: { rgb: ua.isCorrect ? '16A34A' : 'DC2626' }, bold: !ua.isCorrect },
+              fill: ua.isCorrect
+                ? { fgColor: { rgb: 'DCFCE7' } }
+                : { fgColor: { rgb: 'FEE2E2' } },
+            };
           }
-        }
+        });
+      });
 
-        XLSX.utils.book_append_sheet(wb, detailWs, t('exams.excelDetailSheet'));
-      }
+      XLSX.utils.book_append_sheet(wb, detailWs, t('exams.excelDetailSheet'));
 
       XLSX.writeFile(wb, `${quiz.title}_${t('exams.exportResults')}_${new Date().toISOString().split('T')[0]}.xlsx`);
       toast.success(t('exams.toastExportSuccess'));

@@ -424,6 +424,37 @@ export default function CoursePage({ profile, role }: CoursePageProps) {
   }, [subject?.id]);
 
   // -------------------------------------------------------
+  // Realtime: listen for subject UPDATE/DELETE to refresh without page reload
+  // -------------------------------------------------------
+  useEffect(() => {
+    if (!selectedSubjectId) return;
+
+    const channel = supabase
+      .channel(`course-subject-${selectedSubjectId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'subjects', filter: `id=eq.${selectedSubjectId}` },
+        (payload) => {
+          const updated = payload.new as Subject;
+          setSubject((prev) => (prev ? { ...prev, ...updated } : prev));
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'subjects', filter: `id=eq.${selectedSubjectId}` },
+        () => {
+          toast.info(t('course.toastSubjectDeleted'));
+          handleBack();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedSubjectId]);
+
+  // -------------------------------------------------------
   // Handle back navigation
   // -------------------------------------------------------
   const handleBack = () => {
