@@ -788,7 +788,8 @@ export default function TeacherDashboard({ profile, onSignOut }: TeacherDashboar
       quizzes.forEach((q) => {
         const qScores = scores.filter((s) => s.quiz_id === q.id);
         q.questions?.forEach((question, idx) => {
-          const correctCount = qScores.filter((s) => s.user_answers?.[idx]?.isCorrect).length;
+          // KEY FIX: match by questionIndex (original order), NOT array position — handles shuffled quizzes
+          const correctCount = qScores.filter((s) => s.user_answers?.find((a: { questionIndex: number }) => a.questionIndex === idx)?.isCorrect).length;
           questionData.push({
             [t('teacher.excelQuiz')]: q.title,
             [t('teacher.excelQuestionNumber')]: idx + 1,

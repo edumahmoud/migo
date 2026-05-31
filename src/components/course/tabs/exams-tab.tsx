@@ -1114,11 +1114,13 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         const student = subjectStudents.find((st) => st.id === s.student_id);
         const rowValues: (string | number)[] = [student?.name || '—', student?.email || '—'];
 
-        questions.forEach((_, idx) => {
-          const ua = s.user_answers?.[idx];
+        questions.forEach((q, idx) => {
+          // KEY FIX: match by questionIndex (original order), NOT array position
+          // This handles shuffled quizzes where user_answers are sorted by original questionIndex
+          const ua = s.user_answers?.find((a: { questionIndex: number }) => a.questionIndex === idx);
           if (!ua) {
             rowValues.push('—');
-          } else if (ua.type === 'matching' && typeof ua.answer === 'object') {
+          } else if (q.type === 'matching' && typeof ua.answer === 'object') {
             const pairs = Object.entries(ua.answer as Record<string, string>)
               .map(([k, v]) => `${k}→${v}`)
               .join(', ');
@@ -1146,7 +1148,8 @@ export default function ExamsTab({ profile, role, subjectId, subject }: ExamsTab
         // Apply conditional formatting: green for correct, red for wrong
         questions.forEach((_, qIdx) => {
           const cell = addedRow.getCell(qIdx + 3); // +3: col 1=name, col 2=email, questions start at col 3
-          const ua = s.user_answers?.[qIdx];
+          // KEY FIX: match by questionIndex (original order), NOT array position
+          const ua = s.user_answers?.find((a: { questionIndex: number }) => a.questionIndex === qIdx);
           if (ua) {
             if (ua.isCorrect) {
               // Correct answer: green background, green font
