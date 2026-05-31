@@ -8,7 +8,6 @@ import {
   Award,
   Users,
   Filter,
-  ArrowUpDown,
   ChevronDown,
   BarChart3,
   ClipboardList,
@@ -27,6 +26,7 @@ import {
   Flame,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import type { UserProfile, Score, Quiz, Subject } from '@/lib/types';
@@ -1133,20 +1133,20 @@ export default function TeacherStudentTrackingSection({
                 </div>
 
                 {/* Sort dropdown */}
-                <div className="relative">
-                  <select
-                    value={sortBy}
-                    onChange={e => setSortBy(e.target.value as SortOption)}
-                    className="h-9 ps-3 pe-8 rounded-lg border border-gray-200 dark:border-gray-800/60 bg-white dark:bg-card text-sm focus:outline-none focus:ring-2 focus:ring-sky-200 focus:border-sky-300 appearance-none cursor-pointer"
-                    dir={direction}
-                  >
-                    {SORT_OPTIONS.map(opt => (
-                      <option key={opt.key} value={opt.key}>
-                        {t('teacher.trackingSortBy')} {t(opt.label)}
-                      </option>
-                    ))}
-                  </select>
-                  <ArrowUpDown className="absolute end-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{t('teacher.trackingSortBy')}</span>
+                  <Select value={sortBy} onValueChange={(val) => setSortBy(val as SortOption)} dir={direction}>
+                    <SelectTrigger className="h-9 w-auto min-w-[120px] ps-3 pe-8 rounded-lg border border-gray-200 dark:border-gray-800/60 bg-white dark:bg-card text-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-300">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg">
+                      {SORT_OPTIONS.map(opt => (
+                        <SelectItem key={opt.key} value={opt.key} className="text-sm">
+                          {t(opt.label)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
