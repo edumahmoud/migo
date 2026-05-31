@@ -1566,8 +1566,8 @@ export default function SubjectsSection({ profile, role }: SubjectsSectionProps)
         </motion.div>
       )}
 
-      {/* ─── Compute filtered subject lists ─── */}
-      {(() => {
+      {/* ─── Compute filtered subject lists ─── (hidden when categoriesView is active) */}
+      {!categoriesView && (() => {
         // Apply level/sub_level filters first
         // Backward compatibility: map old values to new ones
         const mapSubLevel = (val: string | undefined): string | undefined => {
